@@ -551,6 +551,16 @@ input[type="date"].input { min-height: 48px; }
   background: #EBE9E4;
   color: #000;
   font-family: 'Plus Jakarta Sans', sans-serif;
+  /* Chrome's mobile text autosizing must never touch this document. It inflates
+     long paragraphs only — the description, never a table cell — and it does so
+     at layout time, invisibly to getComputedStyle. html2canvas snapshots through
+     a clone iframe, where the page's viewport meta no longer applies and
+     autosizing switches itself back on: the description then lays out inflated
+     while the glyphs are still painted at 13px, so the letters spread apart and
+     the block runs off the bottom of the capture. Desktop never boosts, which is
+     why this only ever showed up on a phone. */
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
   display: flex;
   flex-direction: column;
   align-items: flex-start;

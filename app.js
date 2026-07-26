@@ -26,6 +26,8 @@
 
   const PDF_PAGE_WIDTH_PT = 595.28;  // A4 width, so the file still prints sensibly
   const SNAPSHOT_SCALE = 3;
+  const Q_PAD = 32;                  // the document's own padding, in CSS px
+  const CAPTURE_SLACK = 240;         // spare CSS px below the page, trimmed after
 
   /* Watermark: the document background is a soft, grainy field generated from a
      seed made of the quotation's own contents. Any edit to the name, items,
@@ -541,6 +543,67 @@
     } catch (e) { /* fall through to the system fallback */ }
   }
 
+  /* html2canvas renders from a clone of the document inside its own iframe. That
+     iframe is a fresh layout environment: it resolves fonts independently of
+     this document, and the page's viewport meta does not apply inside it. Both
+     have to be pinned down here or the clone lays text out differently from what
+     was measured. The autosize lock is belt and braces — styles.css sets it on
+     .q too, this only covers the clone being styled late. */
+  async function cloneReady(doc) {
+    const root = doc.documentElement;
+    if (root) {
+      root.style.setProperty('-webkit-text-size-adjust', 'none');
+      root.style.setProperty('text-size-adjust', 'none');
+    }
+    if (!doc.fonts) return;
+    try {
+      await Promise.all([
+        doc.fonts.load('400 13px "Plus Jakarta Sans"'),
+        doc.fonts.load('600 13px "Plus Jakarta Sans"'),
+        doc.fonts.load('600 44px "Plus Jakarta Sans"')
+      ]);
+      await doc.fonts.ready;
+    } catch (e) { /* fall through to the system fallback */ }
+  }
+
+  /* Crop the transparent band off the bottom of a capture, then give back the
+     document's own bottom padding. The page is snapshotted taller than it
+     measured, so whatever the clone actually laid out is inside the canvas;
+     this finds where the ink really ends rather than trusting the measurement. */
+  function trimToContent(src, padPx, minHeight) {
+    const ctx = src.getContext('2d');
+    const w = src.width;
+
+    // Only the band below minHeight can be spare — read it in one go and walk
+    // up it, rather than paying for a getImageData call per row of the page.
+    const top = Math.max(0, Math.min(minHeight, src.height));
+    const band = src.height - top;
+    if (band <= 0) return src;
+
+    const data = ctx.getImageData(0, top, w, band).data;
+    let last = -1;
+    for (let y = band - 1; y >= 0 && last < 0; y--) {
+      const start = y * w * 4;
+      for (let i = start + 3; i < start + w * 4; i += 4) {
+        if (data[i] > 0) { last = top + y; break; }
+      }
+    }
+    // Nothing spilled past the measured height: drop the whole spare band.
+    // Otherwise keep down to the last ink and give back the bottom padding, but
+    // never crop above the measured height — the trailing transparent pixels
+    // inside the signature mark are part of the design, not overflow.
+    const height = last < 0
+      ? top
+      : Math.min(src.height, Math.max(top, Math.round(last + 1 + padPx)));
+    if (height === src.height) return src;
+
+    const out = document.createElement('canvas');
+    out.width = w;
+    out.height = height;
+    out.getContext('2d').drawImage(src, 0, 0);
+    return out;
+  }
+
   function buildFilename() {
     const iso = el.quoteDate.value || todayISO();
     const safe = sanitizeForFilename(el.customerName.value);
@@ -562,23 +625,33 @@
       await imagesReady(el.quotation);
 
       const docW = el.quotation.offsetWidth;
-      const docH = el.quotation.offsetHeight;
+      const measuredH = el.quotation.offsetHeight;
 
       // Snapshot the page over nothing, so the seeded field shows through.
       el.quotation.style.backgroundColor = 'transparent';
-      let page;
+      let raw;
       try {
-        page = await html2canvas(el.quotation, {
+        raw = await html2canvas(el.quotation, {
           scale: SNAPSHOT_SCALE,
           backgroundColor: null,
           useCORS: true,
           logging: false,
           width: docW,
-          height: docH
+          // Capture with slack below the measured height. html2canvas lays the
+          // clone out itself, so its text can land a line or two lower than the
+          // live DOM did; without slack that overflow is simply clipped off the
+          // bottom of the page. The extra band is transparent and trimmed below.
+          height: measuredH + CAPTURE_SLACK,
+          onclone: cloneReady
         });
       } finally {
         el.quotation.style.backgroundColor = '';
       }
+
+      const page = trimToContent(
+        raw, Q_PAD * SNAPSHOT_SCALE, measuredH * SNAPSHOT_SCALE
+      );
+      const docH = page.height / SNAPSHOT_SCALE;
 
       const watermark = buildWatermark(
         watermarkSeed(readItems()), docW, docH, SNAPSHOT_SCALE

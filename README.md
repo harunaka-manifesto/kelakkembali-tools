@@ -32,6 +32,7 @@ npx vercel deploy --prod
 |---|---|
 | `index.html` | Form UI + the off-screen quotation template |
 | `styles.css` | Part 1: form UI. Part 2: the locked quotation document |
+| `fonts.css` | Plus Jakarta Sans, self-hosted and inlined (see below) |
 | `app.js` | State, calculations, validation, PDF export |
 | `assets/` | The two logo marks, exported from Figma at 4x |
 
@@ -43,6 +44,31 @@ field, and placed into a **jsPDF** page that is A4-width (595.28pt) and
 never a second page, never a clipped one. The page is embedded as JPEG (q0.95):
 the grain is un-compressible noise that would push a lossless page past 10 MB.
 Both libraries load from jsDelivr; there is no build.
+
+### Why the capture is defended so heavily
+
+html2canvas does not screenshot the live page. It deep-clones the document into
+an iframe, lays that out again from scratch, and paints from the clone's
+geometry using fonts resolved in *this* document. Anything that makes the clone
+lay out differently from what was measured shows up as text drawn at the wrong
+positions — glyphs at the right size, spread apart — and as content running off
+the bottom of a canvas sized from the pre-clone measurement.
+
+Three things guard against it:
+
+1. **`text-size-adjust: none` on `.q`.** Chrome's mobile text autosizing inflates
+   long paragraphs and nothing else — the description, never a table cell — at
+   layout time, invisibly to `getComputedStyle`. The page's viewport meta
+   suppresses it, but a viewport meta has no effect inside an iframe, so it
+   switched back on in the clone. This is what broke the description on a phone
+   while desktop, which never boosts, looked perfect.
+2. **The font is inlined as a data URI**, so the clone cannot fail or lag on
+   fetching it — and the PDF no longer depends on Google Fonts being reachable.
+   `onclone` also awaits the clone's own `document.fonts`.
+3. **The snapshot is taken 240px taller than measured and then trimmed** back to
+   the last row of ink plus the document's 32px padding, with the measured
+   height as a floor. If the clone ever does lay out taller, the overflow is
+   inside the canvas and is kept instead of being clipped away.
 
 ## The watermark
 
@@ -145,6 +171,11 @@ samples. **Clear sample data** resets to one blank row with nothing ticked. The
 notice disappears once the sample rows are gone or edited.
 
 ## Assets
+
+`fonts.css` carries Plus Jakarta Sans (latin subset, variable 200–800) as a
+base64 `woff2` data URI — one 27 KB face covers every weight the app uses. The
+same file is kept unencoded at `assets/fonts/` for reference. There is no
+request to Google Fonts anywhere.
 
 `assets/logo-header.png` and `assets/logo-signature.png` are the real Figma
 layers (`2:92` and `2:101`) exported at 4x — not recreations.
