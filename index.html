@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#E4E2DD">
-<title>Kelak Kembali — Quotation Generator</title>
+<title>Kelak Kembali — Quotation &amp; Invoice Generator</title>
 <link rel="stylesheet" href="fonts.css">
 <link rel="stylesheet" href="styles.css">
 <link rel="icon" href="assets/logo-header.png">
@@ -16,7 +16,7 @@
   <div class="appbar__inner">
     <img class="appbar__mark" src="assets/logo-header.png" alt="">
     <div class="appbar__text">
-      <h1>Quotation Generator</h1>
+      <h1>Quotation &amp; Invoice</h1>
       <p>Kelak Kembali</p>
     </div>
   </div>
@@ -27,7 +27,7 @@
   <div class="notice" id="sampleNotice">
     <span class="notice__icon" aria-hidden="true">📝</span>
     <div class="notice__body">
-      <p><strong>Sample data loaded</strong> — edit or clear these before downloading your quotation.</p>
+      <p><strong>Sample data loaded</strong> — edit or clear these before downloading.</p>
       <button type="button" class="btn btn--ghost btn--sm" id="clearSample">Clear sample data</button>
     </div>
   </div>
@@ -58,7 +58,7 @@
 
   <section class="card">
     <h2 class="card__title">Includes</h2>
-    <p class="card__hint">Only the selected items appear on the quotation.</p>
+    <p class="card__hint">Quotation only — the invoice has no Includes section.</p>
     <div class="chips" id="includesList"></div>
     <div class="addrow">
       <input class="input" id="customInclude" type="text" maxlength="60"
@@ -68,7 +68,8 @@
   </section>
 
   <p class="footnote">
-    Excludes text and the 35 / 35 / 30 payment terms are fixed and always printed on the quotation.
+    The 35 / 35 / 30 payment terms are fixed on both documents. The quotation carries the
+    Excludes sentence; the invoice carries the deposit amounts and the BCA payment details.
   </p>
 
 </main>
@@ -79,10 +80,16 @@
       <span class="actionbar__label">Total</span>
       <strong class="actionbar__amount" id="totalDisplay">Rp0</strong>
     </div>
-    <button type="button" class="btn btn--primary" id="downloadBtn">
-      <span class="btn__label">Download Quotation PDF</span>
-      <span class="spinner" aria-hidden="true"></span>
-    </button>
+    <div class="actionbar__buttons">
+      <button type="button" class="btn btn--primary" id="downloadQuote">
+        <span class="btn__label">Quotation PDF</span>
+        <span class="spinner" aria-hidden="true"></span>
+      </button>
+      <button type="button" class="btn btn--secondary" id="downloadInvoice">
+        <span class="btn__label">Invoice PDF</span>
+        <span class="spinner" aria-hidden="true"></span>
+      </button>
+    </div>
   </div>
 </div>
 
@@ -171,6 +178,88 @@
       </div>
 
       <div class="q-divider"><div class="q-rule"></div></div>
+    </div>
+
+    <!-- Signature container -->
+    <div class="q-signature">
+      <p class="q-sigtext">Best regards,</p>
+      <img class="q-logo2" src="assets/logo-signature.png" alt="Kelak Kembali">
+    </div>
+
+  </div>
+</div>
+
+<!-- ===================== INVOICE DOCUMENT (locked spec) ===================== -->
+<!-- Figma node 2:104. Same shell as the quotation: no greeting, no Includes,
+     deposit amounts instead of descriptions, plus the Payment to block. -->
+<div class="stage" aria-hidden="true">
+  <div class="q inv" id="invoice">
+
+    <!-- Header container -->
+    <div class="q-header">
+      <div class="q-headcol">
+        <div class="q-headrow">
+          <div class="q-headtext">
+            <div class="q-titlerow">
+              <p class="q-title">Invoice</p>
+            </div>
+            <div class="q-detailsrow">
+              <div class="q-detail">
+                <span class="q-dim">For:</span><span id="iFor"></span>
+              </div>
+              <span class="q-dot"></span>
+              <div class="q-detail">
+                <span class="q-dim">Date:</span><span id="iDate"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="q-logobox">
+        <img class="q-logo1" src="assets/logo-header.png" alt="">
+      </div>
+    </div>
+
+    <!-- Items container -->
+    <div class="q-items">
+      <div class="q-itemsection">
+        <div class="q-headersection">
+          <div class="q-divider"><div class="q-rule"></div></div>
+          <div class="q-row q-row--head">
+            <p class="q-c-item">Item</p>
+            <p class="q-c-qty">Qty</p>
+            <p class="q-c-price">Price</p>
+          </div>
+          <div class="q-divider"><div class="q-rule"></div></div>
+        </div>
+        <div class="q-itemlist">
+          <div class="q-itemcol" id="iItems"></div>
+        </div>
+      </div>
+
+      <div class="q-section">
+        <div class="q-headersection">
+          <div class="q-divider"><div class="q-rule"></div></div>
+          <div class="q-sectrow"><p class="q-b">Terms of payment</p></div>
+          <div class="q-divider"><div class="q-rule"></div></div>
+        </div>
+        <div class="q-termlist" id="iTerms"></div>
+      </div>
+
+      <div class="q-paysection">
+        <div class="q-section">
+          <div class="q-headersection">
+            <div class="q-divider"><div class="q-rule"></div></div>
+            <div class="q-sectrow"><p class="q-b">Payment to</p></div>
+            <div class="q-divider"><div class="q-rule"></div></div>
+          </div>
+          <div class="q-paydetails">
+            <p>BCA 6800 691 425</p>
+            <p>Annisa Beauty</p>
+          </div>
+        </div>
+        <div class="q-divider"><div class="q-rule"></div></div>
+      </div>
     </div>
 
     <!-- Signature container -->

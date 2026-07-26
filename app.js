@@ -1,6 +1,6 @@
-/* Kelak Kembali — Quotation Generator
-   Client-side only. Fills the locked quotation template and exports it as a
-   single-page PDF via html2canvas + jsPDF. */
+/* Kelak Kembali — Quotation & Invoice Generator
+   Client-side only. Fills the two locked templates from one form and exports
+   either as a single-page PDF via html2canvas + jsPDF. */
 
 (function () {
   'use strict';
@@ -18,6 +18,11 @@
     'Fitting',
     'Laundry'
   ];
+
+  /* Invoice only: the quotation prints these as percentages with a description,
+     the invoice prints them as rupiah amounts. */
+  const DEPOSIT_LABELS = ['1st deposit - 35%', '2nd deposit - 35%', '3rd deposit - 30%'];
+  const DEPOSIT_SHARES = [0.35, 0.35, 0.30];
 
   const SAMPLE_ITEMS = [
     { name: 'Contemporary bridal suit with one detachable element', qty: 1, price: 7225000 },
@@ -130,9 +135,12 @@
     };
   }
 
-  /** Everything that identifies this quotation, in a stable order. */
-  function watermarkSeed(items) {
+  /** Everything that identifies this document, in a stable order. The kind is
+      part of it, so a quotation and the invoice drawn from the same figures
+      still get fields of their own. */
+  function watermarkSeed(kind, items) {
     return [
+      kind,
       el.customerName.value.trim(),
       el.quoteDate.value,
       items.map((it) => it.name + '×' + it.qty + '@' + it.price).join('|')
@@ -245,14 +253,20 @@
     sampleNotice: $('#sampleNotice'),
     clearSample: $('#clearSample'),
     totalDisplay: $('#totalDisplay'),
-    downloadBtn: $('#downloadBtn'),
+    downloadQuote: $('#downloadQuote'),
+    downloadInvoice: $('#downloadInvoice'),
     toast: $('#toast'),
     quotation: $('#quotation'),
     qFor: $('#qFor'),
     qDate: $('#qDate'),
     qDear: $('#qDear'),
     qItems: $('#qItems'),
-    qIncludes: $('#qIncludes')
+    qIncludes: $('#qIncludes'),
+    invoice: $('#invoice'),
+    iFor: $('#iFor'),
+    iDate: $('#iDate'),
+    iItems: $('#iItems'),
+    iTerms: $('#iTerms')
   };
 
   const REMOVE_ICON =
@@ -430,17 +444,10 @@
     renderQuotation();
   }
 
-  /* --------------------------- Quotation rendering ----------------------- */
+  /* ---------------------------- Document rendering ------------------------ */
 
-  function renderQuotation() {
-    const name = el.customerName.value.trim();
-    const items = readItems();
-    const total = computeTotal(items);
-
-    el.qFor.textContent = name;
-    el.qDate.textContent = formatLongDate(el.quoteDate.value);
-    el.qDear.textContent = 'Dear ' + name + ',';
-
+  /** The items table, identical on both documents: named rows then the Total. */
+  function itemRowsHtml(items, total) {
     const rows = items
       .filter((it) => it.name !== '')
       .map((it) =>
@@ -457,7 +464,30 @@
         '<p class="q-c-price">' + formatRupiah(total) + '</p>' +
       '</div>'
     );
-    el.qItems.innerHTML = rows.join('');
+    return rows.join('');
+  }
+
+  /**
+   * The 35 / 35 / 30 split, in rupiah. The first two are rounded to the
+   * nearest rupiah and the third takes whatever is left, so the three always
+   * add up to the Total exactly rather than drifting a rupiah off it.
+   */
+  function depositAmounts(total) {
+    const first = Math.round(total * DEPOSIT_SHARES[0]);
+    const second = Math.round(total * DEPOSIT_SHARES[1]);
+    return [first, second, total - first - second];
+  }
+
+  function renderQuotation() {
+    const name = el.customerName.value.trim();
+    const items = readItems();
+    const total = computeTotal(items);
+
+    el.qFor.textContent = name;
+    el.qDate.textContent = formatLongDate(el.quoteDate.value);
+    el.qDear.textContent = 'Dear ' + name + ',';
+
+    el.qItems.innerHTML = itemRowsHtml(items, total);
 
     const included = checkedIncludes();
     el.qIncludes.innerHTML = '<p class="q-b">Includes:</p>' + included.map((label, i) =>
@@ -470,8 +500,30 @@
     el.totalDisplay.textContent = formatRupiah(total);
   }
 
-  function update() {
+  function renderInvoice() {
+    const items = readItems();
+    const total = computeTotal(items);
+
+    el.iFor.textContent = el.customerName.value.trim();
+    el.iDate.textContent = formatLongDate(el.quoteDate.value);
+
+    el.iItems.innerHTML = itemRowsHtml(items, total);
+
+    el.iTerms.innerHTML = depositAmounts(total).map((amount, i) =>
+      '<div class="q-row q-row--pair">' +
+        '<p class="q-c-item">' + DEPOSIT_LABELS[i] + '</p>' +
+        '<p class="q-c-price">' + formatRupiah(amount) + '</p>' +
+      '</div>'
+    ).join('');
+  }
+
+  function renderDocuments() {
     renderQuotation();
+    renderInvoice();
+  }
+
+  function update() {
+    renderDocuments();
     refreshSampleNotice();
   }
 
@@ -604,34 +656,44 @@
     return out;
   }
 
-  function buildFilename() {
+  /* The two documents differ only in which node is snapshotted and how the
+     file and messages are named — the capture path below is shared. */
+  const DOCS = {
+    quotation: { node: 'quotation', button: 'downloadQuote',   label: 'Quotation PDF', name: 'Quotation' },
+    invoice:   { node: 'invoice',   button: 'downloadInvoice', label: 'Invoice PDF',   name: 'Invoice' }
+  };
+
+  function buildFilename(kind) {
+    const prefix = DOCS[kind].name + '-KelakKembali-';
     const iso = el.quoteDate.value || todayISO();
     const safe = sanitizeForFilename(el.customerName.value);
     return safe
-      ? 'Quotation-KelakKembali-' + safe + '-' + iso + '.pdf'
-      : 'Quotation-KelakKembali-' + iso + '.pdf';
+      ? prefix + safe + '-' + iso + '.pdf'
+      : prefix + iso + '.pdf';
   }
 
-  async function downloadPdf() {
+  async function downloadPdf(kind) {
     if (!validate()) {
       showToast('Please complete the highlighted fields');
       return;
     }
 
-    setBusy(true);
-    try {
-      renderQuotation();
-      await fontsReady();
-      await imagesReady(el.quotation);
+    const doc = el[DOCS[kind].node];
 
-      const docW = el.quotation.offsetWidth;
-      const measuredH = el.quotation.offsetHeight;
+    setBusy(kind, true);
+    try {
+      renderDocuments();
+      await fontsReady();
+      await imagesReady(doc);
+
+      const docW = doc.offsetWidth;
+      const measuredH = doc.offsetHeight;
 
       // Snapshot the page over nothing, so the seeded field shows through.
-      el.quotation.style.backgroundColor = 'transparent';
+      doc.style.backgroundColor = 'transparent';
       let raw;
       try {
-        raw = await html2canvas(el.quotation, {
+        raw = await html2canvas(doc, {
           scale: SNAPSHOT_SCALE,
           backgroundColor: null,
           useCORS: true,
@@ -645,7 +707,7 @@
           onclone: cloneReady
         });
       } finally {
-        el.quotation.style.backgroundColor = '';
+        doc.style.backgroundColor = '';
       }
 
       const page = trimToContent(
@@ -654,7 +716,7 @@
       const docH = page.height / SNAPSHOT_SCALE;
 
       const watermark = buildWatermark(
-        watermarkSeed(readItems()), docW, docH, SNAPSHOT_SCALE
+        watermarkSeed(kind, readItems()), docW, docH, SNAPSHOT_SCALE
       );
 
       const canvas = document.createElement('canvas');
@@ -679,21 +741,23 @@
         canvas.toDataURL('image/jpeg', 0.95), 'JPEG',
         0, 0, PDF_PAGE_WIDTH_PT, pageHeight, undefined, 'FAST'
       );
-      pdf.save(buildFilename());
-      showToast('Quotation downloaded');
+      pdf.save(buildFilename(kind));
+      showToast(DOCS[kind].name + ' downloaded');
     } catch (err) {
       console.error(err);
       showToast('Could not generate the PDF — please try again');
     } finally {
-      setBusy(false);
+      setBusy(kind, false);
     }
   }
 
-  function setBusy(busy) {
-    el.downloadBtn.disabled = busy;
-    el.downloadBtn.classList.toggle('is-busy', busy);
-    $('.btn__label', el.downloadBtn).textContent =
-      busy ? 'Generating…' : 'Download Quotation PDF';
+  /** Both buttons lock during a capture; only the pressed one spins. */
+  function setBusy(kind, busy) {
+    Object.keys(DOCS).forEach((k) => { el[DOCS[k].button].disabled = busy; });
+
+    const btn = el[DOCS[kind].button];
+    btn.classList.toggle('is-busy', busy);
+    $('.btn__label', btn).textContent = busy ? 'Generating…' : DOCS[kind].label;
   }
 
   let toastTimer;
@@ -712,11 +776,11 @@
         el.customerName.classList.remove('is-invalid');
         el.errCustomerName.hidden = true;
       }
-      renderQuotation();
+      renderDocuments();
     });
 
-    el.quoteDate.addEventListener('change', renderQuotation);
-    el.quoteDate.addEventListener('input', renderQuotation);
+    el.quoteDate.addEventListener('change', renderDocuments);
+    el.quoteDate.addEventListener('input', renderDocuments);
 
     el.addItem.addEventListener('click', () => {
       addItemRow({ name: '', qty: 1, price: '' }, true);
@@ -777,7 +841,8 @@
       }
     });
 
-    el.downloadBtn.addEventListener('click', downloadPdf);
+    el.downloadQuote.addEventListener('click', () => downloadPdf('quotation'));
+    el.downloadInvoice.addEventListener('click', () => downloadPdf('invoice'));
   }
 
   /* ---------------------------------- Init -------------------------------- */

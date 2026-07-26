@@ -438,6 +438,24 @@ input[type="date"].input { min-height: 48px; }
 .btn--primary:hover:not(:disabled) { background: #2C281C; }
 .btn--primary:disabled { opacity: 0.55; cursor: progress; }
 
+/* The second download. Same footprint as .btn--primary so the two sit level,
+   outlined rather than solid so the bar isn't a black slab. */
+.btn--secondary {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: #fff;
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.btn--secondary:hover:not(:disabled) { background: rgba(23, 21, 15, 0.06); }
+.btn--secondary:disabled { opacity: 0.55; cursor: progress; }
+
 .spinner {
   display: none;
   width: 16px;
@@ -448,7 +466,13 @@ input[type="date"].input { min-height: 48px; }
   animation: spin .7s linear infinite;
 }
 
-.btn--primary.is-busy .spinner { display: block; }
+.btn--secondary .spinner {
+  border-color: rgba(23, 21, 15, 0.25);
+  border-top-color: var(--ink);
+}
+
+.btn--primary.is-busy .spinner,
+.btn--secondary.is-busy .spinner { display: block; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -497,6 +521,9 @@ input[type="date"].input { min-height: 48px; }
   letter-spacing: -0.4px;
   font-variant-numeric: tabular-nums;
 }
+
+.actionbar__buttons { display: flex; gap: 8px; }
+.actionbar__buttons .btn { flex: 1 1 0; min-width: 0; }
 
 /* --------------------------------- Toast -------------------------------- */
 
@@ -879,4 +906,70 @@ input[type="date"].input { min-height: 48px; }
   height: 48px;
   object-fit: contain;
   display: block;
+}
+
+/* =========================================================================
+   PART 3 — INVOICE DOCUMENT
+   Locked 1:1 to Figma node 2:104. Same 598px shell, same header, table,
+   total row and signature as the quotation — everything above reapplies via
+   the shared .q classes. Only what the invoice adds or changes lives here.
+   ========================================================================= */
+
+/* No greeting paragraph, so the 32px that sat on top of .q-desc moves onto
+   the header container itself (2:105 pb-32). */
+.inv .q-header { padding-bottom: 32px; }
+
+/* A titled band: divider, 13/600 label, divider — "Terms of payment" (2:296)
+   and "Payment to" (2:297). Same 8px rhythm as the items header section. */
+.q-section {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+/* The label row is inset 100px on the right, matching the Price column. */
+.q-sectrow {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  padding-right: 100px;
+  font-size: 13px;
+  line-height: 20px;
+  letter-spacing: -0.26px;
+  color: #000;
+}
+
+.q-sectrow p { flex: 1 0 0; min-width: 0; }
+
+.q-termlist {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+/* Deposit rows carry no Qty cell, so Figma widens the gap to 64px. The label
+   is flexible either way, so Price still lands at x=434. */
+.q-row--pair { gap: 64px; }
+
+.q-paysection {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+/* Bank details (2:307): 24px leading, not the 20px used everywhere else. */
+.q-paydetails {
+  width: 100%;
+  padding-right: 100px;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 24px;
+  letter-spacing: -0.26px;
+  color: #000;
 }

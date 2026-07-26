@@ -1,7 +1,8 @@
-# Kelak Kembali — Wedding Quotation Generator
+# Kelak Kembali — Wedding Quotation & Invoice Generator
 
 A single-page, mobile-first tool that turns a short form into a downloadable PDF
-quotation matching the Kelak Kembali design 1:1.
+— either a **quotation** or an **invoice** — matching the Kelak Kembali designs
+1:1. One form fills both documents; the action bar offers a button for each.
 
 No backend, no login, no saved history. Pure client-side, static-deployable.
 
@@ -30,14 +31,16 @@ npx vercel deploy --prod
 
 | File | Role |
 |---|---|
-| `index.html` | Form UI + the off-screen quotation template |
-| `styles.css` | Part 1: form UI. Part 2: the locked quotation document |
+| `index.html` | Form UI + the two off-screen document templates |
+| `styles.css` | Part 1: form UI. Part 2: the quotation. Part 3: the invoice |
 | `fonts.css` | Plus Jakarta Sans, self-hosted and inlined (see below) |
 | `app.js` | State, calculations, validation, PDF export |
 | `assets/` | The two logo marks, exported from Figma at 4x |
 
-The quotation lives in a `.stage` container positioned off-screen at its exact
-design size (598px wide). On download it is snapshotted with **html2canvas** at
+Each document lives in its own `.stage` container positioned off-screen at its
+exact design size (598px wide). Both are re-rendered on every keystroke, so
+either button is always one snapshot away from a finished file. On download the
+chosen one is snapshotted with **html2canvas** at
 3x over a transparent background, composited on top of the generated watermark
 field, and placed into a **jsPDF** page that is A4-width (595.28pt) and
 *dynamically tall*, so a longer item list simply yields a taller single page —
@@ -73,8 +76,10 @@ Three things guard against it:
 ## The watermark
 
 The document background is not flat — it is a soft cream/ivory/sand tonal field
-plus film grain, generated procedurally from a seed built out of the quotation's
-own contents: **customer name, date, and every item's name, qty and price**.
+plus film grain, generated procedurally from a seed built out of the document's
+own contents: **which document it is, the customer name, the date, and every
+item's name, qty and price**. The kind is part of the seed, so a quotation and
+the invoice drawn from the same figures still get fields of their own.
 
 The washes are painted as a handful of large, rotated ellipses into a 48px-wide
 canvas and blown up ~12x, which buys their softness for free and keeps them
@@ -90,7 +95,7 @@ That makes the background a fingerprint of the content. Verified behaviour:
 
 | Property | Result |
 |---|---|
-| Same quotation regenerated | Byte-identical field |
+| Same document regenerated | Byte-identical field |
 | Edited away and back again | Original field returns exactly |
 | One rupiah changed | Completely different field, everywhere |
 
@@ -98,7 +103,7 @@ So a tampered copy no longer matches the background of the one that was sent.
 Because the logos are keyed to true transparency, the field shows through
 cleanly behind them.
 
-## The design contract
+## The design contract — quotation
 
 `styles.css` Part 2 is a locked reproduction of the Figma frame
 (`RqeGM5NJD3CTeasfarP9iM`, node `1:2`, table `2:245`). Only the data inside it
@@ -147,6 +152,46 @@ which lays down marginally fatter antialiasing than Figma's renderer. It is not
 a CSS weight difference, and raising the snapshot scale to 4x does not reduce it
 (0.0313), so the scale stays at 3.
 
+## The design contract — invoice
+
+`styles.css` Part 3 is a locked reproduction of node `2:104` in the same file.
+It reuses every `.q-` class the quotation already defines — same 598px shell,
+32px padding, 534px column, dividers, header, items table, Total row and
+signature — and adds only what the invoice does differently.
+
+Verified live against the source frame, measured from the document's top-left:
+
+| | Figma | Rendered |
+|---|---|---|
+| Header container | y 32, h 117 | y 32, h 118 |
+| Items container | y 159, h 399 | y 160, h 399 |
+| Terms of payment | h 122 | h 122 |
+| Payment to | h 107 | h 107 |
+| Signature | y 568, h 120 | y 569, h 120 |
+| Price column | x 466 | x 466 |
+
+The 1px offset is the 44px title measuring 55.x px at `line-height: normal`
+rather than Figma's flat 55, and is inherited from the quotation, not new here.
+
+What differs from the quotation:
+
+- **No greeting paragraph.** The 32px that sat above it moves onto the header
+  container itself, per node `2:105`.
+- **No Includes / Excludes block.** The Includes card in the form feeds the
+  quotation only.
+- **Terms of payment** is a titled band — divider, 13/600 label, divider — with
+  the three deposits as rupiah amounts rather than the quotation's descriptions.
+  Deposit rows carry no Qty cell, so Figma widens their gap to 64px; the label
+  is flexible either way, so Price still lands at x=434.
+- **Payment to** is the same band, with the bank details at 24px leading, not
+  the 20px used everywhere else. `BCA 6800 691 425 / Annisa Beauty` is fixed and
+  never exposed in the form, like the Excludes sentence.
+
+**The items table is the exception to the frame**: the Figma invoice omits the
+Qty column, which was an oversight in the design rather than an intent. The
+invoice therefore prints the same three-column Item / Qty / unit-Price table as
+the quotation, from the identical code path.
+
 ## Business rules
 
 - **Total** — auto-calculated, live, never entered by hand.
@@ -160,8 +205,14 @@ a CSS weight difference, and raising the snapshot scale to 4x does not reduce it
 - **Price entry** — thousands separators are inserted as you type. The caret is
   restored by digit count, not by string offset, so it doesn't jump a place each
   time a new dot appears.
-- **Filename** — `Quotation-KelakKembali-{Customer}-{YYYY-MM-DD}.pdf`, falling
-  back to `Quotation-KelakKembali-{YYYY-MM-DD}.pdf` when the name is blank.
+- **Deposits** — the invoice prints 35 / 35 / 30 of the Total in rupiah. The
+  first two are rounded to the nearest rupiah and the third takes the
+  remainder, so the three always sum to the Total exactly rather than drifting
+  a rupiah off it.
+- **Filename** — `{Quotation|Invoice}-KelakKembali-{Customer}-{YYYY-MM-DD}.pdf`,
+  falling back to `{Kind}-KelakKembali-{YYYY-MM-DD}.pdf` when the name is blank.
+- **Validation** — shared. Either button runs the same check, and both lock
+  while a capture is running; only the pressed one shows the spinner.
 
 ## Sample data
 
