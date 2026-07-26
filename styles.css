@@ -11,12 +11,18 @@
   --surface-2: #FBFAF8;
   --ink:       #17150F;
   --muted:     rgba(23, 21, 15, 0.56);
+  /* Section labels and metadata used to sit on --faint (38%), which lands around
+     2.4:1 on the card surface — unreadable at 11–12px. --label is the smallest
+     tone that still clears 4.5:1; --faint is now only for decorative marks. */
+  --label:     rgba(23, 21, 15, 0.66);
   --faint:     rgba(23, 21, 15, 0.38);
   --line:      rgba(23, 21, 15, 0.13);
   --line-2:    rgba(23, 21, 15, 0.22);
   --danger:    #A4341F;
   --radius:    12px;
-  --bar-h:     env(safe-area-inset-bottom, 0px);
+  /* Height of whichever fixed bottom bar is showing, published by app.js so the
+     toast can clear it instead of guessing. */
+  --bottombar-h: 0px;
 }
 
 * { box-sizing: border-box; }
@@ -160,11 +166,15 @@ body {
   gap: 12px;
 }
 
+/* Branding only earns its 38px on the root view, where there is no back button
+   competing for the same corner. Deep views give the space to the title. */
 .appbar__mark {
   width: 38px;
   height: auto;
   flex: none;
 }
+
+.appbar__mark[hidden] { display: none; }
 
 .appbar__text {
   flex: 1 1 auto;
@@ -189,7 +199,7 @@ body {
   font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--faint);
+  color: var(--muted);
 }
 
 .appbar__back,
@@ -215,39 +225,72 @@ body {
 .appbar__back svg { width: 20px; height: 20px; }
 .appbar__icon svg { width: 18px; height: 18px; color: var(--muted); }
 
-/* Reads "Saved" and sits quiet until something actually changes. */
-.btn--save {
-  flex: none;
-  min-height: 36px;
-  padding: 0 14px;
-  font-size: 13px;
-  background: var(--ink);
-  color: #fff;
+/* ------------------------------ Overflow menu ---------------------------- */
+
+/* Sign out and the two deletes are rare, and two of the three are
+   irreversible. Keeping them here means the app bar holds no action that can
+   be hit by accident while reaching for something else. */
+.menu { position: relative; flex: none; }
+
+.menu__list {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  min-width: 190px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-2);
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(23, 21, 15, 0.16);
 }
 
-.btn--save[hidden] { display: none; }
-.btn--save:hover:not(:disabled) { background: #2C281C; }
+.menu__list[hidden] { display: none; }
 
-.btn--save:disabled {
+.menu__item {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
   background: transparent;
-  color: var(--faint);
-  cursor: default;
+  border: none;
+  border-radius: 7px;
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
 }
+
+.menu__item[hidden] { display: none; }
+.menu__item:hover { background: rgba(23, 21, 15, 0.06); }
+.menu__item--danger { color: var(--danger); }
+.menu__item--danger:hover { background: rgba(164, 52, 31, 0.09); }
 
 /* ----------------------------- Breadcrumbs ------------------------------ */
 
+/* Hidden on phones: the app bar already carries a back button, the view title
+   and the customer name, so a four-level trail wrapping onto two lines was
+   restating what was directly above it and costing a fifth of the fold. */
 .breadcrumbs {
+  display: none;
   max-width: 560px;
   margin: 0 auto;
   padding: 10px 20px 0;
-  display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   font-size: 12.5px;
 }
 
-.breadcrumbs:empty { display: none; }
+@media (min-width: 640px) {
+  .breadcrumbs { display: flex; }
+  .breadcrumbs:empty { display: none; }
+}
 
 .breadcrumbs__item {
   color: var(--muted);
@@ -271,9 +314,12 @@ a.breadcrumbs__item:hover { color: var(--ink); text-decoration: underline; }
   padding: 16px 20px 48px;
 }
 
-/* Only the order editor carries the sticky action bar, so only it needs the
-   clearance underneath. */
-body.has-actionbar .page { padding-bottom: 190px; }
+/* Clearance for whichever fixed bottom bar is up, measured rather than
+   guessed — the action bar and the save bar are different heights. */
+body.has-actionbar .page,
+body.has-savebar .page {
+  padding-bottom: calc(var(--bottombar-h) + 32px);
+}
 
 .view {
   display: flex;
@@ -305,7 +351,7 @@ body.has-actionbar .page { padding-bottom: 190px; }
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--faint);
+  color: var(--label);
 }
 
 .card__head {
@@ -315,6 +361,90 @@ body.has-actionbar .page { padding-bottom: 190px; }
   gap: 12px;
 }
 
+.card__count {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+/* History is a reference, not something you read on arrival. */
+.card--fold { gap: 0; }
+.card--fold[open] { gap: 14px; }
+
+.card__title--summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 28px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.card__title--summary::-webkit-details-marker { display: none; }
+
+.card__title--summary::after {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-right: 1.8px solid currentColor;
+  border-bottom: 1.8px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform .15s ease;
+}
+
+.card--fold[open] .card__title--summary::after { transform: translateY(1px) rotate(225deg); }
+.card__title--summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+
+/* The one figure on this page the customer must never see. Marked, not
+   quarantined in a card of its own. */
+.internal {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 12px;
+  background: var(--surface);
+  border-radius: 9px;
+}
+
+.internal__label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.internal__value {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.tag {
+  padding: 2px 7px;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Includes, read-only: a quiet line rather than six filled black pills, which
+   read as the loudest thing on a page where they are the least important. */
+.meta {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.meta:empty { display: none; }
+
 .btn--sm {
   flex: none;
   min-height: 34px;
@@ -322,13 +452,9 @@ body.has-actionbar .page { padding-bottom: 190px; }
   font-size: 13px;
 }
 
-.input--sm {
-  min-height: 36px;
-  padding: 6px 30px 6px 10px;
-  font-size: 13px;
-  background-position: right 8px center;
-  background-size: 14px;
-}
+/* A second heading inside a card that already has one. */
+.card__head--sub { margin-top: 2px; }
+.card__head--sub .card__title { white-space: nowrap; }
 
 .card__hint {
   margin: -8px 0 0;
@@ -336,13 +462,7 @@ body.has-actionbar .page { padding-bottom: 190px; }
   color: var(--muted);
 }
 
-.footnote {
-  margin: 0;
-  padding: 0 4px;
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--faint);
-}
+.card__hint[hidden] { display: none; }
 
 /* --------------------------- Lists and records --------------------------- */
 
@@ -395,7 +515,14 @@ body.has-actionbar .page { padding-bottom: 190px; }
   white-space: nowrap;
 }
 
-.row__chev { flex: none; font-size: 20px; color: var(--faint); }
+/* Status badge plus the next date, on one wrapping line. */
+.row__tags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin-top: 2px;
+}
 
 /* Kanban-style card: name/title up top, one or two meta lines beneath, and a
    prominent amount on the right — taller than the plain .row it extends. */
@@ -448,6 +575,16 @@ body.has-actionbar .page { padding-bottom: 190px; }
   overflow-wrap: anywhere;
 }
 
+/* Notes run to several lines, and right-aligned prose is hard to scan — it
+   gives every line a different starting edge. */
+.infolist__stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.infolist__stack dd { text-align: left; }
+
 /* ------------------------------ Overview stats --------------------------- */
 
 .overview__grid {
@@ -470,7 +607,7 @@ body.has-actionbar .page { padding-bottom: 190px; }
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--faint);
+  color: var(--label);
 }
 
 .stat__value {
@@ -489,17 +626,20 @@ body.has-actionbar .page { padding-bottom: 190px; }
 
 /* ------------------------------ Payment chooser --------------------------- */
 
+/* Revealed by "Log a payment", so it needs the same hidden-wins rule as .card. */
 .paychooser {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
+.paychooser[hidden] { display: none; }
+
 .empty {
   margin: 0;
   padding: 18px 4px;
   font-size: 13.5px;
-  color: var(--faint);
+  color: var(--muted);
   text-align: center;
 }
 
@@ -603,6 +743,20 @@ input[type="date"].input { min-height: 48px; }
   resize: vertical;
 }
 
+/* Defined after .input, which it has to beat — it sat before it and so had
+   never once applied, leaving every "small" control full size. */
+.input.input--sm {
+  width: auto;
+  min-height: 38px;
+  padding: 6px 30px 6px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  background-color: transparent;
+  border-color: var(--line);
+  background-position: right 8px center;
+  background-size: 14px;
+}
+
 select.input {
   padding-right: 38px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2317150F' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
@@ -611,15 +765,29 @@ select.input {
   background-size: 16px;
 }
 
-/* Two fields to a row where both are short. Collapses on narrow phones. */
+/* Two fields to a row where both are short.
+
+   `1fr` is `minmax(auto, 1fr)`, so a track never shrinks below its content's
+   min-content width. A date input's is its full dd/mm/yyyy + picker glyph —
+   about 179px in this type — so at 375px the pair demanded 368px inside a
+   301px card and the second field was simply drawn past the edge. minmax(0,1fr)
+   lets the tracks shrink; the date pair still stacks, because two 145px date
+   inputs would only clip the picker instead. */
 .grid2 {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 10px;
 }
 
+.grid2 > .field { min-width: 0; }
+
 @media (max-width: 359px) {
-  .grid2 { grid-template-columns: 1fr; }
+  .grid2 { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Date inputs cannot compress; below this they get a row each. */
+@media (max-width: 439px) {
+  .grid2--dates { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* ------------------------------- Item rows ------------------------------ */
@@ -654,13 +822,25 @@ select.input {
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--faint);
+  color: var(--label);
 }
 
 .item__idx::before {
   counter-increment: item;
   content: "Item " counter(item);
 }
+
+/* Qty × price, resolved live, so nobody has to do it in their head. */
+.item__sum {
+  padding-top: 2px;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  text-align: right;
+}
+
+.item__sum:empty { display: none; }
 
 .item__remove {
   width: 44px;
@@ -740,14 +920,17 @@ select.input {
 
 .chip__box svg { width: 11px; height: 11px; opacity: 0; }
 
+/* Checked used to fill the whole chip black. With all six ticked by default —
+   which is the normal case — the card became a slab of black that outweighed
+   the item prices above it. The tick carries the state; the chip only has to
+   agree with it. */
 .chip.is-checked {
-  background: var(--ink);
+  background: rgba(23, 21, 15, 0.05);
   border-color: var(--ink);
-  color: #fff;
 }
 
-.chip.is-checked .chip__box { background: #fff; border-color: #fff; }
-.chip.is-checked .chip__box svg { opacity: 1; color: var(--ink); }
+.chip.is-checked .chip__box { background: var(--ink); border-color: var(--ink); }
+.chip.is-checked .chip__box svg { opacity: 1; color: #fff; }
 .chip:focus-within { box-shadow: 0 0 0 3px rgba(23, 21, 15, 0.18); }
 
 /* User-added chip: the toggle is a nested label so the remove button beside it
@@ -784,17 +967,6 @@ select.input {
 
 .chip__remove svg { width: 11px; height: 11px; }
 
-/* Keep the remove affordance legible once the chip inverts to black. */
-.chip--custom.is-checked .chip__remove {
-  background: rgba(255, 138, 112, 0.18);
-  border-color: rgba(255, 150, 125, 0.5);
-  color: #FF9C80;
-}
-
-.chip--custom.is-checked .chip__remove:hover {
-  background: rgba(255, 138, 112, 0.32);
-  border-color: #FF9C80;
-}
 
 /* ------------------------------ Inline add row --------------------------- */
 
@@ -822,14 +994,19 @@ select.input {
 
 .btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
+/* Solid: a real, present thing to act on. */
 .btn--outline {
   min-height: 48px;
   background: transparent;
-  border: 1px dashed var(--line-2);
+  border: 1px solid var(--line-2);
   color: var(--ink);
 }
 
 .btn--outline:hover { background: rgba(23, 21, 15, 0.04); border-color: var(--ink); }
+
+/* Dashed is reserved for the "+" buttons, where it reads as an empty slot
+   waiting to be filled rather than as a control that is somehow provisional. */
+.btn--new { border-style: dashed; }
 
 .btn--block { width: 100%; }
 
@@ -897,11 +1074,13 @@ select.input {
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ------------------------------- Action bar ----------------------------- */
+/* --------------------------- Fixed bottom bars --------------------------- */
 
-.actionbar[hidden] { display: none; }
+.actionbar[hidden],
+.savebar[hidden] { display: none; }
 
-.actionbar {
+.actionbar,
+.savebar {
   position: fixed;
   left: 0;
   right: 0;
@@ -912,7 +1091,8 @@ select.input {
   border-top: 1px solid var(--line);
 }
 
-.actionbar__inner {
+.actionbar__inner,
+.savebar__inner {
   max-width: 560px;
   margin: 0 auto;
   padding: 10px 20px;
@@ -921,6 +1101,28 @@ select.input {
   flex-direction: column;
   gap: 8px;
 }
+
+/* Save used to sit in the app bar's top-right corner: the hardest point on a
+   phone to reach one-handed, and pressed against sign-out. */
+.savebar__inner { padding-top: 12px; }
+
+.savebar .btn--primary:disabled {
+  background: transparent;
+  border-color: var(--line-2);
+  color: var(--muted);
+  opacity: 1;
+  cursor: default;
+}
+
+.actionbar__note {
+  margin: 0;
+  padding: 0 2px;
+  font-size: 12.5px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.actionbar__note[hidden] { display: none; }
 
 .actionbar__total {
   display: flex;
@@ -950,10 +1152,13 @@ select.input {
 
 /* --------------------------------- Toast -------------------------------- */
 
+/* --bottombar-h is the measured height of whichever bar is up. The old fixed
+   96px sat below the 162px action bar, so every toast appeared behind the
+   download buttons it was reporting on. */
 .toast {
   position: fixed;
   left: 50%;
-  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(var(--bottombar-h) + 16px);
   transform: translate(-50%, 12px);
   z-index: 30;
   max-width: calc(100vw - 40px);
@@ -970,13 +1175,10 @@ select.input {
 
 .toast.is-visible { opacity: 1; transform: translate(-50%, 0); }
 
-/* Without the action bar there is nothing to clear, so the toast sits low. */
-body:not(.has-actionbar) .toast {
+/* With no bar up, --bottombar-h is 0 and the toast still needs to clear the
+   home indicator on its own. */
+body:not(.has-actionbar):not(.has-savebar) .toast {
   bottom: calc(24px + env(safe-area-inset-bottom, 0px));
-}
-
-@media (min-width: 640px) {
-  body.has-actionbar .page { padding-bottom: 200px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

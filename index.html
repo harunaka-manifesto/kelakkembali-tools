@@ -50,16 +50,26 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
            stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
     </button>
-    <img class="appbar__mark" src="assets/logo-header.png" alt="">
+    <img class="appbar__mark" id="appbarMark" src="assets/logo-header.png" alt="">
     <div class="appbar__text">
       <h1 id="viewTitle">Customers</h1>
       <p id="viewSub">Kelak Kembali</p>
     </div>
-    <button type="button" class="btn btn--save" id="saveBtn" hidden>Save</button>
-    <button type="button" class="appbar__icon" id="signOutBtn" aria-label="Sign out">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
-           stroke-linecap="round" stroke-linejoin="round"><path d="M15 17l5-5-5-5M20 12H9M12 20H6a2 2 0 01-2-2V6a2 2 0 012-2h6"/></svg>
-    </button>
+
+    <!-- Rare and destructive actions live behind this one control, so the bar
+         never competes with the page's own primary action. -->
+    <div class="menu" id="menu">
+      <button type="button" class="appbar__icon" id="menuBtn"
+              aria-label="More actions" aria-haspopup="menu" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/>
+        </svg>
+      </button>
+      <div class="menu__list" id="menuList" role="menu" hidden>
+        <button type="button" class="menu__item" role="menuitem" id="menuDelete" hidden></button>
+        <button type="button" class="menu__item" role="menuitem" id="menuSignOut">Sign out</button>
+      </div>
+    </div>
   </div>
 </header>
 
@@ -70,28 +80,34 @@
   <!-- --------------------------- Customer list --------------------------- -->
   <section class="view" id="viewCustomers">
     <section class="card" id="overviewCard">
-      <div class="card__head">
-        <h2 class="card__title">Overview</h2>
-        <select class="input input--sm" id="overviewRange">
+      <div class="overview__grid">
+        <div class="stat"><span class="stat__label">Active</span><strong class="stat__value" id="overviewActive"></strong></div>
+        <div class="stat"><span class="stat__label">Finished</span><strong class="stat__value" id="overviewFinished"></strong></div>
+      </div>
+
+      <!-- The range only ever scoped these two tiles, so it sits with them
+           rather than at the top of the card, where it read as filtering all four. -->
+      <div class="card__head card__head--sub">
+        <h2 class="card__title">Money in</h2>
+        <select class="input input--sm" id="overviewRange" aria-label="Period">
           <option value="month">This month</option>
           <option value="all">All time</option>
         </select>
       </div>
       <div class="overview__grid">
-        <div class="stat"><span class="stat__label">Active</span><strong class="stat__value" id="overviewActive"></strong></div>
-        <div class="stat"><span class="stat__label">Finished</span><strong class="stat__value" id="overviewFinished"></strong></div>
-        <div class="stat"><span class="stat__label">Gross income</span><strong class="stat__value" id="overviewGross"></strong></div>
+        <div class="stat"><span class="stat__label">Gross</span><strong class="stat__value" id="overviewGross"></strong></div>
         <div class="stat"><span class="stat__label">Profit</span><strong class="stat__value" id="overviewProfit"></strong></div>
       </div>
+
       <p class="overview__nearest" id="overviewNearest"></p>
     </section>
 
     <div class="searchrow">
       <input class="input" id="customerSearch" type="search" enterkeyhint="search"
-             placeholder="Search name, phone or handle…" autocapitalize="none" spellcheck="false">
+             placeholder="Search customers" autocapitalize="none" spellcheck="false">
     </div>
     <div class="list" id="customerList"></div>
-    <button type="button" class="btn btn--outline btn--block" id="newCustomer">
+    <button type="button" class="btn btn--outline btn--new btn--block" id="newCustomer">
       <span aria-hidden="true">+</span> New customer
     </button>
   </section>
@@ -108,14 +124,17 @@
         <div><dt>Phone / WhatsApp</dt><dd id="dPhone"></dd></div>
         <div><dt>Instagram</dt><dd id="dInstagram"></dd></div>
         <div><dt>Source</dt><dd id="dSource"></dd></div>
-        <div><dt>Wedding date</dt><dd id="dWedding"></dd></div>
-        <div><dt>Notes</dt><dd id="dNotes"></dd></div>
+        <div><dt>Wedding</dt><dd id="dWedding"></dd></div>
+        <div class="infolist__stack"><dt>Notes</dt><dd id="dNotes"></dd></div>
         <div><dt>Customer since</dt><dd id="dCreated"></dd></div>
       </dl>
     </section>
 
     <section class="card" id="customerEditCard" hidden>
-      <h2 class="card__title">Edit customer</h2>
+      <div class="card__head">
+        <h2 class="card__title">Edit customer</h2>
+        <button type="button" class="btn btn--outline btn--sm" id="cancelCustomerBtn">Cancel</button>
+      </div>
 
       <label class="field" for="cName">
         <span class="field__label">Name</span>
@@ -164,14 +183,10 @@
     <section class="card" id="customerOrdersCard">
       <h2 class="card__title">Orders</h2>
       <div class="list" id="orderList"></div>
-      <button type="button" class="btn btn--outline btn--block" id="newOrder">
+      <button type="button" class="btn btn--outline btn--new btn--block" id="newOrder">
         <span aria-hidden="true">+</span> New order
       </button>
     </section>
-
-    <button type="button" class="btn btn--danger btn--block" id="deleteCustomer">
-      Delete customer
-    </button>
   </section>
 
   <!-- ---------------------------- Order editor --------------------------- -->
@@ -200,29 +215,32 @@
         </select>
       </label>
 
-      <div class="grid2">
+      <div class="grid2 grid2--dates">
         <label class="field" for="oFitting1">
-          <span class="field__label">Est. first fitting</span>
+          <span class="field__label">First fitting</span>
           <input class="input js-ofield" id="oFitting1" type="date">
         </label>
         <label class="field" for="oFittingFinal">
-          <span class="field__label">Est. final fitting</span>
+          <span class="field__label">Final fitting</span>
           <input class="input js-ofield" id="oFittingFinal" type="date">
         </label>
       </div>
     </section>
 
     <section class="card">
-      <h2 class="card__title">Items</h2>
+      <div class="card__head">
+        <h2 class="card__title">Items</h2>
+        <span class="card__count" id="itemsTotal"></span>
+      </div>
       <div class="items" id="itemList"></div>
-      <button type="button" class="btn btn--outline btn--block" id="addItem">
+      <button type="button" class="btn btn--outline btn--new btn--block" id="addItem">
         <span aria-hidden="true">+</span> Add item
       </button>
     </section>
 
     <section class="card">
       <h2 class="card__title">Includes</h2>
-      <p class="card__hint">Quotation only — the invoice has no Includes section.</p>
+      <p class="card__hint">Printed on the quotation only.</p>
       <div class="chips" id="includesList"></div>
       <div class="addrow">
         <input class="input" id="customInclude" type="text" maxlength="60"
@@ -242,55 +260,45 @@
       <dl class="infolist">
         <div><dt>Status</dt><dd><span class="badge" id="oStatusBadge"></span></dd></div>
         <div><dt>Document date</dt><dd id="oDateDisplay"></dd></div>
-        <div><dt>Est. first fitting</dt><dd id="oFitting1Display"></dd></div>
-        <div><dt>Est. final fitting</dt><dd id="oFittingFinalDisplay"></dd></div>
+        <div><dt>First fitting</dt><dd id="oFitting1Display"></dd></div>
+        <div><dt>Final fitting</dt><dd id="oFittingFinalDisplay"></dd></div>
       </dl>
     </section>
 
     <section class="card">
       <h2 class="card__title">Items</h2>
       <div class="loglist" id="oItemsDisplay"></div>
-      <div class="chips" id="oIncludesDisplay"></div>
+      <p class="meta meta--includes" id="oIncludesDisplay"></p>
+      <div class="internal">
+        <span class="internal__label">Nett profit <span class="tag">Internal</span></span>
+        <span class="internal__value" id="oNettProfit"></span>
+      </div>
     </section>
 
     <section class="card">
-      <h2 class="card__title">Internal</h2>
-      <p class="card__hint">Never shown to the customer.</p>
-      <div class="logrow"><span class="logrow__kind">Nett profit</span><span class="logrow__total" id="oNettProfit"></span></div>
+      <h2 class="card__title">Payments</h2>
+      <div class="loglist" id="paymentSummary"></div>
+      <div class="paychooser" id="paymentChooserOptions" hidden></div>
+      <button type="button" class="btn btn--outline btn--block" id="logPaymentBtn">
+        Log a payment
+      </button>
     </section>
 
-    <section class="card">
-      <h2 class="card__title">History</h2>
+    <details class="card card--fold">
+      <summary class="card__title card__title--summary">History</summary>
       <div class="loglist" id="historyLog"></div>
-    </section>
-
-    <section class="card" id="paymentChooser" hidden>
-      <h2 class="card__title">Log a payment</h2>
-      <div class="paychooser" id="paymentChooserOptions"></div>
-    </section>
-
-    <p class="footnote">
-      The 35 / 35 / 30 payment terms are fixed on both documents. The quotation carries the
-      Excludes sentence; the invoice carries the deposit amounts and the BCA payment details.
-    </p>
-
-    <button type="button" class="btn btn--danger btn--block" id="deleteOrder">
-      Delete order
-    </button>
+    </details>
   </section>
 
 </main>
 
+<!-- Order detail: the two documents are the page's whole point, so they are the
+     only things in the fixed bar. Logging a payment moved into the page. -->
 <div class="actionbar" id="actionbar" hidden>
   <div class="actionbar__inner">
     <div class="actionbar__total">
       <span class="actionbar__label">Total</span>
       <strong class="actionbar__amount" id="totalDisplay">Rp0</strong>
-    </div>
-    <div class="actionbar__buttons">
-      <button type="button" class="btn btn--outline btn--block" id="logPaymentBtn">
-        <span class="btn__label">Log payment</span>
-      </button>
     </div>
     <div class="actionbar__buttons">
       <button type="button" class="btn btn--primary" id="downloadQuote">
@@ -302,6 +310,17 @@
         <span class="spinner" aria-hidden="true"></span>
       </button>
     </div>
+    <p class="actionbar__note" id="downloadNote" hidden>Add an item to enable downloads.</p>
+  </div>
+</div>
+
+<!-- Editing views only. Save is the primary action, so it sits in the thumb
+     zone rather than in the top-right corner of the app bar. -->
+<div class="savebar" id="savebar" hidden>
+  <div class="savebar__inner">
+    <button type="button" class="btn btn--primary" id="saveBtn">
+      <span class="btn__label">Save changes</span>
+    </button>
   </div>
 </div>
 
