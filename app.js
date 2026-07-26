@@ -1,15 +1,29 @@
-/* Kelak Kembali — Quotation & Invoice Generator
-   Client-side only. Fills the two locked templates from one form and exports
-   either as a single-page PDF via html2canvas + jsPDF. */
+/* Kelak Kembali — app shell.
 
-(function () {
+   Three views behind a hash route — customer list, customer detail, order
+   editor — plus the password gate. Owns all form state and navigation;
+   defers to KK.db for persistence and KK.docs for the PDFs.
+
+   Saving is explicit. An order editor that autosaved would write a row on
+   every keystroke and, worse, would silently rewrite a record you were only
+   glancing at. The Save button in the app bar lights up when something has
+   changed, and leaving with unsaved work asks first. */
+
+window.KK = window.KK || {};
+
+KK.app = (function () {
   'use strict';
+
+  const U = KK.util;
+  const db = KK.db;
+  const docs = KK.docs;
+  const $ = U.$;
+  const $$ = U.$$;
 
   /* ------------------------------- Constants ----------------------------- */
 
-  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'];
-
+  /* The standing package. A new order starts with all six ticked, because that
+     is what the studio actually includes; untick what a given order drops. */
   const INCLUDES = [
     'Custom design & consultation',
     'Production',
@@ -19,255 +33,8 @@
     'Laundry'
   ];
 
-  /* Invoice only: the quotation prints these as percentages with a description,
-     the invoice prints them as rupiah amounts. */
-  const DEPOSIT_LABELS = ['1st deposit - 35%', '2nd deposit - 35%', '3rd deposit - 30%'];
-  const DEPOSIT_SHARES = [0.35, 0.35, 0.30];
-
-  const SAMPLE_ITEMS = [
-    { name: 'Contemporary bridal suit with one detachable element', qty: 1, price: 7225000 },
-    { name: 'Bridal skirt', qty: 1, price: 1250000 }
-  ];
-
-  const PDF_PAGE_WIDTH_PT = 595.28;  // A4 width, so the file still prints sensibly
-  const SNAPSHOT_SCALE = 3;
-  const Q_PAD = 32;                  // the document's own padding, in CSS px
-  const CAPTURE_SLACK = 240;         // spare CSS px below the page, trimmed after
-
-  /* Watermark: the document background is a soft, grainy field generated from a
-     seed made of the quotation's own contents. Any edit to the name, items,
-     prices or date yields a completely different field, so a tampered copy no
-     longer matches the one that was sent. */
-  const WM_BASE = '#EBE9E4';
-  const WM_TONES = [
-    [255, 253, 250],   // white
-    [251, 247, 240],   // ivory
-    [245, 239, 228],   // cream
-    [236, 228, 213],   // light sand
-    [219, 206, 184],   // sand
-    [199, 183, 156]    // warm brown, used sparingly
-  ];
-  const WM_FIELD_W = 48;   // gradients are painted small and upscaled -> soft blur
-  const WM_GRAIN = 21;     // overlay noise spread around mid-grey
-
-  /* -------------------------------- Helpers ------------------------------ */
-
-  const $ = (sel, root) => (root || document).querySelector(sel);
-
-  const digitsOnly = (str) => String(str == null ? '' : str).replace(/[^\d]/g, '');
-
-  const escapeHtml = (str) => String(str).replace(/[&<>"']/g, (c) => (
-    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
-  ));
-
-  /** Rupiah: dot thousands separator, no decimals, no space after "Rp". */
-  function formatRupiah(value) {
-    const n = Math.round(Number(value) || 0);
-    const sign = n < 0 ? '-' : '';
-    return 'Rp' + sign + String(Math.abs(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  }
-
-  /** Group digits with dots, for the price input display. */
-  const groupDigits = (str) => {
-    const d = digitsOnly(str).replace(/^0+(?=\d)/, '');
-    return d ? d.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : '';
-  };
-
-  /**
-   * Re-group a price field as it is typed. Separators shift as digits are
-   * added, so the caret is restored by digit count rather than by offset —
-   * otherwise it jumps a place every time a dot appears.
-   */
-  function reformatPriceField(input) {
-    const before = input.value;
-    const formatted = groupDigits(before);
-    if (formatted === before) return;
-
-    const caret = input.selectionStart;
-    const digitsBefore = digitsOnly(before.slice(0, caret)).length;
-    input.value = formatted;
-
-    let pos = 0;
-    let seen = 0;
-    while (pos < formatted.length && seen < digitsBefore) {
-      if (formatted.charCodeAt(pos) >= 48 && formatted.charCodeAt(pos) <= 57) seen++;
-      pos++;
-    }
-    input.setSelectionRange(pos, pos);
-  }
-
-  /** "2026-03-21" -> "21 March 2026" (no leading zero, full month name). */
-  function formatLongDate(iso) {
-    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
-    if (!m) return '';
-    const day = Number(m[3]);
-    const month = MONTHS[Number(m[2]) - 1];
-    if (!month || !day) return '';
-    return day + ' ' + month + ' ' + m[1];
-  }
-
-  function todayISO() {
-    const d = new Date();
-    const p = (n) => String(n).padStart(2, '0');
-    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
-  }
-
-  /* ------------------------------- Watermark ----------------------------- */
-
-  /** FNV-1a, so the same quotation always yields the same field. */
-  function hashString(str) {
-    let h = 2166136261 >>> 0;
-    for (let i = 0; i < str.length; i++) {
-      h ^= str.charCodeAt(i);
-      h = Math.imul(h, 16777619);
-    }
-    return h >>> 0;
-  }
-
-  /** mulberry32 — small, fast, well-distributed seeded PRNG. */
-  function mulberry32(seed) {
-    let a = seed >>> 0;
-    return function () {
-      a = (a + 0x6D2B79F5) | 0;
-      let t = Math.imul(a ^ (a >>> 15), 1 | a);
-      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-  }
-
-  /** Everything that identifies this document, in a stable order. The kind is
-      part of it, so a quotation and the invoice drawn from the same figures
-      still get fields of their own. */
-  function watermarkSeed(kind, items) {
-    return [
-      kind,
-      el.customerName.value.trim(),
-      el.quoteDate.value,
-      items.map((it) => it.name + '×' + it.qty + '@' + it.price).join('|')
-    ].join('::');
-  }
-
-  /**
-   * Big, soft tonal washes + film grain, sized to the document at snapshot
-   * scale. Returns a canvas to composite under the page — never a data URL,
-   * which at this resolution would be tens of megabytes of un-compressible
-   * noise.
-   */
-  function buildWatermark(seed, cssW, cssH, scale) {
-    const rand = mulberry32(hashString(seed));
-    const W = Math.round(cssW * scale);
-    const H = Math.round(cssH * scale);
-
-    // The washes are painted into a tiny canvas and blown up ~12x, which is
-    // what gives them their softness for free. Few and large, so they read as
-    // one flowing field rather than a cluster of spots.
-    const fw = WM_FIELD_W;
-    const fh = Math.max(16, Math.round(fw * cssH / cssW));
-    const field = document.createElement('canvas');
-    field.width = fw;
-    field.height = fh;
-    const fc = field.getContext('2d');
-    fc.fillStyle = WM_BASE;
-    fc.fillRect(0, 0, fw, fh);
-
-    const blobs = 5 + Math.floor(rand() * 4);
-    for (let i = 0; i < blobs; i++) {
-      const tone = WM_TONES[Math.floor(rand() * WM_TONES.length)];
-      const cx = rand() * fw;
-      const cy = rand() * fh;
-      const r = (0.45 + rand() * 0.55) * fw;
-      const squash = 0.45 + rand() * 0.9;     // ellipses, not circles
-      const angle = rand() * Math.PI;
-      // Darker tones are held back further so the field stays a whisper.
-      const alpha = (0.12 + rand() * 0.26) * (tone[0] < 225 ? 0.45 : 1);
-
-      fc.save();
-      fc.translate(cx, cy);
-      fc.rotate(angle);
-      fc.scale(1, squash);
-      const g = fc.createRadialGradient(0, 0, 0, 0, 0, r);
-      g.addColorStop(0, 'rgba(' + tone + ',' + alpha.toFixed(3) + ')');
-      g.addColorStop(0.55, 'rgba(' + tone + ',' + (alpha * 0.45).toFixed(3) + ')');
-      g.addColorStop(1, 'rgba(' + tone + ',0)');
-      fc.fillStyle = g;
-      fc.fillRect(-fw * 2, -fh * 2, fw * 4, fh * 4);
-      fc.restore();
-    }
-
-    const out = document.createElement('canvas');
-    out.width = W;
-    out.height = H;
-    const oc = out.getContext('2d');
-    oc.imageSmoothingEnabled = true;
-    oc.imageSmoothingQuality = 'high';
-    oc.drawImage(field, 0, 0, W, H);
-
-    // Grain is generated at CSS resolution and blown up with smoothing OFF, so
-    // each particle is a crisp scale x scale block. Generating it per device
-    // pixel instead makes it far too fine — it averages away to flat mush.
-    const gw = Math.round(cssW);
-    const gh = Math.round(cssH);
-    const grain = document.createElement('canvas');
-    grain.width = gw;
-    grain.height = gh;
-    const gc = grain.getContext('2d');
-    const gimg = gc.createImageData(gw, gh);
-    const gd = gimg.data;
-    for (let i = 0; i < gd.length; i += 4) {
-      // Mid-grey is a no-op under "overlay"; the spread around it is the grain.
-      const v = 128 + (rand() - 0.5) * WM_GRAIN * 2;
-      gd[i] = gd[i + 1] = gd[i + 2] = v;
-      gd[i + 3] = 255;
-    }
-    gc.putImageData(gimg, 0, 0);
-
-    oc.globalCompositeOperation = 'overlay';
-    oc.imageSmoothingEnabled = false;
-    oc.drawImage(grain, 0, 0, W, H);
-    oc.globalCompositeOperation = 'source-over';
-
-    return out;
-  }
-
-  /** Filesystem-safe: drop combining marks, keep letters/digits, spaces -> "-". */
-  function sanitizeForFilename(name) {
-    return String(name || '')
-      .normalize('NFKD')
-      .replace(/[^\p{L}\p{N}\s_-]/gu, '')
-      .trim()
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-');
-  }
-
-  /* -------------------------------- Elements ----------------------------- */
-
-  const el = {
-    customerName: $('#customerName'),
-    errCustomerName: $('#errCustomerName'),
-    quoteDate: $('#quoteDate'),
-    itemList: $('#itemList'),
-    addItem: $('#addItem'),
-    includesList: $('#includesList'),
-    customInclude: $('#customInclude'),
-    addInclude: $('#addInclude'),
-    sampleNotice: $('#sampleNotice'),
-    clearSample: $('#clearSample'),
-    totalDisplay: $('#totalDisplay'),
-    downloadQuote: $('#downloadQuote'),
-    downloadInvoice: $('#downloadInvoice'),
-    toast: $('#toast'),
-    quotation: $('#quotation'),
-    qFor: $('#qFor'),
-    qDate: $('#qDate'),
-    qDear: $('#qDear'),
-    qItems: $('#qItems'),
-    qIncludes: $('#qIncludes'),
-    invoice: $('#invoice'),
-    iFor: $('#iFor'),
-    iDate: $('#iDate'),
-    iItems: $('#iItems'),
-    iTerms: $('#iTerms')
-  };
+  /* Must match the check constraint in schema.sql. */
+  const STATUSES = ['Draft', 'Quoted', 'Confirmed', 'In production', 'Delivered'];
 
   const REMOVE_ICON =
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
@@ -280,6 +47,356 @@
   const CHECK_ICON =
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" ' +
     'stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
+
+  /* -------------------------------- Elements ----------------------------- */
+
+  const el = {
+    boot: $('#boot'),
+    gate: $('#gate'),
+    gateForm: $('#gateForm'),
+    gatePassword: $('#gatePassword'),
+    gateErr: $('#gateErr'),
+    gateSubmit: $('#gateSubmit'),
+
+    app: $('#app'),
+    backBtn: $('#backBtn'),
+    viewTitle: $('#viewTitle'),
+    viewSub: $('#viewSub'),
+    saveBtn: $('#saveBtn'),
+    signOutBtn: $('#signOutBtn'),
+
+    viewCustomers: $('#viewCustomers'),
+    customerSearch: $('#customerSearch'),
+    customerList: $('#customerList'),
+    newCustomer: $('#newCustomer'),
+
+    viewCustomer: $('#viewCustomer'),
+    cName: $('#cName'),
+    errCName: $('#errCName'),
+    cPhone: $('#cPhone'),
+    cInstagram: $('#cInstagram'),
+    cSource: $('#cSource'),
+    cWedding: $('#cWedding'),
+    cFitting1: $('#cFitting1'),
+    cFittingFinal: $('#cFittingFinal'),
+    cNotes: $('#cNotes'),
+    customerOrdersCard: $('#customerOrdersCard'),
+    orderList: $('#orderList'),
+    newOrder: $('#newOrder'),
+    deleteCustomer: $('#deleteCustomer'),
+
+    viewOrder: $('#viewOrder'),
+    oDate: $('#oDate'),
+    oStatus: $('#oStatus'),
+    itemList: $('#itemList'),
+    addItem: $('#addItem'),
+    includesList: $('#includesList'),
+    customInclude: $('#customInclude'),
+    addInclude: $('#addInclude'),
+    docLogCard: $('#docLogCard'),
+    docLog: $('#docLog'),
+    deleteOrder: $('#deleteOrder'),
+
+    actionbar: $('#actionbar'),
+    totalDisplay: $('#totalDisplay'),
+    downloadQuote: $('#downloadQuote'),
+    downloadInvoice: $('#downloadInvoice'),
+    toast: $('#toast')
+  };
+
+  const DOWNLOAD_BUTTONS = { quotation: el.downloadQuote, invoice: el.downloadInvoice };
+
+  /* --------------------------------- State ------------------------------- */
+
+  const state = {
+    route: null,        // { view, id }
+    customers: [],      // the whole list, filtered client-side
+    customer: null,     // record backing the customer view
+    order: null,        // record backing the order view
+    dirty: false,
+    saving: false
+  };
+
+  /* -------------------------------- Chrome ------------------------------- */
+
+  let toastTimer;
+  function showToast(message) {
+    el.toast.textContent = message;
+    el.toast.classList.add('is-visible');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.toast.classList.remove('is-visible'), 2600);
+  }
+
+  function setDirty(dirty) {
+    state.dirty = dirty;
+    el.saveBtn.disabled = !dirty || state.saving;
+    el.saveBtn.textContent = state.saving ? 'Saving…' : (dirty ? 'Save' : 'Saved');
+  }
+
+  function setChrome(opts) {
+    el.viewTitle.textContent = opts.title;
+    el.viewSub.textContent = opts.sub || 'Kelak Kembali';
+    el.backBtn.hidden = !opts.back;
+    el.saveBtn.hidden = !opts.save;
+    el.actionbar.hidden = !opts.actions;
+    document.body.classList.toggle('has-actionbar', !!opts.actions);
+  }
+
+  /* -------------------------------- Routing ------------------------------ */
+
+  /** #/customers | #/customer/new | #/customer/:id | #/order/:id */
+  function parseHash() {
+    const parts = String(location.hash || '').replace(/^#\/?/, '').split('/').filter(Boolean);
+    if (parts[0] === 'customer' && parts[1]) return { view: 'customer', id: parts[1] };
+    if (parts[0] === 'order' && parts[1]) return { view: 'order', id: parts[1] };
+    return { view: 'customers' };
+  }
+
+  function go(hash) {
+    if (location.hash === hash) handleRoute();
+    else location.hash = hash;
+  }
+
+  /* Unsaved work is only ever one confirm away from being lost, never zero. */
+  function confirmLeave() {
+    if (!state.dirty) return true;
+    return window.confirm('You have unsaved changes. Leave without saving?');
+  }
+
+  let lastHash = '';
+  async function handleRoute() {
+    const next = parseHash();
+
+    // Guard the transition, and put the URL back if it is refused.
+    if (state.dirty && lastHash !== location.hash) {
+      if (!confirmLeave()) {
+        location.hash = lastHash;
+        return;
+      }
+      setDirty(false);
+    }
+    lastHash = location.hash;
+    state.route = next;
+
+    el.viewCustomers.hidden = next.view !== 'customers';
+    el.viewCustomer.hidden = next.view !== 'customer';
+    el.viewOrder.hidden = next.view !== 'order';
+    window.scrollTo(0, 0);
+
+    try {
+      if (next.view === 'customers') await showCustomers();
+      else if (next.view === 'customer') await showCustomer(next.id);
+      else await showOrder(next.id);
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || 'Could not load that');
+    }
+  }
+
+  /* ---------------------------- Customer list ----------------------------- */
+
+  async function showCustomers() {
+    setChrome({ title: 'Customers', back: false, save: false, actions: false });
+    state.customer = null;
+    state.order = null;
+    el.customerList.innerHTML = '<p class="empty">Loading…</p>';
+    state.customers = await db.listCustomers();
+    renderCustomerList();
+  }
+
+  function renderCustomerList() {
+    const q = el.customerSearch.value.trim().toLowerCase();
+    const rows = state.customers.filter((c) => !q || [c.name, c.phone, c.instagram]
+      .some((v) => String(v || '').toLowerCase().includes(q)));
+
+    if (!rows.length) {
+      el.customerList.innerHTML = '<p class="empty">' +
+        (state.customers.length ? 'No customer matches that.' : 'No customers yet.') + '</p>';
+      return;
+    }
+
+    el.customerList.innerHTML = rows.map((c) => {
+      const meta = [
+        c.wedding_date ? 'Wedding ' + U.formatShortDate(c.wedding_date) : '',
+        c.phone || '',
+        c.instagram || ''
+      ].filter(Boolean).join(' · ');
+      return '<a class="row" href="#/customer/' + c.id + '">' +
+        '<span class="row__main">' +
+          '<span class="row__title">' + U.escapeHtml(c.name) + '</span>' +
+          (meta ? '<span class="row__meta">' + U.escapeHtml(meta) + '</span>' : '') +
+        '</span>' +
+        '<span class="row__chev" aria-hidden="true">›</span>' +
+      '</a>';
+    }).join('');
+  }
+
+  /* --------------------------- Customer detail ---------------------------- */
+
+  const BLANK_CUSTOMER = {
+    id: null, name: '', phone: '', instagram: '', source: '',
+    wedding_date: '', fitting_1_date: '', final_fitting_date: '', notes: ''
+  };
+
+  async function showCustomer(id) {
+    const isNew = id === 'new';
+    setChrome({
+      title: isNew ? 'New customer' : 'Customer',
+      back: true, save: true, actions: false
+    });
+
+    state.customer = isNew ? Object.assign({}, BLANK_CUSTOMER) : await db.getCustomer(id);
+    fillCustomerForm(state.customer);
+
+    el.customerOrdersCard.hidden = isNew;
+    el.deleteCustomer.hidden = isNew;
+    setDirty(isNew);
+
+    if (isNew) {
+      el.cName.focus();
+      return;
+    }
+
+    el.viewSub.textContent = state.customer.name;
+    el.orderList.innerHTML = '<p class="empty">Loading…</p>';
+    renderOrderList(await db.listOrders(id));
+  }
+
+  function fillCustomerForm(c) {
+    el.cName.value = c.name || '';
+    el.cPhone.value = c.phone || '';
+    el.cInstagram.value = c.instagram || '';
+    el.cSource.value = c.source || '';
+    el.cWedding.value = c.wedding_date || '';
+    el.cFitting1.value = c.fitting_1_date || '';
+    el.cFittingFinal.value = c.final_fitting_date || '';
+    el.cNotes.value = c.notes || '';
+    el.cName.classList.remove('is-invalid');
+    el.errCName.hidden = true;
+  }
+
+  /** Empty text fields go to the database as NULL, not "". */
+  const orNull = (v) => (String(v || '').trim() === '' ? null : String(v).trim());
+
+  function readCustomerForm() {
+    return {
+      name: el.cName.value.trim(),
+      phone: orNull(el.cPhone.value),
+      instagram: orNull(el.cInstagram.value),
+      source: orNull(el.cSource.value),
+      wedding_date: orNull(el.cWedding.value),
+      fitting_1_date: orNull(el.cFitting1.value),
+      final_fitting_date: orNull(el.cFittingFinal.value),
+      notes: orNull(el.cNotes.value)
+    };
+  }
+
+  function renderOrderList(orders) {
+    if (!orders.length) {
+      el.orderList.innerHTML = '<p class="empty">No orders yet.</p>';
+      return;
+    }
+    el.orderList.innerHTML = orders.map((o) => {
+      const items = o.items || [];
+      const label = items.length && items[0].name
+        ? items[0].name + (items.length > 1 ? ' + ' + (items.length - 1) + ' more' : '')
+        : 'Empty order';
+      return '<a class="row" href="#/order/' + o.id + '">' +
+        '<span class="row__main">' +
+          '<span class="row__title">' + U.escapeHtml(label) + '</span>' +
+          '<span class="row__meta">' + U.escapeHtml(U.formatShortDate(o.document_date)) +
+            ' · ' + U.formatRupiah(docs.computeTotal(items)) + '</span>' +
+        '</span>' +
+        '<span class="badge badge--' + o.status.toLowerCase().replace(/\s+/g, '-') + '">' +
+          U.escapeHtml(o.status) + '</span>' +
+      '</a>';
+    }).join('');
+  }
+
+  async function saveCustomer() {
+    if (el.cName.value.trim() === '') {
+      el.cName.classList.add('is-invalid');
+      el.errCName.hidden = false;
+      el.cName.focus();
+      return false;
+    }
+    const patch = readCustomerForm();
+    if (state.customer.id) {
+      state.customer = await db.updateCustomer(state.customer.id, patch);
+      setDirty(false);
+      el.viewSub.textContent = state.customer.name;
+      showToast('Customer saved');
+    } else {
+      state.customer = await db.createCustomer(patch);
+      setDirty(false);
+      showToast('Customer created');
+      go('#/customer/' + state.customer.id);
+    }
+    return true;
+  }
+
+  /* ------------------------------ Order editor ---------------------------- */
+
+  async function showOrder(id) {
+    setChrome({ title: 'Order', back: true, save: true, actions: true });
+
+    state.order = await db.getOrder(id);
+    state.customer = await db.getCustomer(state.order.customer_id);
+    el.viewSub.textContent = state.customer.name;
+
+    el.oDate.value = state.order.document_date || U.todayISO();
+    el.oStatus.value = STATUSES.includes(state.order.status) ? state.order.status : 'Draft';
+
+    el.itemList.innerHTML = '';
+    const items = (state.order.items || []).length
+      ? state.order.items
+      : [{ name: '', qty: 1, price: '' }];
+    items.forEach((item) => addItemRow(item, false));
+
+    buildIncludes(state.order.includes || []);
+    el.customInclude.value = '';
+
+    setDirty(false);
+    renderDocuments();
+    await refreshDocLog();
+  }
+
+  function orderData() {
+    return {
+      customerName: state.customer ? state.customer.name : '',
+      date: el.oDate.value,
+      items: readItems().map((it) => ({ name: it.name, qty: it.qty, price: it.price })),
+      includes: checkedIncludes()
+    };
+  }
+
+  /** Push the current form into both templates and the running total. */
+  function renderDocuments() {
+    el.totalDisplay.textContent = U.formatRupiah(docs.render(orderData()));
+  }
+
+  async function saveOrder() {
+    state.order = await db.updateOrder(state.order.id, {
+      document_date: el.oDate.value || U.todayISO(),
+      status: el.oStatus.value,
+      items: orderData().items,
+      includes: checkedIncludes()
+    });
+    setDirty(false);
+    return true;
+  }
+
+  async function refreshDocLog() {
+    const rows = await db.listDocumentLog(state.order.id);
+    el.docLogCard.hidden = !rows.length;
+    el.docLog.innerHTML = rows.map((r) =>
+      '<div class="logrow">' +
+        '<span class="logrow__kind">' + (r.kind === 'invoice' ? 'Invoice' : 'Quotation') + '</span>' +
+        '<span class="logrow__when">' + U.escapeHtml(U.formatShortDate(r.created_at)) + '</span>' +
+        '<span class="logrow__total">' + U.formatRupiah(r.total) + '</span>' +
+      '</div>'
+    ).join('');
+  }
 
   /* ------------------------------- Item rows ----------------------------- */
 
@@ -313,9 +430,10 @@
       '</div>' +
       '<span class="err js-err" hidden></span>';
 
-    $('.js-name', row).value = item.name;
-    $('.js-qty', row).value = item.qty;
-    $('.js-price', row).value = item.price === '' ? '' : groupDigits(item.price);
+    $('.js-name', row).value = item.name || '';
+    $('.js-qty', row).value = item.qty == null ? 1 : item.qty;
+    $('.js-price', row).value = item.price === '' || item.price == null
+      ? '' : U.groupDigits(item.price);
     return row;
   }
 
@@ -327,9 +445,7 @@
     return row;
   }
 
-  function rowElements() {
-    return Array.prototype.slice.call(el.itemList.querySelectorAll('.item'));
-  }
+  const rowElements = () => $$('.item', el.itemList);
 
   function refreshRemoveButtons() {
     const rows = rowElements();
@@ -341,53 +457,22 @@
     return rowElements().map((row) => ({
       row: row,
       name: $('.js-name', row).value.trim(),
-      qtyRaw: digitsOnly($('.js-qty', row).value),
-      priceRaw: digitsOnly($('.js-price', row).value),
+      qtyRaw: U.digitsOnly($('.js-qty', row).value),
+      priceRaw: U.digitsOnly($('.js-price', row).value),
       get qty() { return this.qtyRaw === '' ? 0 : Number(this.qtyRaw); },
       get price() { return this.priceRaw === '' ? 0 : Number(this.priceRaw); }
     }));
   }
 
-  const computeTotal = (items) =>
-    items.reduce((sum, it) => sum + it.qty * it.price, 0);
-
-  /* ------------------------------ Sample state --------------------------- */
-
-  /** The notice stays up for as long as the untouched sample rows are present. */
-  function sampleStillPresent() {
-    const items = readItems();
-    return SAMPLE_ITEMS.every((sample) => items.some((it) =>
-      it.name === sample.name &&
-      it.qty === sample.qty &&
-      it.price === sample.price
-    ));
-  }
-
-  function refreshSampleNotice() {
-    el.sampleNotice.hidden = !sampleStillPresent();
-  }
-
-  function clearSampleData() {
-    el.itemList.innerHTML = '';
-    addItemRow({ name: '', qty: 1, price: '' }, false);
-    el.includesList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
-      cb.checked = false;
-      cb.closest('.chip').classList.remove('is-checked');
-    });
-    el.customInclude.value = '';
-    el.sampleNotice.hidden = true;
-    update();
-    showToast('Sample data cleared');
-  }
-
   /* -------------------------------- Includes ----------------------------- */
 
   /** A standing chip: label only, toggled on and off. */
-  function fixedChip(label) {
-    return '<label class="chip is-checked" data-label="' + escapeHtml(label) + '">' +
-      '<input type="checkbox" checked>' +
+  function fixedChip(label, checked) {
+    return '<label class="chip' + (checked ? ' is-checked' : '') + '" ' +
+      'data-label="' + U.escapeHtml(label) + '">' +
+      '<input type="checkbox"' + (checked ? ' checked' : '') + '>' +
       '<span class="chip__box">' + CHECK_ICON + '</span>' +
-      '<span>' + escapeHtml(label) + '</span>' +
+      '<span>' + U.escapeHtml(label) + '</span>' +
     '</label>';
   }
 
@@ -396,28 +481,40 @@
    * inside it — nesting a button in a <label> makes every click on it toggle
    * the checkbox too.
    */
-  function customChip(label) {
-    return '<span class="chip chip--custom is-checked" data-label="' + escapeHtml(label) + '">' +
+  function customChip(label, checked) {
+    return '<span class="chip chip--custom' + (checked ? ' is-checked' : '') + '" ' +
+      'data-label="' + U.escapeHtml(label) + '">' +
       '<label class="chip__main">' +
-        '<input type="checkbox" checked>' +
+        '<input type="checkbox"' + (checked ? ' checked' : '') + '>' +
         '<span class="chip__box">' + CHECK_ICON + '</span>' +
-        '<span>' + escapeHtml(label) + '</span>' +
+        '<span>' + U.escapeHtml(label) + '</span>' +
       '</label>' +
       '<button type="button" class="chip__remove js-remove-include" ' +
-        'aria-label="Remove ' + escapeHtml(label) + '">' + CLOSE_ICON + '</button>' +
+        'aria-label="Remove ' + U.escapeHtml(label) + '">' + CLOSE_ICON + '</button>' +
     '</span>';
   }
 
-  function buildIncludes() {
-    el.includesList.innerHTML = INCLUDES.map(fixedChip).join('');
+  /**
+   * The six standing options, ticked to match the saved order, followed by any
+   * saved label that is not one of them — those came from a previous "add your
+   * own" and would otherwise vanish on reload.
+   */
+  function buildIncludes(saved) {
+    const ticked = saved || [];
+    const isTicked = (label) => ticked.some((l) => l.toLowerCase() === label.toLowerCase());
+    const extra = ticked.filter((l) =>
+      !INCLUDES.some((s) => s.toLowerCase() === l.toLowerCase()));
+
+    el.includesList.innerHTML =
+      INCLUDES.map((label) => fixedChip(label, isTicked(label))).join('') +
+      extra.map((label) => customChip(label, true)).join('');
   }
 
   const includeLabels = () =>
-    Array.prototype.slice.call(el.includesList.querySelectorAll('[data-label]'))
-      .map((chip) => chip.dataset.label);
+    $$('[data-label]', el.includesList).map((chip) => chip.dataset.label);
 
   const checkedIncludes = () =>
-    Array.prototype.slice.call(el.includesList.querySelectorAll('.chip'))
+    $$('.chip', el.includesList)
       .filter((chip) => $('input', chip).checked)
       .map((chip) => chip.dataset.label);
 
@@ -429,113 +526,27 @@
     const match = existing.findIndex((l) => l.toLowerCase() === label.toLowerCase());
     if (match !== -1) {
       // Already on the list — just make sure it is ticked, and say so.
-      const chip = el.includesList.querySelectorAll('.chip')[match];
+      const chip = $$('.chip', el.includesList)[match];
       $('input', chip).checked = true;
       chip.classList.add('is-checked');
       el.customInclude.value = '';
-      renderQuotation();
+      renderDocuments();
+      setDirty(true);
       showToast('"' + label + '" is already on the list');
       return;
     }
 
-    el.includesList.insertAdjacentHTML('beforeend', customChip(label));
+    el.includesList.insertAdjacentHTML('beforeend', customChip(label, true));
     el.customInclude.value = '';
     el.customInclude.focus();
-    renderQuotation();
-  }
-
-  /* ---------------------------- Document rendering ------------------------ */
-
-  /** The items table, identical on both documents: named rows then the Total. */
-  function itemRowsHtml(items, total) {
-    const rows = items
-      .filter((it) => it.name !== '')
-      .map((it) =>
-        '<div class="q-row">' +
-          '<p class="q-c-item">' + escapeHtml(it.name) + '</p>' +
-          '<p class="q-c-qty">' + it.qty + '</p>' +
-          '<p class="q-c-price">' + formatRupiah(it.price) + '</p>' +
-        '</div>'
-      );
-
-    rows.push(
-      '<div class="q-row q-row--total">' +
-        '<p class="q-c-item">Total</p>' +
-        '<p class="q-c-price">' + formatRupiah(total) + '</p>' +
-      '</div>'
-    );
-    return rows.join('');
-  }
-
-  /**
-   * The 35 / 35 / 30 split, in rupiah. The first two are rounded to the
-   * nearest rupiah and the third takes whatever is left, so the three always
-   * add up to the Total exactly rather than drifting a rupiah off it.
-   */
-  function depositAmounts(total) {
-    const first = Math.round(total * DEPOSIT_SHARES[0]);
-    const second = Math.round(total * DEPOSIT_SHARES[1]);
-    return [first, second, total - first - second];
-  }
-
-  function renderQuotation() {
-    const name = el.customerName.value.trim();
-    const items = readItems();
-    const total = computeTotal(items);
-
-    el.qFor.textContent = name;
-    el.qDate.textContent = formatLongDate(el.quoteDate.value);
-    el.qDear.textContent = 'Dear ' + name + ',';
-
-    el.qItems.innerHTML = itemRowsHtml(items, total);
-
-    const included = checkedIncludes();
-    el.qIncludes.innerHTML = '<p class="q-b">Includes:</p>' + included.map((label, i) =>
-      '<span class="q-inc">' +
-        '<span>' + escapeHtml(label) + '</span>' +
-        (i < included.length - 1 ? '<span class="q-dot"></span>' : '') +
-      '</span>'
-    ).join('');
-
-    el.totalDisplay.textContent = formatRupiah(total);
-  }
-
-  function renderInvoice() {
-    const items = readItems();
-    const total = computeTotal(items);
-
-    el.iFor.textContent = el.customerName.value.trim();
-    el.iDate.textContent = formatLongDate(el.quoteDate.value);
-
-    el.iItems.innerHTML = itemRowsHtml(items, total);
-
-    el.iTerms.innerHTML = depositAmounts(total).map((amount, i) =>
-      '<div class="q-row q-row--pair">' +
-        '<p class="q-c-item">' + DEPOSIT_LABELS[i] + '</p>' +
-        '<p class="q-c-price">' + formatRupiah(amount) + '</p>' +
-      '</div>'
-    ).join('');
-  }
-
-  function renderDocuments() {
-    renderQuotation();
-    renderInvoice();
-  }
-
-  function update() {
     renderDocuments();
-    refreshSampleNotice();
+    setDirty(true);
   }
 
   /* ------------------------------- Validation ---------------------------- */
 
-  function validate() {
+  function validateOrder() {
     let firstBad = null;
-
-    const nameOk = el.customerName.value.trim() !== '';
-    el.errCustomerName.hidden = nameOk;
-    el.customerName.classList.toggle('is-invalid', !nameOk);
-    if (!nameOk) firstBad = el.customerName;
 
     readItems().forEach((it) => {
       const errNode = $('.js-err', it.row);
@@ -572,248 +583,170 @@
     return !firstBad;
   }
 
-  /* ----------------------------- PDF generation -------------------------- */
+  /* ------------------------------ PDF download ---------------------------- */
 
-  function imagesReady(root) {
-    const imgs = Array.prototype.slice.call(root.querySelectorAll('img'));
-    return Promise.all(imgs.map((img) => (
-      img.complete && img.naturalWidth
-        ? Promise.resolve()
-        : new Promise((res) => { img.onload = img.onerror = res; })
-    )));
+  /** Both buttons lock during a capture; only the pressed one spins. */
+  function setBusy(kind, busy) {
+    Object.keys(DOWNLOAD_BUTTONS).forEach((k) => { DOWNLOAD_BUTTONS[k].disabled = busy; });
+    const btn = DOWNLOAD_BUTTONS[kind];
+    btn.classList.toggle('is-busy', busy);
+    $('.btn__label', btn).textContent = busy ? 'Generating…' : docs.DOCS[kind].name + ' PDF';
   }
 
-  async function fontsReady() {
-    if (!document.fonts) return;
-    try {
-      await Promise.all([
-        document.fonts.load('400 13px "Plus Jakarta Sans"'),
-        document.fonts.load('600 13px "Plus Jakarta Sans"'),
-        document.fonts.load('600 44px "Plus Jakarta Sans"')
-      ]);
-      await document.fonts.ready;
-    } catch (e) { /* fall through to the system fallback */ }
-  }
-
-  /* html2canvas renders from a clone of the document inside its own iframe. That
-     iframe is a fresh layout environment: it resolves fonts independently of
-     this document, and the page's viewport meta does not apply inside it. Both
-     have to be pinned down here or the clone lays text out differently from what
-     was measured. The autosize lock is belt and braces — styles.css sets it on
-     .q too, this only covers the clone being styled late. */
-  async function cloneReady(doc) {
-    const root = doc.documentElement;
-    if (root) {
-      root.style.setProperty('-webkit-text-size-adjust', 'none');
-      root.style.setProperty('text-size-adjust', 'none');
-    }
-    if (!doc.fonts) return;
-    try {
-      await Promise.all([
-        doc.fonts.load('400 13px "Plus Jakarta Sans"'),
-        doc.fonts.load('600 13px "Plus Jakarta Sans"'),
-        doc.fonts.load('600 44px "Plus Jakarta Sans"')
-      ]);
-      await doc.fonts.ready;
-    } catch (e) { /* fall through to the system fallback */ }
-  }
-
-  /* Crop the transparent band off the bottom of a capture, then give back the
-     document's own bottom padding. The page is snapshotted taller than it
-     measured, so whatever the clone actually laid out is inside the canvas;
-     this finds where the ink really ends rather than trusting the measurement. */
-  function trimToContent(src, padPx, minHeight) {
-    const ctx = src.getContext('2d');
-    const w = src.width;
-
-    // Only the band below minHeight can be spare — read it in one go and walk
-    // up it, rather than paying for a getImageData call per row of the page.
-    const top = Math.max(0, Math.min(minHeight, src.height));
-    const band = src.height - top;
-    if (band <= 0) return src;
-
-    const data = ctx.getImageData(0, top, w, band).data;
-    let last = -1;
-    for (let y = band - 1; y >= 0 && last < 0; y--) {
-      const start = y * w * 4;
-      for (let i = start + 3; i < start + w * 4; i += 4) {
-        if (data[i] > 0) { last = top + y; break; }
-      }
-    }
-    // Nothing spilled past the measured height: drop the whole spare band.
-    // Otherwise keep down to the last ink and give back the bottom padding, but
-    // never crop above the measured height — the trailing transparent pixels
-    // inside the signature mark are part of the design, not overflow.
-    const height = last < 0
-      ? top
-      : Math.min(src.height, Math.max(top, Math.round(last + 1 + padPx)));
-    if (height === src.height) return src;
-
-    const out = document.createElement('canvas');
-    out.width = w;
-    out.height = height;
-    out.getContext('2d').drawImage(src, 0, 0);
-    return out;
-  }
-
-  /* The two documents differ only in which node is snapshotted and how the
-     file and messages are named — the capture path below is shared. */
-  const DOCS = {
-    quotation: { node: 'quotation', button: 'downloadQuote',   label: 'Quotation PDF', name: 'Quotation' },
-    invoice:   { node: 'invoice',   button: 'downloadInvoice', label: 'Invoice PDF',   name: 'Invoice' }
-  };
-
-  function buildFilename(kind) {
-    const prefix = DOCS[kind].name + '-KelakKembali-';
-    const iso = el.quoteDate.value || todayISO();
-    const safe = sanitizeForFilename(el.customerName.value);
-    return safe
-      ? prefix + safe + '-' + iso + '.pdf'
-      : prefix + iso + '.pdf';
-  }
-
-  async function downloadPdf(kind) {
-    if (!validate()) {
+  async function download(kind) {
+    if (!validateOrder()) {
       showToast('Please complete the highlighted fields');
       return;
     }
 
-    const doc = el[DOCS[kind].node];
-
     setBusy(kind, true);
+    let total;
     try {
-      renderDocuments();
-      await fontsReady();
-      await imagesReady(doc);
-
-      const docW = doc.offsetWidth;
-      const measuredH = doc.offsetHeight;
-
-      // Snapshot the page over nothing, so the seeded field shows through.
-      doc.style.backgroundColor = 'transparent';
-      let raw;
-      try {
-        raw = await html2canvas(doc, {
-          scale: SNAPSHOT_SCALE,
-          backgroundColor: null,
-          useCORS: true,
-          logging: false,
-          width: docW,
-          // Capture with slack below the measured height. html2canvas lays the
-          // clone out itself, so its text can land a line or two lower than the
-          // live DOM did; without slack that overflow is simply clipped off the
-          // bottom of the page. The extra band is transparent and trimmed below.
-          height: measuredH + CAPTURE_SLACK,
-          onclone: cloneReady
-        });
-      } finally {
-        doc.style.backgroundColor = '';
-      }
-
-      const page = trimToContent(
-        raw, Q_PAD * SNAPSHOT_SCALE, measuredH * SNAPSHOT_SCALE
-      );
-      const docH = page.height / SNAPSHOT_SCALE;
-
-      const watermark = buildWatermark(
-        watermarkSeed(kind, readItems()), docW, docH, SNAPSHOT_SCALE
-      );
-
-      const canvas = document.createElement('canvas');
-      canvas.width = page.width;
-      canvas.height = page.height;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(watermark, 0, 0, canvas.width, canvas.height);
-      ctx.drawImage(page, 0, 0);
-
-      const pageHeight = PDF_PAGE_WIDTH_PT * (canvas.height / canvas.width);
-      const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'pt',
-        format: [PDF_PAGE_WIDTH_PT, pageHeight],
-        compress: true
-      });
-
-      // JPEG, not PNG: the grain is un-compressible noise that would push a
-      // lossless page well past 10 MB. At 3x, 0.95 leaves no visible artefacts.
-      pdf.addImage(
-        canvas.toDataURL('image/jpeg', 0.95), 'JPEG',
-        0, 0, PDF_PAGE_WIDTH_PT, pageHeight, undefined, 'FAST'
-      );
-      pdf.save(buildFilename(kind));
-      showToast(DOCS[kind].name + ' downloaded');
+      // The log is a record of what was sent, so what was sent has to be what
+      // is stored. Save first, always.
+      if (state.dirty) await saveOrder();
+      total = await docs.download(kind, orderData());
     } catch (err) {
       console.error(err);
       showToast('Could not generate the PDF — please try again');
-    } finally {
       setBusy(kind, false);
+      return;
     }
-  }
+    setBusy(kind, false);
+    showToast(docs.DOCS[kind].name + ' downloaded');
 
-  /** Both buttons lock during a capture; only the pressed one spins. */
-  function setBusy(kind, busy) {
-    Object.keys(DOCS).forEach((k) => { el[DOCS[k].button].disabled = busy; });
-
-    const btn = el[DOCS[kind].button];
-    btn.classList.toggle('is-busy', busy);
-    $('.btn__label', btn).textContent = busy ? 'Generating…' : DOCS[kind].label;
-  }
-
-  let toastTimer;
-  function showToast(message) {
-    el.toast.textContent = message;
-    el.toast.classList.add('is-visible');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.toast.classList.remove('is-visible'), 2600);
+    // The file is already on disk by now. A log failure is worth reporting but
+    // must not read as a failed download.
+    try {
+      await db.logDocument(state.order.id, kind, total);
+      await refreshDocLog();
+    } catch (err) {
+      console.error(err);
+      showToast('Downloaded, but could not record it');
+    }
   }
 
   /* --------------------------------- Events ------------------------------ */
 
   function bindEvents() {
-    el.customerName.addEventListener('input', () => {
-      if (el.customerName.value.trim()) {
-        el.customerName.classList.remove('is-invalid');
-        el.errCustomerName.hidden = true;
+    window.addEventListener('hashchange', handleRoute);
+
+    el.backBtn.addEventListener('click', () => history.back());
+
+    el.saveBtn.addEventListener('click', async () => {
+      if (state.saving) return;
+      state.saving = true;
+      setDirty(state.dirty);
+      try {
+        if (state.route.view === 'customer') await saveCustomer();
+        else if (state.route.view === 'order') { await saveOrder(); showToast('Order saved'); }
+      } catch (err) {
+        console.error(err);
+        showToast(err.message || 'Could not save');
+      } finally {
+        state.saving = false;
+        setDirty(state.dirty);
       }
-      renderDocuments();
     });
 
-    el.quoteDate.addEventListener('change', renderDocuments);
-    el.quoteDate.addEventListener('input', renderDocuments);
+    el.signOutBtn.addEventListener('click', async () => {
+      if (!confirmLeave()) return;
+      await db.signOut();
+      location.hash = '';
+      showGate();
+    });
+
+    /* -- customer list -- */
+
+    el.customerSearch.addEventListener('input', renderCustomerList);
+
+    el.newCustomer.addEventListener('click', () => go('#/customer/new'));
+
+    /* -- customer detail -- */
+
+    $$('.js-cfield').forEach((input) => {
+      input.addEventListener('input', () => {
+        if (input === el.cName && input.value.trim()) {
+          input.classList.remove('is-invalid');
+          el.errCName.hidden = true;
+        }
+        setDirty(true);
+      });
+      input.addEventListener('change', () => setDirty(true));
+    });
+
+    el.newOrder.addEventListener('click', async () => {
+      if (!confirmLeave()) return;
+      setDirty(false);
+      try {
+        const order = await db.createOrder({
+          customer_id: state.customer.id,
+          document_date: U.todayISO(),
+          status: 'Draft',
+          items: [],
+          includes: INCLUDES.slice()   // the standing package, all ticked
+        });
+        go('#/order/' + order.id);
+      } catch (err) {
+        console.error(err);
+        showToast(err.message || 'Could not create the order');
+      }
+    });
+
+    el.deleteCustomer.addEventListener('click', async () => {
+      const name = state.customer.name || 'this customer';
+      if (!window.confirm('Delete ' + name + ', along with every order and download record? This cannot be undone.')) return;
+      try {
+        await db.deleteCustomer(state.customer.id);
+        setDirty(false);
+        showToast('Customer deleted');
+        go('#/customers');
+      } catch (err) {
+        console.error(err);
+        showToast(err.message || 'Could not delete');
+      }
+    });
+
+    /* -- order editor -- */
+
+    $$('.js-ofield').forEach((input) => {
+      input.addEventListener('input', () => { setDirty(true); renderDocuments(); });
+      input.addEventListener('change', () => { setDirty(true); renderDocuments(); });
+    });
 
     el.addItem.addEventListener('click', () => {
       addItemRow({ name: '', qty: 1, price: '' }, true);
-      update();
+      setDirty(true);
+      renderDocuments();
     });
-
-    el.clearSample.addEventListener('click', clearSampleData);
 
     el.itemList.addEventListener('click', (e) => {
       const btn = e.target.closest('.js-remove');
       if (!btn || btn.disabled) return;
       btn.closest('.item').remove();
       refreshRemoveButtons();
-      update();
+      setDirty(true);
+      renderDocuments();
     });
 
     el.itemList.addEventListener('input', (e) => {
       const input = e.target;
       if (input.classList.contains('js-qty')) {
-        input.value = digitsOnly(input.value).replace(/^0+(?=\d)/, '');
+        input.value = U.digitsOnly(input.value).replace(/^0+(?=\d)/, '');
       } else if (input.classList.contains('js-price')) {
-        reformatPriceField(input);
+        U.reformatPriceField(input);
       }
       input.classList.remove('is-invalid');
       const errNode = $('.js-err', input.closest('.item'));
       if (errNode) errNode.hidden = true;
-      update();
+      setDirty(true);
+      renderDocuments();
     });
 
     el.itemList.addEventListener('focusout', (e) => {
-      if (e.target.classList.contains('js-qty') && digitsOnly(e.target.value) === '') {
+      if (e.target.classList.contains('js-qty') && U.digitsOnly(e.target.value) === '') {
         e.target.value = '1';
-        update();
+        renderDocuments();
       }
     });
 
@@ -821,7 +754,8 @@
       const cb = e.target;
       if (cb.type !== 'checkbox') return;
       cb.closest('.chip').classList.toggle('is-checked', cb.checked);
-      renderQuotation();
+      setDirty(true);
+      renderDocuments();
     });
 
     el.includesList.addEventListener('click', (e) => {
@@ -829,7 +763,8 @@
       if (!btn) return;
       e.preventDefault();
       btn.closest('.chip').remove();
-      renderQuotation();
+      setDirty(true);
+      renderDocuments();
     });
 
     el.addInclude.addEventListener('click', addCustomInclude);
@@ -841,19 +776,97 @@
       }
     });
 
-    el.downloadQuote.addEventListener('click', () => downloadPdf('quotation'));
-    el.downloadInvoice.addEventListener('click', () => downloadPdf('invoice'));
+    el.deleteOrder.addEventListener('click', async () => {
+      if (!window.confirm('Delete this order and its download record? This cannot be undone.')) return;
+      try {
+        const customerId = state.order.customer_id;
+        await db.deleteOrder(state.order.id);
+        setDirty(false);
+        showToast('Order deleted');
+        go('#/customer/' + customerId);
+      } catch (err) {
+        console.error(err);
+        showToast(err.message || 'Could not delete');
+      }
+    });
+
+    el.downloadQuote.addEventListener('click', () => download('quotation'));
+    el.downloadInvoice.addEventListener('click', () => download('invoice'));
+
+    /* A reload is outside the router's reach, so it gets its own guard. */
+    window.addEventListener('beforeunload', (e) => {
+      if (!state.dirty) return;
+      e.preventDefault();
+      e.returnValue = '';
+    });
+  }
+
+  /* ---------------------------------- Gate -------------------------------- */
+
+  function showGate() {
+    el.boot.hidden = true;
+    el.app.hidden = true;
+    el.gate.hidden = false;
+    el.gatePassword.value = '';
+    el.gateErr.hidden = true;
+    el.gatePassword.focus();
+  }
+
+  function showApp() {
+    el.boot.hidden = true;
+    el.gate.hidden = true;
+    el.app.hidden = false;
+    handleRoute();
+  }
+
+  function bindGate() {
+    el.gateForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (el.gateSubmit.disabled) return;
+
+      el.gateErr.hidden = true;
+      el.gateSubmit.disabled = true;
+      el.gateSubmit.classList.add('is-busy');
+      $('.btn__label', el.gateSubmit).textContent = 'Unlocking…';
+      try {
+        await db.signIn(el.gatePassword.value);
+        showApp();
+      } catch (err) {
+        el.gateErr.textContent = err.message || 'Could not sign in';
+        el.gateErr.hidden = false;
+        el.gatePassword.select();
+      } finally {
+        el.gateSubmit.disabled = false;
+        el.gateSubmit.classList.remove('is-busy');
+        $('.btn__label', el.gateSubmit).textContent = 'Unlock';
+      }
+    });
   }
 
   /* ---------------------------------- Init -------------------------------- */
 
-  function init() {
-    el.quoteDate.value = todayISO();
-    buildIncludes();
-    SAMPLE_ITEMS.forEach((item) => addItemRow(item, false));
+  async function init() {
+    bindGate();
     bindEvents();
-    update();
+
+    if (!db.isConfigured()) {
+      el.boot.innerHTML =
+        '<div class="boot__msg"><strong>Not connected.</strong>' +
+        '<span>Fill in <code>config.js</code> with your Supabase URL and anon key — ' +
+        'see “Setting up the database” in the README.</span></div>';
+      return;
+    }
+
+    try {
+      const session = await db.currentSession();
+      if (session) showApp(); else showGate();
+    } catch (err) {
+      console.error(err);
+      showGate();
+    }
   }
 
   init();
+
+  return { state };
 })();

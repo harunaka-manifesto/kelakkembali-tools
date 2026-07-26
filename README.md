@@ -4,18 +4,56 @@ A single-page, mobile-first tool that turns a short form into a downloadable PDF
 — either a **quotation** or an **invoice** — matching the Kelak Kembali designs
 1:1. One form fills both documents; the action bar offers a button for each.
 
-No backend, no login, no saved history. Pure client-side, static-deployable.
+Customers and their orders are kept in **Supabase**, behind a shared password.
+There is still no build step: the whole thing is static files plus three CDN
+scripts, deployed exactly as-is.
+
+```
+Customers  →  Customer  →  Order  →  Quotation PDF / Invoice PDF
+   list        record       editor
+```
+
+## Setting up the database
+
+The app will not start until `config.js` points at a project. One-time setup:
+
+1. Create a project at [supabase.com](https://supabase.com) (the free tier is
+   ample — this stores text, not files).
+2. **SQL Editor → New query**, paste the whole of [`schema.sql`](schema.sql),
+   run it. It creates the three tables, the `updated_at` triggers and the
+   row-level security policies. It is safe to re-run.
+3. **Authentication → Users → Add user** → *Create new user*. Use any address
+   you own — no mail is ever sent to it — and pick the password the studio will
+   share. Tick *Auto Confirm User*. This single account is what the gate signs
+   in as.
+4. **Project Settings → API**: copy the *Project URL* and the *anon public* key
+   into `config.js`, along with the email you just used.
+
+Both values in `config.js` are safe to commit. The anon key is a public
+identifier, not a secret — every table denies anonymous callers outright, so the
+key opens nothing on its own. **The shared password is the only credential that
+matters; it is never stored in the repo.** If it leaks, change it in
+Authentication → Users and tell the studio the new one.
 
 ## Running locally
 
 Any static file server works — the app needs `http://`, not `file://`, so the
-logo PNGs don't taint the export canvas.
+logo PNGs don't taint the export canvas and Supabase's auth session persists.
+
+`serve.ps1` is included so this needs nothing installed: it is stock .NET via
+PowerShell, no Node, no Python.
+
+```bash
+powershell -ExecutionPolicy Bypass -File serve.ps1
+```
+
+Or, if you have Node:
 
 ```bash
 npx serve -l 4173 .
 ```
 
-Then open <http://localhost:4173>.
+Either way, open <http://localhost:4173>.
 
 ## Deploying to Vercel
 
@@ -31,11 +69,55 @@ npx vercel deploy --prod
 
 | File | Role |
 |---|---|
-| `index.html` | Form UI + the two off-screen document templates |
-| `styles.css` | Part 1: form UI. Part 2: the quotation. Part 3: the invoice |
+| `index.html` | The gate, the three views, and the two off-screen document templates |
+| `styles.css` | Part 1: app UI. Part 2: the quotation. Part 3: the invoice |
 | `fonts.css` | Plus Jakarta Sans, self-hosted and inlined (see below) |
-| `app.js` | State, calculations, validation, PDF export |
+| `config.js` | Supabase URL, anon key and the shared account's email |
+| `util.js` | Formatting, escaping, the seeded-PRNG primitives |
+| `docs.js` | The document engine: fills both templates, exports the PDF |
+| `db.js` | Every Supabase call — auth and CRUD, nothing else touches the client |
+| `app.js` | Routing, views, form state, validation |
+| `schema.sql` | The migration to run once in the Supabase SQL editor |
+| `serve.ps1` | Local static server, so testing needs nothing installed |
 | `assets/` | The two logo marks, exported from Figma at 4x |
+
+They are plain `<script>` files sharing a `window.KK` namespace, not ES
+modules — modules would need `http://` even to open the file locally, and the
+whole point of this repo is that it has no build and no toolchain.
+
+`docs.js` takes `{ customerName, date, items, includes }` and knows nothing
+about the database or the views, so the templates stay testable in isolation
+and the storage layer can be swapped by rewriting `db.js` alone.
+
+### The data model
+
+Three tables (see [`schema.sql`](schema.sql)):
+
+- **`customers`** — name, phone, Instagram, source, wedding date, estimated
+  first and final fitting dates, notes.
+- **`orders`** — belongs to a customer; carries the document date, a status
+  (`Draft` → `Quoted` → `Confirmed` → `In production` → `Delivered`), and the
+  `items` and `includes` as `jsonb`. Both are short, always read and written
+  whole, and order-sensitive; child tables would buy nothing and cost a
+  position column plus two round trips per save.
+- **`document_log`** — one row per PDF actually saved: which kind, when, and
+  for how much. No files, just the numbers. Rows are kept verbatim when the
+  order is later edited, which is the whole point of having them.
+
+A quotation and an invoice are two renderings of one order, not two records.
+Deleting a customer cascades to their orders and log rows.
+
+### Saving
+
+Saving is explicit. An order editor that autosaved would write on every
+keystroke and, worse, would silently rewrite a record you were only glancing
+at. The **Save** button in the app bar reads `Saved` until something changes;
+leaving a dirty view — by link, by back button, or by reloading — asks first.
+
+Downloading always saves first. The log is a record of what was sent, so what
+was sent has to be what is stored.
+
+### Rendering
 
 Each document lives in its own `.stage` container positioned off-screen at its
 exact design size (598px wide). Both are re-rendered on every keystroke, so
@@ -198,10 +280,13 @@ the quotation, from the identical code path.
 - **Currency** — `Rp7.225.000`: dot thousands separators, no decimals, no space
   after `Rp`. Formatted manually, since `Intl` for `id-ID` inserts a space.
 - **Date** — always rendered `D Month YYYY` ("21 March 2026"), defaults to today.
-- **Includes** — six standing options plus any number of user-added ones. Only
-  ticked entries render, joined by 3px bullets with no trailing bullet. Ticking
-  none leaves just the `Includes:` label. Adding a label that already exists
-  (ignoring case and spacing) ticks the existing chip rather than duplicating it.
+- **Includes** — six standing options plus any number of user-added ones, all
+  six ticked on a new order because that is what the studio actually includes.
+  Only ticked entries render, joined by 3px bullets with no trailing bullet.
+  Ticking none leaves just the `Includes:` label. Adding a label that already
+  exists (ignoring case and spacing) ticks the existing chip rather than
+  duplicating it. A saved label that is not one of the six comes back as a
+  removable chip on reload, rather than vanishing.
 - **Price entry** — thousands separators are inserted as you type. The caret is
   restored by digit count, not by string offset, so it doesn't jump a place each
   time a new dot appears.
@@ -213,13 +298,11 @@ the quotation, from the identical code path.
   falling back to `{Kind}-KelakKembali-{YYYY-MM-DD}.pdf` when the name is blank.
 - **Validation** — shared. Either button runs the same check, and both lock
   while a capture is running; only the pressed one shows the spinner.
-
-## Sample data
-
-The two sample items from the design are pre-filled so the tool is immediately
-legible, all six includes ticked, and a persistent notice warns that they are
-samples. **Clear sample data** resets to one blank row with nothing ticked. The
-notice disappears once the sample rows are gone or edited.
+- **Customer list order** — soonest wedding first; customers without a date
+  sink to the bottom. Search matches name, phone or Instagram handle, filtering
+  the already-loaded list rather than re-querying.
+- **Deleting** — always behind a confirm, and always cascading: a customer
+  takes their orders and download log with them.
 
 ## Assets
 

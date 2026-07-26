@@ -11,70 +11,201 @@
 </head>
 <body>
 
+<!-- ============================== BOOT ============================== -->
+<!-- Held up until db.js has decided whether there is a live session, so the
+     gate never flashes for someone who is already signed in. -->
+<div class="boot" id="boot">
+  <div class="boot__spin" aria-hidden="true"></div>
+</div>
+
+<!-- ============================== GATE ============================== -->
+<div class="gate" id="gate" hidden>
+  <form class="gate__card" id="gateForm">
+    <img class="gate__mark" src="assets/logo-header.png" alt="">
+    <h1 class="gate__title">Kelak Kembali</h1>
+    <p class="gate__sub">Quotation &amp; invoice records</p>
+    <label class="field" for="gatePassword">
+      <span class="field__label">Shared password</span>
+      <input class="input" id="gatePassword" type="password"
+             autocomplete="current-password" enterkeyhint="go">
+    </label>
+    <span class="err" id="gateErr" hidden></span>
+    <button type="submit" class="btn btn--primary" id="gateSubmit">
+      <span class="btn__label">Unlock</span>
+      <span class="spinner" aria-hidden="true"></span>
+    </button>
+  </form>
+</div>
+
 <!-- ============================ APP UI ============================ -->
+<div class="app" id="app" hidden>
+
 <header class="appbar">
   <div class="appbar__inner">
+    <button type="button" class="appbar__back" id="backBtn" aria-label="Back" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
     <img class="appbar__mark" src="assets/logo-header.png" alt="">
     <div class="appbar__text">
-      <h1>Quotation &amp; Invoice</h1>
-      <p>Kelak Kembali</p>
+      <h1 id="viewTitle">Customers</h1>
+      <p id="viewSub">Kelak Kembali</p>
     </div>
+    <button type="button" class="btn btn--save" id="saveBtn" hidden>Save</button>
+    <button type="button" class="appbar__icon" id="signOutBtn" aria-label="Sign out">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+           stroke-linecap="round" stroke-linejoin="round"><path d="M15 17l5-5-5-5M20 12H9M12 20H6a2 2 0 01-2-2V6a2 2 0 012-2h6"/></svg>
+    </button>
   </div>
 </header>
 
 <main class="page">
 
-  <div class="notice" id="sampleNotice">
-    <span class="notice__icon" aria-hidden="true">📝</span>
-    <div class="notice__body">
-      <p><strong>Sample data loaded</strong> — edit or clear these before downloading.</p>
-      <button type="button" class="btn btn--ghost btn--sm" id="clearSample">Clear sample data</button>
+  <!-- --------------------------- Customer list --------------------------- -->
+  <section class="view" id="viewCustomers">
+    <div class="searchrow">
+      <input class="input" id="customerSearch" type="search" enterkeyhint="search"
+             placeholder="Search name, phone or handle…" autocapitalize="none" spellcheck="false">
     </div>
-  </div>
-
-  <section class="card">
-    <h2 class="card__title">Details</h2>
-
-    <label class="field" for="customerName">
-      <span class="field__label">Customer name</span>
-      <input class="input" id="customerName" type="text" placeholder="e.g. Jane Doe"
-             autocomplete="name" autocapitalize="words" spellcheck="false">
-      <span class="err" id="errCustomerName" hidden>Please enter the customer name.</span>
-    </label>
-
-    <label class="field" for="quoteDate">
-      <span class="field__label">Date</span>
-      <input class="input" id="quoteDate" type="date">
-    </label>
-  </section>
-
-  <section class="card">
-    <h2 class="card__title">Items</h2>
-    <div class="items" id="itemList"></div>
-    <button type="button" class="btn btn--outline btn--block" id="addItem">
-      <span aria-hidden="true">+</span> Add item
+    <div class="list" id="customerList"></div>
+    <button type="button" class="btn btn--outline btn--block" id="newCustomer">
+      <span aria-hidden="true">+</span> New customer
     </button>
   </section>
 
-  <section class="card">
-    <h2 class="card__title">Includes</h2>
-    <p class="card__hint">Quotation only — the invoice has no Includes section.</p>
-    <div class="chips" id="includesList"></div>
-    <div class="addrow">
-      <input class="input" id="customInclude" type="text" maxlength="60"
-             placeholder="Add your own…" autocapitalize="sentences" enterkeyhint="done">
-      <button type="button" class="btn btn--outline btn--add" id="addInclude">Add</button>
-    </div>
+  <!-- -------------------------- Customer detail -------------------------- -->
+  <section class="view" id="viewCustomer" hidden>
+    <section class="card">
+      <h2 class="card__title">Customer</h2>
+
+      <label class="field" for="cName">
+        <span class="field__label">Name</span>
+        <input class="input js-cfield" id="cName" type="text" placeholder="e.g. Jane Doe"
+               autocomplete="name" autocapitalize="words" spellcheck="false">
+        <span class="err" id="errCName" hidden>Please enter the customer name.</span>
+      </label>
+
+      <div class="grid2">
+        <label class="field" for="cPhone">
+          <span class="field__label">Phone / WhatsApp</span>
+          <input class="input js-cfield" id="cPhone" type="tel" placeholder="+62…"
+                 autocomplete="tel" spellcheck="false">
+        </label>
+        <label class="field" for="cInstagram">
+          <span class="field__label">Instagram</span>
+          <input class="input js-cfield" id="cInstagram" type="text" placeholder="@handle"
+                 autocapitalize="none" spellcheck="false">
+        </label>
+      </div>
+
+      <label class="field" for="cSource">
+        <span class="field__label">Source</span>
+        <select class="input js-cfield" id="cSource">
+          <option value="">—</option>
+          <option>Instagram</option>
+          <option>TikTok</option>
+          <option>Referral</option>
+          <option>Walk-in</option>
+          <option>Other</option>
+        </select>
+      </label>
+
+      <label class="field" for="cWedding">
+        <span class="field__label">Wedding date</span>
+        <input class="input js-cfield" id="cWedding" type="date">
+      </label>
+
+      <div class="grid2">
+        <label class="field" for="cFitting1">
+          <span class="field__label">Est. first fitting</span>
+          <input class="input js-cfield" id="cFitting1" type="date">
+        </label>
+        <label class="field" for="cFittingFinal">
+          <span class="field__label">Est. final fitting</span>
+          <input class="input js-cfield" id="cFittingFinal" type="date">
+        </label>
+      </div>
+
+      <label class="field" for="cNotes">
+        <span class="field__label">Notes</span>
+        <textarea class="input input--area js-cfield" id="cNotes" rows="3"
+                  placeholder="Measurements, preferences, anything else…"></textarea>
+      </label>
+    </section>
+
+    <section class="card" id="customerOrdersCard">
+      <h2 class="card__title">Orders</h2>
+      <div class="list" id="orderList"></div>
+      <button type="button" class="btn btn--outline btn--block" id="newOrder">
+        <span aria-hidden="true">+</span> New order
+      </button>
+    </section>
+
+    <button type="button" class="btn btn--danger btn--block" id="deleteCustomer">
+      Delete customer
+    </button>
   </section>
 
-  <p class="footnote">
-    The 35 / 35 / 30 payment terms are fixed on both documents. The quotation carries the
-    Excludes sentence; the invoice carries the deposit amounts and the BCA payment details.
-  </p>
+  <!-- ---------------------------- Order editor --------------------------- -->
+  <section class="view" id="viewOrder" hidden>
+    <section class="card">
+      <h2 class="card__title">Details</h2>
+
+      <label class="field" for="oDate">
+        <span class="field__label">Document date</span>
+        <input class="input js-ofield" id="oDate" type="date">
+      </label>
+
+      <label class="field" for="oStatus">
+        <span class="field__label">Status</span>
+        <select class="input js-ofield" id="oStatus">
+          <option>Draft</option>
+          <option>Quoted</option>
+          <option>Confirmed</option>
+          <option>In production</option>
+          <option>Delivered</option>
+        </select>
+      </label>
+    </section>
+
+    <section class="card">
+      <h2 class="card__title">Items</h2>
+      <div class="items" id="itemList"></div>
+      <button type="button" class="btn btn--outline btn--block" id="addItem">
+        <span aria-hidden="true">+</span> Add item
+      </button>
+    </section>
+
+    <section class="card">
+      <h2 class="card__title">Includes</h2>
+      <p class="card__hint">Quotation only — the invoice has no Includes section.</p>
+      <div class="chips" id="includesList"></div>
+      <div class="addrow">
+        <input class="input" id="customInclude" type="text" maxlength="60"
+               placeholder="Add your own…" autocapitalize="sentences" enterkeyhint="done">
+        <button type="button" class="btn btn--outline btn--add" id="addInclude">Add</button>
+      </div>
+    </section>
+
+    <section class="card" id="docLogCard" hidden>
+      <h2 class="card__title">Downloads</h2>
+      <p class="card__hint">What was generated, when, and for how much.</p>
+      <div class="loglist" id="docLog"></div>
+    </section>
+
+    <p class="footnote">
+      The 35 / 35 / 30 payment terms are fixed on both documents. The quotation carries the
+      Excludes sentence; the invoice carries the deposit amounts and the BCA payment details.
+    </p>
+
+    <button type="button" class="btn btn--danger btn--block" id="deleteOrder">
+      Delete order
+    </button>
+  </section>
 
 </main>
 
-<div class="actionbar">
+<div class="actionbar" id="actionbar" hidden>
   <div class="actionbar__inner">
     <div class="actionbar__total">
       <span class="actionbar__label">Total</span>
@@ -92,6 +223,8 @@
     </div>
   </div>
 </div>
+
+</div><!-- /.app -->
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
@@ -273,6 +406,11 @@
 
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="util.js"></script>
+<script src="docs.js"></script>
+<script src="db.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
