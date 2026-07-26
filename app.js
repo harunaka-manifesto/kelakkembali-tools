@@ -24,10 +24,24 @@
     { name: 'Bridal skirt', qty: 1, price: 1250000 }
   ];
 
-  const DEPOSITS = [0.35, 0.35, 0.30];
-
   const PDF_PAGE_WIDTH_PT = 595.28;  // A4 width, so the file still prints sensibly
   const SNAPSHOT_SCALE = 3;
+
+  /* Watermark: the document background is a soft, grainy field generated from a
+     seed made of the quotation's own contents. Any edit to the name, items,
+     prices or date yields a completely different field, so a tampered copy no
+     longer matches the one that was sent. */
+  const WM_BASE = '#EBE9E4';
+  const WM_TONES = [
+    [255, 253, 250],   // white
+    [251, 247, 240],   // ivory
+    [245, 239, 228],   // cream
+    [236, 228, 213],   // light sand
+    [219, 206, 184],   // sand
+    [199, 183, 156]    // warm brown, used sparingly
+  ];
+  const WM_FIELD_W = 48;   // gradients are painted small and upscaled -> soft blur
+  const WM_GRAIN = 21;     // overlay noise spread around mid-grey
 
   /* -------------------------------- Helpers ------------------------------ */
 
@@ -52,6 +66,29 @@
     return d ? d.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : '';
   };
 
+  /**
+   * Re-group a price field as it is typed. Separators shift as digits are
+   * added, so the caret is restored by digit count rather than by offset —
+   * otherwise it jumps a place every time a dot appears.
+   */
+  function reformatPriceField(input) {
+    const before = input.value;
+    const formatted = groupDigits(before);
+    if (formatted === before) return;
+
+    const caret = input.selectionStart;
+    const digitsBefore = digitsOnly(before.slice(0, caret)).length;
+    input.value = formatted;
+
+    let pos = 0;
+    let seen = 0;
+    while (pos < formatted.length && seen < digitsBefore) {
+      if (formatted.charCodeAt(pos) >= 48 && formatted.charCodeAt(pos) <= 57) seen++;
+      pos++;
+    }
+    input.setSelectionRange(pos, pos);
+  }
+
   /** "2026-03-21" -> "21 March 2026" (no leading zero, full month name). */
   function formatLongDate(iso) {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
@@ -68,11 +105,118 @@
     return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
   }
 
-  /** 35/35/30 of total, rounded, with the remainder absorbed by the 3rd. */
-  function splitDeposits(total) {
-    const a = Math.round(total * DEPOSITS[0]);
-    const b = Math.round(total * DEPOSITS[1]);
-    return [a, b, total - a - b];
+  /* ------------------------------- Watermark ----------------------------- */
+
+  /** FNV-1a, so the same quotation always yields the same field. */
+  function hashString(str) {
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+
+  /** mulberry32 — small, fast, well-distributed seeded PRNG. */
+  function mulberry32(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  /** Everything that identifies this quotation, in a stable order. */
+  function watermarkSeed(items) {
+    return [
+      el.customerName.value.trim(),
+      el.quoteDate.value,
+      items.map((it) => it.name + '×' + it.qty + '@' + it.price).join('|')
+    ].join('::');
+  }
+
+  /**
+   * Big, soft tonal washes + film grain, sized to the document at snapshot
+   * scale. Returns a canvas to composite under the page — never a data URL,
+   * which at this resolution would be tens of megabytes of un-compressible
+   * noise.
+   */
+  function buildWatermark(seed, cssW, cssH, scale) {
+    const rand = mulberry32(hashString(seed));
+    const W = Math.round(cssW * scale);
+    const H = Math.round(cssH * scale);
+
+    // The washes are painted into a tiny canvas and blown up ~12x, which is
+    // what gives them their softness for free. Few and large, so they read as
+    // one flowing field rather than a cluster of spots.
+    const fw = WM_FIELD_W;
+    const fh = Math.max(16, Math.round(fw * cssH / cssW));
+    const field = document.createElement('canvas');
+    field.width = fw;
+    field.height = fh;
+    const fc = field.getContext('2d');
+    fc.fillStyle = WM_BASE;
+    fc.fillRect(0, 0, fw, fh);
+
+    const blobs = 5 + Math.floor(rand() * 4);
+    for (let i = 0; i < blobs; i++) {
+      const tone = WM_TONES[Math.floor(rand() * WM_TONES.length)];
+      const cx = rand() * fw;
+      const cy = rand() * fh;
+      const r = (0.45 + rand() * 0.55) * fw;
+      const squash = 0.45 + rand() * 0.9;     // ellipses, not circles
+      const angle = rand() * Math.PI;
+      // Darker tones are held back further so the field stays a whisper.
+      const alpha = (0.12 + rand() * 0.26) * (tone[0] < 225 ? 0.45 : 1);
+
+      fc.save();
+      fc.translate(cx, cy);
+      fc.rotate(angle);
+      fc.scale(1, squash);
+      const g = fc.createRadialGradient(0, 0, 0, 0, 0, r);
+      g.addColorStop(0, 'rgba(' + tone + ',' + alpha.toFixed(3) + ')');
+      g.addColorStop(0.55, 'rgba(' + tone + ',' + (alpha * 0.45).toFixed(3) + ')');
+      g.addColorStop(1, 'rgba(' + tone + ',0)');
+      fc.fillStyle = g;
+      fc.fillRect(-fw * 2, -fh * 2, fw * 4, fh * 4);
+      fc.restore();
+    }
+
+    const out = document.createElement('canvas');
+    out.width = W;
+    out.height = H;
+    const oc = out.getContext('2d');
+    oc.imageSmoothingEnabled = true;
+    oc.imageSmoothingQuality = 'high';
+    oc.drawImage(field, 0, 0, W, H);
+
+    // Grain is generated at CSS resolution and blown up with smoothing OFF, so
+    // each particle is a crisp scale x scale block. Generating it per device
+    // pixel instead makes it far too fine — it averages away to flat mush.
+    const gw = Math.round(cssW);
+    const gh = Math.round(cssH);
+    const grain = document.createElement('canvas');
+    grain.width = gw;
+    grain.height = gh;
+    const gc = grain.getContext('2d');
+    const gimg = gc.createImageData(gw, gh);
+    const gd = gimg.data;
+    for (let i = 0; i < gd.length; i += 4) {
+      // Mid-grey is a no-op under "overlay"; the spread around it is the grain.
+      const v = 128 + (rand() - 0.5) * WM_GRAIN * 2;
+      gd[i] = gd[i + 1] = gd[i + 2] = v;
+      gd[i + 3] = 255;
+    }
+    gc.putImageData(gimg, 0, 0);
+
+    oc.globalCompositeOperation = 'overlay';
+    oc.imageSmoothingEnabled = false;
+    oc.drawImage(grain, 0, 0, W, H);
+    oc.globalCompositeOperation = 'source-over';
+
+    return out;
   }
 
   /** Filesystem-safe: drop combining marks, keep letters/digits, spaces -> "-". */
@@ -94,6 +238,8 @@
     itemList: $('#itemList'),
     addItem: $('#addItem'),
     includesList: $('#includesList'),
+    customInclude: $('#customInclude'),
+    addInclude: $('#addInclude'),
     sampleNotice: $('#sampleNotice'),
     clearSample: $('#clearSample'),
     totalDisplay: $('#totalDisplay'),
@@ -104,13 +250,16 @@
     qDate: $('#qDate'),
     qDear: $('#qDear'),
     qItems: $('#qItems'),
-    qIncludes: $('#qIncludes'),
-    qDep: [$('#qDep1'), $('#qDep2'), $('#qDep3')]
+    qIncludes: $('#qIncludes')
   };
 
   const REMOVE_ICON =
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
     'stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>';
+
+  const CLOSE_ICON =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" ' +
+    'stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
 
   const CHECK_ICON =
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" ' +
@@ -209,6 +358,7 @@
       cb.checked = false;
       cb.closest('.chip').classList.remove('is-checked');
     });
+    el.customInclude.value = '';
     el.sampleNotice.hidden = true;
     update();
     showToast('Sample data cleared');
@@ -216,19 +366,67 @@
 
   /* -------------------------------- Includes ----------------------------- */
 
-  function buildIncludes() {
-    el.includesList.innerHTML = INCLUDES.map((label, i) =>
-      '<label class="chip is-checked">' +
-        '<input type="checkbox" value="' + i + '" checked>' +
-        '<span class="chip__box">' + CHECK_ICON + '</span>' +
-        '<span>' + escapeHtml(label) + '</span>' +
-      '</label>'
-    ).join('');
+  /** A standing chip: label only, toggled on and off. */
+  function fixedChip(label) {
+    return '<label class="chip is-checked" data-label="' + escapeHtml(label) + '">' +
+      '<input type="checkbox" checked>' +
+      '<span class="chip__box">' + CHECK_ICON + '</span>' +
+      '<span>' + escapeHtml(label) + '</span>' +
+    '</label>';
   }
 
+  /**
+   * A user-added chip. The remove button sits beside the label rather than
+   * inside it — nesting a button in a <label> makes every click on it toggle
+   * the checkbox too.
+   */
+  function customChip(label) {
+    return '<span class="chip chip--custom is-checked" data-label="' + escapeHtml(label) + '">' +
+      '<label class="chip__main">' +
+        '<input type="checkbox" checked>' +
+        '<span class="chip__box">' + CHECK_ICON + '</span>' +
+        '<span>' + escapeHtml(label) + '</span>' +
+      '</label>' +
+      '<button type="button" class="chip__remove js-remove-include" ' +
+        'aria-label="Remove ' + escapeHtml(label) + '">' + CLOSE_ICON + '</button>' +
+    '</span>';
+  }
+
+  function buildIncludes() {
+    el.includesList.innerHTML = INCLUDES.map(fixedChip).join('');
+  }
+
+  const includeLabels = () =>
+    Array.prototype.slice.call(el.includesList.querySelectorAll('[data-label]'))
+      .map((chip) => chip.dataset.label);
+
   const checkedIncludes = () =>
-    Array.prototype.slice.call(el.includesList.querySelectorAll('input:checked'))
-      .map((cb) => INCLUDES[Number(cb.value)]);
+    Array.prototype.slice.call(el.includesList.querySelectorAll('.chip'))
+      .filter((chip) => $('input', chip).checked)
+      .map((chip) => chip.dataset.label);
+
+  function addCustomInclude() {
+    const label = el.customInclude.value.trim().replace(/\s+/g, ' ');
+    if (!label) return;
+
+    const existing = includeLabels();
+    const match = existing.findIndex((l) => l.toLowerCase() === label.toLowerCase());
+    if (match !== -1) {
+      // Already on the list — just make sure it is ticked, and say so.
+      const chip = el.includesList.querySelectorAll('.chip')[match];
+      $('input', chip).checked = true;
+      chip.classList.add('is-checked');
+      el.customInclude.value = '';
+      renderQuotation();
+      showToast('"' + label + '" is already on the list');
+      return;
+    }
+
+    el.includesList.insertAdjacentHTML('beforeend', customChip(label));
+    el.customInclude.value = '';
+    el.customInclude.focus();
+    renderQuotation();
+  }
 
   /* --------------------------- Quotation rendering ----------------------- */
 
@@ -254,7 +452,6 @@
     rows.push(
       '<div class="q-row q-row--total">' +
         '<p class="q-c-item">Total</p>' +
-        '<p class="q-c-qty"></p>' +
         '<p class="q-c-price">' + formatRupiah(total) + '</p>' +
       '</div>'
     );
@@ -267,15 +464,6 @@
         (i < included.length - 1 ? '<span class="q-dot"></span>' : '') +
       '</span>'
     ).join('');
-
-    const parts = splitDeposits(total);
-    const ordinals = ['1st', '2nd', '3rd'];
-    el.qDep.forEach((node, i) => {
-      // Regular space before the dash, non-breaking space after it: a narrow
-      // column wraps to "— Rp…" instead of stranding the dash at a line end.
-      node.textContent = ordinals[i] + ' deposit: ' + Math.round(DEPOSITS[i] * 100) + '%' +
-        ' \u2014\u00A0' + formatRupiah(parts[i]);
-    });
 
     el.totalDisplay.textContent = formatRupiah(total);
   }
@@ -373,14 +561,35 @@
       await fontsReady();
       await imagesReady(el.quotation);
 
-      const canvas = await html2canvas(el.quotation, {
-        scale: SNAPSHOT_SCALE,
-        backgroundColor: '#E4E2DD',
-        useCORS: true,
-        logging: false,
-        width: el.quotation.offsetWidth,
-        height: el.quotation.offsetHeight
-      });
+      const docW = el.quotation.offsetWidth;
+      const docH = el.quotation.offsetHeight;
+
+      // Snapshot the page over nothing, so the seeded field shows through.
+      el.quotation.style.backgroundColor = 'transparent';
+      let page;
+      try {
+        page = await html2canvas(el.quotation, {
+          scale: SNAPSHOT_SCALE,
+          backgroundColor: null,
+          useCORS: true,
+          logging: false,
+          width: docW,
+          height: docH
+        });
+      } finally {
+        el.quotation.style.backgroundColor = '';
+      }
+
+      const watermark = buildWatermark(
+        watermarkSeed(readItems()), docW, docH, SNAPSHOT_SCALE
+      );
+
+      const canvas = document.createElement('canvas');
+      canvas.width = page.width;
+      canvas.height = page.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(watermark, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(page, 0, 0);
 
       const pageHeight = PDF_PAGE_WIDTH_PT * (canvas.height / canvas.width);
       const { jsPDF } = window.jspdf;
@@ -391,8 +600,10 @@
         compress: true
       });
 
+      // JPEG, not PNG: the grain is un-compressible noise that would push a
+      // lossless page well past 10 MB. At 3x, 0.95 leaves no visible artefacts.
       pdf.addImage(
-        canvas.toDataURL('image/png'), 'PNG',
+        canvas.toDataURL('image/jpeg', 0.95), 'JPEG',
         0, 0, PDF_PAGE_WIDTH_PT, pageHeight, undefined, 'FAST'
       );
       pdf.save(buildFilename());
@@ -453,6 +664,8 @@
       const input = e.target;
       if (input.classList.contains('js-qty')) {
         input.value = digitsOnly(input.value).replace(/^0+(?=\d)/, '');
+      } else if (input.classList.contains('js-price')) {
+        reformatPriceField(input);
       }
       input.classList.remove('is-invalid');
       const errNode = $('.js-err', input.closest('.item'));
@@ -460,17 +673,7 @@
       update();
     });
 
-    // Raw digits while editing a price, grouped display once focus leaves.
-    el.itemList.addEventListener('focusin', (e) => {
-      if (e.target.classList.contains('js-price')) {
-        e.target.value = digitsOnly(e.target.value);
-      }
-    });
-
     el.itemList.addEventListener('focusout', (e) => {
-      if (e.target.classList.contains('js-price')) {
-        e.target.value = groupDigits(e.target.value);
-      }
       if (e.target.classList.contains('js-qty') && digitsOnly(e.target.value) === '') {
         e.target.value = '1';
         update();
@@ -482,6 +685,23 @@
       if (cb.type !== 'checkbox') return;
       cb.closest('.chip').classList.toggle('is-checked', cb.checked);
       renderQuotation();
+    });
+
+    el.includesList.addEventListener('click', (e) => {
+      const btn = e.target.closest('.js-remove-include');
+      if (!btn) return;
+      e.preventDefault();
+      btn.closest('.chip').remove();
+      renderQuotation();
+    });
+
+    el.addInclude.addEventListener('click', addCustomInclude);
+
+    el.customInclude.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        addCustomInclude();
+      }
     });
 
     el.downloadBtn.addEventListener('click', downloadPdf);

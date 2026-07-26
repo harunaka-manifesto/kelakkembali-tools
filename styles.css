@@ -226,7 +226,7 @@ input[type="date"].input { min-height: 48px; }
   align-items: center;
   justify-content: space-between;
   min-height: 28px;
-  margin: -6px -6px -4px 0;
+  margin: -4px 0 -2px;
 }
 
 .item__idx {
@@ -248,17 +248,21 @@ input[type="date"].input { min-height: 48px; }
   display: grid;
   place-items: center;
   flex: none;
-  background: none;
-  border: 0;
-  border-radius: 8px;
-  color: var(--muted);
+  background: rgba(164, 52, 31, 0.07);
+  border: 1px solid rgba(164, 52, 31, 0.28);
+  border-radius: 50%;
+  color: var(--danger);
   cursor: pointer;
-  transition: background .15s ease, color .15s ease;
+  transition: background .15s ease, border-color .15s ease;
 }
 
-.item__remove:hover:not(:disabled) { background: rgba(23, 21, 15, 0.06); color: var(--danger); }
-.item__remove:disabled { opacity: 0.3; cursor: not-allowed; }
-.item__remove svg { width: 18px; height: 18px; }
+.item__remove:hover:not(:disabled) {
+  background: rgba(164, 52, 31, 0.16);
+  border-color: rgba(164, 52, 31, 0.55);
+}
+
+.item__remove:disabled { opacity: 0.28; cursor: not-allowed; }
+.item__remove svg { width: 17px; height: 17px; }
 
 .item__row2 { display: flex; gap: 10px; }
 .item__row2 .field--qty   { width: 88px; flex: none; }
@@ -325,6 +329,63 @@ input[type="date"].input { min-height: 48px; }
 .chip.is-checked .chip__box { background: #fff; border-color: #fff; }
 .chip.is-checked .chip__box svg { opacity: 1; color: var(--ink); }
 .chip:focus-within { box-shadow: 0 0 0 3px rgba(23, 21, 15, 0.18); }
+
+/* User-added chip: the toggle is a nested label so the remove button beside it
+   doesn't also flip the checkbox. */
+.chip--custom { padding-right: 6px; }
+
+.chip__main {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.chip__remove {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  margin-left: 2px;
+  padding: 0;
+  background: rgba(164, 52, 31, 0.10);
+  border: 1px solid rgba(164, 52, 31, 0.30);
+  border-radius: 50%;
+  color: var(--danger);
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+
+.chip__remove:hover {
+  background: rgba(164, 52, 31, 0.22);
+  border-color: rgba(164, 52, 31, 0.6);
+}
+
+.chip__remove svg { width: 11px; height: 11px; }
+
+/* Keep the remove affordance legible once the chip inverts to black. */
+.chip--custom.is-checked .chip__remove {
+  background: rgba(255, 138, 112, 0.18);
+  border-color: rgba(255, 150, 125, 0.5);
+  color: #FF9C80;
+}
+
+.chip--custom.is-checked .chip__remove:hover {
+  background: rgba(255, 138, 112, 0.32);
+  border-color: #FF9C80;
+}
+
+/* ------------------------------ Inline add row --------------------------- */
+
+.addrow { display: flex; gap: 8px; }
+.addrow .input { flex: 1 1 auto; min-width: 0; }
+
+.btn--add {
+  flex: none;
+  min-height: 48px;
+  padding: 0 20px;
+}
 
 /* -------------------------------- Buttons ------------------------------- */
 
@@ -487,7 +548,7 @@ input[type="date"].input { min-height: 48px; }
 .q {
   width: 598px;
   padding: 32px;
-  background: #E4E2DD;
+  background: #EBE9E4;
   color: #000;
   font-family: 'Plus Jakarta Sans', sans-serif;
   display: flex;
@@ -510,10 +571,9 @@ input[type="date"].input { min-height: 48px; }
   background: #000;
 }
 
-/* Divider: 1px black @ 10%, inset 100px from the right */
+/* Divider: 1px black @ 10%, full content width */
 .q-divider {
   width: 100%;
-  padding-right: 100px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -643,7 +703,7 @@ input[type="date"].input { min-height: 48px; }
   gap: 8px;
 }
 
-.q-itemlist { width: 100%; padding-right: 100px; }
+.q-itemlist { width: 100%; }
 
 .q-itemcol {
   width: 100%;
@@ -653,13 +713,13 @@ input[type="date"].input { min-height: 48px; }
   gap: 8px;
 }
 
-/* Table row — Item | Qty | Price.
-   Qty is an addition to the original Figma design (spec §2); the 13px/20px
-   typography and the 100px right inset of the table are unchanged. */
+/* Table row — Item | Qty | Price (Figma node 2:245).
+   Row gap 24px; Qty 40px centred; Price 100px, text left-aligned in its box.
+   Both sit flush right of the 534px body, so Price starts at x=434. */
 .q-row {
   width: 100%;
   display: flex;
-  gap: 16px;
+  gap: 24px;
   align-items: flex-start;
   font-size: 13px;
   font-weight: 400;
@@ -669,19 +729,21 @@ input[type="date"].input { min-height: 48px; }
 }
 
 .q-row--head {
-  padding-right: 100px;
   align-items: center;
   font-weight: 600;
 }
 
 .q-c-item  { flex: 1 1 0; min-width: 0; overflow-wrap: break-word; }
-.q-c-qty   { width: 56px;  flex: none; text-align: center; }
-.q-c-price { width: 110px; flex: none; text-align: right; }
+.q-c-qty   { width: 40px;  flex: none; text-align: center; }
+.q-c-price { width: 100px; flex: none; }
 
+/* Total row (2:57): gap 64px and left padding only, no Qty cell. The flexible
+   label absorbs the difference, so Price stays aligned with the rows above. */
 .q-row--total {
+  gap: 64px;
+  padding: 4px 0 4px 8px;
   background: rgba(0, 0, 0, 0.05);
   border-radius: 4px;
-  padding: 4px 8px;
   font-weight: 600;
 }
 
@@ -689,7 +751,6 @@ input[type="date"].input { min-height: 48px; }
 
 .q-includes {
   width: 100%;
-  padding-right: 100px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -736,7 +797,6 @@ input[type="date"].input { min-height: 48px; }
 
 .q-payment {
   width: 534px;
-  padding-right: 100px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
