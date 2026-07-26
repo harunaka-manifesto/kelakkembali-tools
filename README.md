@@ -111,8 +111,11 @@ Deleting a customer cascades to their orders and log rows.
 
 Saving is explicit. An order editor that autosaved would write on every
 keystroke and, worse, would silently rewrite a record you were only glancing
-at. The **Save** button in the app bar reads `Saved` until something changes;
-leaving a dirty view — by link, by back button, or by reloading — asks first.
+at. **Save** is a full-width button in a bar fixed to the bottom of the screen
+— the thumb zone, not the top-right corner — and it reads `Saved` until
+something changes. The bar only exists while something is editable: reading a
+customer shows no bar at all, and pressing *Edit* brings it up. Leaving a dirty
+view — by link, by back button, or by reloading — asks first.
 
 Downloading always saves first. The log is a record of what was sent, so what
 was sent has to be what is stored.
@@ -302,7 +305,15 @@ the quotation, from the identical code path.
   sink to the bottom. Search matches name, phone or Instagram handle, filtering
   the already-loaded list rather than re-querying.
 - **Deleting** — always behind a confirm, and always cascading: a customer
-  takes their orders and download log with them.
+  takes their orders and download log with them. Both deletes live in the app
+  bar's overflow menu rather than as red buttons at the foot of the page, so
+  the only irreversible actions in the UI take two deliberate taps to reach.
+- **Payments** — the order page lists all three deposits with their amounts and
+  whether each is paid, and the chooser only offers the ones still outstanding,
+  so the same deposit cannot be logged twice.
+- **Empty orders** — both download buttons are disabled until the order has at
+  least one named item with a price, since the alternative is a document with
+  no lines on it.
 
 ## Assets
 

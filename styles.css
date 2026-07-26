@@ -159,12 +159,17 @@ body {
 .appbar__inner {
   max-width: 560px;
   margin: 0 auto;
-  padding: 12px 20px;
-  padding-top: calc(12px + env(safe-area-inset-top, 0px));
+  padding: 10px 14px 10px 8px;
+  padding-top: calc(10px + env(safe-area-inset-top, 0px));
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
+
+/* The back button carries its own 44px of padding, so the row keeps the
+   optical 20px inset without spending it twice. */
+.appbar__back + .appbar__text,
+.appbar__mark { margin-left: 6px; }
 
 /* Branding only earns its 38px on the root view, where there is no back button
    competing for the same corner. Deep views give the space to the title. */
@@ -202,10 +207,12 @@ body {
   color: var(--muted);
 }
 
+/* 44px is the floor for a touch target, and these two are the most-used
+   controls in the app. They were 38. */
 .appbar__back,
 .appbar__icon {
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   flex: none;
   display: grid;
   place-items: center;
@@ -377,7 +384,11 @@ body.has-savebar .page {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  min-height: 28px;
+  /* Full-width, 44px tall hit area, pulled back so the card does not visibly
+     grow just to hold it. */
+  min-height: 44px;
+  margin: -8px -16px;
+  padding: 0 16px;
   cursor: pointer;
   list-style: none;
 }
@@ -682,8 +693,20 @@ body.has-savebar .page {
 .logrow:first-child { border-top: none; }
 
 .logrow__kind { font-weight: 600; }
-.logrow__when { flex: 1 1 auto; color: var(--muted); font-size: 12.5px; }
-.logrow__total { font-variant-numeric: tabular-nums; }
+
+/* The date and the amount are short and atomic — wrapping "21 Mar 2026" onto
+   two lines to save the label a character helps nobody. Let the label wrap. */
+.logrow__when {
+  flex: 1 1 auto;
+  color: var(--muted);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.logrow__total {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 
 /* -------------------------------- Fields -------------------------------- */
 
