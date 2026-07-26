@@ -29,6 +29,10 @@
       <input class="input" id="gatePassword" type="password"
              autocomplete="current-password" enterkeyhint="go">
     </label>
+    <label class="check">
+      <input type="checkbox" id="gateRemember" checked>
+      <span>Remember me on this device</span>
+    </label>
     <span class="err" id="gateErr" hidden></span>
     <button type="submit" class="btn btn--primary" id="gateSubmit">
       <span class="btn__label">Unlock</span>
@@ -59,10 +63,29 @@
   </div>
 </header>
 
+<nav class="breadcrumbs" id="breadcrumbs" aria-label="Breadcrumb"></nav>
+
 <main class="page">
 
   <!-- --------------------------- Customer list --------------------------- -->
   <section class="view" id="viewCustomers">
+    <section class="card" id="overviewCard">
+      <div class="card__head">
+        <h2 class="card__title">Overview</h2>
+        <select class="input input--sm" id="overviewRange">
+          <option value="month">This month</option>
+          <option value="all">All time</option>
+        </select>
+      </div>
+      <div class="overview__grid">
+        <div class="stat"><span class="stat__label">Active</span><strong class="stat__value" id="overviewActive"></strong></div>
+        <div class="stat"><span class="stat__label">Finished</span><strong class="stat__value" id="overviewFinished"></strong></div>
+        <div class="stat"><span class="stat__label">Gross income</span><strong class="stat__value" id="overviewGross"></strong></div>
+        <div class="stat"><span class="stat__label">Profit</span><strong class="stat__value" id="overviewProfit"></strong></div>
+      </div>
+      <p class="overview__nearest" id="overviewNearest"></p>
+    </section>
+
     <div class="searchrow">
       <input class="input" id="customerSearch" type="search" enterkeyhint="search"
              placeholder="Search name, phone or handle…" autocapitalize="none" spellcheck="false">
@@ -75,8 +98,24 @@
 
   <!-- -------------------------- Customer detail -------------------------- -->
   <section class="view" id="viewCustomer" hidden>
-    <section class="card">
-      <h2 class="card__title">Customer</h2>
+    <section class="card" id="customerViewCard">
+      <div class="card__head">
+        <h2 class="card__title">Customer</h2>
+        <button type="button" class="btn btn--outline btn--sm" id="editCustomerBtn">Edit</button>
+      </div>
+      <dl class="infolist">
+        <div><dt>Name</dt><dd id="dName"></dd></div>
+        <div><dt>Phone / WhatsApp</dt><dd id="dPhone"></dd></div>
+        <div><dt>Instagram</dt><dd id="dInstagram"></dd></div>
+        <div><dt>Source</dt><dd id="dSource"></dd></div>
+        <div><dt>Wedding date</dt><dd id="dWedding"></dd></div>
+        <div><dt>Notes</dt><dd id="dNotes"></dd></div>
+        <div><dt>Customer since</dt><dd id="dCreated"></dd></div>
+      </dl>
+    </section>
+
+    <section class="card" id="customerEditCard" hidden>
+      <h2 class="card__title">Edit customer</h2>
 
       <label class="field" for="cName">
         <span class="field__label">Name</span>
@@ -115,17 +154,6 @@
         <input class="input js-cfield" id="cWedding" type="date">
       </label>
 
-      <div class="grid2">
-        <label class="field" for="cFitting1">
-          <span class="field__label">Est. first fitting</span>
-          <input class="input js-cfield" id="cFitting1" type="date">
-        </label>
-        <label class="field" for="cFittingFinal">
-          <span class="field__label">Est. final fitting</span>
-          <input class="input js-cfield" id="cFittingFinal" type="date">
-        </label>
-      </div>
-
       <label class="field" for="cNotes">
         <span class="field__label">Notes</span>
         <textarea class="input input--area js-cfield" id="cNotes" rows="3"
@@ -147,9 +175,15 @@
   </section>
 
   <!-- ---------------------------- Order editor --------------------------- -->
-  <section class="view" id="viewOrder" hidden>
+  <section class="view" id="viewOrderEdit" hidden>
     <section class="card">
       <h2 class="card__title">Details</h2>
+
+      <label class="field" for="oTitle">
+        <span class="field__label">Title (optional)</span>
+        <input class="input js-ofield" id="oTitle" type="text"
+               placeholder="e.g. Bride, Groom, Sister — Maid of Honor" autocapitalize="words" spellcheck="false">
+      </label>
 
       <label class="field" for="oDate">
         <span class="field__label">Document date</span>
@@ -159,13 +193,23 @@
       <label class="field" for="oStatus">
         <span class="field__label">Status</span>
         <select class="input js-ofield" id="oStatus">
-          <option>Draft</option>
           <option>Quoted</option>
           <option>Confirmed</option>
           <option>In production</option>
           <option>Delivered</option>
         </select>
       </label>
+
+      <div class="grid2">
+        <label class="field" for="oFitting1">
+          <span class="field__label">Est. first fitting</span>
+          <input class="input js-ofield" id="oFitting1" type="date">
+        </label>
+        <label class="field" for="oFittingFinal">
+          <span class="field__label">Est. final fitting</span>
+          <input class="input js-ofield" id="oFittingFinal" type="date">
+        </label>
+      </div>
     </section>
 
     <section class="card">
@@ -186,11 +230,43 @@
         <button type="button" class="btn btn--outline btn--add" id="addInclude">Add</button>
       </div>
     </section>
+  </section>
 
-    <section class="card" id="docLogCard" hidden>
-      <h2 class="card__title">Downloads</h2>
-      <p class="card__hint">What was generated, when, and for how much.</p>
-      <div class="loglist" id="docLog"></div>
+  <!-- ---------------------------- Order detail ---------------------------- -->
+  <section class="view" id="viewOrder" hidden>
+    <section class="card">
+      <div class="card__head">
+        <h2 class="card__title">Order</h2>
+        <button type="button" class="btn btn--outline btn--sm" id="editOrderBtn">Edit</button>
+      </div>
+      <dl class="infolist">
+        <div><dt>Status</dt><dd><span class="badge" id="oStatusBadge"></span></dd></div>
+        <div><dt>Document date</dt><dd id="oDateDisplay"></dd></div>
+        <div><dt>Est. first fitting</dt><dd id="oFitting1Display"></dd></div>
+        <div><dt>Est. final fitting</dt><dd id="oFittingFinalDisplay"></dd></div>
+      </dl>
+    </section>
+
+    <section class="card">
+      <h2 class="card__title">Items</h2>
+      <div class="loglist" id="oItemsDisplay"></div>
+      <div class="chips" id="oIncludesDisplay"></div>
+    </section>
+
+    <section class="card">
+      <h2 class="card__title">Internal</h2>
+      <p class="card__hint">Never shown to the customer.</p>
+      <div class="logrow"><span class="logrow__kind">Nett profit</span><span class="logrow__total" id="oNettProfit"></span></div>
+    </section>
+
+    <section class="card">
+      <h2 class="card__title">History</h2>
+      <div class="loglist" id="historyLog"></div>
+    </section>
+
+    <section class="card" id="paymentChooser" hidden>
+      <h2 class="card__title">Log a payment</h2>
+      <div class="paychooser" id="paymentChooserOptions"></div>
     </section>
 
     <p class="footnote">
@@ -210,6 +286,11 @@
     <div class="actionbar__total">
       <span class="actionbar__label">Total</span>
       <strong class="actionbar__amount" id="totalDisplay">Rp0</strong>
+    </div>
+    <div class="actionbar__buttons">
+      <button type="button" class="btn btn--outline btn--block" id="logPaymentBtn">
+        <span class="btn__label">Log payment</span>
+      </button>
     </div>
     <div class="actionbar__buttons">
       <button type="button" class="btn btn--primary" id="downloadQuote">

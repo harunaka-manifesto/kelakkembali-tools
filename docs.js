@@ -395,5 +395,5 @@ KK.docs = (function () {
     return total;
   }
 
-  return { DOCS, computeTotal, depositAmounts, render, download };
+  return { DOCS, DEPOSIT_LABELS, DEPOSIT_SHARES, computeTotal, depositAmounts, render, download };
 })();

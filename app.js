@@ -1,8 +1,8 @@
 /* Kelak Kembali — app shell.
 
-   Three views behind a hash route — customer list, customer detail, order
-   editor — plus the password gate. Owns all form state and navigation;
-   defers to KK.db for persistence and KK.docs for the PDFs.
+   Four views behind a hash route — customer list, customer detail, order
+   detail, order edit — plus the password gate. Owns all form state and
+   navigation; defers to KK.db for persistence and KK.docs for the PDFs.
 
    Saving is explicit. An order editor that autosaved would write a row on
    every keystroke and, worse, would silently rewrite a record you were only
@@ -34,7 +34,7 @@ KK.app = (function () {
   ];
 
   /* Must match the check constraint in schema.sql. */
-  const STATUSES = ['Draft', 'Quoted', 'Confirmed', 'In production', 'Delivered'];
+  const STATUSES = ['Quoted', 'Confirmed', 'In production', 'Delivered'];
 
   const REMOVE_ICON =
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
@@ -55,10 +55,12 @@ KK.app = (function () {
     gate: $('#gate'),
     gateForm: $('#gateForm'),
     gatePassword: $('#gatePassword'),
+    gateRemember: $('#gateRemember'),
     gateErr: $('#gateErr'),
     gateSubmit: $('#gateSubmit'),
 
     app: $('#app'),
+    breadcrumbs: $('#breadcrumbs'),
     backBtn: $('#backBtn'),
     viewTitle: $('#viewTitle'),
     viewSub: $('#viewSub'),
@@ -66,19 +68,33 @@ KK.app = (function () {
     signOutBtn: $('#signOutBtn'),
 
     viewCustomers: $('#viewCustomers'),
+    overviewRange: $('#overviewRange'),
+    overviewActive: $('#overviewActive'),
+    overviewFinished: $('#overviewFinished'),
+    overviewGross: $('#overviewGross'),
+    overviewProfit: $('#overviewProfit'),
+    overviewNearest: $('#overviewNearest'),
     customerSearch: $('#customerSearch'),
     customerList: $('#customerList'),
     newCustomer: $('#newCustomer'),
 
     viewCustomer: $('#viewCustomer'),
+    customerViewCard: $('#customerViewCard'),
+    editCustomerBtn: $('#editCustomerBtn'),
+    dName: $('#dName'),
+    dPhone: $('#dPhone'),
+    dInstagram: $('#dInstagram'),
+    dSource: $('#dSource'),
+    dWedding: $('#dWedding'),
+    dNotes: $('#dNotes'),
+    dCreated: $('#dCreated'),
+    customerEditCard: $('#customerEditCard'),
     cName: $('#cName'),
     errCName: $('#errCName'),
     cPhone: $('#cPhone'),
     cInstagram: $('#cInstagram'),
     cSource: $('#cSource'),
     cWedding: $('#cWedding'),
-    cFitting1: $('#cFitting1'),
-    cFittingFinal: $('#cFittingFinal'),
     cNotes: $('#cNotes'),
     customerOrdersCard: $('#customerOrdersCard'),
     orderList: $('#orderList'),
@@ -86,19 +102,34 @@ KK.app = (function () {
     deleteCustomer: $('#deleteCustomer'),
 
     viewOrder: $('#viewOrder'),
+    editOrderBtn: $('#editOrderBtn'),
+    oStatusBadge: $('#oStatusBadge'),
+    oDateDisplay: $('#oDateDisplay'),
+    oFitting1Display: $('#oFitting1Display'),
+    oFittingFinalDisplay: $('#oFittingFinalDisplay'),
+    oItemsDisplay: $('#oItemsDisplay'),
+    oIncludesDisplay: $('#oIncludesDisplay'),
+    oNettProfit: $('#oNettProfit'),
+    historyLog: $('#historyLog'),
+    paymentChooser: $('#paymentChooser'),
+    paymentChooserOptions: $('#paymentChooserOptions'),
+    deleteOrder: $('#deleteOrder'),
+
+    viewOrderEdit: $('#viewOrderEdit'),
+    oTitle: $('#oTitle'),
     oDate: $('#oDate'),
     oStatus: $('#oStatus'),
+    oFitting1: $('#oFitting1'),
+    oFittingFinal: $('#oFittingFinal'),
     itemList: $('#itemList'),
     addItem: $('#addItem'),
     includesList: $('#includesList'),
     customInclude: $('#customInclude'),
     addInclude: $('#addInclude'),
-    docLogCard: $('#docLogCard'),
-    docLog: $('#docLog'),
-    deleteOrder: $('#deleteOrder'),
 
     actionbar: $('#actionbar'),
     totalDisplay: $('#totalDisplay'),
+    logPaymentBtn: $('#logPaymentBtn'),
     downloadQuote: $('#downloadQuote'),
     downloadInvoice: $('#downloadInvoice'),
     toast: $('#toast')
@@ -109,10 +140,12 @@ KK.app = (function () {
   /* --------------------------------- State ------------------------------- */
 
   const state = {
-    route: null,        // { view, id }
-    customers: [],      // the whole list, filtered client-side
-    customer: null,     // record backing the customer view
-    order: null,        // record backing the order view
+    route: null,             // { view, id }
+    customers: [],           // the whole list, filtered client-side
+    customer: null,          // record backing the customer view
+    order: null,             // record backing the order views
+    overview: null,          // { ordersByCustomer, nettProfitByOrder, paymentRows, nearest }
+    overviewRange: 'month',  // 'month' | 'all' — Gross/Profit tiles only
     dirty: false,
     saving: false
   };
@@ -142,12 +175,25 @@ KK.app = (function () {
     document.body.classList.toggle('has-actionbar', !!opts.actions);
   }
 
+  /** segments: [{ label, hash? }] — the last segment (or any without a hash)
+      renders as plain text, everything else as a link back to that level. */
+  function renderBreadcrumbs(segments) {
+    el.breadcrumbs.innerHTML = segments.map((seg, i) => {
+      const label = U.escapeHtml(seg.label);
+      const isLast = i === segments.length - 1;
+      return (isLast || !seg.hash)
+        ? '<span class="breadcrumbs__item breadcrumbs__item--current">' + label + '</span>'
+        : '<a class="breadcrumbs__item" href="' + seg.hash + '">' + label + '</a>';
+    }).join('<span class="breadcrumbs__sep" aria-hidden="true">/</span>');
+  }
+
   /* -------------------------------- Routing ------------------------------ */
 
-  /** #/customers | #/customer/new | #/customer/:id | #/order/:id */
+  /** #/customers | #/customer/new | #/customer/:id | #/order/:id | #/order/:id/edit */
   function parseHash() {
     const parts = String(location.hash || '').replace(/^#\/?/, '').split('/').filter(Boolean);
     if (parts[0] === 'customer' && parts[1]) return { view: 'customer', id: parts[1] };
+    if (parts[0] === 'order' && parts[1] && parts[2] === 'edit') return { view: 'orderEdit', id: parts[1] };
     if (parts[0] === 'order' && parts[1]) return { view: 'order', id: parts[1] };
     return { view: 'customers' };
   }
@@ -181,11 +227,13 @@ KK.app = (function () {
     el.viewCustomers.hidden = next.view !== 'customers';
     el.viewCustomer.hidden = next.view !== 'customer';
     el.viewOrder.hidden = next.view !== 'order';
+    el.viewOrderEdit.hidden = next.view !== 'orderEdit';
     window.scrollTo(0, 0);
 
     try {
       if (next.view === 'customers') await showCustomers();
       else if (next.view === 'customer') await showCustomer(next.id);
+      else if (next.view === 'orderEdit') await showOrderEdit(next.id);
       else await showOrder(next.id);
     } catch (err) {
       console.error(err);
@@ -193,14 +241,42 @@ KK.app = (function () {
     }
   }
 
+  /* ------------------------------- Shared helpers -------------------------- */
+
+  /** Empty text fields go to the database as NULL, not "". */
+  const orNull = (v) => (String(v || '').trim() === '' ? null : String(v).trim());
+
+  /** Falls back to the item list when no title was set for the order. */
+  function orderLabel(o) {
+    if (o.title) return o.title;
+    const items = o.items || [];
+    return items.length && items[0].name
+      ? items[0].name + (items.length > 1 ? ' + ' + (items.length - 1) + ' more' : '')
+      : 'Empty order';
+  }
+
+  /** Internal-only figure: never fed into docs.render, never on a PDF. */
+  function nettProfit(items) {
+    return (items || []).reduce((sum, it) =>
+      sum + ((Number(it.price) || 0) - (Number(it.cost) || 0)) * (Number(it.qty) || 0), 0);
+  }
+
   /* ---------------------------- Customer list ----------------------------- */
 
   async function showCustomers() {
     setChrome({ title: 'Customers', back: false, save: false, actions: false });
+    renderBreadcrumbs([{ label: 'Customers' }]);
     state.customer = null;
     state.order = null;
     el.customerList.innerHTML = '<p class="empty">Loading…</p>';
-    state.customers = await db.listCustomers();
+
+    const [customers, allOrders, paymentRows] = await Promise.all([
+      db.listCustomers(), db.listAllOrders(), db.listAllPaymentLog()
+    ]);
+    state.customers = customers;
+    state.overview = buildOverview(allOrders, paymentRows);
+    el.overviewRange.value = state.overviewRange;
+    renderOverview();
     renderCustomerList();
   }
 
@@ -216,27 +292,121 @@ KK.app = (function () {
     }
 
     el.customerList.innerHTML = rows.map((c) => {
-      const meta = [
-        c.wedding_date ? 'Wedding ' + U.formatShortDate(c.wedding_date) : '',
-        c.phone || '',
-        c.instagram || ''
-      ].filter(Boolean).join(' · ');
-      return '<a class="row" href="#/customer/' + c.id + '">' +
+      const orders = (state.overview.ordersByCustomer[c.id] || []);
+      const gross = orders.reduce((sum, o) => sum + docs.computeTotal(o.items), 0);
+      return '<a class="row row--kanban" href="#/customer/' + c.id + '">' +
         '<span class="row__main">' +
           '<span class="row__title">' + U.escapeHtml(c.name) + '</span>' +
-          (meta ? '<span class="row__meta">' + U.escapeHtml(meta) + '</span>' : '') +
+          '<span class="row__meta">Created ' + U.escapeHtml(U.formatShortDate(c.created_at)) + '</span>' +
+          '<span class="row__meta">' +
+            (c.wedding_date ? 'Wedding ' + U.escapeHtml(U.formatShortDate(c.wedding_date)) : 'No wedding date yet') +
+          '</span>' +
         '</span>' +
-        '<span class="row__chev" aria-hidden="true">›</span>' +
+        '<span class="row__amount">' + U.formatRupiah(gross) + '</span>' +
       '</a>';
     }).join('');
+  }
+
+  /* ------------------------------- Overview -------------------------------- */
+
+  function buildOverview(allOrders, paymentRows) {
+    const ordersByCustomer = {};
+    const nettProfitByOrder = {};
+    allOrders.forEach((o) => {
+      (ordersByCustomer[o.customer_id] = ordersByCustomer[o.customer_id] || []).push(o);
+      nettProfitByOrder[o.id] = nettProfit(o.items);
+    });
+
+    // Soonest upcoming fitting across every order, today or later.
+    let nearest = null;
+    const today = U.todayISO();
+    allOrders.forEach((o) => {
+      [o.fitting_1_date, o.final_fitting_date].forEach((d) => {
+        if (!d || d < today) return;
+        if (!nearest || d < nearest.date) nearest = { date: d, customerId: o.customer_id };
+      });
+    });
+
+    return { ordersByCustomer, nettProfitByOrder, paymentRows, nearest };
+  }
+
+  /* Gross and profit are driven by the payment log, not order status or
+     document date — "this month" is when a deposit was actually logged.
+     Every deposit is always exactly a fixed 35/35/30 share of its order's
+     total, so profit is recognised using that same share rather than a
+     prorated dollar amount — keeping both figures cash-basis and tied to
+     the same logged event. */
+  function overviewMoney(range) {
+    const now = new Date();
+    const inRange = (iso) => {
+      if (range === 'all') return true;
+      const d = new Date(iso);
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    };
+
+    let gross = 0;
+    let profit = 0;
+    (state.overview.paymentRows || []).forEach((r) => {
+      if (!inRange(r.created_at)) return;
+      const detail = r.detail || {};
+      gross += Number(detail.amount) || 0;
+      const share = docs.DEPOSIT_SHARES[detail.deposit_index] || 0;
+      profit += (state.overview.nettProfitByOrder[r.order_id] || 0) * share;
+    });
+    return { gross, profit };
+  }
+
+  function renderOverview() {
+    const ov = state.overview;
+
+    let active = 0;
+    let finished = 0;
+    state.customers.forEach((c) => {
+      const orders = ov.ordersByCustomer[c.id] || [];
+      const isFinished = orders.length > 0 && orders.every((o) => o.status === 'Delivered');
+      if (isFinished) finished++; else active++;
+    });
+    el.overviewActive.textContent = String(active);
+    el.overviewFinished.textContent = String(finished);
+    renderOverviewMoney();
+
+    if (ov.nearest) {
+      const customer = state.customers.find((c) => c.id === ov.nearest.customerId);
+      const days = Math.round((new Date(ov.nearest.date) - new Date(U.todayISO())) / 86400000);
+      el.overviewNearest.textContent =
+        (customer ? customer.name : 'A customer') + ' — fitting in ' +
+        days + (days === 1 ? ' day' : ' days') + ' (' + U.formatShortDate(ov.nearest.date) + ')';
+    } else {
+      el.overviewNearest.textContent = 'No upcoming fittings scheduled.';
+    }
+  }
+
+  function renderOverviewMoney() {
+    const money = overviewMoney(state.overviewRange);
+    el.overviewGross.textContent = U.formatRupiah(money.gross);
+    el.overviewProfit.textContent = U.formatRupiah(money.profit);
   }
 
   /* --------------------------- Customer detail ---------------------------- */
 
   const BLANK_CUSTOMER = {
-    id: null, name: '', phone: '', instagram: '', source: '',
-    wedding_date: '', fitting_1_date: '', final_fitting_date: '', notes: ''
+    id: null, name: '', phone: '', instagram: '', source: '', wedding_date: '', notes: ''
   };
+
+  function setCustomerMode(editMode) {
+    el.customerViewCard.hidden = editMode;
+    el.customerEditCard.hidden = !editMode;
+  }
+
+  function renderCustomerReadOnly(c) {
+    el.dName.textContent = c.name || '—';
+    el.dPhone.textContent = c.phone || '—';
+    el.dInstagram.textContent = c.instagram || '—';
+    el.dSource.textContent = c.source || '—';
+    el.dWedding.textContent = c.wedding_date ? U.formatShortDate(c.wedding_date) : '—';
+    el.dNotes.textContent = c.notes || '—';
+    el.dCreated.textContent = c.created_at ? U.formatShortDate(c.created_at) : '—';
+  }
 
   async function showCustomer(id) {
     const isNew = id === 'new';
@@ -247,17 +417,22 @@ KK.app = (function () {
 
     state.customer = isNew ? Object.assign({}, BLANK_CUSTOMER) : await db.getCustomer(id);
     fillCustomerForm(state.customer);
+    setCustomerMode(isNew);
 
     el.customerOrdersCard.hidden = isNew;
     el.deleteCustomer.hidden = isNew;
     setDirty(isNew);
 
     if (isNew) {
+      renderBreadcrumbs([{ label: 'Customers', hash: '#/customers' }, { label: 'New customer' }]);
       el.cName.focus();
       return;
     }
 
     el.viewSub.textContent = state.customer.name;
+    renderBreadcrumbs([{ label: 'Customers', hash: '#/customers' }, { label: state.customer.name }]);
+    renderCustomerReadOnly(state.customer);
+
     el.orderList.innerHTML = '<p class="empty">Loading…</p>';
     renderOrderList(await db.listOrders(id));
   }
@@ -268,15 +443,10 @@ KK.app = (function () {
     el.cInstagram.value = c.instagram || '';
     el.cSource.value = c.source || '';
     el.cWedding.value = c.wedding_date || '';
-    el.cFitting1.value = c.fitting_1_date || '';
-    el.cFittingFinal.value = c.final_fitting_date || '';
     el.cNotes.value = c.notes || '';
     el.cName.classList.remove('is-invalid');
     el.errCName.hidden = true;
   }
-
-  /** Empty text fields go to the database as NULL, not "". */
-  const orNull = (v) => (String(v || '').trim() === '' ? null : String(v).trim());
 
   function readCustomerForm() {
     return {
@@ -285,10 +455,15 @@ KK.app = (function () {
       instagram: orNull(el.cInstagram.value),
       source: orNull(el.cSource.value),
       wedding_date: orNull(el.cWedding.value),
-      fitting_1_date: orNull(el.cFitting1.value),
-      final_fitting_date: orNull(el.cFittingFinal.value),
       notes: orNull(el.cNotes.value)
     };
+  }
+
+  function itemsSnippet(items) {
+    const names = (items || [])
+      .filter((it) => String(it.name || '').trim() !== '')
+      .map((it) => it.name);
+    return names.length ? names.join(', ') : 'No items yet';
   }
 
   function renderOrderList(orders) {
@@ -297,18 +472,15 @@ KK.app = (function () {
       return;
     }
     el.orderList.innerHTML = orders.map((o) => {
-      const items = o.items || [];
-      const label = items.length && items[0].name
-        ? items[0].name + (items.length > 1 ? ' + ' + (items.length - 1) + ' more' : '')
-        : 'Empty order';
-      return '<a class="row" href="#/order/' + o.id + '">' +
+      const fit1 = o.fitting_1_date ? U.formatShortDate(o.fitting_1_date) : 'not set';
+      const fitFinal = o.final_fitting_date ? U.formatShortDate(o.final_fitting_date) : 'not set';
+      return '<a class="row row--kanban" href="#/order/' + o.id + '">' +
         '<span class="row__main">' +
-          '<span class="row__title">' + U.escapeHtml(label) + '</span>' +
-          '<span class="row__meta">' + U.escapeHtml(U.formatShortDate(o.document_date)) +
-            ' · ' + U.formatRupiah(docs.computeTotal(items)) + '</span>' +
+          '<span class="row__title">' + U.escapeHtml(orderLabel(o)) + '</span>' +
+          '<span class="row__meta">' + U.escapeHtml(itemsSnippet(o.items)) + '</span>' +
+          '<span class="row__meta">1st fit ' + U.escapeHtml(fit1) + ' · Final fit ' + U.escapeHtml(fitFinal) + '</span>' +
         '</span>' +
-        '<span class="badge badge--' + o.status.toLowerCase().replace(/\s+/g, '-') + '">' +
-          U.escapeHtml(o.status) + '</span>' +
+        '<span class="row__amount">' + U.formatRupiah(docs.computeTotal(o.items)) + '</span>' +
       '</a>';
     }).join('');
   }
@@ -325,6 +497,9 @@ KK.app = (function () {
       state.customer = await db.updateCustomer(state.customer.id, patch);
       setDirty(false);
       el.viewSub.textContent = state.customer.name;
+      renderBreadcrumbs([{ label: 'Customers', hash: '#/customers' }, { label: state.customer.name }]);
+      renderCustomerReadOnly(state.customer);
+      setCustomerMode(false);
       showToast('Customer saved');
     } else {
       state.customer = await db.createCustomer(patch);
@@ -335,73 +510,148 @@ KK.app = (function () {
     return true;
   }
 
-  /* ------------------------------ Order editor ---------------------------- */
+  /* ------------------------------ Order detail ----------------------------- */
+
+  function historyLabel(row) {
+    if (row.action === 'created') return 'Order created';
+    if (row.action === 'updated') return 'Order updated';
+    if (row.action === 'payment_logged') return ((row.detail && row.detail.deposit_label) || 'Payment') + ' logged';
+    return row.action;
+  }
+
+  async function refreshHistory() {
+    const [historyRows, docRows] = await Promise.all([
+      db.listOrderHistory(state.order.id),
+      db.listDocumentLog(state.order.id)
+    ]);
+    const merged = historyRows.map((r) => ({
+      when: r.created_at,
+      label: historyLabel(r),
+      amount: r.action === 'payment_logged' ? (r.detail && r.detail.amount) : null
+    })).concat(docRows.map((r) => ({
+      when: r.created_at,
+      label: (r.kind === 'invoice' ? 'Invoice' : 'Quotation') + ' downloaded',
+      amount: r.total
+    }))).sort((a, b) => new Date(b.when) - new Date(a.when));
+
+    el.historyLog.innerHTML = merged.length ? merged.map((r) =>
+      '<div class="logrow">' +
+        '<span class="logrow__kind">' + U.escapeHtml(r.label) + '</span>' +
+        '<span class="logrow__when">' + U.escapeHtml(U.formatShortDate(r.when)) + '</span>' +
+        (r.amount != null ? '<span class="logrow__total">' + U.formatRupiah(r.amount) + '</span>' : '') +
+      '</div>'
+    ).join('') : '<p class="empty">No history yet.</p>';
+  }
+
+  /** What docs.render/download need — read from the saved record, since this
+      page has no form fields of its own. */
+  function orderDataFromState() {
+    return {
+      customerName: state.customer ? state.customer.name : '',
+      date: state.order.document_date,
+      items: state.order.items || [],
+      includes: state.order.includes || []
+    };
+  }
 
   async function showOrder(id) {
-    setChrome({ title: 'Order', back: true, save: true, actions: true });
-
     state.order = await db.getOrder(id);
     state.customer = await db.getCustomer(state.order.customer_id);
-    el.viewSub.textContent = state.customer.name;
+    const label = orderLabel(state.order);
 
+    setChrome({ title: 'Order', sub: state.customer.name, back: true, save: false, actions: true });
+    renderBreadcrumbs([
+      { label: 'Customers', hash: '#/customers' },
+      { label: state.customer.name, hash: '#/customer/' + state.customer.id },
+      { label: label }
+    ]);
+
+    el.oStatusBadge.className = 'badge badge--' + state.order.status.toLowerCase().replace(/\s+/g, '-');
+    el.oStatusBadge.textContent = state.order.status;
+    el.oDateDisplay.textContent = U.formatShortDate(state.order.document_date);
+    el.oFitting1Display.textContent = state.order.fitting_1_date ? U.formatShortDate(state.order.fitting_1_date) : '—';
+    el.oFittingFinalDisplay.textContent = state.order.final_fitting_date ? U.formatShortDate(state.order.final_fitting_date) : '—';
+
+    const items = state.order.items || [];
+    const total = docs.computeTotal(items);
+    const namedItems = items.filter((it) => String(it.name || '').trim() !== '');
+    el.oItemsDisplay.innerHTML = (namedItems.length ? namedItems.map((it) =>
+      '<div class="logrow">' +
+        '<span class="logrow__kind">' + U.escapeHtml(it.name) + ' × ' + (Number(it.qty) || 0) + '</span>' +
+        '<span class="logrow__total">' + U.formatRupiah((Number(it.price) || 0) * (Number(it.qty) || 0)) + '</span>' +
+      '</div>'
+    ).join('') : '<p class="empty">No items yet.</p>') +
+      '<div class="logrow"><span class="logrow__kind">Total</span>' +
+      '<span class="logrow__total">' + U.formatRupiah(total) + '</span></div>';
+
+    el.oIncludesDisplay.innerHTML = (state.order.includes || [])
+      .map((label2) => '<span class="chip is-checked">' + U.escapeHtml(label2) + '</span>').join('');
+
+    el.oNettProfit.textContent = U.formatRupiah(nettProfit(items));
+    el.totalDisplay.textContent = U.formatRupiah(total);
+    el.paymentChooser.hidden = true;
+
+    setDirty(false);
+    await refreshHistory();
+  }
+
+  /* ------------------------------- Order edit ------------------------------ */
+
+  async function showOrderEdit(id) {
+    state.order = await db.getOrder(id);
+    state.customer = await db.getCustomer(state.order.customer_id);
+    const label = orderLabel(state.order);
+
+    setChrome({ title: 'Edit order', sub: state.customer.name, back: true, save: true, actions: false });
+    renderBreadcrumbs([
+      { label: 'Customers', hash: '#/customers' },
+      { label: state.customer.name, hash: '#/customer/' + state.customer.id },
+      { label: label, hash: '#/order/' + id },
+      { label: 'Edit' }
+    ]);
+
+    el.oTitle.value = state.order.title || '';
     el.oDate.value = state.order.document_date || U.todayISO();
-    el.oStatus.value = STATUSES.includes(state.order.status) ? state.order.status : 'Draft';
+    el.oStatus.value = STATUSES.includes(state.order.status) ? state.order.status : 'Quoted';
+    el.oFitting1.value = state.order.fitting_1_date || '';
+    el.oFittingFinal.value = state.order.final_fitting_date || '';
 
     el.itemList.innerHTML = '';
     const items = (state.order.items || []).length
       ? state.order.items
-      : [{ name: '', qty: 1, price: '' }];
+      : [{ name: '', qty: 1, price: '', cost: '' }];
     items.forEach((item) => addItemRow(item, false));
 
     buildIncludes(state.order.includes || []);
     el.customInclude.value = '';
 
     setDirty(false);
-    renderDocuments();
-    await refreshDocLog();
-  }
-
-  function orderData() {
-    return {
-      customerName: state.customer ? state.customer.name : '',
-      date: el.oDate.value,
-      items: readItems().map((it) => ({ name: it.name, qty: it.qty, price: it.price })),
-      includes: checkedIncludes()
-    };
-  }
-
-  /** Push the current form into both templates and the running total. */
-  function renderDocuments() {
-    el.totalDisplay.textContent = U.formatRupiah(docs.render(orderData()));
   }
 
   async function saveOrder() {
+    const items = readItems().map((it) => ({ name: it.name, qty: it.qty, price: it.price, cost: it.cost }));
     state.order = await db.updateOrder(state.order.id, {
+      title: orNull(el.oTitle.value),
       document_date: el.oDate.value || U.todayISO(),
       status: el.oStatus.value,
-      items: orderData().items,
-      includes: checkedIncludes()
+      items: items,
+      includes: checkedIncludes(),
+      fitting_1_date: orNull(el.oFitting1.value),
+      final_fitting_date: orNull(el.oFittingFinal.value)
     });
     setDirty(false);
+    try {
+      await db.logOrderHistory(state.order.id, 'updated', {});
+    } catch (err) {
+      console.error(err);
+    }
     return true;
-  }
-
-  async function refreshDocLog() {
-    const rows = await db.listDocumentLog(state.order.id);
-    el.docLogCard.hidden = !rows.length;
-    el.docLog.innerHTML = rows.map((r) =>
-      '<div class="logrow">' +
-        '<span class="logrow__kind">' + (r.kind === 'invoice' ? 'Invoice' : 'Quotation') + '</span>' +
-        '<span class="logrow__when">' + U.escapeHtml(U.formatShortDate(r.created_at)) + '</span>' +
-        '<span class="logrow__total">' + U.formatRupiah(r.total) + '</span>' +
-      '</div>'
-    ).join('');
   }
 
   /* ------------------------------- Item rows ----------------------------- */
 
   function createItemRow(data) {
-    const item = data || { name: '', qty: 1, price: '' };
+    const item = data || { name: '', qty: 1, price: '', cost: '' };
     const row = document.createElement('div');
     row.className = 'item';
     row.innerHTML =
@@ -428,12 +678,21 @@ KK.app = (function () {
           '</span>' +
         '</label>' +
       '</div>' +
+      '<label class="field field--cost">' +
+        '<span class="field__label">Est. production cost</span>' +
+        '<span class="prefixed">' +
+          '<span class="prefix">Rp</span>' +
+          '<input class="input js-cost" type="text" inputmode="numeric" placeholder="0">' +
+        '</span>' +
+      '</label>' +
       '<span class="err js-err" hidden></span>';
 
     $('.js-name', row).value = item.name || '';
     $('.js-qty', row).value = item.qty == null ? 1 : item.qty;
     $('.js-price', row).value = item.price === '' || item.price == null
       ? '' : U.groupDigits(item.price);
+    $('.js-cost', row).value = item.cost === '' || item.cost == null
+      ? '' : U.groupDigits(item.cost);
     return row;
   }
 
@@ -459,8 +718,10 @@ KK.app = (function () {
       name: $('.js-name', row).value.trim(),
       qtyRaw: U.digitsOnly($('.js-qty', row).value),
       priceRaw: U.digitsOnly($('.js-price', row).value),
+      costRaw: U.digitsOnly($('.js-cost', row).value),
       get qty() { return this.qtyRaw === '' ? 0 : Number(this.qtyRaw); },
-      get price() { return this.priceRaw === '' ? 0 : Number(this.priceRaw); }
+      get price() { return this.priceRaw === '' ? 0 : Number(this.priceRaw); },
+      get cost() { return this.costRaw === '' ? 0 : Number(this.costRaw); }
     }));
   }
 
@@ -530,7 +791,6 @@ KK.app = (function () {
       $('input', chip).checked = true;
       chip.classList.add('is-checked');
       el.customInclude.value = '';
-      renderDocuments();
       setDirty(true);
       showToast('"' + label + '" is already on the list');
       return;
@@ -539,48 +799,7 @@ KK.app = (function () {
     el.includesList.insertAdjacentHTML('beforeend', customChip(label, true));
     el.customInclude.value = '';
     el.customInclude.focus();
-    renderDocuments();
     setDirty(true);
-  }
-
-  /* ------------------------------- Validation ---------------------------- */
-
-  function validateOrder() {
-    let firstBad = null;
-
-    readItems().forEach((it) => {
-      const errNode = $('.js-err', it.row);
-      const nameInput = $('.js-name', it.row);
-      const qtyInput = $('.js-qty', it.row);
-      const priceInput = $('.js-price', it.row);
-      const problems = [];
-
-      const hasName = it.name !== '';
-      const hasQty = it.qtyRaw !== '' && it.qty >= 1;
-      const hasPrice = it.priceRaw !== '';
-
-      if (!hasName) problems.push('a description');
-      if (!hasQty) problems.push('a quantity of at least 1');
-      if (!hasPrice) problems.push('a price');
-
-      nameInput.classList.toggle('is-invalid', !hasName);
-      qtyInput.classList.toggle('is-invalid', !hasQty);
-      priceInput.classList.toggle('is-invalid', !hasPrice);
-
-      if (problems.length) {
-        errNode.textContent = 'This item needs ' + problems.join(', ') + '.';
-        errNode.hidden = false;
-        if (!firstBad) firstBad = !hasName ? nameInput : (!hasQty ? qtyInput : priceInput);
-      } else {
-        errNode.hidden = true;
-      }
-    });
-
-    if (firstBad) {
-      firstBad.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      firstBad.focus({ preventScroll: true });
-    }
-    return !firstBad;
   }
 
   /* ------------------------------ PDF download ---------------------------- */
@@ -594,18 +813,10 @@ KK.app = (function () {
   }
 
   async function download(kind) {
-    if (!validateOrder()) {
-      showToast('Please complete the highlighted fields');
-      return;
-    }
-
     setBusy(kind, true);
     let total;
     try {
-      // The log is a record of what was sent, so what was sent has to be what
-      // is stored. Save first, always.
-      if (state.dirty) await saveOrder();
-      total = await docs.download(kind, orderData());
+      total = await docs.download(kind, orderDataFromState());
     } catch (err) {
       console.error(err);
       showToast('Could not generate the PDF — please try again');
@@ -619,10 +830,40 @@ KK.app = (function () {
     // must not read as a failed download.
     try {
       await db.logDocument(state.order.id, kind, total);
-      await refreshDocLog();
+      await refreshHistory();
     } catch (err) {
       console.error(err);
       showToast('Downloaded, but could not record it');
+    }
+  }
+
+  /* ----------------------------- Payment logging --------------------------- */
+
+  function openPaymentChooser() {
+    const total = docs.computeTotal(state.order.items);
+    const amounts = docs.depositAmounts(total);
+    el.paymentChooserOptions.innerHTML = docs.DEPOSIT_LABELS.map((label, i) =>
+      '<button type="button" class="btn btn--outline btn--block js-log-deposit" data-i="' + i + '">' +
+        U.escapeHtml(label) + ' — ' + U.formatRupiah(amounts[i]) +
+      '</button>'
+    ).join('');
+    el.paymentChooser.hidden = false;
+    el.paymentChooser.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  async function logDeposit(i) {
+    const total = docs.computeTotal(state.order.items);
+    const amount = docs.depositAmounts(total)[i];
+    try {
+      await db.logOrderHistory(state.order.id, 'payment_logged', {
+        deposit_index: i, deposit_label: docs.DEPOSIT_LABELS[i], amount: amount
+      });
+      el.paymentChooser.hidden = true;
+      showToast('Payment logged');
+      await refreshHistory();
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || 'Could not log payment');
     }
   }
 
@@ -639,7 +880,12 @@ KK.app = (function () {
       setDirty(state.dirty);
       try {
         if (state.route.view === 'customer') await saveCustomer();
-        else if (state.route.view === 'order') { await saveOrder(); showToast('Order saved'); }
+        else if (state.route.view === 'orderEdit') {
+          const id = state.order.id;
+          await saveOrder();
+          showToast('Order saved');
+          go('#/order/' + id);
+        }
       } catch (err) {
         console.error(err);
         showToast(err.message || 'Could not save');
@@ -656,13 +902,19 @@ KK.app = (function () {
       showGate();
     });
 
-    /* -- customer list -- */
+    /* -- customer list / overview -- */
 
     el.customerSearch.addEventListener('input', renderCustomerList);
+    el.overviewRange.addEventListener('change', () => {
+      state.overviewRange = el.overviewRange.value;
+      renderOverviewMoney();
+    });
 
     el.newCustomer.addEventListener('click', () => go('#/customer/new'));
 
     /* -- customer detail -- */
+
+    el.editCustomerBtn.addEventListener('click', () => setCustomerMode(true));
 
     $$('.js-cfield').forEach((input) => {
       input.addEventListener('input', () => {
@@ -682,11 +934,12 @@ KK.app = (function () {
         const order = await db.createOrder({
           customer_id: state.customer.id,
           document_date: U.todayISO(),
-          status: 'Draft',
+          status: 'Quoted',
           items: [],
           includes: INCLUDES.slice()   // the standing package, all ticked
         });
-        go('#/order/' + order.id);
+        await db.logOrderHistory(order.id, 'created', {});
+        go('#/order/' + order.id + '/edit');
       } catch (err) {
         console.error(err);
         showToast(err.message || 'Could not create the order');
@@ -707,77 +960,23 @@ KK.app = (function () {
       }
     });
 
-    /* -- order editor -- */
+    /* -- order detail -- */
 
-    $$('.js-ofield').forEach((input) => {
-      input.addEventListener('input', () => { setDirty(true); renderDocuments(); });
-      input.addEventListener('change', () => { setDirty(true); renderDocuments(); });
+    el.editOrderBtn.addEventListener('click', () => go('#/order/' + state.order.id + '/edit'));
+
+    el.logPaymentBtn.addEventListener('click', () => {
+      if (!el.paymentChooser.hidden) { el.paymentChooser.hidden = true; return; }
+      openPaymentChooser();
     });
 
-    el.addItem.addEventListener('click', () => {
-      addItemRow({ name: '', qty: 1, price: '' }, true);
-      setDirty(true);
-      renderDocuments();
-    });
-
-    el.itemList.addEventListener('click', (e) => {
-      const btn = e.target.closest('.js-remove');
-      if (!btn || btn.disabled) return;
-      btn.closest('.item').remove();
-      refreshRemoveButtons();
-      setDirty(true);
-      renderDocuments();
-    });
-
-    el.itemList.addEventListener('input', (e) => {
-      const input = e.target;
-      if (input.classList.contains('js-qty')) {
-        input.value = U.digitsOnly(input.value).replace(/^0+(?=\d)/, '');
-      } else if (input.classList.contains('js-price')) {
-        U.reformatPriceField(input);
-      }
-      input.classList.remove('is-invalid');
-      const errNode = $('.js-err', input.closest('.item'));
-      if (errNode) errNode.hidden = true;
-      setDirty(true);
-      renderDocuments();
-    });
-
-    el.itemList.addEventListener('focusout', (e) => {
-      if (e.target.classList.contains('js-qty') && U.digitsOnly(e.target.value) === '') {
-        e.target.value = '1';
-        renderDocuments();
-      }
-    });
-
-    el.includesList.addEventListener('change', (e) => {
-      const cb = e.target;
-      if (cb.type !== 'checkbox') return;
-      cb.closest('.chip').classList.toggle('is-checked', cb.checked);
-      setDirty(true);
-      renderDocuments();
-    });
-
-    el.includesList.addEventListener('click', (e) => {
-      const btn = e.target.closest('.js-remove-include');
+    el.paymentChooserOptions.addEventListener('click', (e) => {
+      const btn = e.target.closest('.js-log-deposit');
       if (!btn) return;
-      e.preventDefault();
-      btn.closest('.chip').remove();
-      setDirty(true);
-      renderDocuments();
-    });
-
-    el.addInclude.addEventListener('click', addCustomInclude);
-
-    el.customInclude.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        addCustomInclude();
-      }
+      logDeposit(Number(btn.dataset.i));
     });
 
     el.deleteOrder.addEventListener('click', async () => {
-      if (!window.confirm('Delete this order and its download record? This cannot be undone.')) return;
+      if (!window.confirm('Delete this order and its download/history record? This cannot be undone.')) return;
       try {
         const customerId = state.order.customer_id;
         await db.deleteOrder(state.order.id);
@@ -793,6 +992,69 @@ KK.app = (function () {
     el.downloadQuote.addEventListener('click', () => download('quotation'));
     el.downloadInvoice.addEventListener('click', () => download('invoice'));
 
+    /* -- order edit -- */
+
+    $$('.js-ofield').forEach((input) => {
+      input.addEventListener('input', () => setDirty(true));
+      input.addEventListener('change', () => setDirty(true));
+    });
+
+    el.addItem.addEventListener('click', () => {
+      addItemRow({ name: '', qty: 1, price: '', cost: '' }, true);
+      setDirty(true);
+    });
+
+    el.itemList.addEventListener('click', (e) => {
+      const btn = e.target.closest('.js-remove');
+      if (!btn || btn.disabled) return;
+      btn.closest('.item').remove();
+      refreshRemoveButtons();
+      setDirty(true);
+    });
+
+    el.itemList.addEventListener('input', (e) => {
+      const input = e.target;
+      if (input.classList.contains('js-qty')) {
+        input.value = U.digitsOnly(input.value).replace(/^0+(?=\d)/, '');
+      } else if (input.classList.contains('js-price') || input.classList.contains('js-cost')) {
+        U.reformatPriceField(input);
+      }
+      input.classList.remove('is-invalid');
+      const errNode = $('.js-err', input.closest('.item'));
+      if (errNode) errNode.hidden = true;
+      setDirty(true);
+    });
+
+    el.itemList.addEventListener('focusout', (e) => {
+      if (e.target.classList.contains('js-qty') && U.digitsOnly(e.target.value) === '') {
+        e.target.value = '1';
+      }
+    });
+
+    el.includesList.addEventListener('change', (e) => {
+      const cb = e.target;
+      if (cb.type !== 'checkbox') return;
+      cb.closest('.chip').classList.toggle('is-checked', cb.checked);
+      setDirty(true);
+    });
+
+    el.includesList.addEventListener('click', (e) => {
+      const btn = e.target.closest('.js-remove-include');
+      if (!btn) return;
+      e.preventDefault();
+      btn.closest('.chip').remove();
+      setDirty(true);
+    });
+
+    el.addInclude.addEventListener('click', addCustomInclude);
+
+    el.customInclude.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        addCustomInclude();
+      }
+    });
+
     /* A reload is outside the router's reach, so it gets its own guard. */
     window.addEventListener('beforeunload', (e) => {
       if (!state.dirty) return;
@@ -807,9 +1069,11 @@ KK.app = (function () {
     el.boot.hidden = true;
     el.app.hidden = true;
     el.gate.hidden = false;
-    el.gatePassword.value = '';
+    el.gateRemember.checked = db.rememberPreference();
+    el.gatePassword.value = el.gateRemember.checked ? db.savedPassword() : '';
     el.gateErr.hidden = true;
-    el.gatePassword.focus();
+    if (el.gatePassword.value) el.gateSubmit.focus();
+    else el.gatePassword.focus();
   }
 
   function showApp() {
@@ -829,7 +1093,7 @@ KK.app = (function () {
       el.gateSubmit.classList.add('is-busy');
       $('.btn__label', el.gateSubmit).textContent = 'Unlocking…';
       try {
-        await db.signIn(el.gatePassword.value);
+        await db.signIn(el.gatePassword.value, el.gateRemember.checked);
         showApp();
       } catch (err) {
         el.gateErr.textContent = err.message || 'Could not sign in';
