@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#E4E2DD">
+<title>Kelak Kembali — Quotation Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="assets/logo-header.png">
+</head>
+<body>
+
+<!-- ============================ APP UI ============================ -->
+<header class="appbar">
+  <div class="appbar__inner">
+    <img class="appbar__mark" src="assets/logo-header.png" alt="">
+    <div class="appbar__text">
+      <h1>Quotation Generator</h1>
+      <p>Kelak Kembali</p>
+    </div>
+  </div>
+</header>
+
+<main class="page">
+
+  <div class="notice" id="sampleNotice">
+    <span class="notice__icon" aria-hidden="true">📝</span>
+    <div class="notice__body">
+      <p><strong>Sample data loaded</strong> — edit or clear these before downloading your quotation.</p>
+      <button type="button" class="btn btn--ghost btn--sm" id="clearSample">Clear sample data</button>
+    </div>
+  </div>
+
+  <section class="card">
+    <h2 class="card__title">Details</h2>
+
+    <label class="field" for="customerName">
+      <span class="field__label">Customer name</span>
+      <input class="input" id="customerName" type="text" placeholder="e.g. Jane Doe"
+             autocomplete="name" autocapitalize="words" spellcheck="false">
+      <span class="err" id="errCustomerName" hidden>Please enter the customer name.</span>
+    </label>
+
+    <label class="field" for="quoteDate">
+      <span class="field__label">Date</span>
+      <input class="input" id="quoteDate" type="date">
+    </label>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">Items</h2>
+    <div class="items" id="itemList"></div>
+    <button type="button" class="btn btn--outline btn--block" id="addItem">
+      <span aria-hidden="true">+</span> Add item
+    </button>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">Includes</h2>
+    <p class="card__hint">Only the selected items appear on the quotation.</p>
+    <div class="chips" id="includesList"></div>
+  </section>
+
+  <p class="footnote">
+    Excludes text and the 35 / 35 / 30 payment terms are fixed and always printed on the quotation.
+  </p>
+
+</main>
+
+<div class="actionbar">
+  <div class="actionbar__inner">
+    <div class="actionbar__total">
+      <span class="actionbar__label">Total</span>
+      <strong class="actionbar__amount" id="totalDisplay">Rp0</strong>
+    </div>
+    <button type="button" class="btn btn--primary" id="downloadBtn">
+      <span class="btn__label">Download Quotation PDF</span>
+      <span class="spinner" aria-hidden="true"></span>
+    </button>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- ==================== QUOTATION DOCUMENT (locked spec) ==================== -->
+<!-- Rendered off-screen at exact Figma dimensions, snapshotted for the PDF. -->
+<div class="stage" aria-hidden="true">
+  <div class="q" id="quotation">
+
+    <!-- Header container -->
+    <div class="q-header">
+      <div class="q-headcol">
+        <div class="q-headrow">
+          <div class="q-headtext">
+            <div class="q-titlerow">
+              <p class="q-title">Quotation</p>
+            </div>
+            <div class="q-detailsrow">
+              <div class="q-detail">
+                <span class="q-dim">For:</span><span id="qFor"></span>
+              </div>
+              <span class="q-dot"></span>
+              <div class="q-detail">
+                <span class="q-dim">Date:</span><span id="qDate"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="q-desc">
+          <div class="q-desctext">
+            <p id="qDear">Dear,</p>
+            <p>Please find below the quotation for the custom wedding attire as discussed. Kindly review the details below, and please feel free to reach out should you have any questions.</p>
+          </div>
+        </div>
+      </div>
+      <div class="q-logobox">
+        <img class="q-logo1" src="assets/logo-header.png" alt="">
+      </div>
+    </div>
+
+    <!-- Items container -->
+    <div class="q-items">
+      <div class="q-itemsection">
+        <div class="q-headersection">
+          <div class="q-divider"><div class="q-rule"></div></div>
+          <div class="q-row q-row--head">
+            <p class="q-c-item">Item</p>
+            <p class="q-c-qty">Qty</p>
+            <p class="q-c-price">Price</p>
+          </div>
+          <div class="q-divider"><div class="q-rule"></div></div>
+        </div>
+        <div class="q-itemlist">
+          <div class="q-itemcol" id="qItems"></div>
+        </div>
+      </div>
+
+      <div class="q-divider"><div class="q-rule"></div></div>
+
+      <div class="q-includes">
+        <div class="q-includesrow" id="qIncludes"></div>
+        <div class="q-excludesrow">
+          <p><span class="q-b">Excludes: </span><span class="q-r">Lace fabric and any additional customization outside the agreed design scope.</span></p>
+        </div>
+      </div>
+
+      <div class="q-divider"><div class="q-rule"></div></div>
+
+      <div class="q-payment">
+        <p class="q-b q-paytitle">Payment terms</p>
+        <div class="q-paymentrow">
+          <div class="q-deposit">
+            <p class="q-b" id="qDep1">1st deposit: 35%</p>
+            <p class="q-depdesc">To confirm order and start the design phase.</p>
+          </div>
+          <div class="q-deposit">
+            <p class="q-b" id="qDep2">2nd deposit: 35%</p>
+            <p class="q-depdesc">Upon design approval to start production phase.</p>
+          </div>
+          <div class="q-deposit">
+            <p class="q-b" id="qDep3">3rd deposit: 30%</p>
+            <p class="q-depdesc">After final fitting, 7 days before delivery.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="q-divider"><div class="q-rule"></div></div>
+    </div>
+
+    <!-- Signature container -->
+    <div class="q-signature">
+      <p class="q-sigtext">Best regards,</p>
+      <img class="q-logo2" src="assets/logo-signature.png" alt="Kelak Kembali">
+    </div>
+
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
