@@ -1,8 +1,9 @@
 /* Kelak Kembali — fitting schedule.
 
-   Two dates are asked of the client upfront: when they come in to be measured,
-   and the last time they are seen before the wedding. Everything between those
-   is a consequence of them, so it is computed rather than remembered.
+   The programme has exactly two fixed points, and neither of them is a fitting.
+   It cannot start before the first payment — that is when the work is actually
+   commissioned — and it cannot end after the wedding. Everything in between is
+   arithmetic on those two dates, so it is computed rather than remembered.
 
    computeSchedule is pure — dates in, dates out, no DOM and no network. That is
    deliberate: it is the one piece of this feature with real logic in it, and
@@ -18,9 +19,9 @@ KK.calendar = (function () {
 
   /* ------------------------------- The rules ------------------------------ */
 
-  /* In order. The first and last are the anchors the client gave us; the three
-     in the middle are ours to place. Must match the check constraint on
-     order_events.stage in schema.sql. */
+  /* In order. Must match the check constraint on order_events.stage in
+     schema.sql. None of these is a fixed point any more — the payment and the
+     wedding are, and all five of these are placed between them. */
   const STAGES = [
     'Body measurements',
     'Fitting 1',
@@ -32,16 +33,33 @@ KK.calendar = (function () {
   const ANCHOR_FIRST = STAGES[0];
   const ANCHOR_LAST = STAGES[STAGES.length - 1];
 
+  /* Nothing is measured until there is a design to measure against, and the
+     design takes about a fortnight from the moment the first payment lands. */
+  const DESIGN_PHASE_DAYS = 14;
+
+  /* How long before the wedding the final fitting should sit. The garment still
+     has to be altered, pressed and delivered after it, so three weeks is what
+     we aim for — but a week is survivable, and a fitting that happens is worth
+     more than a buffer that is only comfortable. */
+  const FINAL_BUFFER_IDEAL = 21;
+  const FINAL_BUFFER_MIN = 7;
+
+  /* Below this the buffer is worth mentioning; above it, losing a day or two of
+     slack is not news and saying so every time trains you to ignore the line
+     that matters. A fortnight is still enough to alter and deliver in. */
+  const FINAL_BUFFER_QUIET = 14;
+
   /* A fitting is only useful once the last one has been acted on, and that is
      cutting-and-sewing time, not calendar time. Below this the appointments
      stop being a programme and start being a queue. */
   const MIN_GAP_DAYS = 14;
 
-  /* Which fittings give way when the window is too short, in the order they
-     give way. Middle-out: the anchors are promises already made, and of the
-     three in between the latest is the most redundant with the final fitting.
-     Dropping from the end instead would leave a long silent stretch before the
-     wedding, which is exactly when you want eyes on the garment. */
+  /* Which appointments give way when the window is too short, in the order they
+     give way. Middle-out: measurements and the final fitting are the two you
+     cannot make a garment without, and of the three in between the latest is
+     the most redundant with the final fitting. Dropping from the end instead
+     would leave a long silent stretch before the wedding, which is exactly when
+     you want eyes on the garment. */
   const DROP_ORDER = ['Fitting 3', 'Fitting 2', 'Fitting 1'];
 
   /** Days needed to fit n appointments at the minimum gap. */
@@ -85,72 +103,111 @@ KK.calendar = (function () {
   /* ------------------------------ The schedule ---------------------------- */
 
   /**
-   * Place the fitting programme between the two anchor dates.
+   * Place the fitting programme between the first payment and the wedding.
    *
-   * Returns { events, dropped, warning, reason }:
-   *   events   [{ stage, event_date }] in date order — empty when unschedulable
-   *   dropped  stage names left out because the window was too tight
-   *   warning  what to tell the user about a schedule that was cut down
-   *   reason   why there is no schedule at all, when there isn't one
+   * Returns { events, dropped, warning, reason, finalBufferDays }:
+   *   events           [{ stage, event_date }] in date order — empty when unschedulable
+   *   dropped          stage names left out because the window was too tight
+   *   warning          what to tell the user about a schedule that was cut down
+   *   reason           why there is no schedule at all, when there isn't one
+   *   finalBufferDays  days between the final fitting and the wedding, or null
    */
-  function computeSchedule(measurementsISO, finalISO) {
-    const start = toDay(measurementsISO);
-    const end = toDay(finalISO);
+  function computeSchedule(paymentISO, weddingISO) {
+    const paid = toDay(paymentISO);
+    const wedding = toDay(weddingISO);
 
-    const nothing = (reason) => ({ events: [], dropped: [], warning: '', reason: reason });
+    const nothing = (reason) => ({
+      events: [], dropped: [], warning: '', reason: reason, finalBufferDays: null
+    });
 
-    if (start === null && end === null) {
-      return nothing('Add the body measurements and final fitting dates to build a schedule.');
+    /* Order matters. The payment is the one the user can do something about
+       right now, so it is named first when both are missing. */
+    if (paid === null) return nothing('The schedule starts when the first payment is logged.');
+    if (wedding === null) return nothing('Add the wedding date to build a schedule.');
+
+    const start = paid + DESIGN_PHASE_DAYS;   // body measurements, never moves
+    const ideal = wedding - FINAL_BUFFER_IDEAL;
+    const latest = wedding - FINAL_BUFFER_MIN;
+
+    if (latest <= start) {
+      return nothing('The first payment is too close to the wedding to schedule fittings — ' +
+        'the ' + DESIGN_PHASE_DAYS + '-day design phase alone runs past ' +
+        FINAL_BUFFER_MIN + ' days before the day.');
     }
-    if (start === null) return nothing('Add the body measurements date to build a schedule.');
-    if (end === null) return nothing('Add the final fitting date to build a schedule.');
-    if (end === start) {
-      return nothing('Body measurements and the final fitting are on the same day — there is no window to schedule into.');
-    }
-    if (end < start) {
-      return nothing('The final fitting is before the body measurements. Check the dates.');
-    }
 
-    const span = end - start;
-
-    /* Drop from the middle until what is left can be spaced properly. The
-       anchors alone need no gap at all, so this always terminates. */
+    /* Give up the finishing buffer before giving up an appointment: slide the
+       final fitting later, and only when even the latest acceptable date leaves
+       too little room, drop from the middle. Each pass asks the same question of
+       one fewer appointment, so this always terminates. */
     let stages = STAGES.slice();
     const dropped = [];
-    for (let i = 0; i < DROP_ORDER.length && span < spanNeededFor(stages.length); i++) {
+    let end = null;
+
+    for (let i = 0; ; i++) {
+      const need = spanNeededFor(stages.length);
+      if (ideal - start >= need) { end = ideal; break; }
+      if (latest - start >= need) { end = start + need; break; }
+      if (i >= DROP_ORDER.length) break;
       dropped.push(DROP_ORDER[i]);
       stages = stages.filter((s) => s !== DROP_ORDER[i]);
     }
 
+    /* Not even measurements and a final fitting a fortnight apart. Still worth
+       booking both — they just land closer together than anyone would like. */
+    const squeezed = end === null;
+    if (squeezed) end = latest;
+
     /* Even split. Computed from the ends each time rather than by accumulating
        a step, so rounding cannot creep and the last event lands exactly on the
-       final fitting date the client was given. */
+       final fitting date the rest of the app reports. */
+    const span = end - start;
     const last = stages.length - 1;
     const events = stages.map((stage, i) => ({
       stage: stage,
       event_date: fromDay(start + Math.round((i * span) / last))
     }));
 
+    const finalBufferDays = wedding - end;
+    const order = dropped.slice().sort((a, b) => STAGES.indexOf(a) - STAGES.indexOf(b));
+
     return {
       events: events,
-      dropped: dropped.slice().sort((a, b) => STAGES.indexOf(a) - STAGES.indexOf(b)),
-      warning: dropped.length ? tightWindowWarning(span, dropped) : '',
-      reason: ''
+      dropped: order,
+      warning: scheduleWarning(wedding - paid, order, finalBufferDays, squeezed),
+      reason: '',
+      finalBufferDays: finalBufferDays
     };
   }
 
-  /* Says the three things you need to decide what to do about it: how much room
-     there is, what that cost you, and how much room the full programme wants. */
-  function tightWindowWarning(span, dropped) {
-    const names = dropped.slice().sort((a, b) => STAGES.indexOf(a) - STAGES.indexOf(b));
-    const list = names.length === 1
-      ? names[0]
-      : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
-    return 'Only ' + span + (span === 1 ? ' day' : ' days') +
-      ' between body measurements and the final fitting, so ' +
-      list + (names.length === 1 ? ' was' : ' were') + ' left out. ' +
-      'The full programme needs ' + spanNeededFor(STAGES.length) + ' days at ' +
-      MIN_GAP_DAYS + ' days apart.';
+  const days = (n) => n + (n === 1 ? ' day' : ' days');
+
+  const listOf = (names) => names.length === 1
+    ? names[0]
+    : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+
+  /* Silent when nothing was compromised. Otherwise it says what the window was,
+     what that cost, and what the uncompromised version would have looked like —
+     which together are enough to decide whether to go back to the client. */
+  function scheduleWarning(window, dropped, finalBufferDays, squeezed) {
+    const parts = [];
+
+    if (dropped.length) {
+      parts.push(listOf(dropped) + (dropped.length === 1 ? ' was' : ' were') +
+        ' left out — the full programme needs ' + days(spanNeededFor(STAGES.length)) +
+        ' from body measurements to the final fitting.');
+    }
+    if (finalBufferDays < FINAL_BUFFER_QUIET) {
+      parts.push('The final fitting is ' + days(finalBufferDays) +
+        ' before the wedding rather than the usual ' + FINAL_BUFFER_IDEAL + '.');
+    }
+    if (squeezed) {
+      parts.push('The two appointments are closer together than the usual ' +
+        MIN_GAP_DAYS + ' days.');
+    }
+    if (!parts.length) return '';
+
+    return 'Only ' + days(window) + ' between the first payment and the wedding. ' +
+      parts.join(' ');
   }
 
   /** Gaps between consecutive events, for display. */
@@ -171,8 +228,8 @@ KK.calendar = (function () {
 
   /* ------------------------------- Rendering ------------------------------ */
 
-  /* The card is a read-out, not a form: the dates are consequences of the two
-     anchors, and the way to change them is to change those. */
+  /* The card is a read-out, not a form: the dates are consequences of the first
+     payment and the wedding, and the way to change them is to change those. */
   function renderSchedule(root, result, opts) {
     const o = opts || {};
 
@@ -209,6 +266,7 @@ KK.calendar = (function () {
 
   return {
     STAGES, ANCHOR_FIRST, ANCHOR_LAST, MIN_GAP_DAYS, DROP_ORDER,
+    DESIGN_PHASE_DAYS, FINAL_BUFFER_IDEAL, FINAL_BUFFER_MIN, FINAL_BUFFER_QUIET,
     computeSchedule, spanNeededFor, gapsFor, eventTitle, renderSchedule,
     toDay, fromDay, daysBetween
   };

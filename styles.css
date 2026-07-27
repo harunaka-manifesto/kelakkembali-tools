@@ -760,6 +760,12 @@ body.has-savebar .page {
 
 .infolist > div:first-child { border-top: none; }
 
+/* Rows that only appear once they mean something — a consultation that has
+   happened, a reason an enquiry stopped. The display:flex above outranks the
+   browser's own [hidden] rule, so it has to be said again here, as everywhere
+   else in this file that hides a flex item. */
+.infolist > div[hidden] { display: none; }
+
 .infolist dt {
   flex: none;
   font-size: 12.5px;
@@ -1037,6 +1043,76 @@ body.has-savebar .page {
 .badge--in-production { border-color: #8C6E28; color: #4A3A14; background: rgba(140, 110, 40, 0.20); }
 .badge--delivered     { border-color: var(--ink); background: var(--ink); color: #fff; }
 
+/* Pipeline stages. Deliberately lighter than the order statuses above: the
+   early stages are a place in a queue, not a commitment, and the visual weight
+   should say so. Lost is the exception — it needs to read as an end. */
+.badge--enquiry      { border-color: rgba(23, 21, 15, 0.25); color: var(--muted); }
+.badge--consultation { border-color: rgba(23, 21, 15, 0.4); color: var(--ink); }
+.badge--moodboard    { border-color: #8C6E28; color: #6B5320; background: rgba(140, 110, 40, 0.10); }
+.badge--ordering     { border-color: #8C6E28; color: #4A3A14; background: rgba(140, 110, 40, 0.20); }
+.badge--lost         { border-color: rgba(23, 21, 15, 0.2); color: var(--muted);
+                       background: rgba(23, 21, 15, 0.04); text-decoration: line-through; }
+
+/* -------------------------------- Pipeline ------------------------------- */
+
+/* Five stages across, scrollable rather than wrapped: wrapping turned the row
+   into a block that read as a list of options, and the point of the row is
+   that it is a track with a position on it. */
+.stager {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0 -16px;
+  padding: 2px 16px 8px;
+}
+.stager::-webkit-scrollbar { display: none; }
+
+.stager__btn {
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  padding: 7px 13px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.stager__btn:hover { border-color: var(--ink); color: var(--ink); }
+
+.stager__btn.is-current {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+  cursor: default;
+}
+
+/* ------------------------------- Segmented ------------------------------- */
+
+/* Two mutually exclusive modes for one field. A checkbox would have been
+   smaller, but "month only" is not the negation of anything you would name. */
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.segmented__btn {
+  border: 0;
+  background: transparent;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.segmented__btn + .segmented__btn { border-left: 1px solid var(--line); }
+.segmented__btn.is-on { background: var(--ink); color: #fff; }
+
 /* ------------------------------ Download log ----------------------------- */
 
 .loglist {
@@ -1078,6 +1154,10 @@ body.has-savebar .page {
   flex-direction: column;
   gap: 6px;
 }
+
+/* Same reason as .infolist > div[hidden]: flex outranks the browser's own rule.
+   Used by the "why it did not proceed" field, which only applies at Lost. */
+.field[hidden] { display: none; }
 
 .field__label {
   display: flex;
@@ -1648,10 +1728,6 @@ select.input {
 }
 
 .calcsheet__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
   margin-bottom: 18px;
 }
 
@@ -1668,32 +1744,15 @@ select.input {
   color: var(--muted);
 }
 
-.calcsheet__close {
-  width: 44px;
-  height: 44px;
-  flex: none;
-  display: grid;
-  place-items: center;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 50%;
-  color: var(--ink);
-  cursor: pointer;
-  transition: background .15s ease;
-}
-
-.calcsheet__close:hover { background: rgba(23, 21, 15, 0.07); }
-.calcsheet__close svg { width: 18px; height: 18px; }
-
 .calcsheet__body {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-/* Same shape as .term / .item — a bordered card per row — the difference is
-   two fields instead of three, and the remove button back on the row itself
-   since there is no shared header row here to hold it. */
+/* Same shape as .term / .item — a bordered card per row. Category and amount
+   stack instead of sitting side by side: two labelled fields sharing a row's
+   width left the amount field too narrow to read its own digits on a phone. */
 .calcrows {
   display: flex;
   flex-direction: column;
@@ -1701,29 +1760,64 @@ select.input {
 }
 
 .calcrow {
+  position: relative;
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
   gap: 10px;
-  padding: 12px;
+  padding: 14px 44px 14px 14px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 10px;
 }
 
-.calcrow__label { flex: 1 1 auto; min-width: 0; }
-.calcrow__amount { width: 132px; flex: none; }
+.calcrow__label { width: 100%; }
+.calcrow__amount { width: 100%; }
+
+/* A corner dismiss, not a full delete button — the trash-can treatment on
+   item/term rows reads as a heavier, more deliberate action than removing
+   one scratch line here deserves. */
+.calcrow__remove {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 1px solid var(--line-2);
+  border-radius: 50%;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+
+.calcrow__remove:hover:not(:disabled) {
+  background: rgba(23, 21, 15, 0.06);
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.calcrow__remove:disabled { opacity: 0.28; cursor: not-allowed; }
+.calcrow__remove svg { width: 13px; height: 13px; }
 
 /* -------------------------- Cost calc trigger ---------------------------- */
 
-/* Small enough to sit inline with the "Est. production cost" label without
-   competing with it — the remove buttons on item/term rows are 44px because
-   they are the row's only other control; this one shares a label row that
-   already has an "Internal" tag on it. */
+/* Sits beside the cost input rather than in the label row, so it can be a
+   full touch target instead of competing for space with the "Internal" tag. */
+.costfield-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.costfield-row .prefixed { flex: 1 1 auto; min-width: 0; }
+
 .calc-trigger {
-  width: 26px;
-  height: 26px;
+  width: 44px;
+  height: 44px;
   flex: none;
-  margin-left: auto;
   display: grid;
   place-items: center;
   background: transparent;
@@ -1740,7 +1834,7 @@ select.input {
   color: var(--ink);
 }
 
-.calc-trigger svg { width: 14px; height: 14px; }
+.calc-trigger svg { width: 20px; height: 20px; }
 
 /* --------------------------------- Toast -------------------------------- */
 

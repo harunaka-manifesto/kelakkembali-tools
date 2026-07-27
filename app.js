@@ -37,6 +37,50 @@ KK.app = (function () {
   /* Must match the check constraint in schema.sql. */
   const STATUSES = ['Quoted', 'Confirmed', 'In production', 'Delivered'];
 
+  /* Also a check constraint, and also the options in the Source select. The
+     intake table deliberately does not constrain its own copy — a stranger's
+     answer is reconciled against this list when the enquiry is accepted, not
+     when it arrives. */
+  const SOURCES = ['Instagram', 'TikTok', 'Referral', 'Walk-in', 'Other'];
+
+  /* Where a customer is before there is an order to have a status. The order
+     ladder above picks up at Ordering and runs in parallel from there — a
+     customer stays at Ordering while their orders move through Quoted to
+     Delivered, because "which stage is this couple at" and "how far along is
+     this particular garment" stop being the same question once a family books
+     three of them. Must match customers_stage_check in schema.sql. */
+  const STAGES = ['Enquiry', 'Consultation', 'Moodboard', 'Ordering', 'Lost'];
+
+  /* What to chase, and how long to leave it before chasing. Every stage sets
+     one nudge; entering a new stage replaces it. Ordering has no entry here
+     because its follow-ups come from the order's own status — see bumpStatus.
+
+     `from` is the column the count runs from, so the nudge survives being
+     back-dated: recording a consultation that happened last week puts the
+     moodboard deadline where it actually falls, not a week late. */
+  const STAGE_NUDGES = {
+    Enquiry:      { label: 'Book consultation',   days: 2, from: 'created_at' },
+    Consultation: { label: 'Moodboard due',       days: 7, from: 'consult_date' },
+    Moodboard:    { label: 'Follow up moodboard', days: 3, from: 'moodboard_date' },
+    Ordering:     null,
+    Lost:         null
+  };
+
+  /* Chases for an order that has gone out and gone quiet. Cleared once money
+     arrives — from then on the fitting schedule is the thing to look at, and a
+     nudge alongside it is one reminder too many. */
+  const STATUS_NUDGES = {
+    Quoted:    { label: 'Follow up quotation', days: 3 },
+    Confirmed: { label: 'Follow up payment',   days: 3 }
+  };
+
+  /* The date column each stage stamps on arrival, so the record says when the
+     meeting happened rather than only that it did. */
+  const STAGE_DATE_COLUMN = {
+    Consultation: 'consult_date',
+    Moodboard: 'moodboard_date'
+  };
+
   const REMOVE_ICON =
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
     'stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>';
@@ -98,6 +142,16 @@ KK.app = (function () {
     dWedding: $('#dWedding'),
     dNotes: $('#dNotes'),
     dCreated: $('#dCreated'),
+    dConsult: $('#dConsult'),
+    dConsultRow: $('#dConsultRow'),
+    dMoodboard: $('#dMoodboard'),
+    dMoodboardRow: $('#dMoodboardRow'),
+    dLost: $('#dLost'),
+    dLostRow: $('#dLostRow'),
+    pipelineCard: $('#pipelineCard'),
+    dStageBadge: $('#dStageBadge'),
+    stageButtons: $('#stageButtons'),
+    dFollowUp: $('#dFollowUp'),
     customerEditCard: $('#customerEditCard'),
     cName: $('#cName'),
     errCName: $('#errCName'),
@@ -105,6 +159,14 @@ KK.app = (function () {
     cInstagram: $('#cInstagram'),
     cSource: $('#cSource'),
     cWedding: $('#cWedding'),
+    cWeddingMonth: $('#cWeddingMonth'),
+    cWeddingPrecision: $('#cWeddingPrecision'),
+    cConsultDate: $('#cConsultDate'),
+    cMoodboardDate: $('#cMoodboardDate'),
+    cFollowUpDate: $('#cFollowUpDate'),
+    cFollowUpLabel: $('#cFollowUpLabel'),
+    cLostReason: $('#cLostReason'),
+    cLostField: $('#cLostField'),
     cNotes: $('#cNotes'),
     customerOrdersCard: $('#customerOrdersCard'),
     ordersTotal: $('#ordersTotal'),
@@ -113,8 +175,7 @@ KK.app = (function () {
 
     viewOrder: $('#viewOrder'),
     oDocNameDisplay: $('#oDocNameDisplay'),
-    oFitting1Display: $('#oFitting1Display'),
-    oFittingFinalDisplay: $('#oFittingFinalDisplay'),
+    oFirstPaymentDisplay: $('#oFirstPaymentDisplay'),
     oWeddingDisplay: $('#oWeddingDisplay'),
     oItemsDisplay: $('#oItemsDisplay'),
     oIncludesDisplay: $('#oIncludesDisplay'),
@@ -134,11 +195,20 @@ KK.app = (function () {
     gcalDisconnect: $('#gcalDisconnect'),
     gcalErr: $('#gcalErr'),
 
+    enquiriesCard: $('#enquiriesCard'),
+    enquiriesCount: $('#enquiriesCount'),
+    enquiryList: $('#enquiryList'),
+    viewEnquiry: $('#viewEnquiry'),
+    enquiryWhen: $('#enquiryWhen'),
+    enquiryAnswers: $('#enquiryAnswers'),
+    enquiryNote: $('#enquiryNote'),
+    enquiryAccept: $('#enquiryAccept'),
+    enquiryDismiss: $('#enquiryDismiss'),
+
     viewOrderEdit: $('#viewOrderEdit'),
     oTitle: $('#oTitle'),
     oDocName: $('#oDocName'),
-    oFitting1: $('#oFitting1'),
-    oFittingFinal: $('#oFittingFinal'),
+    oFirstPayment: $('#oFirstPayment'),
     oScheduleHint: $('#oScheduleHint'),
     oScheme: $('#oScheme'),
     termsCard: $('#termsCard'),
@@ -166,7 +236,7 @@ KK.app = (function () {
     calcAddRow: $('#calcAddRow'),
     calcTotal: $('#calcTotal'),
     calcApply: $('#calcApply'),
-    calcClose: $('#calcClose')
+    calcBack: $('#calcBack')
   };
 
   const DOWNLOAD_BUTTONS = { quotation: el.downloadQuote, invoice: el.downloadInvoice };
@@ -181,6 +251,7 @@ KK.app = (function () {
     overview: null,          // { ordersByCustomer } — every order, for the homepage
     loggedDeposits: {},      // { depositIndex: loggedAt } for the open order
     schedule: null,          // computed programme + stored rows for the open order
+    enquiry: null,           // the intake submission being reviewed
     googleConnected: null,   // null until asked; cached for the session
     dirty: false,
     saving: false
@@ -314,6 +385,10 @@ KK.app = (function () {
     try {
       state.order = await db.updateOrder(state.order.id, { status: next });
       renderOrderStatus();
+      /* A document that has gone out is a thing waiting on a reply, so the
+         chase moves with it. Reaching production clears it: from here the
+         fitting schedule is the reminder. */
+      await setFollowUp(STATUS_NUDGES[next] || null, U.todayISO());
     } catch (err) {
       console.error(err);
     }
@@ -324,6 +399,96 @@ KK.app = (function () {
     el.viewSub.innerHTML = '<span class="' + badgeClass(status) + '">' +
       U.escapeHtml(status) + '</span>';
     el.viewSub.hidden = false;
+  }
+
+  /* ----------------------------- Customer stage --------------------------- */
+
+  /* Unlike the order status, this one IS something you set. There is no
+     document to read a consultation off and no receipt for a moodboard, so the
+     stage is a claim the studio makes rather than a fact the record already
+     knows. What the app does with it is the part worth automating: stamp the
+     date, and put the next chase in the calendar. */
+
+  /** Guards a hand-edited row the way effectiveStatus guards a status. */
+  const stageOf = (customer) =>
+    (customer && STAGES.includes(customer.stage)) ? customer.stage : STAGES[0];
+
+  const addDays = (iso, n) => cal.fromDay(cal.toDay(iso) + n);
+
+  /* created_at is a timestamptz; the date columns are already plain days. Both
+     arrive here as nudge anchors, and cal.toDay only accepts the plain form. */
+  const dateOnly = (value) => String(value || '').slice(0, 10);
+
+  /**
+   * Move a customer along and set the nudge that comes with where they landed.
+   * Returns the updated customer, or null if nothing needed doing.
+   */
+  async function setStage(next) {
+    const c = state.customer;
+    if (!c || !c.id || stageOf(c) === next) return null;
+
+    const patch = { stage: next };
+
+    /* Stamp the date the stage happened, but never overwrite one already
+       there — re-selecting Consultation to correct a misclick should not move
+       a meeting that really did happen last Tuesday. */
+    const column = STAGE_DATE_COLUMN[next];
+    if (column && !c[column]) patch[column] = U.todayISO();
+    if (next !== 'Lost') patch.lost_reason = null;
+
+    const nudge = STAGE_NUDGES[next];
+    const from = nudge && (patch[nudge.from] || c[nudge.from]);
+    Object.assign(patch, followUpPatch(nudge, from ? dateOnly(from) : null));
+
+    state.customer = await db.updateCustomer(c.id, patch);
+    await pushFollowUp();
+    return state.customer;
+  }
+
+  /* The Google event id is deliberately preserved across a change of date or
+     label: the same one appointment is moving, so the sync updates it in place
+     rather than leaving the old one behind. Clearing synced_at is what marks it
+     as no longer matching what Google holds. */
+  function followUpPatch(nudge, fromISO) {
+    if (!nudge || !fromISO) {
+      return { follow_up_date: null, follow_up_label: null, follow_up_synced_at: null };
+    }
+    return {
+      follow_up_date: addDays(fromISO, nudge.days),
+      follow_up_label: nudge.label,
+      follow_up_synced_at: null
+    };
+  }
+
+  /** Sets the nudge without changing stage — used by the order status ladder. */
+  async function setFollowUp(nudge, fromISO) {
+    const c = state.customer;
+    if (!c || !c.id) return;
+    const patch = followUpPatch(nudge, fromISO);
+    if (patch.follow_up_date === c.follow_up_date &&
+        patch.follow_up_label === c.follow_up_label) return;
+    state.customer = await db.updateCustomer(c.id, patch);
+    await pushFollowUp();
+  }
+
+  /* Unlike the fitting schedule, this syncs itself rather than waiting for a
+     button. A schedule is five events that get recomputed on every save, which
+     is why sending it is a decision; a nudge is one event whose whole purpose
+     is to fire when you would otherwise forget, and one that needs remembering
+     to sync is not a nudge. Best-effort: a failure leaves synced_at null and
+     the page says so, which is recoverable, and blocking a stage change on
+     Google being reachable would not be. */
+  async function pushFollowUp() {
+    const c = state.customer;
+    if (!c || !c.id) return;
+    if (!c.follow_up_date && !c.follow_up_google_event_id) return;
+    try {
+      await db.syncFollowUp(c.id);
+      // Re-read for the event id and synced_at the function just wrote.
+      state.customer = await db.getCustomer(c.id);
+    } catch (err) {
+      console.error('Follow-up not synced to Google Calendar:', err);
+    }
   }
 
   /* -------------------------------- Routing ------------------------------ */
@@ -342,6 +507,7 @@ KK.app = (function () {
     if (parts[0] === 'order' && parts[1] && parts[2] === 'edit') return { view: 'orderEdit', id: parts[1], query };
     if (parts[0] === 'order' && parts[1]) return { view: 'order', id: parts[1], query };
     if (parts[0] === 'calendar') return { view: 'calendar', query };
+    if (parts[0] === 'enquiry' && parts[1]) return { view: 'enquiry', id: parts[1], query };
     return { view: 'customers', query };
   }
 
@@ -393,6 +559,7 @@ KK.app = (function () {
     el.viewOrder.hidden = next.view !== 'order';
     el.viewOrderEdit.hidden = next.view !== 'orderEdit';
     el.viewCalendar.hidden = next.view !== 'calendar';
+    el.viewEnquiry.hidden = next.view !== 'enquiry';
     window.scrollTo(0, 0);
 
     const render = async () => {
@@ -400,6 +567,7 @@ KK.app = (function () {
       else if (next.view === 'customer') await showCustomer(next.id, next.query);
       else if (next.view === 'orderEdit') await showOrderEdit(next.id);
       else if (next.view === 'calendar') await showCalendarSettings();
+      else if (next.view === 'enquiry') await showEnquiry(next.id);
       else await showOrder(next.id);
     };
 
@@ -467,24 +635,158 @@ KK.app = (function () {
     state.order = null;
     el.customerList.innerHTML = '<p class="empty">Loading…</p>';
 
-    /* The schedule table is the newest thing in the schema, and the homepage is
-       the first page anyone lands on. If it is missing — schema.sql not yet
-       re-run against this project — the strip falls back to the raw anchor
-       dates, which is what it showed before schedules existed. Losing the whole
-       customer list over it would be out of all proportion. */
-    const [customers, allOrders, allEvents] = await Promise.all([
+    /* The schedule and intake tables are the newest things in the schema, and
+       the homepage is the first page anyone lands on. If either is missing —
+       schema.sql not yet re-run against this project — that section goes quiet
+       and the rest of the page still works. Losing the whole customer list over
+       a table that has not been created yet would be out of all proportion.
+
+       A stale token is re-thrown rather than swallowed: that one is not a
+       missing table, and handleRoute knows how to retry it. */
+    const optional = (label) => (err) => {
+      if (db.isStaleToken(err)) throw err;
+      console.warn('No ' + label + ' yet:', err.message);
+      return [];
+    };
+
+    const [customers, allOrders, allEvents, enquiries] = await Promise.all([
       db.listCustomers(),
       db.listAllOrders(),
-      db.listAllOrderEvents().catch((err) => {
-        if (db.isStaleToken(err)) throw err;
-        console.warn('No order_events yet:', err.message);
-        return [];
-      })
+      db.listAllOrderEvents().catch(optional('order_events')),
+      db.listIntake('new').catch(optional('intake_submissions'))
     ]);
     state.customers = customers;
     state.overview = buildOverview(allOrders, allEvents);
+    renderEnquiries(enquiries);
     renderDeadlines();
     renderCustomerList();
+  }
+
+  /* ----------------------------- Enquiry queue ---------------------------- */
+
+  /* Form submissions waiting to be read. They are not customers yet and are not
+     shown as any — accepting one is a judgement about whether it is real, and
+     that judgement is the reason the queue exists rather than a direct write. */
+
+  function renderEnquiries(rows) {
+    el.enquiriesCard.hidden = !rows.length;
+    if (!rows.length) return;
+
+    el.enquiriesCount.textContent = rows.length;
+    el.enquiryList.innerHTML = rows.map((r) =>
+      '<a class="row" href="#/enquiry/' + encodeURIComponent(r.id) + '">' +
+        '<span class="row__main">' +
+          '<span class="row__title">' + U.escapeHtml(r.name || 'No name given') + '</span>' +
+          '<span class="row__meta">' + U.escapeHtml(enquirySummary(r)) + '</span>' +
+        '</span>' +
+        '<span class="row__amount">' + U.escapeHtml(U.formatShortDate(r.created_at)) + '</span>' +
+      '</a>').join('');
+  }
+
+  const enquirySummary = (r) => [
+    r.wedding_date
+      ? 'Wedding ' + (r.wedding_date_precision === 'month'
+          ? U.formatLongDate(r.wedding_date).replace(/^\d+\s/, '')
+          : U.formatShortDate(r.wedding_date))
+      : 'No wedding date',
+    r.phone || r.instagram || 'No contact'
+  ].join(' · ');
+
+  async function showEnquiry(id) {
+    setChrome({
+      title: 'Enquiry', up: { label: 'Customers', hash: '#/customers' },
+      save: false, actions: false
+    });
+    state.enquiry = await db.getIntake(id);
+    const r = state.enquiry;
+
+    el.enquiryWhen.textContent = U.formatShortDate(r.created_at);
+    el.enquiryAnswers.innerHTML = answerRows(r).map((row) =>
+      '<div class="infolist__stack"><dt>' + U.escapeHtml(row.label) + '</dt>' +
+        '<dd>' + U.escapeHtml(row.value) + '</dd></div>').join('') ||
+      '<div class="infolist__stack"><dt>Answers</dt><dd>Nothing readable in this submission.</dd></div>';
+
+    const resolved = r.status !== 'new';
+    el.enquiryNote.textContent = resolved
+      ? (r.status === 'accepted' ? 'Already accepted.' : 'Dismissed.')
+      : 'Creating the customer files them at Enquiry, with a reminder to book ' +
+        'the consultation in two days. Dismissing keeps the submission but ' +
+        'creates nothing.';
+    el.enquiryAccept.hidden = resolved;
+    el.enquiryDismiss.hidden = resolved;
+  }
+
+  /* Read straight out of the stored payload rather than off the extracted
+     columns, so a question added to the Tally form shows up here without this
+     app needing to know about it. */
+  function answerRows(r) {
+    const fields = (r.payload && r.payload.data && r.payload.data.fields) || [];
+    const rows = fields.map((f) => ({
+      label: String(f.label || 'Answer'),
+      value: readableAnswer(f)
+    })).filter((row) => row.value);
+    return rows.length ? rows : [
+      { label: 'Name', value: r.name || '' },
+      { label: 'Phone', value: r.phone || '' },
+      { label: 'Instagram', value: r.instagram || '' },
+      { label: 'Source', value: r.source || '' },
+      { label: 'Notes', value: r.notes || '' }
+    ].filter((row) => row.value);
+  }
+
+  /** Tally sends select answers as option ids; show the text they stand for. */
+  function readableAnswer(field) {
+    const v = field && field.value;
+    if (v === null || v === undefined || v === '') return '';
+    if (!Array.isArray(v)) return typeof v === 'object' ? JSON.stringify(v) : String(v);
+    const options = field.options || [];
+    return v.map((item) => {
+      const hit = options.filter((o) => o.id === item)[0];
+      return hit ? hit.text : String(item);
+    }).filter(Boolean).join(', ');
+  }
+
+  async function acceptEnquiry() {
+    const r = state.enquiry;
+    if (!r || r.status !== 'new') return;
+    try {
+      /* The customer first, then the submission. In that order a failure leaves
+         a submission still marked new — something to retry — rather than one
+         marked accepted with no customer behind it. */
+      const customer = await db.createCustomer(Object.assign({
+        name: r.name || 'Unnamed enquiry',
+        phone: r.phone,
+        instagram: r.instagram,
+        source: SOURCES.includes(r.source) ? r.source : 'Other',
+        wedding_date: r.wedding_date,
+        wedding_date_precision: r.wedding_date_precision === 'month' ? 'month' : 'day',
+        notes: r.notes,
+        stage: 'Enquiry'
+      }, followUpPatch(STAGE_NUDGES.Enquiry, U.todayISO())));
+
+      await db.resolveIntake(r.id, 'accepted', customer.id);
+      state.customer = customer;
+      await pushFollowUp();
+      showToast('Customer created');
+      leaveFormFor('#/customer/' + customer.id);
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || 'Could not create the customer');
+    }
+  }
+
+  async function dismissEnquiry() {
+    const r = state.enquiry;
+    if (!r || r.status !== 'new') return;
+    if (!window.confirm('Dismiss this enquiry? It stays on record but creates nothing.')) return;
+    try {
+      await db.resolveIntake(r.id, 'dismissed', null);
+      showToast('Enquiry dismissed');
+      leaveFormFor('#/customers');
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || 'Could not dismiss the enquiry');
+    }
   }
 
   /* Which order the list is in, kept across sessions — it is a working
@@ -572,8 +874,10 @@ KK.app = (function () {
   }
 
   /** A customer is active until every order they have is delivered. Someone
-      with no orders yet is active — they are the ones who need one. */
+      with no orders yet is active — they are the ones who need one. An enquiry
+      that went cold is not, which is the entire point of marking it Lost. */
   function isActive(customer) {
+    if (customer.stage === 'Lost') return false;
     const orders = state.overview.ordersByCustomer[customer.id] || [];
     return !orders.length ||
       !orders.every((o) => effectiveStatus(o, customer.wedding_date) === 'Delivered');
@@ -583,26 +887,20 @@ KK.app = (function () {
      than a wedding three months out, and which one it is changes what you do
      about it — so the card says.
 
-     The appointments come from the stored schedule, which includes the two
-     anchor dates as its first and last rows. Reading the anchor columns as
-     well would list the same two days twice. Orders with no schedule yet fall
-     back to their raw anchors, so nothing disappears from the strip while the
-     order is waiting to be saved. */
+     Three sources: the stored fitting schedule, the follow-up nudge for whoever
+     is still in the early pipeline, and the wedding itself. Before the deposit
+     lands a customer has only the last two, which is exactly when the nudge is
+     the thing worth surfacing. */
   function nextDeadline(customer) {
     const today = U.todayISO();
     const dates = [];
     if (customer.wedding_date) dates.push({ date: customer.wedding_date, what: 'Wedding' });
+    if (customer.follow_up_date) {
+      dates.push({ date: customer.follow_up_date, what: customer.follow_up_label || 'Follow up' });
+    }
 
-    const scheduled = state.overview.eventsByCustomer[customer.id] || [];
-    scheduled.forEach((e) => dates.push({ date: e.event_date, what: e.stage }));
-
-    const hasSchedule = {};
-    scheduled.forEach((e) => { hasSchedule[e.order_id] = true; });
-    (state.overview.ordersByCustomer[customer.id] || []).forEach((o) => {
-      if (hasSchedule[o.id]) return;
-      if (o.fitting_1_date) dates.push({ date: o.fitting_1_date, what: 'Body measurements' });
-      if (o.final_fitting_date) dates.push({ date: o.final_fitting_date, what: 'Final fitting' });
-    });
+    (state.overview.eventsByCustomer[customer.id] || [])
+      .forEach((e) => dates.push({ date: e.event_date, what: e.stage }));
 
     return dates.filter((d) => d.date >= today).sort((a, b) => (a.date < b.date ? -1 : 1))[0] || null;
   }
@@ -668,6 +966,9 @@ KK.app = (function () {
     el.customerViewCard.hidden = editMode;
     el.customerEditCard.hidden = !editMode;
     el.customerOrdersCard.hidden = editMode || isNew;
+    /* Nothing to advance until the customer exists, and the form owns the
+       stage's fields while it is open. */
+    el.pipelineCard.hidden = editMode || isNew;
     setSaveBar(editMode);
 
     el.viewTitle.textContent = isNew ? 'New customer'
@@ -690,6 +991,17 @@ KK.app = (function () {
   const daysUntil = (iso) =>
     Math.round((new Date(iso) - new Date(U.todayISO())) / 86400000);
 
+  const isApproximateWedding = (c) =>
+    !!(c && c.wedding_date && c.wedding_date_precision === 'month');
+
+  /** How the wedding date reads anywhere it is shown, hedged when it is a guess. */
+  function weddingText(c) {
+    if (!c || !c.wedding_date) return 'Not set';
+    return isApproximateWedding(c)
+      ? U.formatLongDate(c.wedding_date).replace(/^\d+\s/, '') + ' (approximate)'
+      : U.formatShortDate(c.wedding_date);
+  }
+
   function renderCustomerReadOnly(c) {
     el.dPhone.textContent = c.phone || '—';
     el.dInstagram.textContent = c.instagram || '—';
@@ -701,8 +1013,40 @@ KK.app = (function () {
        actually plan in — sitting on the date itself rather than on a line of
        its own repeating the word "wedding". */
     el.dWedding.textContent = c.wedding_date
-      ? U.formatShortDate(c.wedding_date) + ' · ' + relativeToToday(c.wedding_date)
+      ? weddingText(c) + ' · ' + relativeToToday(c.wedding_date)
       : 'Not set';
+
+    /* Rows that only mean something once they have happened. An empty
+       "Moodboard sent —" on a first-day enquiry is noise pretending to be
+       information. */
+    el.dConsult.textContent = showDate(c.consult_date);
+    el.dConsultRow.hidden = !c.consult_date;
+    el.dMoodboard.textContent = showDate(c.moodboard_date);
+    el.dMoodboardRow.hidden = !c.moodboard_date;
+    el.dLost.textContent = c.lost_reason || 'No reason recorded';
+    el.dLostRow.hidden = stageOf(c) !== 'Lost';
+
+    renderPipeline(c);
+  }
+
+  /* The stage row doubles as the control: five buttons, the current one marked.
+     A select would hide where they are behind a tap, and where they are is the
+     first thing you want off this page. */
+  function renderPipeline(c) {
+    const stage = stageOf(c);
+    el.dStageBadge.innerHTML = '<span class="' + badgeClass(stage) + '">' +
+      U.escapeHtml(stage) + '</span>';
+
+    el.stageButtons.innerHTML = STAGES.map((s) =>
+      '<button type="button" class="stager__btn' + (s === stage ? ' is-current' : '') +
+        '" data-stage="' + U.escapeHtml(s) + '"' + (s === stage ? ' aria-current="step"' : '') +
+        '>' + U.escapeHtml(s) + '</button>').join('');
+
+    el.dFollowUp.textContent = !c.follow_up_date
+      ? (stage === 'Lost' ? 'Not being chased.' : 'Nothing to follow up.')
+      : (c.follow_up_label || 'Follow up') + ' · ' +
+        U.formatShortDate(c.follow_up_date) + ' · ' + relativeToToday(c.follow_up_date) +
+        (c.follow_up_synced_at ? '' : ' · not in Google Calendar');
   }
 
   /** Reads naturally on both sides of today, which a plain day count does not. */
@@ -749,19 +1093,61 @@ KK.app = (function () {
     el.cPhone.value = c.phone || '';
     el.cInstagram.value = c.instagram || '';
     el.cSource.value = c.source || '';
-    el.cWedding.value = c.wedding_date || '';
     el.cNotes.value = c.notes || '';
+
+    el.cWedding.value = c.wedding_date || '';
+    el.cWeddingMonth.value = (c.wedding_date || '').slice(0, 7);
+    setWeddingPrecision(c.wedding_date_precision === 'month' ? 'month' : 'day');
+
+    el.cConsultDate.value = c.consult_date || '';
+    el.cMoodboardDate.value = c.moodboard_date || '';
+    el.cFollowUpDate.value = c.follow_up_date || '';
+    el.cFollowUpLabel.value = c.follow_up_label || '';
+    el.cLostReason.value = c.lost_reason || '';
+    el.cLostField.hidden = stageOf(c) !== 'Lost';
+
     el.cName.classList.remove('is-invalid');
     el.errCName.hidden = true;
   }
 
+  /** Which of the two date inputs is live. The other keeps its value but is
+      hidden, so flipping back and forth does not lose what was typed. */
+  function setWeddingPrecision(precision) {
+    const month = precision === 'month';
+    el.cWedding.hidden = month;
+    el.cWeddingMonth.hidden = !month;
+    $$('.segmented__btn', el.cWeddingPrecision).forEach((b) => {
+      const on = (b.dataset.precision === 'month') === month;
+      b.classList.toggle('is-on', on);
+      b.setAttribute('aria-pressed', String(on));
+    });
+  }
+
+  const weddingPrecision = () => el.cWeddingMonth.hidden ? 'day' : 'month';
+
+  /** "2026-06" -> "2026-06-30". Last day, because a schedule built on the
+      earliest possible wedding would run late for every date after it. */
+  function lastDayOfMonth(ym) {
+    const m = /^(\d{4})-(\d{2})$/.exec(String(ym || ''));
+    if (!m) return null;
+    const d = new Date(Date.UTC(Number(m[1]), Number(m[2]), 0));
+    return cal.fromDay(Math.round(d.getTime() / 86400000));
+  }
+
   function readCustomerForm() {
+    const month = weddingPrecision() === 'month';
     return {
       name: el.cName.value.trim(),
       phone: orNull(el.cPhone.value),
       instagram: orNull(el.cInstagram.value),
       source: orNull(el.cSource.value),
-      wedding_date: orNull(el.cWedding.value),
+      wedding_date: month ? lastDayOfMonth(el.cWeddingMonth.value) : orNull(el.cWedding.value),
+      wedding_date_precision: month ? 'month' : 'day',
+      consult_date: orNull(el.cConsultDate.value),
+      moodboard_date: orNull(el.cMoodboardDate.value),
+      follow_up_date: orNull(el.cFollowUpDate.value),
+      follow_up_label: orNull(el.cFollowUpLabel.value),
+      lost_reason: orNull(el.cLostReason.value),
       notes: orNull(el.cNotes.value)
     };
   }
@@ -786,8 +1172,11 @@ KK.app = (function () {
        both fitting dates and truncated mid-word on a phone, and read
        "1st fit not set · Final fit not set" on every new order. */
     el.orderList.innerHTML = orders.map((o) => {
-      const next = [o.fitting_1_date, o.final_fitting_date]
-        .filter((d) => d && d >= U.todayISO()).sort()[0];
+      /* Recomputed rather than read from order_events: the programme is a pure
+         function of these two dates, so a row of it costs nothing here and
+         saves the customer page a second query it would otherwise need. */
+      const next = cal.computeSchedule(o.first_payment_date, wedding).events
+        .map((e) => e.event_date).filter((d) => d >= U.todayISO())[0];
       const status = effectiveStatus(o, wedding);
       return '<a class="row row--kanban" href="#/order/' + o.id + '">' +
         '<span class="row__main">' +
@@ -812,13 +1201,32 @@ KK.app = (function () {
     }
     const patch = readCustomerForm();
     if (state.customer.id) {
+      const before = state.customer;
       state.customer = await db.updateCustomer(state.customer.id, patch);
       setDirty(false);
+
+      /* The wedding is one end of every fitting programme this customer has, so
+         moving it moves all of them. Doing it here rather than leaving each
+         order to notice on its next save is the difference between a schedule
+         that is wrong and one that is merely out of date. */
+      if (before.wedding_date !== state.customer.wedding_date) {
+        await rescheduleAllOrders();
+      }
+      if (before.follow_up_date !== state.customer.follow_up_date ||
+          before.follow_up_label !== state.customer.follow_up_label) {
+        await pushFollowUp();
+      }
+
       renderCustomerReadOnly(state.customer);
       setCustomerMode(false);
       showToast('Customer saved');
     } else {
-      state.customer = await db.createCustomer(patch);
+      /* A new enquiry with nothing chasing it is how enquiries get forgotten,
+         which is the whole reason the pipeline exists. The stage itself comes
+         from the column default. */
+      const nudge = STAGE_NUDGES.Enquiry;
+      state.customer = await db.createCustomer(Object.assign(patch,
+        patch.follow_up_date ? {} : followUpPatch(nudge, U.todayISO())));
       setDirty(false);
       showToast('Customer created');
       /* replace, not push: the blank form is not somewhere to come back to,
@@ -826,6 +1234,25 @@ KK.app = (function () {
       leaveFormFor('#/customer/' + state.customer.id);
     }
     return true;
+  }
+
+  /** Rebuild every order's programme after the wedding date moved under them. */
+  async function rescheduleAllOrders() {
+    try {
+      const orders = await db.listOrders(state.customer.id);
+      for (const order of orders) {
+        if (!order.first_payment_date) continue;   // nothing scheduled yet
+        const res = await rescheduleOrder(order, state.customer);
+        if (res.changed) {
+          await db.logOrderHistory(order.id, 'scheduled', {
+            count: res.rows.length, dropped: res.computed.dropped
+          });
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Saved, but the fitting schedules could not be rebuilt');
+    }
   }
 
   /* ------------------------------ Order detail ----------------------------- */
@@ -993,9 +1420,8 @@ KK.app = (function () {
     renderOrderStatus();
 
     el.oDocNameDisplay.textContent = state.order.doc_name || 'Not set';
-    el.oFitting1Display.textContent = showDate(state.order.fitting_1_date);
-    el.oFittingFinalDisplay.textContent = showDate(state.order.final_fitting_date);
-    el.oWeddingDisplay.textContent = showDate(state.customer.wedding_date);
+    el.oFirstPaymentDisplay.textContent = showDate(state.order.first_payment_date);
+    el.oWeddingDisplay.textContent = weddingText(state.customer);
 
     const items = state.order.items || [];
     const total = docs.computeTotal(items);
@@ -1039,9 +1465,14 @@ KK.app = (function () {
      re-deriving them for display would quietly claim a sync that never
      happened. */
 
+  /* The two ends of the programme live on different records — the money on the
+     order, the wedding on the customer — so every caller needs both. */
+  const scheduleFor = (order, customer) =>
+    cal.computeSchedule(order && order.first_payment_date, customer && customer.wedding_date);
+
   async function refreshSchedule() {
     const order = state.order;
-    const computed = cal.computeSchedule(order.fitting_1_date, order.final_fitting_date);
+    const computed = scheduleFor(order, state.customer);
 
     let rows = [];
     try {
@@ -1067,31 +1498,40 @@ KK.app = (function () {
        connected is a question for the settings page, not a reason to hide the
        button — pressing it says so, which is a shorter path than discovering
        the menu. */
+    /* A schedule built on "sometime in June" is a guess, and a guess in a real
+       calendar is worse than no entry at all — you stop trusting the ones that
+       are right. The Edge Function refuses these too; this is just the version
+       of that answer you get before pressing the button. */
+    const approximate = isApproximateWedding(state.customer);
+
     el.syncCalendarBtn.hidden = !rows.length;
-    el.syncCalendarBtn.disabled = false;
+    el.syncCalendarBtn.disabled = approximate;
     el.syncCalendarBtn.textContent = synced.length && !pending.length
       ? 'Re-sync to Google Calendar'
       : 'Sync to Google Calendar';
 
     el.scheduleSyncNote.textContent = !rows.length ? ''
+      : approximate ? 'These dates are estimates — confirm the exact wedding date to sync them.'
       : !synced.length ? 'Not in Google Calendar yet.'
       : pending.length ? pending.length + ' of ' + rows.length + ' dates changed since the last sync.'
       : 'All ' + rows.length + ' dates are in Google Calendar.';
   }
 
-  /** One line under the date fields saying what the pair of them will build. */
+  /** One line under the payment field saying what it will build. */
   function renderScheduleHint() {
-    const r = cal.computeSchedule(el.oFitting1.value, el.oFittingFinal.value);
+    const r = cal.computeSchedule(el.oFirstPayment.value,
+      state.customer && state.customer.wedding_date);
     el.oScheduleHint.textContent = r.events.length
-      ? r.events.length + ' appointments will be scheduled between these dates.' +
+      ? r.events.length + ' appointments will be scheduled between ' +
+        U.formatShortDate(r.events[0].event_date) + ' and the wedding.' +
         (r.warning ? ' ' + r.warning : '')
       : r.reason;
   }
 
   /** Rebuild the stored programme from the order's anchors. Returns what
       changed, so the caller can decide whether it is worth logging. */
-  async function rescheduleOrder(order) {
-    const computed = cal.computeSchedule(order.fitting_1_date, order.final_fitting_date);
+  async function rescheduleOrder(order, customer) {
+    const computed = scheduleFor(order, customer);
     const before = await db.listOrderEvents(order.id);
     const after = await db.replaceOrderEvents(order.id, computed.events);
 
@@ -1264,8 +1704,7 @@ KK.app = (function () {
 
     el.oTitle.value = state.order.title || '';
     el.oDocName.value = state.order.doc_name || '';
-    el.oFitting1.value = state.order.fitting_1_date || '';
-    el.oFittingFinal.value = state.order.final_fitting_date || '';
+    el.oFirstPayment.value = state.order.first_payment_date || '';
 
     renderScheduleHint();
 
@@ -1302,8 +1741,7 @@ KK.app = (function () {
       /* Standard orders store nothing, so switching back to the package does
          not leave a stale list behind to be read the next time it is edited. */
       payment_terms: scheme === 'other' ? readTerms() : [],
-      fitting_1_date: orNull(el.oFitting1.value),
-      final_fitting_date: orNull(el.oFittingFinal.value)
+      first_payment_date: orNull(el.oFirstPayment.value)
     });
     setDirty(false);
     try {
@@ -1317,7 +1755,7 @@ KK.app = (function () {
        that already succeeded — the schedule is derived and can be rebuilt by
        saving again, the order cannot. */
     try {
-      const res = await rescheduleOrder(state.order);
+      const res = await rescheduleOrder(state.order, state.customer);
       if (res.changed) {
         await db.logOrderHistory(state.order.id, 'scheduled', {
           count: res.rows.length,
@@ -1363,15 +1801,16 @@ KK.app = (function () {
       '</div>' +
       '<span class="item__sum js-sum"></span>' +
       '<label class="field">' +
-        '<span class="field__label">Est. production cost <span class="tag">Internal</span>' +
+        '<span class="field__label">Est. production cost <span class="tag">Internal</span></span>' +
+        '<div class="costfield-row">' +
+          '<span class="prefixed">' +
+            '<span class="prefix">Rp</span>' +
+            '<input class="input js-cost" type="text" inputmode="numeric" placeholder="0">' +
+          '</span>' +
           '<button type="button" class="js-cost-calc calc-trigger" aria-label="Break down cost">' +
             CALC_ICON +
           '</button>' +
-        '</span>' +
-        '<span class="prefixed">' +
-          '<span class="prefix">Rp</span>' +
-          '<input class="input js-cost" type="text" inputmode="numeric" placeholder="0">' +
-        '</span>' +
+        '</div>' +
         '<span class="field__hint js-costhint"></span>' +
       '</label>' +
       '<span class="err js-err" hidden></span>';
@@ -1676,8 +2115,8 @@ KK.app = (function () {
     const row = document.createElement('div');
     row.className = 'calcrow';
     row.innerHTML =
-      '<button type="button" class="item__remove js-remove-calcrow" aria-label="Remove category">' +
-        REMOVE_ICON +
+      '<button type="button" class="calcrow__remove js-remove-calcrow" aria-label="Remove category">' +
+        CLOSE_ICON +
       '</button>' +
       '<label class="field calcrow__label">' +
         '<span class="field__label">Category</span>' +
@@ -1834,12 +2273,44 @@ KK.app = (function () {
       });
       el.paymentChooserOptions.hidden = true;
       showToast(terms[i].label + ' logged');
+
+      /* The first money in starts the clock, and only the first: a second
+         deposit says nothing new about when the work began. Stamped as today
+         because that is when you are standing here — the order edit form can
+         correct it for the transfer that landed on Friday and got logged on
+         Monday. */
+      if (!state.order.first_payment_date) {
+        state.order = await db.updateOrder(state.order.id, {
+          first_payment_date: U.todayISO()
+        });
+        await startSchedule();
+      }
+
       // Money down means the work is under way.
       await bumpStatus('In production');
       await refreshHistory();
     } catch (err) {
       console.error(err);
       showToast(err.message || 'Could not log payment');
+    }
+  }
+
+  /** Build the programme for the first time and say what came of it. */
+  async function startSchedule() {
+    try {
+      const res = await rescheduleOrder(state.order, state.customer);
+      if (res.rows.length) {
+        await db.logOrderHistory(state.order.id, 'scheduled', {
+          count: res.rows.length, dropped: res.computed.dropped
+        });
+        showToast(res.rows.length + ' fittings scheduled');
+      } else if (res.computed.reason) {
+        showToast(res.computed.reason);
+      }
+      await refreshSchedule();
+    } catch (err) {
+      console.error(err);
+      showToast('Payment logged, but the schedule could not be built');
     }
   }
 
@@ -1961,6 +2432,33 @@ KK.app = (function () {
       input.addEventListener('change', () => setDirty(true));
     });
 
+    /* The two date inputs are one field wearing two hats — see the comment on
+       the markup. Switching marks the form dirty like any other edit. */
+    el.cWeddingPrecision.addEventListener('click', (e) => {
+      const btn = e.target.closest('.segmented__btn');
+      if (!btn || btn.dataset.precision === weddingPrecision()) return;
+      setWeddingPrecision(btn.dataset.precision);
+      setDirty(true);
+    });
+
+    el.stageButtons.addEventListener('click', async (e) => {
+      const btn = e.target.closest('.stager__btn');
+      if (!btn || btn.classList.contains('is-current')) return;
+      const next = btn.dataset.stage;
+      try {
+        if (!await setStage(next)) return;
+        renderCustomerReadOnly(state.customer);
+        fillCustomerForm(state.customer);
+        showToast(state.customer.follow_up_date
+          ? next + ' · ' + state.customer.follow_up_label + ' ' +
+            U.formatShortDate(state.customer.follow_up_date)
+          : 'Moved to ' + next);
+      } catch (err) {
+        console.error(err);
+        showToast(err.message || 'Could not change the stage');
+      }
+    });
+
     el.newOrder.addEventListener('click', async () => {
       if (!confirmLeave()) return;
       setDirty(false);
@@ -1973,6 +2471,9 @@ KK.app = (function () {
           includes: INCLUDES.slice()   // the standing package, all ticked
         });
         await db.logOrderHistory(order.id, 'created', {});
+        /* Creating an order is the moment the early pipeline ends, so it moves
+           the customer along rather than making you do it twice. */
+        try { await setStage('Ordering'); } catch (err) { console.error(err); }
         go('#/order/' + order.id + '/edit');
       } catch (err) {
         console.error(err);
@@ -2001,6 +2502,9 @@ KK.app = (function () {
     el.syncCalendarBtn.addEventListener('click', syncCalendar);
     el.gcalConnect.addEventListener('click', connectGoogle);
     el.gcalDisconnect.addEventListener('click', disconnectGoogle);
+
+    el.enquiryAccept.addEventListener('click', acceptEnquiry);
+    el.enquiryDismiss.addEventListener('click', dismissEnquiry);
     el.menuCalendar.addEventListener('click', closeMenu);
 
     /* -- order edit -- */
@@ -2013,7 +2517,7 @@ KK.app = (function () {
     /* What the two anchor dates will produce, said while they are still being
        chosen. A window too short to hold the full programme is worth knowing
        about before saving, not after. */
-    [el.oFitting1, el.oFittingFinal].forEach((input) => {
+    [el.oFirstPayment].forEach((input) => {
       input.addEventListener('input', renderScheduleHint);
       input.addEventListener('change', renderScheduleHint);
     });
@@ -2128,7 +2632,7 @@ KK.app = (function () {
     });
 
     el.calcApply.addEventListener('click', applyCostCalc);
-    el.calcClose.addEventListener('click', closeCostCalc);
+    el.calcBack.addEventListener('click', closeCostCalc);
 
     el.customInclude.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {

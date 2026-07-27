@@ -107,6 +107,18 @@
          with which date it is. Tapping one opens that customer. The strip needs
          no heading: dated tiles at the top of the page are self-evidently what
          is coming up, and the label was one more thing to read past. -->
+    <!-- Above the deadlines because it is the only thing on this page with
+         somebody waiting on the other end of it. Hidden entirely when the queue
+         is empty — an empty inbox card is a thing to check, and there is
+         nothing to check. -->
+    <section class="card" id="enquiriesCard" hidden>
+      <div class="card__head">
+        <h2 class="card__title">New enquiries</h2>
+        <span class="card__count" id="enquiriesCount"></span>
+      </div>
+      <div class="list" id="enquiryList"></div>
+    </section>
+
     <section class="deadlines" id="deadlines" hidden>
       <div class="deadlines__cards" id="deadlineCards"></div>
     </section>
@@ -153,12 +165,27 @@
   <section class="view" id="viewCustomer" hidden>
     <!-- The name is the page title now, so it is not repeated here; the wedding
          date leads instead, since every other date works backwards from it. -->
+    <!-- Where they are in the pipeline and what you owe them next. Above the
+         details because before an order exists this is the entire record —
+         everything below is reference, this is the thing to act on. -->
+    <section class="card" id="pipelineCard">
+      <div class="card__head">
+        <h2 class="card__title">Pipeline</h2>
+        <span id="dStageBadge"></span>
+      </div>
+      <div class="stager" id="stageButtons"></div>
+      <p class="card__hint" id="dFollowUp"></p>
+    </section>
+
     <section class="card" id="customerViewCard">
       <dl class="infolist">
         <div><dt>Wedding</dt><dd id="dWedding"></dd></div>
         <div><dt>Phone / WhatsApp</dt><dd id="dPhone"></dd></div>
         <div><dt>Instagram</dt><dd id="dInstagram"></dd></div>
         <div><dt>Source</dt><dd id="dSource"></dd></div>
+        <div id="dConsultRow"><dt>Consultation</dt><dd id="dConsult"></dd></div>
+        <div id="dMoodboardRow"><dt>Moodboard sent</dt><dd id="dMoodboard"></dd></div>
+        <div class="infolist__stack" id="dLostRow"><dt>Not proceeding</dt><dd id="dLost"></dd></div>
         <div class="infolist__stack"><dt>Notes</dt><dd id="dNotes"></dd></div>
         <div><dt>Customer since</dt><dd id="dCreated"></dd></div>
       </dl>
@@ -197,9 +224,49 @@
         </select>
       </label>
 
-      <label class="field" for="cWedding">
+      <!-- Couples book before they have set a day, and "sometime in June" is
+           real information a date input cannot hold. The month is stored as
+           that month's last day — the safe direction to be wrong in — and the
+           precision flag is what stops an estimate reaching Google Calendar. -->
+      <div class="field">
         <span class="field__label">Wedding date</span>
-        <input class="input js-cfield" id="cWedding" type="date">
+        <div class="segmented" id="cWeddingPrecision">
+          <button type="button" class="segmented__btn" data-precision="day">Exact date</button>
+          <button type="button" class="segmented__btn" data-precision="month">Month only</button>
+        </div>
+        <input class="input js-cfield" id="cWedding" type="date" aria-label="Wedding date">
+        <input class="input js-cfield" id="cWeddingMonth" type="month" aria-label="Wedding month" hidden>
+      </div>
+
+      <div class="grid2">
+        <label class="field" for="cConsultDate">
+          <span class="field__label">Consultation</span>
+          <input class="input js-cfield" id="cConsultDate" type="date">
+        </label>
+        <label class="field" for="cMoodboardDate">
+          <span class="field__label">Moodboard sent</span>
+          <input class="input js-cfield" id="cMoodboardDate" type="date">
+        </label>
+      </div>
+
+      <!-- Editable, because a nudge you cannot push back is a nudge you start
+           dismissing. Advancing a stage refills it; this is the override. -->
+      <div class="grid2">
+        <label class="field" for="cFollowUpDate">
+          <span class="field__label">Follow up on</span>
+          <input class="input js-cfield" id="cFollowUpDate" type="date">
+        </label>
+        <label class="field" for="cFollowUpLabel">
+          <span class="field__label">Follow up about</span>
+          <input class="input js-cfield" id="cFollowUpLabel" type="text"
+                 placeholder="e.g. Moodboard due" autocapitalize="sentences">
+        </label>
+      </div>
+
+      <label class="field" for="cLostReason" id="cLostField" hidden>
+        <span class="field__label">Why it did not proceed</span>
+        <input class="input js-cfield" id="cLostReason" type="text"
+               placeholder="e.g. Went with another studio" autocapitalize="sentences">
       </label>
 
       <label class="field" for="cNotes">
@@ -245,18 +312,15 @@
       <!-- No document date: it was only ever the date printed on the PDF, and a
            document is dated the day it is issued. Downloads stamp today.
            No status either — the log sets it. See "Order status" in the README. -->
-      <!-- The two ends of the fitting programme. Everything between them is
-           worked out from them — see the Schedule card on the order page. -->
-      <div class="grid2 grid2--dates">
-        <label class="field" for="oFitting1">
-          <span class="field__label">Body measurements</span>
-          <input class="input js-ofield" id="oFitting1" type="date">
-        </label>
-        <label class="field" for="oFittingFinal">
-          <span class="field__label">Final fitting</span>
-          <input class="input js-ofield" id="oFittingFinal" type="date">
-        </label>
-      </div>
+      <!-- Where the fitting programme counts from. Logging the first deposit
+           fills this in; it stays editable for the times the money landed on a
+           Friday and got logged on Monday. The other end is the customer's
+           wedding date — see the Schedule card on the order page. -->
+      <label class="field" for="oFirstPayment">
+        <span class="field__label">First payment</span>
+        <input class="input js-ofield" id="oFirstPayment" type="date">
+        <span class="field__hint">Set when you log the first deposit. The fitting schedule counts from here.</span>
+      </label>
       <p class="card__hint" id="oScheduleHint"></p>
     </section>
 
@@ -331,14 +395,13 @@
       <h2 class="card__title">Details</h2>
       <dl class="infolist">
         <div><dt>Name on documents</dt><dd id="oDocNameDisplay"></dd></div>
-        <div><dt>Body measurements</dt><dd id="oFitting1Display"></dd></div>
-        <div><dt>Final fitting</dt><dd id="oFittingFinalDisplay"></dd></div>
+        <div><dt>First payment</dt><dd id="oFirstPaymentDisplay"></dd></div>
         <div><dt>Wedding</dt><dd id="oWeddingDisplay"></dd></div>
       </dl>
     </section>
 
-    <!-- Read-only on purpose. The dates here are consequences of the two
-         anchors above, so the way to change one is to change those. -->
+    <!-- Read-only on purpose. Every date here is a consequence of the first
+         payment and the wedding, so the way to change one is to change those. -->
     <section class="card" id="scheduleCard">
       <div class="card__head">
         <h2 class="card__title">Schedule</h2>
@@ -374,12 +437,45 @@
     <section class="card">
       <h2 class="card__title">What gets synced</h2>
       <p class="card__hint">
-        Each order with both a body measurements date and a final fitting date
-        builds a schedule of up to five appointments. Pressing Sync on that
-        order writes them to your primary Google Calendar as all-day events,
-        with reminders 7 days and 3 days ahead. Syncing again moves the same
-        events rather than adding new ones.
+        Once an order's first payment is logged, and the customer has a wedding
+        date, it builds a schedule of up to five appointments. Pressing Sync on
+        that order writes them to your primary Google Calendar as all-day
+        events, with reminders 7 days and 3 days ahead. Syncing again moves the
+        same events rather than adding new ones.
       </p>
+      <p class="card__hint">
+        Follow-up reminders sync on their own as soon as you move a customer
+        through the pipeline — one all-day event, reminding you the day before.
+      </p>
+      <p class="card__hint">
+        A wedding date recorded as a month only is treated as an estimate, and
+        its schedule is not sent to Google until you confirm the exact day.
+      </p>
+    </section>
+  </section>
+
+  <!-- ---------------------------- Enquiry review --------------------------- -->
+  <section class="view" id="viewEnquiry" hidden>
+    <section class="card">
+      <div class="card__head">
+        <h2 class="card__title">Submitted</h2>
+        <span class="card__count" id="enquiryWhen"></span>
+      </div>
+      <!-- Every answer in the payload, not only the ones with a column. A
+           question added to the Tally form should show up here without needing
+           this app redeployed to see it. -->
+      <dl class="infolist" id="enquiryAnswers"></dl>
+    </section>
+
+    <section class="card">
+      <h2 class="card__title">What happens next</h2>
+      <p class="card__hint" id="enquiryNote"></p>
+      <button type="button" class="btn btn--primary btn--block" id="enquiryAccept">
+        Create customer
+      </button>
+      <button type="button" class="btn btn--outline btn--block" id="enquiryDismiss">
+        Dismiss
+      </button>
     </section>
   </section>
 
@@ -427,10 +523,6 @@
         <h2 class="calcsheet__title">Cost breakdown</h2>
         <p class="calcsheet__sub" id="calcItemLabel"></p>
       </div>
-      <button type="button" class="calcsheet__close" id="calcClose" aria-label="Close without applying">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
-             stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
-      </button>
     </div>
 
     <div class="calcsheet__body">
@@ -448,8 +540,11 @@
         <strong class="actionbar__amount" id="calcTotal">Rp0</strong>
       </div>
       <div class="actionbar__buttons">
+        <button type="button" class="btn btn--secondary" id="calcBack">
+          <span class="btn__label">Back</span>
+        </button>
         <button type="button" class="btn btn--primary" id="calcApply">
-          <span class="btn__label">Apply to cost</span>
+          <span class="btn__label">Apply cost</span>
         </button>
       </div>
     </div>

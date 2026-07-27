@@ -71,7 +71,7 @@ npx vercel deploy --prod
 
 | File | Role |
 |---|---|
-| `index.html` | The gate, the three views, and the two off-screen document templates |
+| `index.html` | The gate, the six views, and the two off-screen document templates |
 | `styles.css` | Part 1: app UI. Part 2: the quotation. Part 3: the invoice |
 | `fonts.css` | Plus Jakarta Sans, self-hosted and inlined (see below) |
 | `config.js` | Supabase URL, anon key, the shared account's email, Google client ID |
@@ -81,7 +81,8 @@ npx vercel deploy --prod
 | `db.js` | Every Supabase call — auth and CRUD, nothing else touches the client |
 | `app.js` | Routing, views, form state, validation |
 | `schema.sql` | The migrations to run in the Supabase SQL editor |
-| `supabase/functions/google-calendar/` | The only server-side code: Google OAuth and calendar writes |
+| `supabase/functions/google-calendar/` | Server-side: Google OAuth, fitting and follow-up calendar writes |
+| `supabase/functions/intake/` | Server-side: the public Tally webhook, HMAC-verified |
 | `serve.ps1` | Local static server, so testing needs nothing installed |
 | `assets/` | The two logo marks, exported from Figma at 4x |
 
@@ -97,30 +98,40 @@ and the storage layer can be swapped by rewriting `db.js` alone.
 
 See [`schema.sql`](schema.sql):
 
-- **`customers`** — name, phone, Instagram, source, wedding date, notes.
+- **`customers`** — name, phone, Instagram, source, notes, the wedding date and
+  how precisely it is known, plus the early pipeline: `stage`, the dates the
+  consultation and moodboard happened, and the one open follow-up. See
+  *The pipeline* below.
 - **`orders`** — belongs to a customer; carries a status
-  (`Quoted` → `Confirmed` → `In production` → `Delivered`), the body
-  measurements and final fitting dates, and the `items` and `includes` as
-  `jsonb`. Both are short, always read and written whole, and order-sensitive;
-  child tables would buy nothing and cost a position column plus two round trips
-  per save. The fitting dates sit here rather than on the customer because a
-  bride and groom booked together are two orders needing two schedules.
-  `document_date` is still on the table for compatibility but is no longer read
-  or written by the app — see *Order status* below.
+  (`Quoted` → `Confirmed` → `In production` → `Delivered`), the first payment
+  date, and the `items` and `includes` as `jsonb`. Both are short, always read
+  and written whole, and order-sensitive; child tables would buy nothing and
+  cost a position column plus two round trips per save. `document_date` is
+  still on the table for compatibility but is no longer read or written by the
+  app — see *Order status* below.
 - **`order_events`** — the fitting schedule, one row per appointment, derived
-  from the order's two dates. Each row remembers the Google event it created,
-  which is why the schedule is stored rather than recomputed on read.
+  from the order's first payment and the customer's wedding date. Each row
+  remembers the Google event it created, which is why the schedule is stored
+  rather than recomputed on read.
 - **`document_log`** — one row per PDF actually saved: which kind, when, and
   for how much. No files, just the numbers. Rows are kept verbatim when the
   order is later edited, which is the whole point of having them.
 - **`order_history`** — what happened to an order and when: created, updated,
   payment logged, schedule set, calendar synced.
+- **`intake_submissions`** — what the public Tally form sent, waiting to be
+  read. The whole webhook body is kept in `payload`; the extracted columns are
+  a convenience for the review screen. Nothing here is a customer until
+  somebody accepts it.
 - **`google_credentials`** — one row, the Google refresh token. The only table
   with RLS on and no policies, so nothing the browser holds can read it. See
   *Google Calendar* below.
 
 A quotation and an invoice are two renderings of one order, not two records.
 Deleting a customer cascades to their orders, schedule and log rows.
+
+The wedding date lives on the customer rather than the order because a bride
+and groom booked together are one wedding and two orders. Each order still gets
+its own schedule, because each has its own first payment.
 
 ### Saving
 
@@ -152,22 +163,74 @@ broken.
 There are no breadcrumbs. Up names the level above and the page title names this
 one; a trail could only restate both, and wrapped onto two lines to do it.
 
-### Order status
+### The lifecycle
 
-Status is read off what has happened, not set by hand — there is no status
-field in the editor. Each event raises a floor and never lowers one, so
-re-sending a quotation for an order already in production tells the record
-nothing new:
+The app models the job as it actually runs:
 
-| Event | Status becomes at least |
-| --- | --- |
-| Quotation PDF downloaded | `Quoted` |
-| Invoice PDF downloaded | `Confirmed` |
-| Any deposit logged | `In production` |
+> enquiry → consultation → moodboard → quotation → invoice →
+> **first payment** → design phase → fittings → wedding
+
+That is two ladders, not one, and they are split at the point where an order
+starts to exist.
+
+**The pipeline** lives on the customer, because before the quotation there is no
+order for it to live on. Five stages, set by hand from the row of buttons on the
+customer page — `Enquiry` → `Consultation` → `Moodboard` → `Ordering`, plus
+`Lost` for one that went cold. Unlike the order status below, this one *is*
+something you set: there is no document to read a consultation off and no
+receipt for a moodboard, so the stage is a claim the studio makes rather than a
+fact the record already knows.
+
+What the app does with it is the automated part. Arriving at a stage stamps the
+date it happened and sets a single follow-up:
+
+| Stage | Chase | When |
+| --- | --- | --- |
+| `Enquiry` | Book consultation | 2 days after the customer was created |
+| `Consultation` | Moodboard due | 7 days after the consultation |
+| `Moodboard` | Follow up moodboard | 3 days after the moodboard went out |
+| `Ordering` | *(from the order status)* | see below |
+| `Lost` | — | nothing is chased |
+
+Creating an order moves the customer to `Ordering` on its own. A customer marked
+`Lost` drops out of the homepage deadline strip without being deleted — the same
+couple may come back, and the history is worth having.
+
+**Order status** is the second ladder, and it is read off what has happened
+rather than set by hand — there is no status field in the editor. Each event
+raises a floor and never lowers one, so re-sending a quotation for an order
+already in production tells the record nothing new:
+
+| Event | Status becomes at least | And chases |
+| --- | --- | --- |
+| Quotation PDF downloaded | `Quoted` | Follow up quotation, 3 days |
+| Invoice PDF downloaded | `Confirmed` | Follow up payment, 3 days |
+| Any deposit logged | `In production` | nothing — the fittings take over |
 
 `Delivered` is derived rather than stored: an order shows as delivered once the
 customer's wedding date is in the past. Nobody marks a wedding as having
 happened, and the date that decides it stays correctable afterwards.
+
+A customer carries **one** follow-up at a time, and reaching a stage replaces
+whatever was there. It is stored rather than derived — deriving it would mean
+joining `document_log` for every customer on the homepage, and storing it means
+you can push a date back by hand when a client asks for more time, which no
+derivation would survive. Both the date and the wording are editable on the
+customer form.
+
+### The wedding date
+
+It can be recorded as an exact day or as a month only, toggled on the customer
+form. A month is stored as that month's **last day** — the safe direction to be
+wrong in, since a schedule built on the earliest possible wedding runs late for
+every date after it — and a flag records which of the two it is.
+
+Everywhere it is shown, a month-only date reads as approximate. More
+importantly, its fitting schedule is **not** pushed to Google Calendar until an
+exact day is confirmed. Every appointment is measured back from the wedding, so
+when the wedding is a guess all of them are, and a guess sitting in a real
+calendar is worse than a gap: you stop trusting the entries that are right. Both
+the Sync button and the Edge Function refuse it.
 
 ### Rendering
 
@@ -454,19 +517,20 @@ the quotation, from the identical code path.
   narrower than its label. With no costs filled in at all it reads `—`.
 - **Homepage** — the active customers with the soonest date still ahead of them,
   sorted by whichever of wedding or fitting comes first and labelled with which
-  one it is, as calendar tiles in one horizontally scrolling strip. Stacked
-  full-width rows cost three screenfuls to say three dates and pushed the
-  customer list below the fold; the strip says the same in a fifth of the height
-  and holds eight. A customer is active until every order they have is
-  delivered; someone with no orders yet counts as active, since they are the one
-  who needs one.
+  one it is, as calendar tiles in one horizontally scrolling strip. It sorts by
+  whichever comes first of the wedding, a scheduled fitting, and the outstanding
+  follow-up, and labels which one it is. Stacked full-width rows cost three
+  screenfuls to say three dates and pushed the customer list below the fold; the
+  strip says the same in a fifth of the height and holds eight. A customer is
+  active until every order they have is delivered; someone with no orders yet
+  counts as active, since they are the one who needs one, and someone marked
+  `Lost` is not.
 
 ## Google Calendar
 
 Optional. Without it the fitting schedule still works — it just stays inside the
-app. The one server-side piece in this project exists here, and only because a
-Google refresh token is a standing grant over a calendar and does not belong in
-a browser.
+app. Server-side code exists here only because a Google refresh token is a
+standing grant over a calendar and does not belong in a browser.
 
 **1. Create the OAuth client.** In the [Google Cloud
 Console](https://console.cloud.google.com/), make a project, enable the **Google
@@ -521,39 +585,127 @@ A few things worth knowing:
 - If Google ever declines to issue a refresh token, remove the app at
   [myaccount.google.com/permissions](https://myaccount.google.com/permissions)
   and connect again.
+- **Follow-up nudges sync on their own**, unlike the fitting schedule. A
+  schedule is five events recomputed on every save, which is why sending it is a
+  decision; a nudge is one event whose entire purpose is to fire when you would
+  otherwise forget, and one that needs remembering to sync is not a nudge. It
+  goes out as an all-day event reminding you the day before, and clearing the
+  follow-up deletes it. A failure is logged and shown on the customer page
+  rather than blocking the stage change.
+- **The redirect URI must match exactly.** The app sends
+  `location.origin + location.pathname`, which for a site served from its root
+  is the domain **with a trailing slash**. `https://your-app.vercel.app` and
+  `https://your-app.vercel.app/` are two different strings to Google, and
+  registering only the first is what produces `Error 400: redirect_uri_mismatch`.
 
 ## Fitting schedule
 
-An order carries two dates the client gives you upfront: **body measurements**
-and **final fitting**. They are the two ends of a programme, and everything
-between them follows from them, so it is computed rather than remembered.
+The programme has exactly two fixed points, and neither of them is a fitting:
+the **first payment** on the order and the **wedding date** on the customer.
+Nothing can be scheduled before the deposit clears — that is when the work is
+actually commissioned — and nothing can happen after the wedding. Everything in
+between is arithmetic on those two dates, so it is computed rather than
+remembered. All of it lives in [`calendar.js`](calendar.js), which is pure:
+dates in, dates out, no DOM and no network.
 
-- **Five appointments** — Body measurements, Fitting 1, Fitting 2, Fitting 3,
-  Final fitting. The first and last are the dates you were given; the three in
-  the middle are placed evenly between them.
-- **Minimum 14 days apart.** A fitting is only useful once the last one has been
-  acted on, and that is cutting-and-sewing time, not calendar time. The full
-  programme therefore needs a 56-day window.
-- **A tight window drops fittings rather than crowding them** — Fitting 3 first,
-  then Fitting 2, then Fitting 1, until what is left fits at 14 days. The card
-  says how short the window was, what was left out, and how much room the full
-  programme wants. The two anchors are never dropped: they are promises already
-  made to the client.
-- **Rebuilt on every save**, and logged in the order's History only when the
-  dates actually moved. The result is stored rather than recomputed on read
-  because each row has to remember the Google event it created.
+**The rules**
+
+| | |
+| --- | --- |
+| Design phase | 14 days from the first payment, before anything is measured |
+| Appointments | Body measurements, Fitting 1, Fitting 2, Fitting 3, Final fitting |
+| Minimum gap | 14 days — a fitting is only useful once the last one has been acted on, and that is cutting-and-sewing time, not calendar time |
+| Final fitting | 21 days before the wedding ideally, 7 at the very latest |
+
+A full five-appointment programme therefore wants **91 days** from payment to
+wedding: 14 of design, 56 of fittings, 21 of finishing.
+
+**When it does not fit**, the buffer gives way before an appointment does. The
+final fitting slides later — from 21 days out toward 7 — and only when even that
+leaves too little room does it start dropping, middle-out: Fitting 3, then
+Fitting 2, then Fitting 1. Measurements and a final fitting are the two you
+cannot make a garment without, so those two are never dropped; below a 22-day
+window not even they fit, and the card says so instead of inventing a schedule.
+
+The card explains every compromise it made — how much room there was, what it
+cost, and what the uncompromised version wants. It stays quiet about a buffer
+still over 14 days, because a warning that fires for losing one day of slack
+trains you to ignore the line that matters.
+
+**How it behaves**
+
+- **Built when the first payment is logged**, and rebuilt on every order save
+  and whenever the wedding date moves. Logged in the order's History only when
+  the dates actually changed. Stored rather than recomputed on read, because
+  each row has to remember the Google event it created.
+- **The first payment date is stamped as today** when you log the first deposit,
+  and stays editable in the order editor for the transfer that landed on Friday
+  and got logged on Monday. Only the first — a second deposit says nothing new
+  about when the work began.
 - **One schedule per order.** A bride and groom booked together are two orders
-  and get two schedules, because the fitting dates already live on the order.
-- **Syncing is a separate press.** Saving builds the schedule; nothing reaches
-  Google until you press Sync on the order. Events are all-day, titled
-  `Fitting 2 — Sarah (Bride)`, with reminders 7 days and 3 days ahead.
+  with two deposits, so they get two schedules from one shared wedding date.
+- **Syncing is a separate press.** Nothing reaches Google until you press Sync
+  on the order. Events are all-day, titled `Fitting 2 — Sarah (Bride)`, with
+  reminders 7 days and 3 days ahead. Follow-up nudges are the exception — see
+  below.
 - **Re-syncing moves events, it does not duplicate them.** Each row stores its
-  Google event id and a later sync patches that event. A stage dropped by a
-  tighter window has its event deleted rather than left behind to be believed.
+  Google event id and a later sync patches that event. An appointment dropped by
+  a tighter window has its event deleted rather than left behind to be believed.
   An event you deleted by hand in Google is simply recreated.
-- **The homepage strip reads the schedule**, so the fittings in between show up
-  there too. An order saved before schedules existed falls back to its two
-  anchor dates.
+- **The homepage strip reads the schedule**, alongside the wedding and whatever
+  follow-up is outstanding — so a customer who has not paid yet still surfaces,
+  which is exactly when the nudge is the thing worth seeing.
+
+## Customer intake (Tally)
+
+Optional. Without it customers are created by hand, as before.
+
+A [Tally](https://tally.so) form posts to the `intake` Edge Function, which
+verifies the signature and drops the answers into `intake_submissions`. They
+appear as **New enquiries** at the top of the homepage. Opening one shows every
+answer as submitted; **Create customer** files them at `Enquiry` with the
+consultation reminder already set, and **Dismiss** keeps the submission on record
+without creating anything.
+
+Nothing becomes a customer automatically. A public form is a public form, and
+deciding whether a submission is real is the job the queue exists to let you do.
+
+**1. Build the form.** Any questions you like — the mapping matches on the
+question's label, case-insensitively and by substring:
+
+| Ask something containing | Fills |
+| --- | --- |
+| `name` | Name |
+| `whatsapp`, `phone`, `nomor` | Phone |
+| `instagram`, `handle` | Instagram |
+| `hear about`, `how did you`, `source` | Source |
+| `looking for`, `tell us`, `message`, `anything else` | Notes |
+| `wedding` or `date` | Wedding date — an exact date is taken as-is, a month (`May 2027` or `2027-05`) becomes that month's last day and is flagged approximate |
+
+Anything unmatched is not lost: the entire webhook body is stored, and the
+review screen prints every answer it finds there.
+
+**2. Set the secret and deploy.**
+
+```bash
+supabase secrets set TALLY_SIGNING_SECRET=…
+```
+
+```bash
+supabase functions deploy intake
+```
+
+**3. Point Tally at it.** In the form's *Integrations → Webhooks*, add
+`https://<project-ref>.supabase.co/functions/v1/intake` and set the signing
+secret to the same value.
+
+This is the only function with `verify_jwt` off — Tally has no Supabase session
+to present — which makes that signature check the entire security boundary
+rather than a second layer behind one. It runs on the raw request bytes before
+anything is parsed, compares in constant time, and answers a bare `401` that
+says nothing about why. An unset `TALLY_SIGNING_SECRET` rejects everything
+rather than accepting it: the failure mode of guessing the other way is an open
+endpoint into the database.
 
 ## Assets
 

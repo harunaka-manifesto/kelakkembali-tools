@@ -139,7 +139,10 @@ KK.db = (function () {
   /* ------------------------------- Customers ------------------------------ */
 
   const CUSTOMER_FIELDS =
-    'id,name,phone,instagram,source,wedding_date,notes,created_at';
+    'id,name,phone,instagram,source,wedding_date,wedding_date_precision,notes,' +
+    'stage,consult_date,moodboard_date,lost_reason,' +
+    'follow_up_date,follow_up_label,follow_up_google_event_id,follow_up_synced_at,' +
+    'created_at';
 
   /** Soonest wedding first; customers without a date sink to the bottom. */
   async function listCustomers() {
@@ -174,10 +177,10 @@ KK.db = (function () {
 
   const ORDER_FIELDS =
     'id,customer_id,title,doc_name,document_date,status,items,includes,' +
-    'payment_scheme,payment_terms,fitting_1_date,final_fitting_date,created_at';
+    'payment_scheme,payment_terms,first_payment_date,created_at';
 
   /** Lightweight: every order across every customer, for the homepage overview. */
-  const ORDER_OVERVIEW_FIELDS = 'id,customer_id,status,items,fitting_1_date,final_fitting_date';
+  const ORDER_OVERVIEW_FIELDS = 'id,customer_id,status,items,first_payment_date';
 
   async function listOrders(customerId) {
     return unwrap(await init()
@@ -248,19 +251,11 @@ KK.db = (function () {
       .order('created_at', { ascending: false }));
   }
 
-  /** Every payment-logged event across every order, for the homepage overview. */
-  async function listAllPaymentLog() {
-    return unwrap(await init()
-      .from('order_history')
-      .select('id,order_id,detail,created_at')
-      .eq('action', 'payment_logged'));
-  }
-
   /* ------------------------------ Order events ---------------------------- */
 
-  /* The fitting schedule. Computed by KK.calendar from the order's two anchor
-     dates and written here so each appointment can remember the Google event
-     it created. */
+  /* The fitting schedule. Computed by KK.calendar from the order's first
+     payment and the customer's wedding date, and written here so each
+     appointment can remember the Google event it created. */
 
   const EVENT_FIELDS = 'id,order_id,stage,event_date,google_event_id,synced_at';
 
@@ -351,6 +346,37 @@ KK.db = (function () {
   const googleDisconnect = () => callGoogle('disconnect');
   const googleForget = (ids) => callGoogle('forget', { google_event_ids: ids });
   const syncOrderCalendar = (orderId) => callGoogle('sync', { order_id: orderId });
+  const syncFollowUp = (customerId) => callGoogle('sync_follow_up', { customer_id: customerId });
+
+  /* ---------------------------- Intake submissions ------------------------- */
+
+  /* Rows land here from the public Tally form via the `intake` Edge Function.
+     Nothing in this section writes a customer — accepting is a decision, and
+     it is made in app.js where the customer is created from what was read. */
+
+  const INTAKE_FIELDS =
+    'id,payload,name,phone,instagram,source,wedding_date,wedding_date_precision,' +
+    'notes,status,customer_id,created_at,reviewed_at';
+
+  async function listIntake(status) {
+    let q = init().from('intake_submissions').select(INTAKE_FIELDS);
+    if (status) q = q.eq('status', status);
+    return unwrap(await q.order('created_at', { ascending: false }));
+  }
+
+  async function getIntake(id) {
+    return unwrap(await init()
+      .from('intake_submissions').select(INTAKE_FIELDS).eq('id', id).single());
+  }
+
+  /** Called after the customer exists, so a failure here never orphans one. */
+  async function resolveIntake(id, status, customerId) {
+    return unwrap(await init().from('intake_submissions').update({
+      status: status,
+      customer_id: customerId || null,
+      reviewed_at: new Date().toISOString()
+    }).eq('id', id).select(INTAKE_FIELDS).single());
+  }
 
   return {
     isConfigured, init, currentSession, signIn, signOut,
@@ -359,8 +385,10 @@ KK.db = (function () {
     listCustomers, getCustomer, createCustomer, updateCustomer, deleteCustomer,
     listOrders, listAllOrders, getOrder, createOrder, updateOrder, deleteOrder,
     logDocument, listDocumentLog,
-    logOrderHistory, listOrderHistory, listAllPaymentLog,
+    logOrderHistory, listOrderHistory,
     listOrderEvents, listAllOrderEvents, replaceOrderEvents,
-    googleStatus, googleExchange, googleDisconnect, googleForget, syncOrderCalendar
+    listIntake, getIntake, resolveIntake,
+    googleStatus, googleExchange, googleDisconnect, googleForget,
+    syncOrderCalendar, syncFollowUp
   };
 })();

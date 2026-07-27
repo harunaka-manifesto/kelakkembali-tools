@@ -6,13 +6,15 @@
  * because RLS makes that safe. Here it cannot, so this function holds the
  * credential and the app asks it for outcomes instead.
  *
- * Four actions, one endpoint — the deploy story is simpler and they share all
- * their plumbing:
+ * One endpoint, several actions — the deploy story is simpler and they share
+ * all their plumbing:
  *
- *   exchange   { code, redirect_uri }  -> store a refresh token
- *   status     {}                      -> is there one? (never returns it)
- *   sync       { order_id }            -> write that order's schedule to Google
- *   disconnect {}                      -> revoke at Google and forget it
+ *   exchange       { code, redirect_uri } -> store a refresh token
+ *   status         {}                     -> is there one? (never returns it)
+ *   sync           { order_id }           -> write that order's schedule to Google
+ *   sync_follow_up { customer_id }        -> write that customer's one nudge
+ *   forget         { google_event_ids }   -> delete events that no longer apply
+ *   disconnect     {}                     -> revoke at Google and forget it
  *
  * verify_jwt is left on (the default), so Supabase rejects anything without a
  * valid session before this code runs. The service-role client below is
@@ -32,6 +34,11 @@ const REMINDERS = [
   { method: 'popup', minutes: 7 * 24 * 60 },
   { method: 'popup', minutes: 3 * 24 * 60 }
 ];
+
+/* A chase is a this-week thing, so one reminder the day before is enough.
+   Giving it the fitting schedule's week-out warning would mean two nudges about
+   a nudge, and the whole point of the follow-up is that it is small. */
+const FOLLOW_UP_REMINDERS = [{ method: 'popup', minutes: 24 * 60 }];
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -261,9 +268,20 @@ async function sync(orderId: string) {
 
   const { data: customer } = await db
     .from('customers')
-    .select('name,wedding_date')
+    .select('name,wedding_date,wedding_date_precision')
     .eq('id', order.customer_id)
     .single();
+
+  /* Every date in the schedule is measured back from the wedding, so when the
+     wedding is "sometime in June" every one of them is a guess. A guess in a
+     real calendar is worse than a gap: you stop trusting the entries that are
+     right. Checked here and not only in the app, because this is the door. */
+  if (customer?.wedding_date_precision === 'month') {
+    throw new Told(
+      'Confirm the exact wedding date before syncing — the schedule is only an estimate.',
+      409
+    );
+  }
 
   const { data: events, error: eventsErr } = await db
     .from('order_events')
@@ -320,6 +338,79 @@ async function sync(orderId: string) {
 }
 
 /**
+ * Make Google match the one follow-up nudge a customer carries.
+ *
+ * Same PATCH-or-POST shape as sync, with one extra case: the nudge can be
+ * cleared as well as moved. Reaching a stage that chases nothing (Ordering,
+ * Lost) or taking a deposit leaves follow_up_date null, and the event has to go
+ * with it — a reminder to chase someone who has already paid is worse than no
+ * reminder at all.
+ */
+async function syncFollowUp(customerId: string) {
+  const cred = await readCredential();
+  if (!cred) throw new Told('Google Calendar is not connected.', 409);
+
+  const db = serviceClient();
+
+  const { data: customer, error } = await db
+    .from('customers')
+    .select('id,name,follow_up_date,follow_up_label,follow_up_google_event_id')
+    .eq('id', customerId)
+    .single();
+  if (error || !customer) throw new Told('That customer no longer exists.', 404);
+
+  const token = await accessToken(cred.refresh_token);
+  const calendarId = cred.calendar_id || 'primary';
+  const existing = customer.follow_up_google_event_id;
+
+  if (!customer.follow_up_date) {
+    if (existing) {
+      try {
+        await callCalendar(token, calendarId, `/${encodeURIComponent(existing)}`, 'DELETE');
+      } catch (err) {
+        // Already gone is the outcome we wanted.
+        if (!isGone(err)) throw err;
+      }
+    }
+    await db.from('customers')
+      .update({ follow_up_google_event_id: null, follow_up_synced_at: null })
+      .eq('id', customerId);
+    return { cleared: true };
+  }
+
+  const first = String(customer.name || '').trim().split(/\s+/)[0] || 'Client';
+  const appUrl = Deno.env.get('APP_URL') || '';
+  const body = {
+    summary: `${customer.follow_up_label || 'Follow up'} — ${first}`,
+    description: appUrl ? `${appUrl}#/customer/${customerId}` : '',
+    start: { date: customer.follow_up_date },
+    end: { date: nextDay(customer.follow_up_date) },
+    reminders: { useDefault: false, overrides: FOLLOW_UP_REMINDERS }
+  };
+
+  let googleId: string | null = existing;
+  if (googleId) {
+    try {
+      await callCalendar(token, calendarId, `/${encodeURIComponent(googleId)}`, 'PATCH', body);
+    } catch (err) {
+      if (!isGone(err)) throw err;
+      googleId = null;
+    }
+  }
+  if (!googleId) {
+    const created = await callCalendar(token, calendarId, '', 'POST', body);
+    googleId = created?.id ?? null;
+  }
+
+  await db.from('customers').update({
+    follow_up_google_event_id: googleId,
+    follow_up_synced_at: new Date().toISOString()
+  }).eq('id', customerId);
+
+  return { synced: true, date: customer.follow_up_date };
+}
+
+/**
  * Remove events for stages that no longer exist.
  *
  * Called with the ids the app dropped when a tighter window cut the programme
@@ -368,6 +459,10 @@ Deno.serve(async (req) => {
       case 'sync': {
         if (!body.order_id) throw new Told('Missing order_id.');
         return json(await sync(body.order_id));
+      }
+      case 'sync_follow_up': {
+        if (!body.customer_id) throw new Told('Missing customer_id.');
+        return json(await syncFollowUp(body.customer_id));
       }
       case 'forget': {
         return json(await forget(body.google_event_ids || []));

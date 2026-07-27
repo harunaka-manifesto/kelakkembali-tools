@@ -323,3 +323,147 @@ drop policy if exists "signed-in full access" on public.google_credentials;
 alter table public.order_history drop constraint if exists order_history_action_check;
 alter table public.order_history add constraint order_history_action_check
   check (action in ('created', 'updated', 'payment_logged', 'scheduled', 'calendar_synced'));
+
+
+-- =========================================================================
+-- Migration — the real lifecycle
+--
+-- The schema started at the quotation. The work does not:
+--
+--   enquiry -> consultation -> moodboard -> quotation -> invoice
+--     -> FIRST PAYMENT -> design phase -> fittings -> wedding
+--
+-- Two consequences, and this block is both of them.
+--
+-- One: everything left of the quotation had nowhere to live. A customer who
+-- has enquired but not been quoted was indistinguishable from one who was
+-- quoted a year ago and went quiet. Customers gain a stage, the dates those
+-- stages happened on, and a single follow-up nudge so something chases them.
+-- It sits on customers rather than orders because at enquiry time there is no
+-- order yet — that is the whole point of the stage.
+--
+-- Two: the fitting schedule was anchored on two dates typed in by hand, at a
+-- moment when neither is actually knowable. Nothing can be scheduled before
+-- the deposit clears, and the only two dates anyone really knows are the first
+-- payment and the wedding. So orders gain first_payment_date and lose both
+-- hand-typed anchors — see calendar.js, which now derives all five
+-- appointments from those two dates.
+--
+-- Plus intake_submissions, the landing table for the public Tally form.
+-- =========================================================================
+
+-- ------------------------- Customers: the pipeline -------------------------
+
+alter table public.customers add column if not exists stage text;
+alter table public.customers add column if not exists consult_date date;
+alter table public.customers add column if not exists moodboard_date date;
+alter table public.customers add column if not exists lost_reason text;
+
+-- Existing rows before the constraint, as with the Draft removal above. A
+-- customer who already has an order is past the early pipeline by definition;
+-- everyone else starts at the beginning.
+update public.customers c set stage =
+  case when exists (select 1 from public.orders o where o.customer_id = c.id)
+       then 'Ordering' else 'Enquiry' end
+  where c.stage is null;
+
+alter table public.customers alter column stage set default 'Enquiry';
+alter table public.customers alter column stage set not null;
+
+alter table public.customers drop constraint if exists customers_stage_check;
+alter table public.customers add constraint customers_stage_check
+  check (stage in ('Enquiry', 'Consultation', 'Moodboard', 'Ordering', 'Lost'));
+
+-- 'Lost' is a resting place, not a failure to record: an enquiry that went cold
+-- should stop appearing in the deadline strip without being deleted, because
+-- the same couple may come back and the history is worth having.
+
+-- ------------------------ Customers: the wedding date ----------------------
+
+-- Couples often book before they have set a date, and "sometime in June" is
+-- real information that a date column cannot hold. Rather than a second column,
+-- the date is always stored — as the LAST day of the month when only the month
+-- is known, which is the safe direction to be wrong in — and this flag records
+-- how much of it to believe. The app renders month-only dates as approximate
+-- and refuses to push an approximate fitting schedule to Google Calendar.
+alter table public.customers add column if not exists wedding_date_precision text;
+
+update public.customers set wedding_date_precision = 'day'
+  where wedding_date_precision is null;
+
+alter table public.customers alter column wedding_date_precision set default 'day';
+alter table public.customers alter column wedding_date_precision set not null;
+
+alter table public.customers drop constraint if exists customers_wedding_precision_check;
+alter table public.customers add constraint customers_wedding_precision_check
+  check (wedding_date_precision in ('day', 'month'));
+
+-- ------------------------- Customers: the follow-up ------------------------
+
+-- One open nudge per customer, stored rather than derived. Deriving it would
+-- mean joining document_log for every customer on the homepage to find out when
+-- the quotation went out; storing it also means a date can be pushed back by
+-- hand when a client asks for more time, which is the common case and which no
+-- derivation would survive.
+alter table public.customers add column if not exists follow_up_date date;
+alter table public.customers add column if not exists follow_up_label text;
+alter table public.customers add column if not exists follow_up_google_event_id text;
+alter table public.customers add column if not exists follow_up_synced_at timestamptz;
+
+create index if not exists customers_stage_idx on public.customers (stage);
+create index if not exists customers_follow_up_idx on public.customers (follow_up_date);
+
+-- --------------------- Orders: the schedule anchor moves --------------------
+
+-- Stamped when the first deposit is logged, editable afterwards for the times
+-- the money landed on Friday and got logged on Monday. Everything in
+-- order_events counts from here.
+alter table public.orders add column if not exists first_payment_date date;
+
+-- The two hand-typed anchors are gone. They are derived now, and keeping the
+-- columns would leave two answers to the same question with nothing to say
+-- which one is right. Precedent: the same two columns were dropped from
+-- customers by the dashboard migration above, for the same reason.
+alter table public.orders drop column if exists fitting_1_date;
+alter table public.orders drop column if exists final_fitting_date;
+
+-- ---------------------------- Intake submissions ---------------------------
+
+-- Where the public Tally form lands. Rows arrive only through the `intake`
+-- Edge Function, which verifies Tally's HMAC signature and writes with the
+-- service-role key — the anon key cannot reach this table any more than any
+-- other. Nothing here becomes a customer until it has been read and accepted.
+create table if not exists public.intake_submissions (
+  id                     uuid primary key default gen_random_uuid(),
+  -- The whole webhook body, verbatim. The extracted columns below are a
+  -- convenience for the review screen; this is the record. A question added to
+  -- the form later is still recoverable from rows submitted before anyone
+  -- thought to give it a column.
+  payload                jsonb not null,
+  name                   text,
+  phone                  text,
+  instagram              text,
+  -- Deliberately unconstrained, unlike customers.source. A stranger's dropdown
+  -- answer must never be able to reject the insert; the review screen is where
+  -- it gets reconciled with the real list.
+  source                 text,
+  wedding_date           date,
+  wedding_date_precision text,
+  notes                  text,
+  status                 text not null default 'new'
+                           check (status in ('new', 'accepted', 'dismissed')),
+  -- Set on accept, so a submission can be traced to the record it became.
+  -- Nulled rather than deleted if that customer is later removed.
+  customer_id            uuid references public.customers (id) on delete set null,
+  created_at             timestamptz not null default now(),
+  reviewed_at            timestamptz
+);
+
+create index if not exists intake_submissions_status_idx
+  on public.intake_submissions (status, created_at desc);
+
+alter table public.intake_submissions enable row level security;
+
+drop policy if exists "signed-in full access" on public.intake_submissions;
+create policy "signed-in full access" on public.intake_submissions
+  for all to authenticated using (true) with check (true);

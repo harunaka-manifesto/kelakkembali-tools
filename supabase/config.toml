@@ -1,6 +1,6 @@
 # Kelak Kembali — Supabase CLI config.
 #
-# Only the Edge Function needs this file; the tables are still managed by
+# Only the Edge Functions need this file; the tables are still managed by
 # running schema.sql in the SQL editor, which is what the README describes.
 #
 # project_id is the reference in your project's URL, and the same one in
@@ -13,3 +13,10 @@ project_id = "lgockcjjfkvuihhofyxi"
 # valid session before the function runs, so the shared-password gate protects
 # the calendar exactly as it protects everything else.
 verify_jwt = true
+
+[functions.intake]
+# Off, and it has to be: Tally is posting from its own servers with no Supabase
+# session to present. That makes the HMAC check at the top of the function the
+# entire security boundary rather than a second layer behind this one — see the
+# header comment in supabase/functions/intake/index.ts.
+verify_jwt = false
