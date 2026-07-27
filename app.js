@@ -60,11 +60,13 @@ KK.app = (function () {
     gateSubmit: $('#gateSubmit'),
 
     app: $('#app'),
-    breadcrumbs: $('#breadcrumbs'),
-    backBtn: $('#backBtn'),
-    appbarMark: $('#appbarMark'),
+    upLink: $('#upLink'),
+    upLabel: $('#upLabel'),
+    appbarBrand: $('#appbarBrand'),
+    homeLink: $('#homeLink'),
     viewTitle: $('#viewTitle'),
     viewSub: $('#viewSub'),
+    pageAction: $('#pageAction'),
     savebar: $('#savebar'),
     saveBtn: $('#saveBtn'),
     menu: $('#menu'),
@@ -74,20 +76,14 @@ KK.app = (function () {
     menuSignOut: $('#menuSignOut'),
 
     viewCustomers: $('#viewCustomers'),
-    overviewRange: $('#overviewRange'),
-    overviewActive: $('#overviewActive'),
-    overviewFinished: $('#overviewFinished'),
-    overviewGross: $('#overviewGross'),
-    overviewProfit: $('#overviewProfit'),
-    overviewNearest: $('#overviewNearest'),
+    deadlines: $('#deadlines'),
+    deadlineCards: $('#deadlineCards'),
     customerSearch: $('#customerSearch'),
     customerList: $('#customerList'),
     newCustomer: $('#newCustomer'),
 
     viewCustomer: $('#viewCustomer'),
     customerViewCard: $('#customerViewCard'),
-    editCustomerBtn: $('#editCustomerBtn'),
-    dName: $('#dName'),
     dPhone: $('#dPhone'),
     dInstagram: $('#dInstagram'),
     dSource: $('#dSource'),
@@ -95,7 +91,6 @@ KK.app = (function () {
     dNotes: $('#dNotes'),
     dCreated: $('#dCreated'),
     customerEditCard: $('#customerEditCard'),
-    cancelCustomerBtn: $('#cancelCustomerBtn'),
     cName: $('#cName'),
     errCName: $('#errCName'),
     cPhone: $('#cPhone'),
@@ -104,18 +99,16 @@ KK.app = (function () {
     cWedding: $('#cWedding'),
     cNotes: $('#cNotes'),
     customerOrdersCard: $('#customerOrdersCard'),
+    ordersTotal: $('#ordersTotal'),
     orderList: $('#orderList'),
     newOrder: $('#newOrder'),
 
     viewOrder: $('#viewOrder'),
-    editOrderBtn: $('#editOrderBtn'),
-    oStatusBadge: $('#oStatusBadge'),
-    oDateDisplay: $('#oDateDisplay'),
     oFitting1Display: $('#oFitting1Display'),
     oFittingFinalDisplay: $('#oFittingFinalDisplay'),
+    oWeddingDisplay: $('#oWeddingDisplay'),
     oItemsDisplay: $('#oItemsDisplay'),
     oIncludesDisplay: $('#oIncludesDisplay'),
-    oNettProfit: $('#oNettProfit'),
     historyLog: $('#historyLog'),
     paymentSummary: $('#paymentSummary'),
     logPaymentBtn: $('#logPaymentBtn'),
@@ -123,8 +116,6 @@ KK.app = (function () {
 
     viewOrderEdit: $('#viewOrderEdit'),
     oTitle: $('#oTitle'),
-    oDate: $('#oDate'),
-    oStatus: $('#oStatus'),
     oFitting1: $('#oFitting1'),
     oFittingFinal: $('#oFittingFinal'),
     itemList: $('#itemList'),
@@ -151,8 +142,7 @@ KK.app = (function () {
     customers: [],           // the whole list, filtered client-side
     customer: null,          // record backing the customer view
     order: null,             // record backing the order views
-    overview: null,          // { ordersByCustomer, nettProfitByOrder, paymentRows, nearest }
-    overviewRange: 'month',  // 'month' | 'all' — Gross/Profit tiles only
+    overview: null,          // { ordersByCustomer } — every order, for the homepage
     loggedDeposits: {},      // { depositIndex: loggedAt } for the open order
     dirty: false,
     saving: false
@@ -193,12 +183,35 @@ KK.app = (function () {
     syncBottomBar();
   }
 
+  /* One control, reconfigured per view — Edit while reading a record, Cancel
+     while editing one. Two buttons that are never both relevant. */
+  let pageActionHandler = null;
+  function setPageAction(action) {
+    pageActionHandler = action ? action.onClick : null;
+    el.pageAction.hidden = !action;
+    if (action) el.pageAction.textContent = action.label;
+  }
+
   function setChrome(opts) {
     el.viewTitle.textContent = opts.title;
-    el.viewSub.textContent = opts.sub || 'Kelak Kembali';
-    el.backBtn.hidden = !opts.back;
-    // The logo only shows where nothing else needs the corner.
-    el.appbarMark.hidden = !!opts.back;
+
+    /* The subtitle carries a badge on the order page, so it takes HTML —
+       every caller builds it from escaped parts. */
+    el.viewSub.innerHTML = opts.sub || '';
+    el.viewSub.hidden = !opts.sub;
+
+    /* Up is a fixed link to the parent, so it is the same destination however
+       you arrived. Home is suppressed when Up already goes there. */
+    const up = opts.up || null;
+    el.upLink.hidden = !up;
+    el.appbarBrand.hidden = !!up;
+    if (up) {
+      el.upLink.href = up.hash;
+      el.upLabel.textContent = up.label;
+    }
+    el.homeLink.hidden = !up || up.hash === '#/customers';
+
+    setPageAction(opts.action || null);
     el.actionbar.hidden = !opts.actions;
     document.body.classList.toggle('has-actionbar', !!opts.actions);
     setSaveBar(!!opts.save);
@@ -227,16 +240,52 @@ KK.app = (function () {
     el.menuBtn.setAttribute('aria-expanded', String(open));
   }
 
-  /** segments: [{ label, hash? }] — the last segment (or any without a hash)
-      renders as plain text, everything else as a link back to that level. */
-  function renderBreadcrumbs(segments) {
-    el.breadcrumbs.innerHTML = segments.map((seg, i) => {
-      const label = U.escapeHtml(seg.label);
-      const isLast = i === segments.length - 1;
-      return (isLast || !seg.hash)
-        ? '<span class="breadcrumbs__item breadcrumbs__item--current">' + label + '</span>'
-        : '<a class="breadcrumbs__item" href="' + seg.hash + '">' + label + '</a>';
-    }).join('<span class="breadcrumbs__sep" aria-hidden="true">/</span>');
+  /* ------------------------------ Order status ---------------------------- */
+
+  /* The status is no longer something you set; it is what the record already
+     says about itself. Downloading a quotation means it has been quoted,
+     downloading an invoice means it has been confirmed, logging a deposit
+     means it is in production, and a wedding in the past means it is done.
+     Reading it off those events is both less work and harder to get wrong
+     than remembering to change a dropdown. */
+
+  const badgeClass = (status) =>
+    'badge badge--' + String(status).toLowerCase().replace(/\s+/g, '-');
+
+  /** Never backwards: re-downloading a quotation for an order already in
+      production says nothing new about it. */
+  function atLeast(current, floor) {
+    const a = STATUSES.indexOf(current);
+    const b = STATUSES.indexOf(floor);
+    return b > a ? floor : (a === -1 ? STATUSES[0] : current);
+  }
+
+  /* The last step is derived rather than stored: nobody marks a wedding as
+     having happened, and the date that decides it lives on the customer, where
+     it can still be corrected afterwards. */
+  function effectiveStatus(order, weddingDate) {
+    const stored = STATUSES.includes(order.status) ? order.status : STATUSES[0];
+    return (weddingDate && weddingDate < U.todayISO()) ? 'Delivered' : stored;
+  }
+
+  /** Writes the advance, if it is one. Called after the event it describes has
+      already succeeded, so a failure here never invents one. */
+  async function bumpStatus(floor) {
+    const next = atLeast(state.order.status, floor);
+    if (next === state.order.status) return;
+    try {
+      state.order = await db.updateOrder(state.order.id, { status: next });
+      renderOrderStatus();
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  function renderOrderStatus() {
+    const status = effectiveStatus(state.order, state.customer && state.customer.wedding_date);
+    el.viewSub.innerHTML = '<span class="' + badgeClass(status) + '">' +
+      U.escapeHtml(status) + '</span>';
+    el.viewSub.hidden = false;
   }
 
   /* -------------------------------- Routing ------------------------------ */
@@ -255,6 +304,21 @@ KK.app = (function () {
     else location.hash = hash;
   }
 
+  /* For the transitions that finish a page rather than leave it — creating a
+     customer, saving an order. The form you just completed is not a place the
+     browser's Back should be able to return you to.
+
+     Where the destination is the entry we came from, unwinding is better than
+     replacing: replacing would leave two identical entries side by side, and
+     the first Back press would then appear to do nothing. */
+  function leaveFormFor(hash) {
+    if (prevHash === hash) { history.back(); return; }
+    if (location.hash === hash) { handleRoute(); return; }
+    history.replaceState(null, '', location.pathname + location.search + hash);
+    lastHash = hash;
+    handleRoute();
+  }
+
   /* Unsaved work is only ever one confirm away from being lost, never zero. */
   function confirmLeave() {
     if (!state.dirty) return true;
@@ -262,6 +326,7 @@ KK.app = (function () {
   }
 
   let lastHash = '';
+  let prevHash = '';
   async function handleRoute() {
     const next = parseHash();
 
@@ -273,6 +338,7 @@ KK.app = (function () {
       }
       setDirty(false);
     }
+    if (location.hash !== lastHash) prevHash = lastHash;
     lastHash = location.hash;
     state.route = next;
 
@@ -316,19 +382,17 @@ KK.app = (function () {
   /* ---------------------------- Customer list ----------------------------- */
 
   async function showCustomers() {
-    setChrome({ title: 'Customers', back: false, save: false, actions: false });
-    renderBreadcrumbs([{ label: 'Customers' }]);
+    setChrome({ title: 'Customers', up: null, save: false, actions: false });
     state.customer = null;
     state.order = null;
     el.customerList.innerHTML = '<p class="empty">Loading…</p>';
 
-    const [customers, allOrders, paymentRows] = await Promise.all([
-      db.listCustomers(), db.listAllOrders(), db.listAllPaymentLog()
+    const [customers, allOrders] = await Promise.all([
+      db.listCustomers(), db.listAllOrders()
     ]);
     state.customers = customers;
-    state.overview = buildOverview(allOrders, paymentRows);
-    el.overviewRange.value = state.overviewRange;
-    renderOverview();
+    state.overview = buildOverview(allOrders);
+    renderDeadlines();
     renderCustomerList();
   }
 
@@ -368,82 +432,62 @@ KK.app = (function () {
 
   /* ------------------------------- Overview -------------------------------- */
 
-  function buildOverview(allOrders, paymentRows) {
+  function buildOverview(allOrders) {
     const ordersByCustomer = {};
-    const nettProfitByOrder = {};
     allOrders.forEach((o) => {
       (ordersByCustomer[o.customer_id] = ordersByCustomer[o.customer_id] || []).push(o);
-      nettProfitByOrder[o.id] = nettProfit(o.items);
     });
+    return { ordersByCustomer };
+  }
 
-    // Soonest upcoming fitting across every order, today or later.
-    let nearest = null;
+  /** A customer is active until every order they have is delivered. Someone
+      with no orders yet is active — they are the ones who need one. */
+  function isActive(customer) {
+    const orders = state.overview.ordersByCustomer[customer.id] || [];
+    return !orders.length ||
+      !orders.every((o) => effectiveStatus(o, customer.wedding_date) === 'Delivered');
+  }
+
+  /* Whichever date comes first, named. A fitting three days out matters more
+     than a wedding three months out, and which one it is changes what you do
+     about it — so the card says. */
+  function nextDeadline(customer) {
     const today = U.todayISO();
-    allOrders.forEach((o) => {
-      [o.fitting_1_date, o.final_fitting_date].forEach((d) => {
-        if (!d || d < today) return;
-        if (!nearest || d < nearest.date) nearest = { date: d, customerId: o.customer_id };
-      });
+    const dates = [];
+    if (customer.wedding_date) dates.push({ date: customer.wedding_date, what: 'Wedding' });
+    (state.overview.ordersByCustomer[customer.id] || []).forEach((o) => {
+      if (o.fitting_1_date) dates.push({ date: o.fitting_1_date, what: 'First fitting' });
+      if (o.final_fitting_date) dates.push({ date: o.final_fitting_date, what: 'Final fitting' });
     });
-
-    return { ordersByCustomer, nettProfitByOrder, paymentRows, nearest };
+    return dates.filter((d) => d.date >= today).sort((a, b) => (a.date < b.date ? -1 : 1))[0] || null;
   }
 
-  /* Gross and profit are driven by the payment log, not order status or
-     document date — "this month" is when a deposit was actually logged.
-     Every deposit is always exactly a fixed 35/35/30 share of its order's
-     total, so profit is recognised using that same share rather than a
-     prorated dollar amount — keeping both figures cash-basis and tied to
-     the same logged event. */
-  function overviewMoney(range) {
-    const now = new Date();
-    const inRange = (iso) => {
-      if (range === 'all') return true;
-      const d = new Date(iso);
-      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-    };
+  const relativeDays = (days) =>
+    days === 0 ? 'today' : days === 1 ? 'tomorrow' : 'in ' + days + ' days';
 
-    let gross = 0;
-    let profit = 0;
-    (state.overview.paymentRows || []).forEach((r) => {
-      if (!inRange(r.created_at)) return;
-      const detail = r.detail || {};
-      gross += Number(detail.amount) || 0;
-      const share = docs.DEPOSIT_SHARES[detail.deposit_index] || 0;
-      profit += (state.overview.nettProfitByOrder[r.order_id] || 0) * share;
-    });
-    return { gross, profit };
-  }
+  function renderDeadlines() {
+    const soon = state.customers
+      .filter(isActive)
+      .map((c) => ({ customer: c, deadline: nextDeadline(c) }))
+      .filter((r) => r.deadline)
+      .sort((a, b) => (a.deadline.date < b.deadline.date ? -1 : 1))
+      .slice(0, 3);
 
-  function renderOverview() {
-    const ov = state.overview;
+    el.deadlines.hidden = !soon.length;
+    if (!soon.length) return;
 
-    let active = 0;
-    let finished = 0;
-    state.customers.forEach((c) => {
-      const orders = ov.ordersByCustomer[c.id] || [];
-      const isFinished = orders.length > 0 && orders.every((o) => o.status === 'Delivered');
-      if (isFinished) finished++; else active++;
-    });
-    el.overviewActive.textContent = String(active);
-    el.overviewFinished.textContent = String(finished);
-    renderOverviewMoney();
-
-    if (ov.nearest) {
-      const customer = state.customers.find((c) => c.id === ov.nearest.customerId);
-      const days = daysUntil(ov.nearest.date);
-      const when = days === 0 ? 'today' : days === 1 ? 'tomorrow' : 'in ' + days + ' days';
-      el.overviewNearest.textContent = 'Next fitting ' + when + ' — ' +
-        (customer ? customer.name : 'a customer') + ', ' + U.formatShortDate(ov.nearest.date);
-    } else {
-      el.overviewNearest.textContent = 'No upcoming fittings.';
-    }
-  }
-
-  function renderOverviewMoney() {
-    const money = overviewMoney(state.overviewRange);
-    el.overviewGross.textContent = U.formatRupiah(money.gross);
-    el.overviewProfit.textContent = U.formatRupiah(money.profit);
+    el.deadlineCards.innerHTML = soon.map((r) => {
+      const days = daysUntil(r.deadline.date);
+      return '<a class="deadline' + (days <= 7 ? ' deadline--soon' : '') + '" ' +
+        'href="#/customer/' + r.customer.id + '">' +
+        '<span class="deadline__main">' +
+          '<span class="deadline__name">' + U.escapeHtml(r.customer.name) + '</span>' +
+          '<span class="deadline__what">' + r.deadline.what + ' · ' +
+            U.escapeHtml(U.formatShortDate(r.deadline.date)) + '</span>' +
+        '</span>' +
+        '<span class="deadline__when">' + relativeDays(days) + '</span>' +
+      '</a>';
+    }).join('');
   }
 
   /* --------------------------- Customer detail ---------------------------- */
@@ -455,10 +499,26 @@ KK.app = (function () {
   /* The save bar follows the edit card, not the view: there is nothing to save
      while you are only reading a customer. */
   function setCustomerMode(editMode) {
+    const isNew = !state.customer || !state.customer.id;
     el.customerViewCard.hidden = editMode;
     el.customerEditCard.hidden = !editMode;
-    el.customerOrdersCard.hidden = editMode || !state.customer || !state.customer.id;
+    el.customerOrdersCard.hidden = editMode || isNew;
     setSaveBar(editMode);
+
+    el.viewTitle.textContent = isNew ? 'New customer'
+      : (editMode ? 'Edit customer' : state.customer.name);
+
+    /* A new customer has nothing to cancel back to — the form is the page. */
+    setPageAction(isNew ? null : (editMode
+      ? { label: 'Cancel', onClick: cancelCustomerEdit }
+      : { label: 'Edit', onClick: () => setCustomerMode(true) }));
+  }
+
+  function cancelCustomerEdit() {
+    if (!confirmLeave()) return;
+    fillCustomerForm(state.customer);
+    setDirty(false);
+    setCustomerMode(false);
   }
 
   /** Days between today and an ISO date, negative once it has passed. */
@@ -466,7 +526,6 @@ KK.app = (function () {
     Math.round((new Date(iso) - new Date(U.todayISO())) / 86400000);
 
   function renderCustomerReadOnly(c) {
-    el.dName.textContent = c.name || '—';
     el.dPhone.textContent = c.phone || '—';
     el.dInstagram.textContent = c.instagram || '—';
     el.dSource.textContent = c.source || '—';
@@ -476,41 +535,39 @@ KK.app = (function () {
     /* The date that drives every other deadline, given in the unit people
        actually plan in — sitting on the date itself rather than on a line of
        its own repeating the word "wedding". */
-    if (!c.wedding_date) {
-      el.dWedding.textContent = 'Not set';
-      return;
-    }
-    const days = daysUntil(c.wedding_date);
-    const rel = days > 1 ? 'in ' + days + ' days'
-      : days === 1 ? 'tomorrow'
-        : days === 0 ? 'today'
-          : Math.abs(days) + (Math.abs(days) === 1 ? ' day' : ' days') + ' ago';
-    el.dWedding.textContent = U.formatShortDate(c.wedding_date) + ' · ' + rel;
+    el.dWedding.textContent = c.wedding_date
+      ? U.formatShortDate(c.wedding_date) + ' · ' + relativeToToday(c.wedding_date)
+      : 'Not set';
+  }
+
+  /** Reads naturally on both sides of today, which a plain day count does not. */
+  function relativeToToday(iso) {
+    const days = daysUntil(iso);
+    if (days >= 0) return relativeDays(days);
+    const ago = Math.abs(days);
+    return ago + (ago === 1 ? ' day' : ' days') + ' ago';
   }
 
   async function showCustomer(id) {
     const isNew = id === 'new';
     setChrome({
       title: isNew ? 'New customer' : 'Customer',
-      back: true, save: false, actions: false,
+      up: { label: 'Customers', hash: '#/customers' },
+      save: false, actions: false,
       destroy: isNew ? null : 'customer'
     });
 
     state.customer = isNew ? Object.assign({}, BLANK_CUSTOMER) : await db.getCustomer(id);
     fillCustomerForm(state.customer);
     // A new customer has nothing to read, so it opens straight into the form.
-    el.cancelCustomerBtn.hidden = isNew;
     setCustomerMode(isNew);
     setDirty(isNew);
 
     if (isNew) {
-      renderBreadcrumbs([{ label: 'Customers', hash: '#/customers' }, { label: 'New customer' }]);
       el.cName.focus();
       return;
     }
 
-    el.viewSub.textContent = state.customer.name;
-    renderBreadcrumbs([{ label: 'Customers', hash: '#/customers' }, { label: state.customer.name }]);
     renderCustomerReadOnly(state.customer);
 
     el.orderList.innerHTML = '<p class="empty">Loading…</p>';
@@ -547,24 +604,27 @@ KK.app = (function () {
   }
 
   function renderOrderList(orders) {
+    el.ordersTotal.textContent = orders.length
+      ? U.formatRupiah(orders.reduce((sum, o) => sum + docs.computeTotal(o.items), 0))
+      : '';
     if (!orders.length) {
       el.orderList.innerHTML = '<p class="empty">No orders yet.</p>';
       return;
     }
+    const wedding = state.customer && state.customer.wedding_date;
     /* Status, then the next fitting still ahead. The old third line printed
        both fitting dates and truncated mid-word on a phone, and read
        "1st fit not set · Final fit not set" on every new order. */
     el.orderList.innerHTML = orders.map((o) => {
       const next = [o.fitting_1_date, o.final_fitting_date]
         .filter((d) => d && d >= U.todayISO()).sort()[0];
-      const status = String(o.status || '');
+      const status = effectiveStatus(o, wedding);
       return '<a class="row row--kanban" href="#/order/' + o.id + '">' +
         '<span class="row__main">' +
           '<span class="row__title">' + U.escapeHtml(orderLabel(o)) + '</span>' +
           '<span class="row__meta">' + U.escapeHtml(itemsSnippet(o.items)) + '</span>' +
           '<span class="row__tags">' +
-            '<span class="badge badge--' + status.toLowerCase().replace(/\s+/g, '-') + '">' +
-              U.escapeHtml(status) + '</span>' +
+            '<span class="' + badgeClass(status) + '">' + U.escapeHtml(status) + '</span>' +
             (next ? '<span class="row__meta">Fitting ' + U.escapeHtml(U.formatShortDate(next)) + '</span>' : '') +
           '</span>' +
         '</span>' +
@@ -584,8 +644,6 @@ KK.app = (function () {
     if (state.customer.id) {
       state.customer = await db.updateCustomer(state.customer.id, patch);
       setDirty(false);
-      el.viewSub.textContent = state.customer.name;
-      renderBreadcrumbs([{ label: 'Customers', hash: '#/customers' }, { label: state.customer.name }]);
       renderCustomerReadOnly(state.customer);
       setCustomerMode(false);
       showToast('Customer saved');
@@ -593,7 +651,9 @@ KK.app = (function () {
       state.customer = await db.createCustomer(patch);
       setDirty(false);
       showToast('Customer created');
-      go('#/customer/' + state.customer.id);
+      /* replace, not push: the blank form is not somewhere to come back to,
+         and leaving it in the history is what made Back reopen it. */
+      leaveFormFor('#/customer/' + state.customer.id);
     }
     return true;
   }
@@ -678,48 +738,74 @@ KK.app = (function () {
   }
 
   /** What docs.render/download need — read from the saved record, since this
-      page has no form fields of its own. */
+      page has no form fields of its own. A document is dated the day it is
+      issued, so the date is stamped here rather than typed into the editor. */
   function orderDataFromState() {
     return {
       customerName: state.customer ? state.customer.name : '',
-      date: state.order.document_date,
+      date: U.todayISO(),
       items: state.order.items || [],
       includes: state.order.includes || []
     };
   }
 
+  const showDate = (iso) => (iso ? U.formatShortDate(iso) : '—');
+
+  /* The quotation's own three columns, plus the row it never carries. Reading
+     down the right-hand edge, every figure — line prices, Total, Nett profit —
+     lands on the same rule. */
+  function renderItemsTable(items) {
+    const named = items.filter((it) => String(it.name || '').trim() !== '');
+    const total = docs.computeTotal(items);
+
+    if (!named.length) {
+      el.oItemsDisplay.innerHTML = '<p class="empty">No items yet. Tap Edit to add one.</p>';
+      return;
+    }
+
+    el.oItemsDisplay.innerHTML =
+      '<div class="table__row table__row--head">' +
+        '<span class="table__item">Item</span>' +
+        '<span class="table__qty">Qty</span>' +
+        '<span class="table__price">Price</span>' +
+      '</div>' +
+      named.map((it) =>
+        '<div class="table__row">' +
+          '<span class="table__item">' + U.escapeHtml(it.name) + '</span>' +
+          '<span class="table__qty">' + (Number(it.qty) || 0) + '</span>' +
+          '<span class="table__price">' + U.formatRupiah(it.price) + '</span>' +
+        '</div>'
+      ).join('') +
+      '<div class="table__row table__row--total">' +
+        '<span class="table__item">Total</span>' +
+        '<span class="table__price">' + U.formatRupiah(total) + '</span>' +
+      '</div>' +
+      '<div class="table__row table__row--profit">' +
+        '<span class="table__item">Nett profit <span class="tag">Internal</span></span>' +
+        '<span class="table__price">' + U.formatRupiah(nettProfit(items)) + '</span>' +
+      '</div>';
+  }
+
   async function showOrder(id) {
     state.order = await db.getOrder(id);
     state.customer = await db.getCustomer(state.order.customer_id);
-    const label = orderLabel(state.order);
 
     setChrome({
-      title: 'Order', sub: state.customer.name,
-      back: true, save: false, actions: true, destroy: 'order'
+      title: orderLabel(state.order),
+      up: { label: state.customer.name, hash: '#/customer/' + state.customer.id },
+      save: false, actions: true, destroy: 'order',
+      action: { label: 'Edit', onClick: () => go('#/order/' + state.order.id + '/edit') }
     });
-    renderBreadcrumbs([
-      { label: 'Customers', hash: '#/customers' },
-      { label: state.customer.name, hash: '#/customer/' + state.customer.id },
-      { label: label }
-    ]);
+    renderOrderStatus();
 
-    el.oStatusBadge.className = 'badge badge--' + state.order.status.toLowerCase().replace(/\s+/g, '-');
-    el.oStatusBadge.textContent = state.order.status;
-    el.oDateDisplay.textContent = U.formatShortDate(state.order.document_date);
-    el.oFitting1Display.textContent = state.order.fitting_1_date ? U.formatShortDate(state.order.fitting_1_date) : '—';
-    el.oFittingFinalDisplay.textContent = state.order.final_fitting_date ? U.formatShortDate(state.order.final_fitting_date) : '—';
+    el.oFitting1Display.textContent = showDate(state.order.fitting_1_date);
+    el.oFittingFinalDisplay.textContent = showDate(state.order.final_fitting_date);
+    el.oWeddingDisplay.textContent = showDate(state.customer.wedding_date);
 
     const items = state.order.items || [];
     const total = docs.computeTotal(items);
     const namedItems = items.filter((it) => String(it.name || '').trim() !== '');
-    el.oItemsDisplay.innerHTML = (namedItems.length ? namedItems.map((it) =>
-      '<div class="logrow">' +
-        '<span class="logrow__kind">' + U.escapeHtml(it.name) + ' × ' + (Number(it.qty) || 0) + '</span>' +
-        '<span class="logrow__total">' + U.formatRupiah((Number(it.price) || 0) * (Number(it.qty) || 0)) + '</span>' +
-      '</div>'
-    ).join('') : '<p class="empty">No items yet.</p>') +
-      '<div class="logrow"><span class="logrow__kind">Total</span>' +
-      '<span class="logrow__total">' + U.formatRupiah(total) + '</span></div>';
+    renderItemsTable(items);
 
     /* Six filled black pills made the least important block on the page the
        loudest. One muted line, joined the way the PDF itself joins them. */
@@ -728,7 +814,6 @@ KK.app = (function () {
       ? 'Includes: ' + inc.join(' · ')
       : '';
 
-    el.oNettProfit.textContent = U.formatRupiah(nettProfit(items));
     el.totalDisplay.textContent = U.formatRupiah(total);
     el.paymentChooserOptions.hidden = true;
 
@@ -748,22 +833,14 @@ KK.app = (function () {
   async function showOrderEdit(id) {
     state.order = await db.getOrder(id);
     state.customer = await db.getCustomer(state.order.customer_id);
-    const label = orderLabel(state.order);
 
     setChrome({
-      title: 'Edit order', sub: state.customer.name,
-      back: true, save: true, actions: false, destroy: 'order'
+      title: 'Edit order',
+      up: { label: orderLabel(state.order), hash: '#/order/' + id },
+      save: true, actions: false, destroy: 'order'
     });
-    renderBreadcrumbs([
-      { label: 'Customers', hash: '#/customers' },
-      { label: state.customer.name, hash: '#/customer/' + state.customer.id },
-      { label: label, hash: '#/order/' + id },
-      { label: 'Edit' }
-    ]);
 
     el.oTitle.value = state.order.title || '';
-    el.oDate.value = state.order.document_date || U.todayISO();
-    el.oStatus.value = STATUSES.includes(state.order.status) ? state.order.status : 'Quoted';
     el.oFitting1.value = state.order.fitting_1_date || '';
     el.oFittingFinal.value = state.order.final_fitting_date || '';
 
@@ -782,10 +859,10 @@ KK.app = (function () {
 
   async function saveOrder() {
     const items = readItems().map((it) => ({ name: it.name, qty: it.qty, price: it.price, cost: it.cost }));
+    /* Neither document_date nor status is sent: the first is stamped when a
+       PDF is generated, the second is set by the events that earn it. */
     state.order = await db.updateOrder(state.order.id, {
       title: orNull(el.oTitle.value),
-      document_date: el.oDate.value || U.todayISO(),
-      status: el.oStatus.value,
       items: items,
       includes: checkedIncludes(),
       fitting_1_date: orNull(el.oFitting1.value),
@@ -831,12 +908,13 @@ KK.app = (function () {
         '</label>' +
       '</div>' +
       '<span class="item__sum js-sum"></span>' +
-      '<label class="field field--cost">' +
-        '<span class="field__label">Production cost <span class="tag">Internal</span></span>' +
+      '<label class="field">' +
+        '<span class="field__label">Est. production cost <span class="tag">Internal</span></span>' +
         '<span class="prefixed">' +
           '<span class="prefix">Rp</span>' +
           '<input class="input js-cost" type="text" inputmode="numeric" placeholder="0">' +
         '</span>' +
+        '<span class="field__hint js-costhint"></span>' +
       '</label>' +
       '<span class="err js-err" hidden></span>';
 
@@ -858,6 +936,21 @@ KK.app = (function () {
     return row;
   }
 
+  /* The ceiling a unit's production cost should stay under to leave the
+     studio its margin. Same figure as the first deposit, by coincidence — this
+     one is about what an item costs to make, not what has been paid for it. */
+  const COST_BUDGET_SHARE = 0.35;
+
+  /** Nothing to aim at until there is a price to take a share of. */
+  function costHint(price, cost) {
+    if (!price) return { text: '', over: false };
+    const budget = Math.round(price * COST_BUDGET_SHARE);
+    if (cost > budget) {
+      return { text: U.formatRupiah(cost - budget) + ' over the 35% target', over: true };
+    }
+    return { text: 'Keep under ' + U.formatRupiah(budget) + ' (35% of price)', over: false };
+  }
+
   /* Qty × price per row, and the order total in the card header — the editor
      otherwise made you hold both sums in your head until you saved. */
   function refreshItemTotals() {
@@ -867,6 +960,13 @@ KK.app = (function () {
       total += line;
       const sum = $('.js-sum', it.row);
       if (sum) sum.textContent = (it.qty > 1 && it.price > 0) ? U.formatRupiah(line) : '';
+
+      const hintNode = $('.js-costhint', it.row);
+      if (hintNode) {
+        const hint = costHint(it.price, it.cost);
+        hintNode.textContent = hint.text;
+        hintNode.classList.toggle('field__hint--over', hint.over);
+      }
     });
     el.itemsTotal.textContent = total > 0 ? U.formatRupiah(total) : '';
   }
@@ -993,6 +1093,10 @@ KK.app = (function () {
     setBusy(kind, false);
     showToast(docs.DOCS[kind].name + ' downloaded');
 
+    // Sending a quotation means it has been quoted; sending an invoice means
+    // the order is confirmed. Only ever forward.
+    await bumpStatus(kind === 'invoice' ? 'Confirmed' : 'Quoted');
+
     // The file is already on disk by now. A log failure is worth reporting but
     // must not read as a failed download.
     try {
@@ -1029,6 +1133,8 @@ KK.app = (function () {
       });
       el.paymentChooserOptions.hidden = true;
       showToast(depositName(i) + ' logged');
+      // Money down means the work is under way.
+      await bumpStatus('In production');
       await refreshHistory();
     } catch (err) {
       console.error(err);
@@ -1074,7 +1180,11 @@ KK.app = (function () {
   function bindEvents() {
     window.addEventListener('hashchange', handleRoute);
 
-    el.backBtn.addEventListener('click', () => history.back());
+    /* Up and Home are plain <a href="#/…">, so they route through hashchange
+       and pick up the unsaved-changes guard for free — no handlers needed. */
+    el.pageAction.addEventListener('click', () => {
+      if (pageActionHandler) pageActionHandler();
+    });
 
     el.saveBtn.addEventListener('click', async () => {
       if (state.saving) return;
@@ -1086,7 +1196,7 @@ KK.app = (function () {
           const id = state.order.id;
           await saveOrder();
           showToast('Order saved');
-          go('#/order/' + id);
+          leaveFormFor('#/order/' + id);
         }
       } catch (err) {
         console.error(err);
@@ -1128,24 +1238,10 @@ KK.app = (function () {
     /* -- customer list / overview -- */
 
     el.customerSearch.addEventListener('input', renderCustomerList);
-    el.overviewRange.addEventListener('change', () => {
-      state.overviewRange = el.overviewRange.value;
-      renderOverviewMoney();
-    });
 
     el.newCustomer.addEventListener('click', () => go('#/customer/new'));
 
     /* -- customer detail -- */
-
-    el.editCustomerBtn.addEventListener('click', () => setCustomerMode(true));
-
-    /* Opening the form and changing nothing used to leave you stuck in it. */
-    el.cancelCustomerBtn.addEventListener('click', () => {
-      if (!confirmLeave()) return;
-      fillCustomerForm(state.customer);
-      setDirty(false);
-      setCustomerMode(false);
-    });
 
     $$('.js-cfield').forEach((input) => {
       input.addEventListener('input', () => {
@@ -1178,8 +1274,6 @@ KK.app = (function () {
     });
 
     /* -- order detail -- */
-
-    el.editOrderBtn.addEventListener('click', () => go('#/order/' + state.order.id + '/edit'));
 
     el.logPaymentBtn.addEventListener('click', () => {
       if (!el.paymentChooserOptions.hidden) { el.paymentChooserOptions.hidden = true; return; }

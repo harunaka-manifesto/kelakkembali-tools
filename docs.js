@@ -24,6 +24,12 @@ KK.docs = (function () {
   const DEPOSIT_LABELS = ['1st deposit - 35%', '2nd deposit - 35%', '3rd deposit - 30%'];
   const DEPOSIT_SHARES = [0.35, 0.35, 0.30];
 
+  /* Every face the two documents can paint with: .q-r is 400, .q-b is 600, and
+     the 44px title is the only size that differs enough to be worth loading in
+     its own right. Both the live document and html2canvas's clone wait on
+     these, so neither can be snapshotted mid-swap. */
+  const DOC_FACES = ['400 13px "Aileron"', '600 13px "Aileron"', '600 44px "Aileron"'];
+
   const PDF_PAGE_WIDTH_PT = 595.28;  // A4 width, so the file still prints sensibly
   const SNAPSHOT_SCALE = 3;
   const Q_PAD = 32;                  // the document's own padding, in CSS px
@@ -248,11 +254,7 @@ KK.docs = (function () {
   async function fontsReady() {
     if (!document.fonts) return;
     try {
-      await Promise.all([
-        document.fonts.load('400 13px "Plus Jakarta Sans"'),
-        document.fonts.load('600 13px "Plus Jakarta Sans"'),
-        document.fonts.load('600 44px "Plus Jakarta Sans"')
-      ]);
+      await Promise.all(DOC_FACES.map((face) => document.fonts.load(face)));
       await document.fonts.ready;
     } catch (e) { /* fall through to the system fallback */ }
   }
@@ -271,11 +273,7 @@ KK.docs = (function () {
     }
     if (!doc.fonts) return;
     try {
-      await Promise.all([
-        doc.fonts.load('400 13px "Plus Jakarta Sans"'),
-        doc.fonts.load('600 13px "Plus Jakarta Sans"'),
-        doc.fonts.load('600 44px "Plus Jakarta Sans"')
-      ]);
+      await Promise.all(DOC_FACES.map((face) => doc.fonts.load(face)));
       await doc.fonts.ready;
     } catch (e) { /* fall through to the system fallback */ }
   }

@@ -95,11 +95,13 @@ Three tables (see [`schema.sql`](schema.sql)):
 
 - **`customers`** — name, phone, Instagram, source, wedding date, estimated
   first and final fitting dates, notes.
-- **`orders`** — belongs to a customer; carries the document date, a status
-  (`Draft` → `Quoted` → `Confirmed` → `In production` → `Delivered`), and the
-  `items` and `includes` as `jsonb`. Both are short, always read and written
-  whole, and order-sensitive; child tables would buy nothing and cost a
-  position column plus two round trips per save.
+- **`orders`** — belongs to a customer; carries a status
+  (`Quoted` → `Confirmed` → `In production` → `Delivered`) and the `items` and
+  `includes` as `jsonb`. Both are short, always read and written whole, and
+  order-sensitive; child tables would buy nothing and cost a position column
+  plus two round trips per save. `document_date` is still on the table for
+  compatibility but is no longer read or written by the app — see
+  *Order status* below.
 - **`document_log`** — one row per PDF actually saved: which kind, when, and
   for how much. No files, just the numbers. Rows are kept verbatim when the
   order is later edited, which is the whole point of having them.
@@ -119,6 +121,40 @@ view — by link, by back button, or by reloading — asks first.
 
 Downloading always saves first. The log is a record of what was sent, so what
 was sent has to be what is stored.
+
+### Navigation
+
+Up, not Back. The arrow in the app bar is a fixed link to the record's parent —
+labelled with where it lands — so it is one level, every time, however you got
+there. `history.back()` replayed pages you had already left: save a new customer
+and it walked you straight back into the empty form. A **Home** button sits
+beside it wherever Up does not already point at the customer list.
+
+Finishing a form replaces its history entry rather than pushing past it, so the
+browser's own Back cannot reopen something you have already completed. Where the
+destination is the entry you came from, the app unwinds to it instead of
+replacing — two identical adjacent entries would make the first Back press look
+broken.
+
+There are no breadcrumbs. Up names the level above and the page title names this
+one; a trail could only restate both, and wrapped onto two lines to do it.
+
+### Order status
+
+Status is read off what has happened, not set by hand — there is no status
+field in the editor. Each event raises a floor and never lowers one, so
+re-sending a quotation for an order already in production tells the record
+nothing new:
+
+| Event | Status becomes at least |
+| --- | --- |
+| Quotation PDF downloaded | `Quoted` |
+| Invoice PDF downloaded | `Confirmed` |
+| Any deposit logged | `In production` |
+
+`Delivered` is derived rather than stored: an order shows as delivered once the
+customer's wedding date is in the past. Nobody marks a wedding as having
+happened, and the date that decides it stays correctable afterwards.
 
 ### Rendering
 
@@ -222,10 +258,30 @@ their three descriptions. Payment terms show percentages only, as in Figma.
 The `Price` column shows each item's **unit** price; the Total is
 `Σ (qty × price)`.
 
+### The document typeface
+
+Both documents are set in **Aileron** (Sora Sagano, released into the public
+domain by [dot colon](https://dotcolon.net/font/aileron/), v1.02) — Regular for
+body and SemiBold for labels, which is every weight either document uses. The
+app UI keeps Plus Jakarta Sans; only the two `.q` templates changed.
+
+Both faces are subset to latin and inlined into `fonts.css` as data URIs, for
+the same reason Plus Jakarta Sans is: html2canvas snapshots each document
+through a clone in its own iframe, which re-resolves font references from
+scratch. A URL there is a race the PDF can lose — the clone lays text out in a
+fallback while the glyphs are painted from the real face. A data URI has nothing
+to fetch, so the clone cannot miss it.
+
+Each `src` must be **one unbroken line**. An unquoted `url()` may not contain
+whitespace and a quoted CSS string may not contain a raw newline, so wrapping
+the base64 for readability drops the face silently — the document keeps
+rendering, just in the system fallback.
+
 ### A note on rendered font weight
 
 Every text node is exactly Figma's weight — 400 body, 600 labels. Measured ink
-coverage of the table against Figma's own render of node `2:245`:
+coverage of the table against Figma's own render of node `2:245`, taken while
+the documents were still set in Plus Jakarta Sans:
 
 | | mean luminance | ink fraction |
 |---|---|---|
@@ -282,7 +338,11 @@ the quotation, from the identical code path.
 - **Total** — auto-calculated, live, never entered by hand.
 - **Currency** — `Rp7.225.000`: dot thousands separators, no decimals, no space
   after `Rp`. Formatted manually, since `Intl` for `id-ID` inserts a space.
-- **Date** — always rendered `D Month YYYY` ("21 March 2026"), defaults to today.
+- **Document date** — always the day the PDF is generated, rendered
+  `D Month YYYY` ("21 March 2026"). It is not a field: a document is dated when
+  it is issued, and a date you had to remember to set was one more thing to get
+  wrong. Note that it feeds the watermark seed, so the same order downloaded on
+  two different days yields two distinguishable files.
 - **Includes** — six standing options plus any number of user-added ones, all
   six ticked on a new order because that is what the studio actually includes.
   Only ticked entries render, joined by 3px bullets with no trailing bullet.
@@ -314,6 +374,15 @@ the quotation, from the identical code path.
 - **Empty orders** — both download buttons are disabled until the order has at
   least one named item with a price, since the alternative is a document with
   no lines on it.
+- **Production cost** — internal, per unit, never printed. The field carries a
+  live target of 35% of that item's price: under it the hint names the ceiling,
+  over it the hint names the overshoot. It is guidance, not validation — nothing
+  is blocked.
+- **Homepage** — the three active customers with the soonest date still ahead of
+  them, sorted by whichever of wedding or fitting comes first and labelled with
+  which one it is. A customer is active until every order they have is
+  delivered; someone with no orders yet counts as active, since they are the one
+  who needs one.
 
 ## Assets
 

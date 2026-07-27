@@ -46,15 +46,28 @@
 
 <header class="appbar">
   <div class="appbar__inner">
-    <button type="button" class="appbar__back" id="backBtn" aria-label="Back" hidden>
+    <!-- Up, not Back. history.back() replayed pages you had already left — save
+         a new customer and it walked you into the form you just came out of.
+         This is always exactly one level, and it says where it lands. -->
+    <a class="appbar__up" id="upLink" href="#/customers" hidden>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-           stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
-    </button>
-    <img class="appbar__mark" id="appbarMark" src="assets/logo-header.png" alt="">
-    <div class="appbar__text">
-      <h1 id="viewTitle">Customers</h1>
-      <p id="viewSub">Kelak Kembali</p>
-    </div>
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+      <span class="appbar__up-label" id="upLabel"></span>
+    </a>
+
+    <span class="appbar__brand" id="appbarBrand">
+      <img class="appbar__mark" src="assets/logo-header.png" alt="">
+      <span class="appbar__wordmark">Kelak Kembali</span>
+    </span>
+
+    <!-- Only where Up does not already go there: two adjacent controls with the
+         same destination is one control too many. -->
+    <a class="appbar__icon" id="homeLink" href="#/customers" aria-label="All customers" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3.2 10.6 12 3.4l8.8 7.2"/><path d="M5.6 9.6V20.6h12.8V9.6"/>
+      </svg>
+    </a>
 
     <!-- Rare and destructive actions live behind this one control, so the bar
          never competes with the page's own primary action. -->
@@ -73,69 +86,63 @@
   </div>
 </header>
 
-<nav class="breadcrumbs" id="breadcrumbs" aria-label="Breadcrumb"></nav>
-
 <main class="page">
+
+  <!-- The title sits in the page, not the bar: it can then run full length
+       instead of truncating, and Edit reads as governing the whole page rather
+       than the one card it used to sit inside. -->
+  <div class="pagehead">
+    <div class="pagehead__text">
+      <h1 class="pagehead__title" id="viewTitle">Customers</h1>
+      <p class="pagehead__sub" id="viewSub" hidden></p>
+    </div>
+    <button type="button" class="btn btn--outline btn--sm" id="pageAction" hidden></button>
+  </div>
 
   <!-- --------------------------- Customer list --------------------------- -->
   <section class="view" id="viewCustomers">
-    <section class="card" id="overviewCard">
-      <div class="overview__grid">
-        <div class="stat"><span class="stat__label">Active</span><strong class="stat__value" id="overviewActive"></strong></div>
-        <div class="stat"><span class="stat__label">Finished</span><strong class="stat__value" id="overviewFinished"></strong></div>
-      </div>
 
-      <!-- The range only ever scoped these two tiles, so it sits with them
-           rather than at the top of the card, where it read as filtering all four. -->
-      <div class="card__head card__head--sub">
-        <h2 class="card__title">Money in</h2>
-        <select class="input input--sm" id="overviewRange" aria-label="Period">
-          <option value="month">This month</option>
-          <option value="all">All time</option>
-        </select>
-      </div>
-      <div class="overview__grid">
-        <div class="stat"><span class="stat__label">Gross</span><strong class="stat__value" id="overviewGross"></strong></div>
-        <div class="stat"><span class="stat__label">Profit</span><strong class="stat__value" id="overviewProfit"></strong></div>
-      </div>
-
-      <p class="overview__nearest" id="overviewNearest"></p>
+    <!-- The three customers with the soonest date still ahead of them, each
+         labelled with which date it is. Tapping one opens that customer. -->
+    <section class="deadlines" id="deadlines" hidden>
+      <h2 class="deadlines__title">Coming up</h2>
+      <div class="deadlines__cards" id="deadlineCards"></div>
     </section>
 
-    <div class="searchrow">
-      <input class="input" id="customerSearch" type="search" enterkeyhint="search"
-             placeholder="Search customers" autocapitalize="none" spellcheck="false">
-    </div>
-    <div class="list" id="customerList"></div>
-    <button type="button" class="btn btn--outline btn--new btn--block" id="newCustomer">
-      <span aria-hidden="true">+</span> New customer
-    </button>
+    <section class="card card--list">
+      <!-- Search belongs to the list it filters, and is the first thing you
+           reach for once there are more than a screenful of names. -->
+      <div class="searchrow">
+        <svg class="searchrow__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="7"/><path d="M16.5 16.5L21 21"/>
+        </svg>
+        <input class="input input--search" id="customerSearch" type="search" enterkeyhint="search"
+               placeholder="Search customers" autocapitalize="none" spellcheck="false">
+      </div>
+      <div class="list" id="customerList"></div>
+      <button type="button" class="btn btn--outline btn--new btn--block" id="newCustomer">
+        <span aria-hidden="true">+</span> New customer
+      </button>
+    </section>
   </section>
 
   <!-- -------------------------- Customer detail -------------------------- -->
   <section class="view" id="viewCustomer" hidden>
+    <!-- The name is the page title now, so it is not repeated here; the wedding
+         date leads instead, since every other date works backwards from it. -->
     <section class="card" id="customerViewCard">
-      <div class="card__head">
-        <h2 class="card__title">Customer</h2>
-        <button type="button" class="btn btn--outline btn--sm" id="editCustomerBtn">Edit</button>
-      </div>
       <dl class="infolist">
-        <div><dt>Name</dt><dd id="dName"></dd></div>
+        <div><dt>Wedding</dt><dd id="dWedding"></dd></div>
         <div><dt>Phone / WhatsApp</dt><dd id="dPhone"></dd></div>
         <div><dt>Instagram</dt><dd id="dInstagram"></dd></div>
         <div><dt>Source</dt><dd id="dSource"></dd></div>
-        <div><dt>Wedding</dt><dd id="dWedding"></dd></div>
         <div class="infolist__stack"><dt>Notes</dt><dd id="dNotes"></dd></div>
         <div><dt>Customer since</dt><dd id="dCreated"></dd></div>
       </dl>
     </section>
 
     <section class="card" id="customerEditCard" hidden>
-      <div class="card__head">
-        <h2 class="card__title">Edit customer</h2>
-        <button type="button" class="btn btn--outline btn--sm" id="cancelCustomerBtn">Cancel</button>
-      </div>
-
       <label class="field" for="cName">
         <span class="field__label">Name</span>
         <input class="input js-cfield" id="cName" type="text" placeholder="e.g. Jane Doe"
@@ -181,7 +188,10 @@
     </section>
 
     <section class="card" id="customerOrdersCard">
-      <h2 class="card__title">Orders</h2>
+      <div class="card__head">
+        <h2 class="card__title">Orders</h2>
+        <span class="card__count" id="ordersTotal"></span>
+      </div>
       <div class="list" id="orderList"></div>
       <button type="button" class="btn btn--outline btn--new btn--block" id="newOrder">
         <span aria-hidden="true">+</span> New order
@@ -200,21 +210,9 @@
                placeholder="e.g. Bride, Groom, Sister — Maid of Honor" autocapitalize="words" spellcheck="false">
       </label>
 
-      <label class="field" for="oDate">
-        <span class="field__label">Document date</span>
-        <input class="input js-ofield" id="oDate" type="date">
-      </label>
-
-      <label class="field" for="oStatus">
-        <span class="field__label">Status</span>
-        <select class="input js-ofield" id="oStatus">
-          <option>Quoted</option>
-          <option>Confirmed</option>
-          <option>In production</option>
-          <option>Delivered</option>
-        </select>
-      </label>
-
+      <!-- No document date: it was only ever the date printed on the PDF, and a
+           document is dated the day it is issued. Downloads stamp today.
+           No status either — the log sets it. See "Order status" in the README. -->
       <div class="grid2 grid2--dates">
         <label class="field" for="oFitting1">
           <span class="field__label">First fitting</span>
@@ -252,27 +250,13 @@
 
   <!-- ---------------------------- Order detail ---------------------------- -->
   <section class="view" id="viewOrder" hidden>
-    <section class="card">
-      <div class="card__head">
-        <h2 class="card__title">Order</h2>
-        <button type="button" class="btn btn--outline btn--sm" id="editOrderBtn">Edit</button>
-      </div>
-      <dl class="infolist">
-        <div><dt>Status</dt><dd><span class="badge" id="oStatusBadge"></span></dd></div>
-        <div><dt>Document date</dt><dd id="oDateDisplay"></dd></div>
-        <div><dt>First fitting</dt><dd id="oFitting1Display"></dd></div>
-        <div><dt>Final fitting</dt><dd id="oFittingFinalDisplay"></dd></div>
-      </dl>
-    </section>
 
+    <!-- Items lead: they are what the page is about, and the same table the
+         customer sees on the document — plus the one row they never do. -->
     <section class="card">
       <h2 class="card__title">Items</h2>
-      <div class="loglist" id="oItemsDisplay"></div>
-      <p class="meta meta--includes" id="oIncludesDisplay"></p>
-      <div class="internal">
-        <span class="internal__label">Nett profit <span class="tag">Internal</span></span>
-        <span class="internal__value" id="oNettProfit"></span>
-      </div>
+      <div class="table" id="oItemsDisplay"></div>
+      <p class="meta" id="oIncludesDisplay"></p>
     </section>
 
     <section class="card">
@@ -282,6 +266,15 @@
       <button type="button" class="btn btn--outline btn--block" id="logPaymentBtn">
         Log a payment
       </button>
+    </section>
+
+    <section class="card">
+      <h2 class="card__title">Schedule</h2>
+      <dl class="infolist">
+        <div><dt>First fitting</dt><dd id="oFitting1Display"></dd></div>
+        <div><dt>Final fitting</dt><dd id="oFittingFinalDisplay"></dd></div>
+        <div><dt>Wedding</dt><dd id="oWeddingDisplay"></dd></div>
+      </dl>
     </section>
 
     <details class="card card--fold">

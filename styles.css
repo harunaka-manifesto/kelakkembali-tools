@@ -156,60 +156,77 @@ body {
   border-bottom: 1px solid var(--line);
 }
 
+/* The bar now holds navigation only — no title, no page action. That is what
+   lets a labelled Up button and two icons fit a 320px screen without any of
+   them truncating. */
 .appbar__inner {
   max-width: 560px;
   margin: 0 auto;
-  padding: 10px 14px 10px 8px;
-  padding-top: calc(10px + env(safe-area-inset-top, 0px));
+  padding: 6px 14px 6px 8px;
+  padding-top: calc(6px + env(safe-area-inset-top, 0px));
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
 }
 
-/* The back button carries its own 44px of padding, so the row keeps the
-   optical 20px inset without spending it twice. */
-.appbar__back + .appbar__text,
-.appbar__mark { margin-left: 6px; }
-
-/* Branding only earns its 38px on the root view, where there is no back button
-   competing for the same corner. Deep views give the space to the title. */
-.appbar__mark {
-  width: 38px;
-  height: auto;
-  flex: none;
-}
-
-.appbar__mark[hidden] { display: none; }
-
-.appbar__text {
-  flex: 1 1 auto;
+/* An unlabelled chevron only ever says "somewhere behind you". This says where,
+   which is the whole point of Up over Back. */
+.appbar__up {
+  flex: 0 1 auto;
   min-width: 0;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 10px 0 4px;
+  border-radius: 22px;
+  color: var(--ink);
+  text-decoration: none;
+  transition: background .15s ease;
 }
 
-.appbar__text h1 {
-  margin: 0;
-  font-size: 17px;
-  font-weight: 600;
-  letter-spacing: -0.4px;
-}
+.appbar__up:hover { background: rgba(23, 21, 15, 0.07); }
+.appbar__up[hidden] { display: none; }
+.appbar__up svg { width: 20px; height: 20px; flex: none; }
 
-/* The subtitle carries the customer name in the detail views, which can be
-   long — it truncates rather than pushing the buttons off the bar. */
-.appbar__text p {
-  margin: 0;
+.appbar__up-label {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
+  letter-spacing: -0.2px;
 }
 
-/* 44px is the floor for a touch target, and these two are the most-used
-   controls in the app. They were 38. */
-.appbar__back,
+/* Root view only, where nothing else needs the corner. */
+.appbar__brand {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-left: 6px;
+}
+
+.appbar__brand[hidden] { display: none; }
+.appbar__mark { width: 34px; height: auto; flex: none; }
+
+.appbar__wordmark {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+
+/* Pushes the icons to the right whichever of Up / brand is showing. */
+.appbar__up,
+.appbar__brand { margin-right: auto; }
+
+/* 44px is the floor for a touch target, and these are the most-used controls
+   in the app. They were 38. */
 .appbar__icon {
   width: 44px;
   height: 44px;
@@ -221,16 +238,14 @@ body {
   border: 1px solid transparent;
   border-radius: 50%;
   color: var(--ink);
+  text-decoration: none;
   cursor: pointer;
   transition: background .15s ease;
 }
 
-.appbar__back:hover,
 .appbar__icon:hover { background: rgba(23, 21, 15, 0.07); }
-
-.appbar__back[hidden] { display: none; }
-.appbar__back svg { width: 20px; height: 20px; }
-.appbar__icon svg { width: 18px; height: 18px; color: var(--muted); }
+.appbar__icon[hidden] { display: none; }
+.appbar__icon svg { width: 19px; height: 19px; color: var(--muted); }
 
 /* ------------------------------ Overflow menu ---------------------------- */
 
@@ -278,40 +293,44 @@ body {
 .menu__item--danger { color: var(--danger); }
 .menu__item--danger:hover { background: rgba(164, 52, 31, 0.09); }
 
-/* ----------------------------- Breadcrumbs ------------------------------ */
+/* ------------------------------ Page header ------------------------------ */
 
-/* Hidden on phones: the app bar already carries a back button, the view title
-   and the customer name, so a four-level trail wrapping onto two lines was
-   restating what was directly above it and costing a fifth of the fold. */
-.breadcrumbs {
-  display: none;
-  max-width: 560px;
-  margin: 0 auto;
-  padding: 10px 20px 0;
-  flex-wrap: wrap;
+/* The trail is gone. Up already names the level above, and the title below
+   names this one — a breadcrumb could only restate both, and it wrapped onto
+   two lines to do it. */
+.pagehead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.pagehead__text { min-width: 0; }
+
+.pagehead__title {
+  margin: 0;
+  font-size: 25px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.7px;
+  overflow-wrap: anywhere;
+}
+
+.pagehead__sub {
+  margin: 5px 0 0;
+  display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12.5px;
-}
-
-@media (min-width: 640px) {
-  .breadcrumbs { display: flex; }
-  .breadcrumbs:empty { display: none; }
-}
-
-.breadcrumbs__item {
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  font-size: 13px;
   color: var(--muted);
-  text-decoration: none;
 }
 
-a.breadcrumbs__item:hover { color: var(--ink); text-decoration: underline; }
+.pagehead__sub[hidden] { display: none; }
 
-.breadcrumbs__item--current {
-  color: var(--ink);
-  font-weight: 600;
-}
-
-.breadcrumbs__sep { color: var(--faint); }
+/* Aligns with the cap height of the title rather than the top of its line box. */
+.pagehead > .btn { margin-top: 2px; }
 
 /* -------------------------------- Layout -------------------------------- */
 
@@ -408,33 +427,8 @@ body.has-savebar .page {
 .card--fold[open] .card__title--summary::after { transform: translateY(1px) rotate(225deg); }
 .card__title--summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 
-/* The one figure on this page the customer must never see. Marked, not
-   quarantined in a card of its own. */
-.internal {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 11px 12px;
-  background: var(--surface);
-  border-radius: 9px;
-}
-
-.internal__label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.internal__value {
-  font-size: 14px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
 .tag {
+  flex: none;
   padding: 2px 7px;
   border: 1px solid var(--line-2);
   border-radius: 999px;
@@ -442,6 +436,7 @@ body.has-savebar .page {
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  white-space: nowrap;          /* "INTERN / AL" is not a warning */
   color: var(--muted);
 }
 
@@ -463,10 +458,6 @@ body.has-savebar .page {
   font-size: 13px;
 }
 
-/* A second heading inside a card that already has one. */
-.card__head--sub { margin-top: 2px; }
-.card__head--sub .card__title { white-space: nowrap; }
-
 .card__hint {
   margin: -8px 0 0;
   font-size: 13px;
@@ -475,9 +466,119 @@ body.has-savebar .page {
 
 .card__hint[hidden] { display: none; }
 
+/* ------------------------------- Deadlines ------------------------------- */
+
+/* The three customers with the soonest date still ahead. This is the only
+   thing on the homepage that is time-sensitive, so it is the only thing above
+   the list. */
+.deadlines {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.deadlines[hidden] { display: none; }
+
+.deadlines__title {
+  margin: 0 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--label);
+}
+
+.deadlines__cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.deadline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line-2);
+  border-radius: 10px;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color .15s ease, background .15s ease;
+}
+
+.deadline:hover { background: #fff; border-color: var(--line-2); }
+
+/* A week out is when a fitting stops being a plan and starts being a problem. */
+.deadline--soon { border-left-color: var(--danger); }
+.deadline--soon .deadline__when { color: var(--danger); }
+
+.deadline__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.deadline__name {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deadline__what {
+  font-size: 12.5px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deadline__when {
+  flex: none;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 /* --------------------------- Lists and records --------------------------- */
 
-.searchrow { display: flex; }
+/* Grouped with the list it filters, and given the height of a primary control
+   rather than sitting loose above the cards as a plain text box. */
+.searchrow { position: relative; display: flex; }
+
+.searchrow__icon {
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  transform: translateY(-50%);
+  color: var(--label);
+  pointer-events: none;
+}
+
+/* Two classes deep on purpose: .input is declared further down this file, so a
+   single-class rule here would lose the padding to it and the placeholder
+   would start underneath the icon. */
+.input.input--search {
+  min-height: 52px;
+  padding-left: 43px;
+  background-color: var(--surface);
+  border-color: transparent;
+}
+
+.input.input--search:focus { background-color: #fff; }
+.input--search::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+
+/* A card whose whole job is to hold the list — the search field is its
+   heading, so it needs no other one. */
+.card--list { gap: 12px; }
 
 .list {
   display: flex;
@@ -596,24 +697,40 @@ body.has-savebar .page {
 
 .infolist__stack dd { text-align: left; }
 
-/* ------------------------------ Overview stats --------------------------- */
+/* ------------------------------- Items table ----------------------------- */
 
-.overview__grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.stat {
+/* The same three columns, in the same order, as the table on the quotation and
+   the invoice — so what you check here is what the customer receives. The one
+   row they never see is the last one. */
+.table {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 10px 12px;
-  background: var(--surface);
-  border-radius: 10px;
 }
 
-.stat__label {
+.table__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px minmax(0, auto);
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 2px;
+  font-size: 13.5px;
+  border-top: 1px solid var(--line);
+}
+
+.table__row:first-child { border-top: none; }
+
+.table__item { min-width: 0; overflow-wrap: anywhere; }
+
+.table__qty,
+.table__price {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Column headings, in the document's own wording. */
+.table__row--head {
+  padding-top: 0;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -621,18 +738,34 @@ body.has-savebar .page {
   color: var(--label);
 }
 
-.stat__value {
-  font-size: 18px;
+/* Total and Nett profit have no quantity, so their label takes that column and
+   both figures land on the same right edge as the prices above. */
+.table__row--total .table__item,
+.table__row--profit .table__item { grid-column: 1 / 3; }
+
+.table__row--total {
+  border-top-color: var(--line-2);
   font-weight: 700;
-  letter-spacing: -0.3px;
-  font-variant-numeric: tabular-nums;
 }
 
-.overview__nearest {
-  margin: 0;
-  padding: 0 2px;
-  font-size: 13px;
-  color: var(--muted);
+.table__row--total .table__price { font-size: 15px; }
+
+/* The one figure on this page the customer must never see. Marked, not
+   quarantined in a card of its own. */
+.table__row--profit .table__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.table__row--profit {
+  margin-top: 6px;
+  padding: 11px 12px;
+  background: var(--surface);
+  border-top: none;
+  border-radius: 9px;
+  font-weight: 700;
 }
 
 /* ------------------------------ Payment chooser --------------------------- */
@@ -717,10 +850,25 @@ body.has-savebar .page {
 }
 
 .field__label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   font-size: 13px;
   font-weight: 500;
   color: var(--muted);
 }
+
+/* Guidance under a field, not an error: the target a value should land under,
+   and what it costs when it does not. */
+.field__hint {
+  margin-top: -1px;
+  font-size: 12.5px;
+  color: var(--label);
+  font-variant-numeric: tabular-nums;
+}
+
+.field__hint:empty { display: none; }
+.field__hint--over { color: var(--danger); font-weight: 600; }
 
 .input {
   width: 100%;
@@ -764,20 +912,6 @@ input[type="date"].input { min-height: 48px; }
   min-height: 0;
   line-height: 1.45;
   resize: vertical;
-}
-
-/* Defined after .input, which it has to beat — it sat before it and so had
-   never once applied, leaving every "small" control full size. */
-.input.input--sm {
-  width: auto;
-  min-height: 38px;
-  padding: 6px 30px 6px 10px;
-  font-size: 13px;
-  font-weight: 600;
-  background-color: transparent;
-  border-color: var(--line);
-  background-position: right 8px center;
-  background-size: 14px;
 }
 
 select.input {
@@ -1171,7 +1305,18 @@ select.input {
 }
 
 .actionbar__buttons { display: flex; gap: 8px; }
-.actionbar__buttons .btn { flex: 1 1 0; min-width: 0; }
+
+/* Two words on one line, always: a wrapping label makes the fixed bar taller,
+   which eats the page it is fixed over. The label shrinks instead. */
+.actionbar__buttons .btn {
+  flex: 1 1 0;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+@media (max-width: 359px) {
+  .actionbar__buttons .btn { font-size: 14px; padding-left: 8px; padding-right: 8px; }
+}
 
 /* --------------------------------- Toast -------------------------------- */
 
@@ -1230,7 +1375,7 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
   padding: 32px;
   background: #EBE9E4;
   color: #000;
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: 'Aileron', sans-serif;
   /* Chrome's mobile text autosizing must never touch this document. It inflates
      long paragraphs only — the description, never a table cell — and it does so
      at layout time, invisibly to getComputedStyle. html2canvas snapshots through
