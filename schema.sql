@@ -467,3 +467,55 @@ alter table public.intake_submissions enable row level security;
 drop policy if exists "signed-in full access" on public.intake_submissions;
 create policy "signed-in full access" on public.intake_submissions
   for all to authenticated using (true) with check (true);
+
+
+-- =========================================================================
+-- Migration — the customer status stops being a thing you set
+--
+-- The pipeline shipped as five stages you moved a customer through by hand.
+-- That was one more record to keep true, and in practice every stage worth
+-- knowing is already implied by something else that happened:
+--
+--   In consultation  no orders yet
+--   Ordering         at least one order exists
+--   Active           at least one order has a first payment
+--   Completed        the wedding date has passed
+--
+-- So it is derived, exactly as orders.status already is — see "The lifecycle"
+-- in the README. The stage column and its check constraint go, and the only
+-- thing left to store is the one fact no other record implies: that a customer
+-- decided not to proceed. That is what cancelled_at is.
+--
+-- consult_date goes with the stage that gave it meaning. moodboard_date stays:
+-- it is the one date with a promise attached (roughly a week), and it is what
+-- the consultation follow-up counts from.
+-- =========================================================================
+
+alter table public.customers add column if not exists cancelled_at timestamptz;
+alter table public.customers add column if not exists cancelled_reason text;
+
+-- Anyone already parked at 'Lost' meant exactly this. Done before the column
+-- is dropped, so the fact survives the stage that recorded it.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'customers'
+      and column_name = 'stage'
+  ) then
+    execute $mig$
+      update public.customers
+      set cancelled_at = coalesce(cancelled_at, updated_at, now())
+      where stage = 'Lost' and cancelled_at is null
+    $mig$;
+  end if;
+end
+$$;
+
+drop index if exists public.customers_stage_idx;
+alter table public.customers drop constraint if exists customers_stage_check;
+alter table public.customers drop column if exists stage;
+alter table public.customers drop column if exists lost_reason;
+alter table public.customers drop column if exists consult_date;
+
+create index if not exists customers_cancelled_idx on public.customers (cancelled_at);

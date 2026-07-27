@@ -1043,51 +1043,15 @@ body.has-savebar .page {
 .badge--in-production { border-color: #8C6E28; color: #4A3A14; background: rgba(140, 110, 40, 0.20); }
 .badge--delivered     { border-color: var(--ink); background: var(--ink); color: #fff; }
 
-/* Pipeline stages. Deliberately lighter than the order statuses above: the
-   early stages are a place in a queue, not a commitment, and the visual weight
-   should say so. Lost is the exception — it needs to read as an end. */
-.badge--enquiry      { border-color: rgba(23, 21, 15, 0.25); color: var(--muted); }
-.badge--consultation { border-color: rgba(23, 21, 15, 0.4); color: var(--ink); }
-.badge--moodboard    { border-color: #8C6E28; color: #6B5320; background: rgba(140, 110, 40, 0.10); }
-.badge--ordering     { border-color: #8C6E28; color: #4A3A14; background: rgba(140, 110, 40, 0.20); }
-.badge--lost         { border-color: rgba(23, 21, 15, 0.2); color: var(--muted);
-                       background: rgba(23, 21, 15, 0.04); text-decoration: line-through; }
-
-/* -------------------------------- Pipeline ------------------------------- */
-
-/* Five stages across, scrollable rather than wrapped: wrapping turned the row
-   into a block that read as a list of options, and the point of the row is
-   that it is a track with a position on it. */
-.stager {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  margin: 0 -16px;
-  padding: 2px 16px 8px;
-}
-.stager::-webkit-scrollbar { display: none; }
-
-.stager__btn {
-  flex: 0 0 auto;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: transparent;
-  padding: 7px 13px;
-  font: inherit;
-  font-size: 13px;
-  color: var(--muted);
-  white-space: nowrap;
-  cursor: pointer;
-}
-.stager__btn:hover { border-color: var(--ink); color: var(--ink); }
-
-.stager__btn.is-current {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: #fff;
-  cursor: default;
-}
+/* Customer statuses. They gain weight as the commitment does: a conversation
+   is the lightest thing on the page, money in is the heaviest. Completed and
+   Cancelled both read as endings, but only one of them is a good one. */
+.badge--in-consultation { border-color: rgba(23, 21, 15, 0.25); color: var(--muted); }
+.badge--ordering        { border-color: #8C6E28; color: #6B5320; background: rgba(140, 110, 40, 0.10); }
+.badge--active          { border-color: #8C6E28; color: #4A3A14; background: rgba(140, 110, 40, 0.20); }
+.badge--completed       { border-color: var(--ink); background: var(--ink); color: #fff; }
+.badge--cancelled       { border-color: rgba(23, 21, 15, 0.2); color: var(--muted);
+                          background: rgba(23, 21, 15, 0.04); text-decoration: line-through; }
 
 /* ------------------------------- Segmented ------------------------------- */
 
@@ -1558,6 +1522,22 @@ select.input {
 .btn--danger:hover { background: rgba(164, 52, 31, 0.08); border-color: var(--danger); }
 
 .btn--danger[hidden] { display: none; }
+
+/* Quieter than outline, and deliberately so. Marking a customer as not
+   proceeding is reversible and loses nothing, so it does not warrant the red of
+   a delete — but it is also not something to reach for by accident on the way
+   past, so it does not get a border either. */
+.btn--quiet {
+  min-height: 44px;
+  margin-top: 4px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.btn--quiet:hover { background: rgba(23, 21, 15, 0.05); color: var(--ink); }
+.btn--quiet[hidden] { display: none; }
 
 .btn--primary {
   width: 100%;

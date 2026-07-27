@@ -140,7 +140,7 @@ KK.db = (function () {
 
   const CUSTOMER_FIELDS =
     'id,name,phone,instagram,source,wedding_date,wedding_date_precision,notes,' +
-    'stage,consult_date,moodboard_date,lost_reason,' +
+    'moodboard_date,cancelled_at,cancelled_reason,' +
     'follow_up_date,follow_up_label,follow_up_google_event_id,follow_up_synced_at,' +
     'created_at';
 

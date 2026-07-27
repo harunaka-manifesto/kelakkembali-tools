@@ -165,27 +165,20 @@
   <section class="view" id="viewCustomer" hidden>
     <!-- The name is the page title now, so it is not repeated here; the wedding
          date leads instead, since every other date works backwards from it. -->
-    <!-- Where they are in the pipeline and what you owe them next. Above the
-         details because before an order exists this is the entire record —
-         everything below is reference, this is the thing to act on. -->
-    <section class="card" id="pipelineCard">
-      <div class="card__head">
-        <h2 class="card__title">Pipeline</h2>
-        <span id="dStageBadge"></span>
-      </div>
-      <div class="stager" id="stageButtons"></div>
-      <p class="card__hint" id="dFollowUp"></p>
-    </section>
-
+    <!-- No status control anywhere on this page. Where a customer is follows
+         from what already exists — no orders, an order, a payment, a wedding
+         in the past — so it is read off those and shown in the page head, the
+         same as an order's status. The only thing you can set is the one thing
+         nothing else implies: that they decided not to go ahead. -->
     <section class="card" id="customerViewCard">
+      <p class="card__hint" id="followUpLine"></p>
       <dl class="infolist">
         <div><dt>Wedding</dt><dd id="dWedding"></dd></div>
         <div><dt>Phone / WhatsApp</dt><dd id="dPhone"></dd></div>
         <div><dt>Instagram</dt><dd id="dInstagram"></dd></div>
         <div><dt>Source</dt><dd id="dSource"></dd></div>
-        <div id="dConsultRow"><dt>Consultation</dt><dd id="dConsult"></dd></div>
         <div id="dMoodboardRow"><dt>Moodboard sent</dt><dd id="dMoodboard"></dd></div>
-        <div class="infolist__stack" id="dLostRow"><dt>Not proceeding</dt><dd id="dLost"></dd></div>
+        <div class="infolist__stack" id="dCancelledRow"><dt>Not proceeding</dt><dd id="dCancelled"></dd></div>
         <div class="infolist__stack"><dt>Notes</dt><dd id="dNotes"></dd></div>
         <div><dt>Customer since</dt><dd id="dCreated"></dd></div>
       </dl>
@@ -238,19 +231,17 @@
         <input class="input js-cfield" id="cWeddingMonth" type="month" aria-label="Wedding month" hidden>
       </div>
 
-      <div class="grid2">
-        <label class="field" for="cConsultDate">
-          <span class="field__label">Consultation</span>
-          <input class="input js-cfield" id="cConsultDate" type="date">
-        </label>
-        <label class="field" for="cMoodboardDate">
-          <span class="field__label">Moodboard sent</span>
-          <input class="input js-cfield" id="cMoodboardDate" type="date">
-        </label>
-      </div>
+      <!-- The one date in the early conversation with a promise attached, so
+           it is also what the follow-up below counts from. Filling it in moves
+           the chase to a week after the moodboard went out. -->
+      <label class="field" for="cMoodboardDate">
+        <span class="field__label">Moodboard sent</span>
+        <input class="input js-cfield" id="cMoodboardDate" type="date">
+      </label>
 
       <!-- Editable, because a nudge you cannot push back is a nudge you start
-           dismissing. Advancing a stage refills it; this is the override. -->
+           dismissing. The app sets one while there is no order yet; this is
+           the override. -->
       <div class="grid2">
         <label class="field" for="cFollowUpDate">
           <span class="field__label">Follow up on</span>
@@ -263,9 +254,9 @@
         </label>
       </div>
 
-      <label class="field" for="cLostReason" id="cLostField" hidden>
+      <label class="field" for="cCancelledReason" id="cCancelledField" hidden>
         <span class="field__label">Why it did not proceed</span>
-        <input class="input js-cfield" id="cLostReason" type="text"
+        <input class="input js-cfield" id="cCancelledReason" type="text"
                placeholder="e.g. Went with another studio" autocapitalize="sentences">
       </label>
 
@@ -286,6 +277,17 @@
         <span aria-hidden="true">+</span> New order
       </button>
     </section>
+
+    <!-- The foot of the page, after everything you would do with a customer who
+         is still going. Not a delete: the record stays, the name stays, and the
+         enquiry stops counting as live work. Deleting lives in the app bar
+         menu, where the other irreversible things are. -->
+    <button type="button" class="btn btn--quiet btn--block" id="cancelCustomer" hidden>
+      Mark as not proceeding
+    </button>
+    <button type="button" class="btn btn--outline btn--block" id="reopenCustomer" hidden>
+      Reopen this customer
+    </button>
   </section>
 
   <!-- ---------------------------- Order editor --------------------------- -->

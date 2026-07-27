@@ -99,9 +99,10 @@ and the storage layer can be swapped by rewriting `db.js` alone.
 See [`schema.sql`](schema.sql):
 
 - **`customers`** — name, phone, Instagram, source, notes, the wedding date and
-  how precisely it is known, plus the early pipeline: `stage`, the dates the
-  consultation and moodboard happened, and the one open follow-up. See
-  *The pipeline* below.
+  how precisely it is known, the date the moodboard went out, the one open
+  follow-up, and `cancelled_at`. There is no status column: every status but
+  Cancelled is derived from the orders and the wedding date. See
+  *The lifecycle* below.
 - **`orders`** — belongs to a customer; carries a status
   (`Quoted` → `Confirmed` → `In production` → `Delivered`), the first payment
   date, and the `items` and `includes` as `jsonb`. Both are short, always read
@@ -171,52 +172,64 @@ The app models the job as it actually runs:
 > **first payment** → design phase → fittings → wedding
 
 That is two ladders, not one, and they are split at the point where an order
-starts to exist.
+starts to exist. **Neither is something you set.** There is no status control
+anywhere in the app — both are read off records that exist anyway, which is both
+less work and harder to get wrong than a dropdown someone has to remember to
+move.
 
-**The pipeline** lives on the customer, because before the quotation there is no
-order for it to live on. Five stages, set by hand from the row of buttons on the
-customer page — `Enquiry` → `Consultation` → `Moodboard` → `Ordering`, plus
-`Lost` for one that went cold. Unlike the order status below, this one *is*
-something you set: there is no document to read a consultation off and no
-receipt for a moodboard, so the stage is a claim the studio makes rather than a
-fact the record already knows.
+**Customer status** lives on the customer, because before the quotation there is
+no order for it to live on. Shown beside the name and on every homepage card:
 
-What the app does with it is the automated part. Arriving at a stage stamps the
-date it happened and sets a single follow-up:
+| Status | Means |
+| --- | --- |
+| `In consultation` | No orders yet — still a conversation |
+| `Ordering` | At least one order exists |
+| `Active` | At least one order has a first payment |
+| `Completed` | The wedding date has passed |
+| `Cancelled` | They said no — the only one you set |
 
-| Stage | Chase | When |
-| --- | --- | --- |
-| `Enquiry` | Book consultation | 2 days after the customer was created |
-| `Consultation` | Moodboard due | 7 days after the consultation |
-| `Moodboard` | Follow up moodboard | 3 days after the moodboard went out |
-| `Ordering` | *(from the order status)* | see below |
-| `Lost` | — | nothing is chased |
+Read in that order, most decisive first: a cancelled customer stays cancelled
+whatever else is true, and a wedding in the past outranks a deposit. Creating an
+order or logging a payment moves the status on its own; there is nothing to
+click.
 
-Creating an order moves the customer to `Ordering` on its own. A customer marked
-`Lost` drops out of the homepage deadline strip without being deleted — the same
-couple may come back, and the history is worth having.
+`Cancelled` is the exception because it is the one thing no other record
+implies — nothing happens when a couple goes with another studio, so the
+absence of events cannot distinguish "lost" from "slow". **Mark as not
+proceeding** sits at the foot of the customer page and is offered only while
+there is no payment in; after money has landed the honest answer is a
+conversation about a refund, not a button. It hides nothing and deletes nothing:
+the record stays, and **Reopen this customer** puts them back. Cancelled and
+completed customers drop off the homepage deadline strip.
 
-**Order status** is the second ladder, and it is read off what has happened
-rather than set by hand — there is no status field in the editor. Each event
-raises a floor and never lowers one, so re-sending a quotation for an order
-already in production tells the record nothing new:
+**Order status** is the second ladder. Each event raises a floor and never
+lowers one, so re-sending a quotation for an order already in production tells
+the record nothing new:
 
-| Event | Status becomes at least | And chases |
-| --- | --- | --- |
-| Quotation PDF downloaded | `Quoted` | Follow up quotation, 3 days |
-| Invoice PDF downloaded | `Confirmed` | Follow up payment, 3 days |
-| Any deposit logged | `In production` | nothing — the fittings take over |
+| Event | Status becomes at least |
+| --- | --- |
+| Quotation PDF downloaded | `Quoted` |
+| Invoice PDF downloaded | `Confirmed` |
+| Any deposit logged | `In production` |
 
-`Delivered` is derived rather than stored: an order shows as delivered once the
-customer's wedding date is in the past. Nobody marks a wedding as having
-happened, and the date that decides it stays correctable afterwards.
+`Delivered` is derived from the wedding date, the same way `Completed` is above.
+Nobody marks a wedding as having happened, and the date that decides it stays
+correctable afterwards.
 
-A customer carries **one** follow-up at a time, and reaching a stage replaces
-whatever was there. It is stored rather than derived — deriving it would mean
-joining `document_log` for every customer on the homepage, and storing it means
-you can push a date back by hand when a client asks for more time, which no
-derivation would survive. Both the date and the wording are editable on the
-customer form.
+### The follow-up
+
+One automatic chase, and only while a customer has no order. That is the window
+where a conversation can go quiet with nothing noticing; once an order exists
+its own dates take over and a second reminder is noise.
+
+- No moodboard sent yet → **Check in**, 3 days after the customer was created.
+- Moodboard sent → **Follow up moodboard**, 3 days after that date.
+
+It is recomputed from the moodboard date rather than stamped when you type it,
+so recording a moodboard that went out last Tuesday puts the chase where it
+actually falls instead of a week late. Both the date and the wording are
+editable on the customer form, and an edit sticks — only changing the moodboard
+date resets it. Creating an order clears it, and so does cancelling.
 
 ### The wedding date
 
@@ -521,10 +534,10 @@ the quotation, from the identical code path.
   whichever comes first of the wedding, a scheduled fitting, and the outstanding
   follow-up, and labels which one it is. Stacked full-width rows cost three
   screenfuls to say three dates and pushed the customer list below the fold; the
-  strip says the same in a fifth of the height and holds eight. A customer is
-  active until every order they have is delivered; someone with no orders yet
-  counts as active, since they are the one who needs one, and someone marked
-  `Lost` is not.
+  strip says the same in a fifth of the height and holds eight. Who appears is
+  read off the same derived status as the badges, so the two can never disagree:
+  everyone except `Completed` and `Cancelled`. Someone with no orders yet counts,
+  since they are the one who needs one.
 
 ## Google Calendar
 
@@ -591,7 +604,7 @@ A few things worth knowing:
   otherwise forget, and one that needs remembering to sync is not a nudge. It
   goes out as an all-day event reminding you the day before, and clearing the
   follow-up deletes it. A failure is logged and shown on the customer page
-  rather than blocking the stage change.
+  rather than blocking the save that caused it.
 - **The redirect URI must match exactly.** The app sends
   `location.origin + location.pathname`, which for a site served from its root
   is the domain **with a trailing slash**. `https://your-app.vercel.app` and
@@ -663,8 +676,8 @@ Optional. Without it customers are created by hand, as before.
 A [Tally](https://tally.so) form posts to the `intake` Edge Function, which
 verifies the signature and drops the answers into `intake_submissions`. They
 appear as **New enquiries** at the top of the homepage. Opening one shows every
-answer as submitted; **Create customer** files them at `Enquiry` with the
-consultation reminder already set, and **Dismiss** keeps the submission on record
+answer as submitted; **Create customer** files them at `In consultation` with the
+check-in reminder already set, and **Dismiss** keeps the submission on record
 without creating anything.
 
 Nothing becomes a customer automatically. A public form is a public form, and

@@ -43,43 +43,28 @@ KK.app = (function () {
      when it arrives. */
   const SOURCES = ['Instagram', 'TikTok', 'Referral', 'Walk-in', 'Other'];
 
-  /* Where a customer is before there is an order to have a status. The order
-     ladder above picks up at Ordering and runs in parallel from there — a
-     customer stays at Ordering while their orders move through Quoted to
-     Delivered, because "which stage is this couple at" and "how far along is
-     this particular garment" stop being the same question once a family books
-     three of them. Must match customers_stage_check in schema.sql. */
-  const STAGES = ['Enquiry', 'Consultation', 'Moodboard', 'Ordering', 'Lost'];
+  /* Where a customer is, in the same spirit as the order ladder above: read off
+     what has already happened rather than set by hand. Every one of these is
+     implied by a record that exists anyway — so there is nothing to keep true,
+     and nothing to forget to update.
 
-  /* What to chase, and how long to leave it before chasing. Every stage sets
-     one nudge; entering a new stage replaces it. Ordering has no entry here
-     because its follow-ups come from the order's own status — see bumpStatus.
+       In consultation  no orders yet
+       Ordering         at least one order exists
+       Active           at least one order has a first payment
+       Completed        the wedding date has passed
+       Cancelled        the one fact nothing else implies — see cancelCustomer
 
-     `from` is the column the count runs from, so the nudge survives being
-     back-dated: recording a consultation that happened last week puts the
-     moodboard deadline where it actually falls, not a week late. */
-  const STAGE_NUDGES = {
-    Enquiry:      { label: 'Book consultation',   days: 2, from: 'created_at' },
-    Consultation: { label: 'Moodboard due',       days: 7, from: 'consult_date' },
-    Moodboard:    { label: 'Follow up moodboard', days: 3, from: 'moodboard_date' },
-    Ordering:     null,
-    Lost:         null
-  };
+     Order matters below: it is the precedence, most decisive first. */
+  const CUSTOMER_STATUSES =
+    ['Cancelled', 'Completed', 'Active', 'Ordering', 'In consultation'];
 
-  /* Chases for an order that has gone out and gone quiet. Cleared once money
-     arrives — from then on the fitting schedule is the thing to look at, and a
-     nudge alongside it is one reminder too many. */
-  const STATUS_NUDGES = {
-    Quoted:    { label: 'Follow up quotation', days: 3 },
-    Confirmed: { label: 'Follow up payment',   days: 3 }
-  };
-
-  /* The date column each stage stamps on arrival, so the record says when the
-     meeting happened rather than only that it did. */
-  const STAGE_DATE_COLUMN = {
-    Consultation: 'consult_date',
-    Moodboard: 'moodboard_date'
-  };
+  /* The one automatic chase left. While a customer has no order they are a
+     conversation that can go quiet without anything noticing, which is exactly
+     what a nudge is for; once an order exists the order's own dates take over
+     and a second reminder is noise. Counted from the moodboard when there is
+     one, because that is the date with a promise attached. */
+  const CONSULT_NUDGE = { label: 'Check in', days: 3 };
+  const MOODBOARD_NUDGE = { label: 'Follow up moodboard', days: 3 };
 
   const REMOVE_ICON =
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
@@ -142,16 +127,13 @@ KK.app = (function () {
     dWedding: $('#dWedding'),
     dNotes: $('#dNotes'),
     dCreated: $('#dCreated'),
-    dConsult: $('#dConsult'),
-    dConsultRow: $('#dConsultRow'),
     dMoodboard: $('#dMoodboard'),
     dMoodboardRow: $('#dMoodboardRow'),
-    dLost: $('#dLost'),
-    dLostRow: $('#dLostRow'),
-    pipelineCard: $('#pipelineCard'),
-    dStageBadge: $('#dStageBadge'),
-    stageButtons: $('#stageButtons'),
-    dFollowUp: $('#dFollowUp'),
+    dCancelled: $('#dCancelled'),
+    dCancelledRow: $('#dCancelledRow'),
+    followUpLine: $('#followUpLine'),
+    cancelCustomer: $('#cancelCustomer'),
+    reopenCustomer: $('#reopenCustomer'),
     customerEditCard: $('#customerEditCard'),
     cName: $('#cName'),
     errCName: $('#errCName'),
@@ -161,12 +143,11 @@ KK.app = (function () {
     cWedding: $('#cWedding'),
     cWeddingMonth: $('#cWeddingMonth'),
     cWeddingPrecision: $('#cWeddingPrecision'),
-    cConsultDate: $('#cConsultDate'),
     cMoodboardDate: $('#cMoodboardDate'),
     cFollowUpDate: $('#cFollowUpDate'),
     cFollowUpLabel: $('#cFollowUpLabel'),
-    cLostReason: $('#cLostReason'),
-    cLostField: $('#cLostField'),
+    cCancelledReason: $('#cCancelledReason'),
+    cCancelledField: $('#cCancelledField'),
     cNotes: $('#cNotes'),
     customerOrdersCard: $('#customerOrdersCard'),
     ordersTotal: $('#ordersTotal'),
@@ -251,6 +232,7 @@ KK.app = (function () {
     overview: null,          // { ordersByCustomer } — every order, for the homepage
     loggedDeposits: {},      // { depositIndex: loggedAt } for the open order
     schedule: null,          // computed programme + stored rows for the open order
+    customerOrders: [],      // the open customer's orders — what their status is read from
     enquiry: null,           // the intake submission being reviewed
     googleConnected: null,   // null until asked; cached for the session
     dirty: false,
@@ -385,10 +367,6 @@ KK.app = (function () {
     try {
       state.order = await db.updateOrder(state.order.id, { status: next });
       renderOrderStatus();
-      /* A document that has gone out is a thing waiting on a reply, so the
-         chase moves with it. Reaching production clears it: from here the
-         fitting schedule is the reminder. */
-      await setFollowUp(STATUS_NUDGES[next] || null, U.todayISO());
     } catch (err) {
       console.error(err);
     }
@@ -401,49 +379,33 @@ KK.app = (function () {
     el.viewSub.hidden = false;
   }
 
-  /* ----------------------------- Customer stage --------------------------- */
+  /* ---------------------------- Customer status --------------------------- */
 
-  /* Unlike the order status, this one IS something you set. There is no
-     document to read a consultation off and no receipt for a moodboard, so the
-     stage is a claim the studio makes rather than a fact the record already
-     knows. What the app does with it is the part worth automating: stamp the
-     date, and put the next chase in the calendar. */
+  /* Derived, like the order status above and for the same reason: every one of
+     these is already implied by a record that exists anyway, so reading it off
+     them is both less work and harder to get wrong than a control you have to
+     remember to move.
 
-  /** Guards a hand-edited row the way effectiveStatus guards a status. */
-  const stageOf = (customer) =>
-    (customer && STAGES.includes(customer.stage)) ? customer.stage : STAGES[0];
+     `orders` is whatever the caller has in hand — the customer page has the
+     real list, the homepage has the overview projection. Both carry the two
+     fields this needs, so neither has to fetch anything extra. */
+  function customerStatus(customer, orders) {
+    if (!customer) return 'In consultation';
+    if (customer.cancelled_at) return 'Cancelled';
+    if (customer.wedding_date && customer.wedding_date < U.todayISO()) return 'Completed';
+    const list = orders || [];
+    if (list.some((o) => o.first_payment_date)) return 'Active';
+    return list.length ? 'Ordering' : 'In consultation';
+  }
+
+  /** The orders the open customer page already loaded, for customerStatus. */
+  const openCustomerOrders = () => state.customerOrders || [];
 
   const addDays = (iso, n) => cal.fromDay(cal.toDay(iso) + n);
 
   /* created_at is a timestamptz; the date columns are already plain days. Both
      arrive here as nudge anchors, and cal.toDay only accepts the plain form. */
   const dateOnly = (value) => String(value || '').slice(0, 10);
-
-  /**
-   * Move a customer along and set the nudge that comes with where they landed.
-   * Returns the updated customer, or null if nothing needed doing.
-   */
-  async function setStage(next) {
-    const c = state.customer;
-    if (!c || !c.id || stageOf(c) === next) return null;
-
-    const patch = { stage: next };
-
-    /* Stamp the date the stage happened, but never overwrite one already
-       there — re-selecting Consultation to correct a misclick should not move
-       a meeting that really did happen last Tuesday. */
-    const column = STAGE_DATE_COLUMN[next];
-    if (column && !c[column]) patch[column] = U.todayISO();
-    if (next !== 'Lost') patch.lost_reason = null;
-
-    const nudge = STAGE_NUDGES[next];
-    const from = nudge && (patch[nudge.from] || c[nudge.from]);
-    Object.assign(patch, followUpPatch(nudge, from ? dateOnly(from) : null));
-
-    state.customer = await db.updateCustomer(c.id, patch);
-    await pushFollowUp();
-    return state.customer;
-  }
 
   /* The Google event id is deliberately preserved across a change of date or
      label: the same one appointment is moving, so the sync updates it in place
@@ -460,11 +422,28 @@ KK.app = (function () {
     };
   }
 
-  /** Sets the nudge without changing stage — used by the order status ladder. */
-  async function setFollowUp(nudge, fromISO) {
+  /**
+   * The chase a customer with no order should be carrying.
+   *
+   * Recomputed rather than remembered, so recording a moodboard that went out
+   * last week puts the follow-up where it actually falls instead of a week
+   * late. Returns nothing once there is an order — from then on the order's own
+   * dates are the thing to look at.
+   */
+  function consultNudgeFor(customer, orders, moodboardISO) {
+    if (!customer || customer.cancelled_at || (orders || []).length) {
+      return followUpPatch(null, null);
+    }
+    const moodboard = moodboardISO === undefined ? customer.moodboard_date : moodboardISO;
+    return moodboard
+      ? followUpPatch(MOODBOARD_NUDGE, dateOnly(moodboard))
+      : followUpPatch(CONSULT_NUDGE, dateOnly(customer.created_at));
+  }
+
+  /** Sets the nudge on the open customer, if it is not already what it should be. */
+  async function setFollowUp(patch) {
     const c = state.customer;
     if (!c || !c.id) return;
-    const patch = followUpPatch(nudge, fromISO);
     if (patch.follow_up_date === c.follow_up_date &&
         patch.follow_up_label === c.follow_up_label) return;
     state.customer = await db.updateCustomer(c.id, patch);
@@ -488,6 +467,53 @@ KK.app = (function () {
       state.customer = await db.getCustomer(c.id);
     } catch (err) {
       console.error('Follow-up not synced to Google Calendar:', err);
+    }
+  }
+
+  /* Cancelling is the one thing about a customer's status that no other record
+     implies, so it is the one thing stored. Offered only while there is no
+     money in — after a payment the answer is not "cancel the customer", it is a
+     conversation about a refund, and a button would be pretending otherwise. */
+  const canCancel = (customer, orders) =>
+    !!customer && !!customer.id && !customer.cancelled_at &&
+    !(orders || []).some((o) => o.first_payment_date);
+
+  async function cancelCustomer() {
+    const c = state.customer;
+    if (!canCancel(c, openCustomerOrders())) return;
+    if (!window.confirm('Mark ' + c.name + ' as not proceeding?\n\n' +
+      'Everything is kept — they just stop appearing as live work.')) return;
+    try {
+      state.customer = await db.updateCustomer(c.id, {
+        cancelled_at: new Date().toISOString(),
+        /* The chase goes with them, in Google too. A reminder to follow up
+           someone who has said no is worse than no reminder. */
+        follow_up_date: null, follow_up_label: null, follow_up_synced_at: null
+      });
+      await pushFollowUp();
+      renderCustomerReadOnly(state.customer);
+      showToast('Marked as not proceeding');
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || 'Could not update the customer');
+    }
+  }
+
+  /** People change their minds, so the door opens both ways. */
+  async function reopenCustomer() {
+    const c = state.customer;
+    if (!c || !c.id || !c.cancelled_at) return;
+    try {
+      state.customer = await db.updateCustomer(c.id, Object.assign(
+        { cancelled_at: null, cancelled_reason: null },
+        consultNudgeFor(Object.assign({}, c, { cancelled_at: null }), openCustomerOrders())
+      ));
+      await pushFollowUp();
+      renderCustomerReadOnly(state.customer);
+      showToast('Reopened');
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || 'Could not reopen the customer');
     }
   }
 
@@ -760,12 +786,12 @@ KK.app = (function () {
         source: SOURCES.includes(r.source) ? r.source : 'Other',
         wedding_date: r.wedding_date,
         wedding_date_precision: r.wedding_date_precision === 'month' ? 'month' : 'day',
-        notes: r.notes,
-        stage: 'Enquiry'
-      }, followUpPatch(STAGE_NUDGES.Enquiry, U.todayISO())));
+        notes: r.notes
+      }, followUpPatch(CONSULT_NUDGE, U.todayISO())));
 
       await db.resolveIntake(r.id, 'accepted', customer.id);
       state.customer = customer;
+      state.customerOrders = [];
       await pushFollowUp();
       showToast('Customer created');
       leaveFormFor('#/customer/' + customer.id);
@@ -834,14 +860,21 @@ KK.app = (function () {
     el.customerList.innerHTML = rows.map((c) => {
       const orders = (state.overview.ordersByCustomer[c.id] || []);
       const gross = orders.reduce((sum, o) => sum + docs.computeTotal(o.items), 0);
+      const status = customerStatus(c, orders);
       return '<a class="row row--kanban" href="#/customer/' + c.id + '">' +
         '<span class="row__main">' +
           '<span class="row__title">' + U.escapeHtml(c.name) + '</span>' +
           '<span class="row__meta">' +
             (c.wedding_date ? 'Wedding ' + U.escapeHtml(U.formatShortDate(c.wedding_date)) : 'No wedding date') +
           '</span>' +
-          '<span class="row__meta">' +
-            (orders.length ? orders.length + (orders.length === 1 ? ' order' : ' orders') : 'No orders') +
+          /* The status replaces the order count rather than joining it: the
+             count was only ever a proxy for how far along they are, and the
+             status says that outright — while still implying it, since
+             Ordering and Active both mean there is at least one. */
+          '<span class="row__tags">' +
+            '<span class="' + badgeClass(status) + '">' + U.escapeHtml(status) + '</span>' +
+            (orders.length > 1
+              ? '<span class="row__meta">' + orders.length + ' orders</span>' : '') +
           '</span>' +
         '</span>' +
         '<span class="row__amount">' + U.formatRupiah(gross) + '</span>' +
@@ -873,15 +906,13 @@ KK.app = (function () {
     return { ordersByCustomer, eventsByCustomer };
   }
 
-  /** A customer is active until every order they have is delivered. Someone
-      with no orders yet is active — they are the ones who need one. An enquiry
-      that went cold is not, which is the entire point of marking it Lost. */
-  function isActive(customer) {
-    if (customer.stage === 'Lost') return false;
-    const orders = state.overview.ordersByCustomer[customer.id] || [];
-    return !orders.length ||
-      !orders.every((o) => effectiveStatus(o, customer.wedding_date) === 'Delivered');
-  }
+  /** A customer is live work until the wedding is behind them, or until they
+      say no. Someone with no orders yet counts — they are the ones who need
+      one. Reads straight off the derived status so the strip and the badges can
+      never disagree about who is still going. */
+  const isActive = (customer) =>
+    !['Cancelled', 'Completed'].includes(
+      customerStatus(customer, state.overview.ordersByCustomer[customer.id]));
 
   /* Whichever date comes first, named. A fitting three days out matters more
      than a wedding three months out, and which one it is changes what you do
@@ -966,9 +997,18 @@ KK.app = (function () {
     el.customerViewCard.hidden = editMode;
     el.customerEditCard.hidden = !editMode;
     el.customerOrdersCard.hidden = editMode || isNew;
-    /* Nothing to advance until the customer exists, and the form owns the
-       stage's fields while it is open. */
-    el.pipelineCard.hidden = editMode || isNew;
+
+    /* The form owns these fields while it is open, and a customer who does not
+       exist yet cannot be marked as not proceeding. Their real visibility is
+       decided by renderCustomerStatus; this only takes them away. */
+    if (editMode || isNew) {
+      el.cancelCustomer.hidden = true;
+      el.reopenCustomer.hidden = true;
+      /* The badge describes the record as it stands; while the form is open the
+         head says "Edit customer" and the two would be talking past each
+         other. renderCustomerStatus puts it back on the way out. */
+      el.viewSub.hidden = true;
+    }
     setSaveBar(editMode);
 
     el.viewTitle.textContent = isNew ? 'New customer'
@@ -1019,31 +1059,34 @@ KK.app = (function () {
     /* Rows that only mean something once they have happened. An empty
        "Moodboard sent —" on a first-day enquiry is noise pretending to be
        information. */
-    el.dConsult.textContent = showDate(c.consult_date);
-    el.dConsultRow.hidden = !c.consult_date;
     el.dMoodboard.textContent = showDate(c.moodboard_date);
     el.dMoodboardRow.hidden = !c.moodboard_date;
-    el.dLost.textContent = c.lost_reason || 'No reason recorded';
-    el.dLostRow.hidden = stageOf(c) !== 'Lost';
+    el.dCancelled.textContent = c.cancelled_reason ||
+      (c.cancelled_at ? 'No reason recorded' : '');
+    el.dCancelledRow.hidden = !c.cancelled_at;
 
-    renderPipeline(c);
+    renderCustomerStatus(c);
   }
 
-  /* The stage row doubles as the control: five buttons, the current one marked.
-     A select would hide where they are behind a tap, and where they are is the
-     first thing you want off this page. */
-  function renderPipeline(c) {
-    const stage = stageOf(c);
-    el.dStageBadge.innerHTML = '<span class="' + badgeClass(stage) + '">' +
-      U.escapeHtml(stage) + '</span>';
+  /* The status is a read-out, not a control — there is nothing here to set.
+     It sits in the page head beside the name, the same place an order's status
+     sits, because the two answer the same kind of question. */
+  function renderCustomerStatus(c) {
+    const orders = openCustomerOrders();
+    const status = customerStatus(c, orders);
 
-    el.stageButtons.innerHTML = STAGES.map((s) =>
-      '<button type="button" class="stager__btn' + (s === stage ? ' is-current' : '') +
-        '" data-stage="' + U.escapeHtml(s) + '"' + (s === stage ? ' aria-current="step"' : '') +
-        '>' + U.escapeHtml(s) + '</button>').join('');
+    el.viewSub.innerHTML = '<span class="' + badgeClass(status) + '">' +
+      U.escapeHtml(status) + '</span>';
+    el.viewSub.hidden = false;
 
-    el.dFollowUp.textContent = !c.follow_up_date
-      ? (stage === 'Lost' ? 'Not being chased.' : 'Nothing to follow up.')
+    /* Only while a customer is still a conversation. Once money is in, the
+       button would be offering something it cannot honestly do. */
+    el.cancelCustomer.hidden = !canCancel(c, orders);
+    el.reopenCustomer.hidden = !c.cancelled_at;
+
+    el.followUpLine.hidden = !!c.cancelled_at;
+    el.followUpLine.textContent = !c.follow_up_date
+      ? (orders.length ? '' : 'Nothing to follow up.')
       : (c.follow_up_label || 'Follow up') + ' · ' +
         U.formatShortDate(c.follow_up_date) + ' · ' + relativeToToday(c.follow_up_date) +
         (c.follow_up_synced_at ? '' : ' · not in Google Calendar');
@@ -1066,26 +1109,37 @@ KK.app = (function () {
       destroy: isNew ? null : 'customer'
     });
 
-    state.customer = isNew ? Object.assign({}, BLANK_CUSTOMER) : await db.getCustomer(id);
+    state.customerOrders = [];
     // Arrived from a search that found nothing: the name is already known.
     const seeded = isNew ? String((query && query.get('name')) || '').trim() : '';
-    if (seeded) state.customer.name = seeded;
-    fillCustomerForm(state.customer);
-    // A new customer has nothing to read, so it opens straight into the form.
-    setCustomerMode(isNew);
-    setDirty(isNew);
 
     if (isNew) {
+      state.customer = Object.assign({}, BLANK_CUSTOMER);
+      if (seeded) state.customer.name = seeded;
+      fillCustomerForm(state.customer);
+      // A new customer has nothing to read, so it opens straight into the form.
+      setCustomerMode(true);
+      setDirty(true);
+      el.viewSub.hidden = true;
       /* With the name filled in, the next empty field is what needs the caret —
          landing on Name would only mean tabbing past what you just typed. */
       (seeded ? el.cPhone : el.cName).focus();
       return;
     }
 
-    renderCustomerReadOnly(state.customer);
-
+    /* Both in one go: the status is derived from the orders, so rendering the
+       page before they land would print "In consultation" over somebody who has
+       three orders and then correct itself a moment later. */
     el.orderList.innerHTML = '<p class="empty">Loading…</p>';
-    renderOrderList(await db.listOrders(id));
+    const [customer, orders] = await Promise.all([db.getCustomer(id), db.listOrders(id)]);
+    state.customer = customer;
+    state.customerOrders = orders;
+
+    fillCustomerForm(customer);
+    setCustomerMode(false);
+    setDirty(false);
+    renderCustomerReadOnly(customer);
+    renderOrderList(orders);
   }
 
   function fillCustomerForm(c) {
@@ -1099,12 +1153,11 @@ KK.app = (function () {
     el.cWeddingMonth.value = (c.wedding_date || '').slice(0, 7);
     setWeddingPrecision(c.wedding_date_precision === 'month' ? 'month' : 'day');
 
-    el.cConsultDate.value = c.consult_date || '';
     el.cMoodboardDate.value = c.moodboard_date || '';
     el.cFollowUpDate.value = c.follow_up_date || '';
     el.cFollowUpLabel.value = c.follow_up_label || '';
-    el.cLostReason.value = c.lost_reason || '';
-    el.cLostField.hidden = stageOf(c) !== 'Lost';
+    el.cCancelledReason.value = c.cancelled_reason || '';
+    el.cCancelledField.hidden = !c.cancelled_at;
 
     el.cName.classList.remove('is-invalid');
     el.errCName.hidden = true;
@@ -1143,11 +1196,10 @@ KK.app = (function () {
       source: orNull(el.cSource.value),
       wedding_date: month ? lastDayOfMonth(el.cWeddingMonth.value) : orNull(el.cWedding.value),
       wedding_date_precision: month ? 'month' : 'day',
-      consult_date: orNull(el.cConsultDate.value),
       moodboard_date: orNull(el.cMoodboardDate.value),
       follow_up_date: orNull(el.cFollowUpDate.value),
       follow_up_label: orNull(el.cFollowUpLabel.value),
-      lost_reason: orNull(el.cLostReason.value),
+      cancelled_reason: orNull(el.cCancelledReason.value),
       notes: orNull(el.cNotes.value)
     };
   }
@@ -1212,8 +1264,14 @@ KK.app = (function () {
       if (before.wedding_date !== state.customer.wedding_date) {
         await rescheduleAllOrders();
       }
-      if (before.follow_up_date !== state.customer.follow_up_date ||
-          before.follow_up_label !== state.customer.follow_up_label) {
+      /* Recording a moodboard that went out last Tuesday should put the chase
+         where it actually falls, not a week late — so the nudge follows that
+         date rather than the day you got round to typing it. Only when the date
+         moved: any other edit leaves a hand-picked follow-up alone. */
+      if (before.moodboard_date !== state.customer.moodboard_date) {
+        await setFollowUp(consultNudgeFor(state.customer, openCustomerOrders()));
+      } else if (before.follow_up_date !== state.customer.follow_up_date ||
+                 before.follow_up_label !== state.customer.follow_up_label) {
         await pushFollowUp();
       }
 
@@ -1224,9 +1282,8 @@ KK.app = (function () {
       /* A new enquiry with nothing chasing it is how enquiries get forgotten,
          which is the whole reason the pipeline exists. The stage itself comes
          from the column default. */
-      const nudge = STAGE_NUDGES.Enquiry;
       state.customer = await db.createCustomer(Object.assign(patch,
-        patch.follow_up_date ? {} : followUpPatch(nudge, U.todayISO())));
+        patch.follow_up_date ? {} : followUpPatch(CONSULT_NUDGE, U.todayISO())));
       setDirty(false);
       showToast('Customer created');
       /* replace, not push: the blank form is not somewhere to come back to,
@@ -2441,23 +2498,8 @@ KK.app = (function () {
       setDirty(true);
     });
 
-    el.stageButtons.addEventListener('click', async (e) => {
-      const btn = e.target.closest('.stager__btn');
-      if (!btn || btn.classList.contains('is-current')) return;
-      const next = btn.dataset.stage;
-      try {
-        if (!await setStage(next)) return;
-        renderCustomerReadOnly(state.customer);
-        fillCustomerForm(state.customer);
-        showToast(state.customer.follow_up_date
-          ? next + ' · ' + state.customer.follow_up_label + ' ' +
-            U.formatShortDate(state.customer.follow_up_date)
-          : 'Moved to ' + next);
-      } catch (err) {
-        console.error(err);
-        showToast(err.message || 'Could not change the stage');
-      }
-    });
+    el.cancelCustomer.addEventListener('click', cancelCustomer);
+    el.reopenCustomer.addEventListener('click', reopenCustomer);
 
     el.newOrder.addEventListener('click', async () => {
       if (!confirmLeave()) return;
@@ -2471,9 +2513,13 @@ KK.app = (function () {
           includes: INCLUDES.slice()   // the standing package, all ticked
         });
         await db.logOrderHistory(order.id, 'created', {});
-        /* Creating an order is the moment the early pipeline ends, so it moves
-           the customer along rather than making you do it twice. */
-        try { await setStage('Ordering'); } catch (err) { console.error(err); }
+        /* The customer's status follows from this order existing — nothing to
+           set. What does need clearing is the consultation chase: the
+           conversation it was guarding against has plainly not gone quiet. */
+        state.customerOrders = (state.customerOrders || []).concat(order);
+        try {
+          await setFollowUp(consultNudgeFor(state.customer, state.customerOrders));
+        } catch (err) { console.error(err); }
         go('#/order/' + order.id + '/edit');
       } catch (err) {
         console.error(err);
