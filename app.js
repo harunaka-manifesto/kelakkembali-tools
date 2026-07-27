@@ -49,6 +49,11 @@ KK.app = (function () {
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" ' +
     'stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
 
+  const CALC_ICON =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
+    'stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/>' +
+    '<path d="M8 7h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01"/></svg>';
+
   /* -------------------------------- Elements ----------------------------- */
 
   const el = {
@@ -153,7 +158,15 @@ KK.app = (function () {
     downloadNote: $('#downloadNote'),
     downloadQuote: $('#downloadQuote'),
     downloadInvoice: $('#downloadInvoice'),
-    toast: $('#toast')
+    toast: $('#toast'),
+
+    calcSheet: $('#calcSheet'),
+    calcItemLabel: $('#calcItemLabel'),
+    calcRowList: $('#calcRowList'),
+    calcAddRow: $('#calcAddRow'),
+    calcTotal: $('#calcTotal'),
+    calcApply: $('#calcApply'),
+    calcClose: $('#calcClose')
   };
 
   const DOWNLOAD_BUTTONS = { quotation: el.downloadQuote, invoice: el.downloadInvoice };
@@ -1350,7 +1363,11 @@ KK.app = (function () {
       '</div>' +
       '<span class="item__sum js-sum"></span>' +
       '<label class="field">' +
-        '<span class="field__label">Est. production cost <span class="tag">Internal</span></span>' +
+        '<span class="field__label">Est. production cost <span class="tag">Internal</span>' +
+          '<button type="button" class="js-cost-calc calc-trigger" aria-label="Break down cost">' +
+            CALC_ICON +
+          '</button>' +
+        '</span>' +
         '<span class="prefixed">' +
           '<span class="prefix">Rp</span>' +
           '<input class="input js-cost" type="text" inputmode="numeric" placeholder="0">' +
@@ -1644,6 +1661,113 @@ KK.app = (function () {
     refreshTermsSum();
   }
 
+  /* --------------------------- Cost calculator ---------------------------- */
+
+  /* A scratchpad, not a record: nothing here is saved to the order. It exists
+     because production cost is one number on the item row, but arriving at it
+     usually means adding up fabric, tailor, transport, dry cleaning — numbers
+     nobody wants to add in their head or in a notes app. Flat categories only:
+     a breakdown of fabric into main fabric/tulle/etc. is just more rows, not
+     a nested level. */
+
+  const DEFAULT_COST_CATEGORIES = ['Fabric', 'Tailor', 'Transport', 'Dry Cleaning'];
+
+  function createCalcRow(cat) {
+    const row = document.createElement('div');
+    row.className = 'calcrow';
+    row.innerHTML =
+      '<button type="button" class="item__remove js-remove-calcrow" aria-label="Remove category">' +
+        REMOVE_ICON +
+      '</button>' +
+      '<label class="field calcrow__label">' +
+        '<span class="field__label">Category</span>' +
+        '<input class="input js-clabel" type="text" maxlength="40" placeholder="e.g. Fabric">' +
+      '</label>' +
+      '<label class="field calcrow__amount">' +
+        '<span class="field__label">Amount</span>' +
+        '<span class="prefixed">' +
+          '<span class="prefix">Rp</span>' +
+          '<input class="input js-camount" type="text" inputmode="numeric" placeholder="0">' +
+        '</span>' +
+      '</label>';
+
+    $('.js-clabel', row).value = (cat && cat.label) || '';
+    $('.js-camount', row).value = (cat && cat.amount) ? U.groupDigits(cat.amount) : '';
+    return row;
+  }
+
+  function addCalcRow(cat, focus) {
+    const row = createCalcRow(cat);
+    el.calcRowList.appendChild(row);
+    refreshCalcRemoveButtons();
+    refreshCalcTotal();
+    if (focus) $('.js-clabel', row).focus();
+    return row;
+  }
+
+  const calcRowElements = () => $$('.calcrow', el.calcRowList);
+
+  function refreshCalcRemoveButtons() {
+    const rows = calcRowElements();
+    rows.forEach((row) => { $('.js-remove-calcrow', row).disabled = rows.length <= 1; });
+  }
+
+  function readCalcRows() {
+    return calcRowElements().map((row) => ({
+      label: $('.js-clabel', row).value.trim(),
+      amountRaw: U.digitsOnly($('.js-camount', row).value),
+      get amount() { return this.amountRaw === '' ? 0 : Number(this.amountRaw); }
+    }));
+  }
+
+  function refreshCalcTotal() {
+    const total = readCalcRows().reduce((sum, c) => sum + c.amount, 0);
+    el.calcTotal.textContent = U.formatRupiah(total);
+    return total;
+  }
+
+  /* One draft per item row, not per item index — rows have no stable id and
+     can be removed, so an index would silently reattach to the wrong item.
+     Keyed on the row's own element, a deleted row's draft needs no explicit
+     cleanup: nothing can reach that key once the row is gone. showOrderEdit()
+     also rebuilds every item row from scratch on entry, which is exactly
+     when a draft ought to be forgotten. */
+  const costCalcDrafts = new WeakMap();
+  let calcTargetRow = null;
+
+  function snapshotCalcDraft() {
+    if (!calcTargetRow) return;
+    costCalcDrafts.set(calcTargetRow, readCalcRows().map((c) => ({ label: c.label, amount: c.amount })));
+  }
+
+  function openCostCalc(itemRow) {
+    calcTargetRow = itemRow;
+    const name = $('.js-name', itemRow).value.trim();
+    el.calcItemLabel.textContent = name ? 'For "' + name + '"' : 'For this item';
+
+    const draft = costCalcDrafts.get(itemRow);
+    const seed = draft || DEFAULT_COST_CATEGORIES.map((label) => ({ label: label, amount: 0 }));
+    el.calcRowList.innerHTML = '';
+    seed.forEach((cat) => addCalcRow(cat, false));
+
+    el.calcSheet.hidden = false;
+  }
+
+  function closeCostCalc() {
+    snapshotCalcDraft();
+    el.calcSheet.hidden = true;
+    calcTargetRow = null;
+  }
+
+  function applyCostCalc() {
+    const total = refreshCalcTotal();
+    $('.js-cost', calcTargetRow).value = U.groupDigits(total);
+    refreshItemTotals();
+    setDirty(true);
+    showToast('Cost updated');
+    closeCostCalc();
+  }
+
   /* ------------------------------ PDF download ---------------------------- */
 
   /** Both buttons lock during a capture; only the pressed one spins. */
@@ -1900,12 +2024,16 @@ KK.app = (function () {
     });
 
     el.itemList.addEventListener('click', (e) => {
-      const btn = e.target.closest('.js-remove');
-      if (!btn || btn.disabled) return;
-      btn.closest('.item').remove();
-      refreshRemoveButtons();
-      refreshItemTotals();
-      setDirty(true);
+      const removeBtn = e.target.closest('.js-remove');
+      if (removeBtn && !removeBtn.disabled) {
+        removeBtn.closest('.item').remove();
+        refreshRemoveButtons();
+        refreshItemTotals();
+        setDirty(true);
+        return;
+      }
+      const calcBtn = e.target.closest('.js-cost-calc');
+      if (calcBtn) openCostCalc(calcBtn.closest('.item'));
     });
 
     el.itemList.addEventListener('input', (e) => {
@@ -1977,6 +2105,30 @@ KK.app = (function () {
       refreshTermsSum();
       setDirty(true);
     });
+
+    /* -- cost calculator --
+
+       A scratchpad: edits here never call setDirty. The order is only ever
+       touched, and only ever marked dirty, at the moment Apply writes the
+       total into the item's own cost field. */
+
+    el.calcAddRow.addEventListener('click', () => addCalcRow(null, true));
+
+    el.calcRowList.addEventListener('click', (e) => {
+      const btn = e.target.closest('.js-remove-calcrow');
+      if (!btn || btn.disabled) return;
+      btn.closest('.calcrow').remove();
+      refreshCalcRemoveButtons();
+      refreshCalcTotal();
+    });
+
+    el.calcRowList.addEventListener('input', (e) => {
+      if (e.target.classList.contains('js-camount')) U.reformatPriceField(e.target);
+      refreshCalcTotal();
+    });
+
+    el.calcApply.addEventListener('click', applyCostCalc);
+    el.calcClose.addEventListener('click', closeCostCalc);
 
     el.customInclude.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {

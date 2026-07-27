@@ -417,6 +417,45 @@
   </div>
 </div>
 
+<!-- Cost calculator: a scratchpad over the order editor, not a page. It never
+     touches location.hash and writes to exactly one item's cost field on
+     Apply — everything here is thrown away otherwise. -->
+<div class="calcsheet" id="calcSheet" hidden>
+  <div class="calcsheet__panel">
+    <div class="calcsheet__head">
+      <div class="calcsheet__headtext">
+        <h2 class="calcsheet__title">Cost breakdown</h2>
+        <p class="calcsheet__sub" id="calcItemLabel"></p>
+      </div>
+      <button type="button" class="calcsheet__close" id="calcClose" aria-label="Close without applying">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+             stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+
+    <div class="calcsheet__body">
+      <div class="calcrows" id="calcRowList"></div>
+      <button type="button" class="btn btn--outline btn--new btn--block" id="calcAddRow">
+        <span aria-hidden="true">+</span> Add category
+      </button>
+    </div>
+  </div>
+
+  <div class="actionbar" id="calcActionbar">
+    <div class="actionbar__inner">
+      <div class="actionbar__total">
+        <span class="actionbar__label">Total</span>
+        <strong class="actionbar__amount" id="calcTotal">Rp0</strong>
+      </div>
+      <div class="actionbar__buttons">
+        <button type="button" class="btn btn--primary" id="calcApply">
+          <span class="btn__label">Apply to cost</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 </div><!-- /.app -->
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
