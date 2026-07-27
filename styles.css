@@ -733,6 +733,18 @@ body.has-savebar .page {
 
 .row--kanban .row__main { gap: 4px; }
 
+/* The right-hand column: the amount, and the status beneath it. Two lines each
+   side keeps the card level — the status used to sit under the name, which put
+   all of the weight in one corner. */
+.row__side {
+  flex: none;
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
 .row__amount {
   flex: none;
   align-self: center;
@@ -741,6 +753,27 @@ body.has-savebar .page {
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.2px;
 }
+
+/* Inside .row__side the amount is one of two stacked items, so it stops
+   centring itself against the whole row. */
+.row__side .row__amount { align-self: flex-end; }
+
+/* No pill, no fill, no border. At this size a badge is a lot of shape to say
+   one word, and it was competing with the name for the eye. Weight and colour
+   carry it instead — and the colours climb with the commitment, so the ones
+   that need attention are the ones that get it. */
+.row__status {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.row__status--in-consultation { color: var(--label); }
+.row__status--ordering        { color: #8C6E28; }
+.row__status--active          { color: #4A3A14; }
+.row__status--completed       { color: var(--label); }
+.row__status--cancelled       { color: var(--label); text-decoration: line-through; }
 
 /* Read-only key/value rows — customer and order detail pages. */
 .infolist {

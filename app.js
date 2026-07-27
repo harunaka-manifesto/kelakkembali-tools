@@ -340,8 +340,9 @@ KK.app = (function () {
      Reading it off those events is both less work and harder to get wrong
      than remembering to change a dropdown. */
 
-  const badgeClass = (status) =>
-    'badge badge--' + String(status).toLowerCase().replace(/\s+/g, '-');
+  const statusSlug = (status) => String(status).toLowerCase().replace(/\s+/g, '-');
+
+  const badgeClass = (status) => 'badge badge--' + statusSlug(status);
 
   /** Never backwards: re-downloading a quotation for an order already in
       production says nothing new about it. */
@@ -394,9 +395,21 @@ KK.app = (function () {
     if (customer.cancelled_at) return 'Cancelled';
     if (customer.wedding_date && customer.wedding_date < U.todayISO()) return 'Completed';
     const list = orders || [];
-    if (list.some((o) => o.first_payment_date)) return 'Active';
+    if (list.some(orderIsPaid)) return 'Active';
     return list.length ? 'Ordering' : 'In consultation';
   }
+
+  /* Two ways of knowing the same thing, and both are consulted because they
+     came along at different times. first_payment_date is the precise answer and
+     the one the fitting schedule counts from — but it is only written when a
+     deposit is logged, and it did not exist for the app's first year, so orders
+     paid before then have nothing in it. Reaching 'In production' is the older
+     record of the same event: bumpStatus is called from logDeposit and nowhere
+     else, so an order at or past that rung was paid for, whatever the column
+     says. schema.sql backfills the dates from order_history; this makes the
+     status right even where that could not reach. */
+  const orderIsPaid = (o) => !!o.first_payment_date ||
+    STATUSES.indexOf(o.status) >= STATUSES.indexOf('In production');
 
   /** The orders the open customer page already loaded, for customerStatus. */
   const openCustomerOrders = () => state.customerOrders || [];
@@ -861,23 +874,28 @@ KK.app = (function () {
       const orders = (state.overview.ordersByCustomer[c.id] || []);
       const gross = orders.reduce((sum, o) => sum + docs.computeTotal(o.items), 0);
       const status = customerStatus(c, orders);
+      /* The status sits under the amount rather than beside the name, and as
+         plain coloured text rather than a badge. A pill on the left made every
+         card bottom-heavy on one side and put a filled shape next to the one
+         thing already competing for the eye — the name. Down here it balances
+         the amount, and colour alone carries the state at this size. */
       return '<a class="row row--kanban" href="#/customer/' + c.id + '">' +
         '<span class="row__main">' +
           '<span class="row__title">' + U.escapeHtml(c.name) + '</span>' +
           '<span class="row__meta">' +
             (c.wedding_date ? 'Wedding ' + U.escapeHtml(U.formatShortDate(c.wedding_date)) : 'No wedding date') +
           '</span>' +
-          /* The status replaces the order count rather than joining it: the
-             count was only ever a proxy for how far along they are, and the
-             status says that outright — while still implying it, since
-             Ordering and Active both mean there is at least one. */
-          '<span class="row__tags">' +
-            '<span class="' + badgeClass(status) + '">' + U.escapeHtml(status) + '</span>' +
-            (orders.length > 1
-              ? '<span class="row__meta">' + orders.length + ' orders</span>' : '') +
+          /* Only when it says something the status does not: Ordering and
+             Active both already mean there is at least one. */
+          (orders.length > 1
+            ? '<span class="row__meta">' + orders.length + ' orders</span>' : '') +
+        '</span>' +
+        '<span class="row__side">' +
+          '<span class="row__amount">' + U.formatRupiah(gross) + '</span>' +
+          '<span class="row__status row__status--' + statusSlug(status) + '">' +
+            U.escapeHtml(status) +
           '</span>' +
         '</span>' +
-        '<span class="row__amount">' + U.formatRupiah(gross) + '</span>' +
       '</a>';
     }).join('');
   }
@@ -1590,6 +1608,16 @@ KK.app = (function () {
   async function rescheduleOrder(order, customer) {
     const computed = scheduleFor(order, customer);
     const before = await db.listOrderEvents(order.id);
+
+    /* A missing date is a question, not an answer. Replacing a stored schedule
+       with the empty result would delete every appointment — and, through
+       googleForget, every calendar entry with it — as a side effect of a save
+       that was only ever about an item price. An unworkable window still
+       rewrites, because that is a real answer about real dates. */
+    if (computed.missingAnchor && before.length) {
+      return { computed: computed, changed: false, rows: before };
+    }
+
     const after = await db.replaceOrderEvents(order.id, computed.events);
 
     /* A stage that a tighter window cut out still has an event sitting in

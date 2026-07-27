@@ -519,3 +519,30 @@ alter table public.customers drop column if exists lost_reason;
 alter table public.customers drop column if exists consult_date;
 
 create index if not exists customers_cancelled_idx on public.customers (cancelled_at);
+
+-- ------------------- Orders: backfill the first payment date ----------------
+
+-- orders.first_payment_date is only written when a deposit is logged, and it
+-- did not exist until the lifecycle migration above. So every payment logged
+-- before that day left the column null, and a customer who has plainly paid
+-- reads as merely Ordering — and gets no fitting schedule, because the whole
+-- programme counts from this date.
+--
+-- order_history has the answer: it has been recording payment_logged since long
+-- before the column existed. The earliest one is the date the clock started.
+--
+-- at time zone, not a plain ::date cast: created_at is a timestamptz stored in
+-- UTC, and a deposit logged at 9am in Jakarta is still the previous day in UTC.
+-- Casting straight to date would quietly move every one of these a day earlier,
+-- and the whole schedule with it.
+update public.orders o
+set first_payment_date = paid.on_date
+from (
+  select order_id,
+         (min(created_at) at time zone 'Asia/Jakarta')::date as on_date
+  from public.order_history
+  where action = 'payment_logged'
+  group by order_id
+) paid
+where o.id = paid.order_id
+  and o.first_payment_date is null;

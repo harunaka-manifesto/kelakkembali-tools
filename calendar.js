@@ -105,25 +105,33 @@ KK.calendar = (function () {
   /**
    * Place the fitting programme between the first payment and the wedding.
    *
-   * Returns { events, dropped, warning, reason, finalBufferDays }:
+   * Returns { events, dropped, warning, reason, missingAnchor, finalBufferDays }:
    *   events           [{ stage, event_date }] in date order — empty when unschedulable
    *   dropped          stage names left out because the window was too tight
    *   warning          what to tell the user about a schedule that was cut down
    *   reason           why there is no schedule at all, when there isn't one
+   *   missingAnchor    true when a date is absent rather than unworkable
    *   finalBufferDays  days between the final fitting and the wedding, or null
+   *
+   * missingAnchor is the difference between "these two dates cannot produce a
+   * schedule" and "I was not given two dates". Callers that persist the result
+   * need to tell those apart: the first is an answer, the second is a question,
+   * and overwriting a stored schedule with the second throws away real data
+   * because of an empty field.
    */
   function computeSchedule(paymentISO, weddingISO) {
     const paid = toDay(paymentISO);
     const wedding = toDay(weddingISO);
 
-    const nothing = (reason) => ({
-      events: [], dropped: [], warning: '', reason: reason, finalBufferDays: null
+    const nothing = (reason, missingAnchor) => ({
+      events: [], dropped: [], warning: '', reason: reason,
+      missingAnchor: !!missingAnchor, finalBufferDays: null
     });
 
     /* Order matters. The payment is the one the user can do something about
        right now, so it is named first when both are missing. */
-    if (paid === null) return nothing('The schedule starts when the first payment is logged.');
-    if (wedding === null) return nothing('Add the wedding date to build a schedule.');
+    if (paid === null) return nothing('The schedule starts when the first payment is logged.', true);
+    if (wedding === null) return nothing('Add the wedding date to build a schedule.', true);
 
     const start = paid + DESIGN_PHASE_DAYS;   // body measurements, never moves
     const ideal = wedding - FINAL_BUFFER_IDEAL;
@@ -175,6 +183,7 @@ KK.calendar = (function () {
       dropped: order,
       warning: scheduleWarning(wedding - paid, order, finalBufferDays, squeezed),
       reason: '',
+      missingAnchor: false,
       finalBufferDays: finalBufferDays
     };
   }
