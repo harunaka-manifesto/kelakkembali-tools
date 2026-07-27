@@ -232,8 +232,14 @@ changes.
 
 Verified against the source design: 32px padding, a 534px content column that
 every block below the greeting now fills edge to edge (the old 100px right inset
-has been removed), Plus Jakarta Sans 600/400, 44px `-1.32px` title, 1px dividers
-at 10% black, 3px bullet dots, `rgba(0,0,0,.05)` 4px-radius total row.
+has been removed), 44px title, 1px dividers at 10% black, 3px bullet dots,
+`rgba(0,0,0,.05)` 4px-radius total row.
+
+Two things have deliberately moved away from the Figma frame since — see
+*The document typeface* below: the face is now Aileron at 400/200 rather than
+Plus Jakarta Sans at 600/400, and the −3% tracking Figma carried has been
+dropped, because it was cut for Plus Jakarta Sans and Aileron sets tighter to
+begin with. Geometry is unchanged.
 
 **The items table matches node `2:245` exactly**, measured live:
 
@@ -261,9 +267,14 @@ The `Price` column shows each item's **unit** price; the Total is
 ### The document typeface
 
 Both documents are set in **Aileron** (Sora Sagano, released into the public
-domain by [dot colon](https://dotcolon.net/font/aileron/), v1.02) — Regular for
-body and SemiBold for labels, which is every weight either document uses. The
-app UI keeps Plus Jakarta Sans; only the two `.q` templates changed.
+domain by [dot colon](https://dotcolon.net/font/aileron/), v1.02) — **UltraLight
+(200)** for body, **Regular (400)** for labels. That is the whole ladder either
+document uses, shifted down 200 from the 400/600 the Figma frame specified,
+because Aileron sets heavier than Plus Jakarta Sans at the same nominal weight.
+The app UI keeps Plus Jakarta Sans; only the two `.q` templates changed.
+
+Tracking is Aileron's own. The −3% the frame carried was cut for Plus Jakarta
+Sans, and there is no `letter-spacing` left anywhere in Parts 2 and 3.
 
 Both faces are subset to latin and inlined into `fonts.css` as data URIs, for
 the same reason Plus Jakarta Sans is: html2canvas snapshots each document
@@ -279,9 +290,11 @@ rendering, just in the system fallback.
 
 ### A note on rendered font weight
 
-Every text node is exactly Figma's weight — 400 body, 600 labels. Measured ink
-coverage of the table against Figma's own render of node `2:245`, taken while
-the documents were still set in Plus Jakarta Sans:
+Historic, and no longer a like-for-like comparison: the figures below were taken
+when every text node was exactly Figma's weight — Plus Jakarta Sans, 400 body
+and 600 labels. They are kept because what they measure is the *capture path*,
+not the typeface. Ink coverage of the table against Figma's own render of node
+`2:245`:
 
 | | mean luminance | ink fraction |
 |---|---|---|
@@ -386,10 +399,19 @@ the quotation, from the identical code path.
 
 ## Assets
 
-`fonts.css` carries Plus Jakarta Sans (latin subset, variable 200–800) as a
-base64 `woff2` data URI — one 27 KB face covers every weight the app uses. The
-same file is kept unencoded at `assets/fonts/` for reference. There is no
-request to Google Fonts anywhere.
+`fonts.css` carries three faces, all as base64 `woff2` data URIs and all latin
+subsets — no request to Google Fonts, Adobe Fonts or any CDN for type:
+
+| Face | Used by | Size |
+|---|---|---|
+| Plus Jakarta Sans, variable 200–800 | the app UI | 27 KB |
+| Aileron UltraLight (200) | document body | 17 KB |
+| Aileron Regular (400) | document labels | 17 KB |
+
+The Plus Jakarta Sans file is kept unencoded at `assets/fonts/` for reference.
+Aileron is rebuilt from the dot colon `.otf` release by subsetting to latin —
+`pyftsubset Aileron-<weight>.otf --unicodes=… --flavor=woff2` — then base64ing
+the result onto a single `src` line.
 
 `assets/logo-header.png` and `assets/logo-signature.png` are the real Figma
 layers (`2:92` and `2:101`) exported at 4x — not recreations.

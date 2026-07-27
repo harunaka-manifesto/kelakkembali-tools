@@ -702,35 +702,50 @@ body.has-savebar .page {
 /* The same three columns, in the same order, as the table on the quotation and
    the invoice — so what you check here is what the customer receives. The one
    row they never see is the last one. */
+/* One grid for the whole table, not one per row: the three columns have to
+   share their tracks or they are not columns. Each row owning its own grid let
+   the 42px Qty track slide left and right with the width of that row's price,
+   so the quantities landed at a different x on every line. The rows are
+   display:contents and the cells are the grid items. */
+/* Cells stretch rather than sitting on a shared baseline: the rule between
+   rows is drawn by each cell's own border-top, so the cells have to share a top
+   edge or the rule arrives in three pieces at three different heights. Rows
+   keep one font-size throughout for the same reason — it is what makes the
+   baselines agree without baseline alignment doing it for them. */
 .table {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px minmax(0, max-content);
+  font-size: 13.5px;
 }
 
-.table__row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 42px minmax(0, auto);
-  align-items: baseline;
-  gap: 10px;
-  padding: 10px 2px;
-  font-size: 13.5px;
+.table__row { display: contents; }
+
+.table__row > * {
+  padding: 10px 0;
   border-top: 1px solid var(--line);
 }
 
-.table__row:first-child { border-top: none; }
+/* No column gap — a gap would break the row rules into three separate dashes.
+   The columns are held apart by the cells' own padding instead. */
+.table__qty { padding-left: 10px; padding-right: 10px; }
 
 .table__item { min-width: 0; overflow-wrap: anywhere; }
 
+/* Centred, as on both documents (.q-c-qty) — right-aligned it read as part of
+   the price rather than as a column of its own. */
+.table__qty { text-align: center; }
+.table__price { text-align: right; }
+
 .table__qty,
 .table__price {
-  text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 /* Column headings, in the document's own wording. */
-.table__row--head {
+.table__row--head > * {
   padding-top: 0;
+  border-top: none;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -743,30 +758,47 @@ body.has-savebar .page {
 .table__row--total .table__item,
 .table__row--profit .table__item { grid-column: 1 / 3; }
 
-.table__row--total {
+.table__row--total > * {
   border-top-color: var(--line-2);
+  font-size: 15px;
   font-weight: 700;
 }
 
-.table__row--total .table__price { font-size: 15px; }
-
 /* The one figure on this page the customer must never see. Marked, not
-   quarantined in a card of its own. */
-.table__row--profit .table__item {
+   quarantined in a card of its own. The tint bleeds 10px past the table on
+   both sides and pads the same 10px back in, so the band reads as a highlight
+   while its figure stays on the exact rule as every price above it. */
+.table__row--profit > * {
+  margin-top: 6px;
+  padding: 11px 0;
+  background: var(--surface);
+  border-top: none;
+  font-weight: 700;
+}
+
+.table__row--profit > *:first-child {
+  margin-left: -10px;
+  padding-left: 10px;
+  border-radius: 9px 0 0 9px;
+}
+
+.table__row--profit > *:last-child {
+  margin-right: -10px;
+  padding-right: 10px;
+  border-radius: 0 9px 9px 0;
+}
+
+/* The label carries the INTERNAL tag, which is taller than the text and so
+   centres itself in the cell. The figure has to centre too, or the two sit on
+   different baselines despite sharing a row. */
+.table__row--profit .table__item,
+.table__row--profit .table__price {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-weight: 600;
 }
 
-.table__row--profit {
-  margin-top: 6px;
-  padding: 11px 12px;
-  background: var(--surface);
-  border-top: none;
-  border-radius: 9px;
-  font-weight: 700;
-}
+.table__row--profit .table__price { justify-content: flex-end; }
 
 /* ------------------------------ Payment chooser --------------------------- */
 
@@ -1394,8 +1426,8 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
 
 .q p { margin: 0; }
 
-.q-b { font-weight: 600; }
-.q-r { font-weight: 400; }
+.q-b { font-weight: 400; }
+.q-r { font-weight: 200; }
 
 /* 3px bullet — plain CSS circle, no image asset */
 .q-dot {
@@ -1455,9 +1487,8 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
 
 .q-title {
   font-size: 44px;
-  font-weight: 600;
+  font-weight: 400;
   line-height: normal;
-  letter-spacing: -1.32px;
   color: #000;
   white-space: nowrap;
 }
@@ -1476,9 +1507,8 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
   justify-content: center;
   gap: 4px;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 400;
   line-height: normal;
-  letter-spacing: -0.42px;
   color: #000;
   white-space: nowrap;
 }
@@ -1496,9 +1526,8 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
   flex: 1 0 0;
   min-width: 0;
   font-size: 13px;
-  font-weight: 400;
+  font-weight: 200;
   line-height: 20px;
-  letter-spacing: -0.26px;
   color: #000;
   overflow-wrap: break-word;
 }
@@ -1557,15 +1586,14 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
   gap: 24px;
   align-items: flex-start;
   font-size: 13px;
-  font-weight: 400;
+  font-weight: 200;
   line-height: 20px;
-  letter-spacing: -0.26px;
   color: #000;
 }
 
 .q-row--head {
   align-items: center;
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .q-c-item  { flex: 1 1 0; min-width: 0; overflow-wrap: break-word; }
@@ -1579,7 +1607,7 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
   padding: 4px 0 4px 8px;
   background: rgba(0, 0, 0, 0.05);
   border-radius: 4px;
-  font-weight: 600;
+  font-weight: 400;
 }
 
 /* --------------------------- Includes / Excludes ------------------------- */
@@ -1602,7 +1630,6 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
   column-gap: 4px;
   font-size: 13px;
   line-height: 20px;
-  letter-spacing: -0.26px;
   color: #000;
 }
 
@@ -1613,7 +1640,7 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
   align-items: center;
   gap: 8px;
   white-space: nowrap;
-  font-weight: 400;
+  font-weight: 200;
 }
 
 .q-excludesrow {
@@ -1622,7 +1649,6 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
   align-items: flex-start;
   font-size: 13px;
   line-height: 20px;
-  letter-spacing: -0.26px;
   color: #000;
 }
 
@@ -1643,7 +1669,6 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
   width: 100%;
   font-size: 13px;
   line-height: 20px;
-  letter-spacing: -0.26px;
 }
 
 .q-paymentrow {
@@ -1667,15 +1692,13 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
   width: 100%;
   font-size: 13px;
   line-height: 20px;
-  letter-spacing: -0.26px;
 }
 
 .q-depdesc {
   width: 100%;
   font-size: 11px;
-  font-weight: 400;
+  font-weight: 200;
   line-height: 16px;
-  letter-spacing: -0.22px;
 }
 
 /* ------------------------------- Signature ------------------------------ */
@@ -1692,9 +1715,8 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
 
 .q-sigtext {
   font-size: 13px;
-  font-weight: 400;
+  font-weight: 200;
   line-height: 20px;
-  letter-spacing: -0.26px;
   color: #000;
   white-space: nowrap;
 }
@@ -1735,7 +1757,6 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
   padding-right: 100px;
   font-size: 13px;
   line-height: 20px;
-  letter-spacing: -0.26px;
   color: #000;
 }
 
@@ -1766,8 +1787,7 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
   width: 100%;
   padding-right: 100px;
   font-size: 13px;
-  font-weight: 400;
+  font-weight: 200;
   line-height: 24px;
-  letter-spacing: -0.26px;
   color: #000;
 }
