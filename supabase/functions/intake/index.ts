@@ -137,10 +137,16 @@ function extract(payload: Record<string, unknown>) {
     const value = readable(field).trim();
     if (!value) continue;
 
-    /* The wedding is the one answer that can arrive in two shapes, so it is
-       read off the value rather than the label — whether the form asks for a
-       date or a month, what matters is which one came back. */
-    if (label.includes('wedding') || label.includes('date')) {
+    /* The label must say "wedding" — not merely "date". A form asks for several
+       dates (a birthday, an engagement, a fitting someone would prefer) and any
+       of them would parse; matching on "date" meant whichever came last in the
+       form silently became the wedding, and the whole fitting schedule counts
+       back from that one.
+
+       The *shape* is still read off the value rather than the label, because
+       that is the part the label genuinely cannot tell you: whether the couple
+       answered with a day or with a month. */
+    if (label.includes('wedding') && !out.wedding_date) {
       if (looksLikeDate(value)) {
         out.wedding_date = value.slice(0, 10);
         out.wedding_date_precision = 'day';

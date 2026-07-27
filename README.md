@@ -670,8 +670,14 @@ without creating anything.
 Nothing becomes a customer automatically. A public form is a public form, and
 deciding whether a submission is real is the job the queue exists to let you do.
 
-**1. Build the form.** Any questions you like — the mapping matches on the
-question's label, case-insensitively and by substring:
+**1. Build the form.** The live one is at
+[tally.so/r/Y5XG6N](https://tally.so/r/Y5XG6N) — four pages: how we reach you,
+the occasion, your vision, and a thank-you page. Only the name, WhatsApp number,
+who is being dressed and whether the day is set are required; everything else is
+optional, because a first enquiry is not a form to be completed correctly.
+
+Ask whatever you like — the mapping matches on the question's label,
+case-insensitively and by substring:
 
 | Ask something containing | Fills |
 | --- | --- |
@@ -680,10 +686,22 @@ question's label, case-insensitively and by substring:
 | `instagram`, `handle` | Instagram |
 | `hear about`, `how did you`, `source` | Source |
 | `looking for`, `tell us`, `message`, `anything else` | Notes |
-| `wedding` or `date` | Wedding date — an exact date is taken as-is, a month (`May 2027` or `2027-05`) becomes that month's last day and is flagged approximate |
+| **`wedding`** | Wedding date — an exact date is taken as-is, a month (`May 2027` or `2027-05`) becomes that month's last day and is flagged approximate |
 
-Anything unmatched is not lost: the entire webhook body is stored, and the
-review screen prints every answer it finds there.
+The wedding matcher requires the word **wedding**, not merely `date`. A form asks
+for several dates and any of them would parse; matching on `date` meant whichever
+came last silently became the wedding, and the entire fitting schedule counts
+back from that one. For the same reason the first `wedding` answer wins and a
+later one cannot overwrite it — the form asks for either an exact day or a month,
+never both.
+
+Source options should mirror the app's own list — `Instagram`, `TikTok`,
+`Referral` — since anything else is filed as `Other` when the enquiry is
+accepted. The raw answer is still kept and shown on the review screen.
+
+Nothing else is lost either: the entire webhook body is stored, and the review
+screen prints every answer it finds there. So a question added in Tally shows up
+in the app without this repo being touched.
 
 **2. Set the secret and deploy.**
 
