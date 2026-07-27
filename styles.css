@@ -335,9 +335,10 @@ body {
 /* -------------------------------- Layout -------------------------------- */
 
 .page {
+  --page-pad: 20px;
   max-width: 560px;
   margin: 0 auto;
-  padding: 16px 20px 48px;
+  padding: 16px var(--page-pad) 48px;
 }
 
 /* Clearance for whichever fixed bottom bar is up, measured rather than
@@ -468,9 +469,12 @@ body.has-savebar .page {
 
 /* ------------------------------- Deadlines ------------------------------- */
 
-/* The three customers with the soonest date still ahead. This is the only
-   thing on the homepage that is time-sensitive, so it is the only thing above
-   the list. */
+/* The customers with the soonest date still ahead. This is the only thing on
+   the homepage that is time-sensitive, so it is the only thing above the list.
+
+   Full-width stacked rows cost three screenfuls to say three dates and pushed
+   the customer list below the fold. Calendar tiles in one horizontal strip say
+   the same in a fifth of the height and hold twice as many. */
 .deadlines {
   display: flex;
   flex-direction: column;
@@ -488,42 +492,83 @@ body.has-savebar .page {
   color: var(--label);
 }
 
+/* The negative margins let the strip bleed to the screen edges inside the
+   page's padding, so the last tile is visibly cut off rather than sitting in a
+   gutter — which is what tells you it scrolls. */
 .deadlines__cards {
   display: flex;
-  flex-direction: column;
   gap: 8px;
+  margin: 0 calc(var(--page-pad, 16px) * -1);
+  padding: 2px var(--page-pad, 16px) 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 }
 
-.deadline {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 13px 14px;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--line-2);
-  border-radius: 10px;
-  color: inherit;
-  text-decoration: none;
-  transition: border-color .15s ease, background .15s ease;
+.deadlines__cards::-webkit-scrollbar { height: 4px; }
+.deadlines__cards::-webkit-scrollbar-thumb {
+  background: var(--line-2);
+  border-radius: 999px;
 }
 
-.deadline:hover { background: #fff; border-color: var(--line-2); }
-
-/* A week out is when a fitting stops being a plan and starts being a problem. */
-.deadline--soon { border-left-color: var(--danger); }
-.deadline--soon .deadline__when { color: var(--danger); }
-
-.deadline__main {
-  flex: 1 1 auto;
+/* Same surface and border as every other card on the page — just narrow and
+   in a row, so the strip reads as one family of cards rather than a
+   different kind of thing bolted onto the homepage. */
+.dcal {
+  flex: 0 0 136px;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 6px;
+  scroll-snap-align: start;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 11px 12px 12px;
+  box-shadow: 0 1px 2px rgba(23, 21, 15, 0.05);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color .15s ease, box-shadow .15s ease;
 }
 
-.deadline__name {
-  font-size: 15px;
+.dcal:hover {
+  border-color: var(--line-2);
+  box-shadow: 0 2px 6px rgba(23, 21, 15, 0.08);
+}
+
+.dcal__date {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.dcal__day {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.dcal__month {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.dcal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dcal__name {
+  font-size: 13.5px;
   font-weight: 600;
   letter-spacing: -0.2px;
   overflow: hidden;
@@ -531,20 +576,16 @@ body.has-savebar .page {
   white-space: nowrap;
 }
 
-.deadline__what {
-  font-size: 12.5px;
-  color: var(--muted);
+.dcal__what,
+.dcal__when {
+  font-size: 11.5px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.deadline__when {
-  flex: none;
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-}
+.dcal__what { color: var(--muted); }
+.dcal__when { font-weight: 600; color: var(--label); }
 
 /* --------------------------- Lists and records --------------------------- */
 
@@ -579,6 +620,85 @@ body.has-savebar .page {
 /* A card whose whole job is to hold the list — the search field is its
    heading, so it needs no other one. */
 .card--list { gap: 12px; }
+
+/* Search and New share the card's top row. Adding a customer used to sit under
+   the list, which meant scrolling past every existing name to reach the one
+   thing you do most often on this page. */
+.listtools {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.listtools .searchrow { flex: 1 1 auto; min-width: 0; }
+
+/* Two classes deep: .btn--primary is declared further down and sets
+   `width: 100%` for the full-width bars it normally lives in, which here would
+   eat the search field beside it. */
+.btn.btn--newinline {
+  flex: none;
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 52px;
+  padding: 0 16px;
+  white-space: nowrap;
+}
+
+.btn__plus { font-size: 18px; font-weight: 500; line-height: 1; }
+
+/* Below this the label is the first thing worth losing — the "+" alone is
+   unambiguous next to a search field, and a search field squeezed down to its
+   icon is not. */
+@media (max-width: 339px) {
+  .btn.btn--newinline { padding: 0 14px; }
+  .btn--newinline .btn__label { display: none; }
+}
+
+/* Count on the left, order on the right: what you are looking at, and how it
+   is arranged. Neither is important enough for a row of its own. */
+.listbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: -2px 2px -4px;
+}
+
+.listbar__count {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--label);
+}
+
+.listbar__sort {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.listbar__sortlabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--label);
+}
+
+/* A select that has to sit inside a row rather than fill one. */
+.input.input--mini {
+  width: auto;
+  min-height: 34px;
+  padding: 5px 30px 5px 10px;
+  font-size: 13px;
+  background-color: transparent;
+  border-color: var(--line-2);
+  background-position: right 8px center;
+  background-size: 14px;
+}
 
 .list {
   display: flex;
@@ -762,6 +882,16 @@ body.has-savebar .page {
   border-top-color: var(--line-2);
   font-size: 15px;
   font-weight: 700;
+}
+
+/* What the profit figure above is not counting. A direct child of the grid, so
+   it has to be told to span it — the rows either side use `display: contents`
+   and put their own cells in the tracks. */
+.table__note {
+  grid-column: 1 / -1;
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--label);
 }
 
 /* The one figure on this page the customer must never see. Marked, not
@@ -1069,6 +1199,77 @@ select.input {
 }
 
 .prefixed .input { padding-left: 40px; }
+
+/* The unit trails the number for a percentage, and leads it for a currency. */
+.prefixed--suffix .suffix {
+  position: absolute;
+  right: 14px;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--faint);
+  pointer-events: none;
+}
+
+.prefixed--suffix .input { padding-left: 14px; padding-right: 34px; }
+
+/* ----------------------------- Payment terms ----------------------------- */
+
+/* Revealed by the scheme select, so it needs the same hidden-wins rule as
+   .card — its own `display: flex` would otherwise beat the UA's `hidden`. */
+.terms {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.terms[hidden] { display: none; }
+
+.termlist {
+  counter-reset: term;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.term {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.term__idx {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--label);
+}
+
+.term__idx::before {
+  counter-increment: term;
+  content: "Term " counter(term);
+}
+
+.term__row { display: flex; gap: 10px; }
+.term__namefield { flex: 1 1 auto; min-width: 0; }
+.term__pctfield  { width: 104px; flex: none; }
+
+/* The running total is the whole point of the block: terms that sum to 90%
+   invoice for less than the order is worth, and nothing else on the page would
+   ever say so. */
+.termsum {
+  margin: -2px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.termsum--off { color: var(--danger); }
 
 /* --------------------------------- Chips -------------------------------- */
 
@@ -1671,15 +1872,19 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
   line-height: 20px;
 }
 
+/* Three terms is the package's shape, not a limit — an order on its own terms
+   can print more, so the row wraps rather than squeezing them all onto one
+   line at three characters a word. */
 .q-paymentrow {
   width: 100%;
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   align-items: flex-start;
 }
 
 .q-deposit {
-  flex: 1 0 0;
+  flex: 1 0 150px;
   min-width: 0;
   display: flex;
   flex-direction: column;

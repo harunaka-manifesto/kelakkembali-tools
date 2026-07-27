@@ -152,7 +152,8 @@ KK.db = (function () {
   /* --------------------------------- Orders ------------------------------- */
 
   const ORDER_FIELDS =
-    'id,customer_id,title,document_date,status,items,includes,fitting_1_date,final_fitting_date,created_at';
+    'id,customer_id,title,doc_name,document_date,status,items,includes,' +
+    'payment_scheme,payment_terms,fitting_1_date,final_fitting_date,created_at';
 
   /** Lightweight: every order across every customer, for the homepage overview. */
   const ORDER_OVERVIEW_FIELDS = 'id,customer_id,status,items,fitting_1_date,final_fitting_date';

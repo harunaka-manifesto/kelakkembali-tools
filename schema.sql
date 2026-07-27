@@ -133,15 +133,32 @@ alter table public.orders add column if not exists final_fitting_date date;
 -- Carry each customer's fitting dates onto their order, but only when there
 -- is exactly one — with two or more orders there is no way to know which one
 -- the shared date belonged to, so those are left null rather than guessed.
-update public.orders o
-set fitting_1_date     = c.fitting_1_date,
-    final_fitting_date = c.final_fitting_date
-from public.customers c
-where o.customer_id = c.id
-  and o.fitting_1_date is null
-  and o.final_fitting_date is null
-  and (c.fitting_1_date is not null or c.final_fitting_date is not null)
-  and (select count(*) from public.orders o2 where o2.customer_id = c.id) = 1;
+--
+-- Wrapped in a guard because the two DROPs below it remove the very columns it
+-- reads: on the second run of this file there is nothing left to carry over,
+-- and a plain statement would fail at parse time rather than quietly finding no
+-- rows. Inside `execute` the body is only parsed if the guard lets it run.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'customers'
+      and column_name = 'fitting_1_date'
+  ) then
+    execute $mig$
+      update public.orders o
+      set fitting_1_date     = c.fitting_1_date,
+          final_fitting_date = c.final_fitting_date
+      from public.customers c
+      where o.customer_id = c.id
+        and o.fitting_1_date is null
+        and o.final_fitting_date is null
+        and (c.fitting_1_date is not null or c.final_fitting_date is not null)
+        and (select count(*) from public.orders o2 where o2.customer_id = c.id) = 1
+    $mig$;
+  end if;
+end
+$$;
 
 -- Fitting dates now live on the order, not the customer.
 alter table public.customers drop column if exists fitting_1_date;
@@ -182,3 +199,29 @@ alter table public.order_history enable row level security;
 drop policy if exists "signed-in full access" on public.order_history;
 create policy "signed-in full access" on public.order_history
   for all to authenticated using (true) with check (true);
+
+-- =========================================================================
+-- Migration — document name + payment schemes
+--
+-- Two things that were being inferred and should not have been.
+--
+-- doc_name: the name printed on the quotation and invoice was the customer's
+-- own name, which is wrong as often as it is right — the record is filed under
+-- whoever books and pays, and the document is addressed to whoever the outfit
+-- is for. They are now separate fields, and the order asks for its own.
+--
+-- payment_scheme / payment_terms: the 35/35/30 split is the wedding-attire
+-- package's, not the studio's. Other services are quoted on their own terms, so
+-- an order can now carry its own list. Standard orders store nothing and keep
+-- using the built-in split, so nothing already in the table has to be migrated.
+--   payment_terms: [{ "label": text, "percent": number, "desc": text }]
+-- =========================================================================
+
+alter table public.orders add column if not exists doc_name text;
+
+alter table public.orders add column if not exists payment_scheme text not null default 'standard';
+alter table public.orders drop constraint if exists orders_payment_scheme_check;
+alter table public.orders add constraint orders_payment_scheme_check
+  check (payment_scheme in ('standard', 'other'));
+
+alter table public.orders add column if not exists payment_terms jsonb not null default '[]'::jsonb;

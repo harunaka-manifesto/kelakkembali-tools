@@ -79,6 +79,8 @@ KK.app = (function () {
     deadlines: $('#deadlines'),
     deadlineCards: $('#deadlineCards'),
     customerSearch: $('#customerSearch'),
+    customerSort: $('#customerSort'),
+    customerCount: $('#customerCount'),
     customerList: $('#customerList'),
     newCustomer: $('#newCustomer'),
 
@@ -104,6 +106,7 @@ KK.app = (function () {
     newOrder: $('#newOrder'),
 
     viewOrder: $('#viewOrder'),
+    oDocNameDisplay: $('#oDocNameDisplay'),
     oFitting1Display: $('#oFitting1Display'),
     oFittingFinalDisplay: $('#oFittingFinalDisplay'),
     oWeddingDisplay: $('#oWeddingDisplay'),
@@ -116,8 +119,15 @@ KK.app = (function () {
 
     viewOrderEdit: $('#viewOrderEdit'),
     oTitle: $('#oTitle'),
+    oDocName: $('#oDocName'),
     oFitting1: $('#oFitting1'),
     oFittingFinal: $('#oFittingFinal'),
+    oScheme: $('#oScheme'),
+    termsCard: $('#termsCard'),
+    termList: $('#termList'),
+    addTerm: $('#addTerm'),
+    termsSum: $('#termsSum'),
+    errTerms: $('#errTerms'),
     itemList: $('#itemList'),
     itemsTotal: $('#itemsTotal'),
     addItem: $('#addItem'),
@@ -373,9 +383,17 @@ KK.app = (function () {
       : 'Empty order';
   }
 
+  /* A blank production cost means nobody has worked it out yet, not that the
+     item is free to make. Counting it as zero turned every unpriced item into
+     pure margin and quietly overstated the figure, so those items sit out of
+     the sum entirely and the page says how many did. */
+  const isCosted = (it) => (Number(it.cost) || 0) > 0;
+
+  const isNamed = (it) => String(it.name || '').trim() !== '';
+
   /** Internal-only figure: never fed into docs.render, never on a PDF. */
   function nettProfit(items) {
-    return (items || []).reduce((sum, it) =>
+    return (items || []).filter(isCosted).reduce((sum, it) =>
       sum + ((Number(it.price) || 0) - (Number(it.cost) || 0)) * (Number(it.qty) || 0), 0);
   }
 
@@ -396,22 +414,44 @@ KK.app = (function () {
     renderCustomerList();
   }
 
+  /* Which order the list is in, kept across sessions — it is a working
+     preference, not something to re-pick every time the page loads. The
+     database already returns soonest-wedding order, so that mode sorts
+     nothing; alphabetical re-sorts a copy. */
+  const SORT_KEY = 'kk_customer_sort';
+  const SORT_MODES = ['wedding', 'name'];
+
+  function savedSort() {
+    const v = localStorage.getItem(SORT_KEY);
+    return SORT_MODES.includes(v) ? v : SORT_MODES[0];
+  }
+
+  function sortCustomers(rows) {
+    if (el.customerSort.value !== 'name') return rows;
+    return rows.slice().sort((a, b) =>
+      String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' }));
+  }
+
   function renderCustomerList() {
     const q = el.customerSearch.value.trim().toLowerCase();
-    const rows = state.customers.filter((c) => !q || [c.name, c.phone, c.instagram]
-      .some((v) => String(v || '').toLowerCase().includes(q)));
+    const rows = sortCustomers(state.customers.filter((c) => !q ||
+      [c.name, c.phone, c.instagram].some((v) => String(v || '').toLowerCase().includes(q))));
+
+    el.customerCount.textContent = rows.length
+      ? rows.length + (rows.length === 1 ? ' customer' : ' customers')
+      : '';
 
     if (!rows.length) {
       el.customerList.innerHTML = '<p class="empty">' +
         (state.customers.length
           ? 'No match for “' + U.escapeHtml(el.customerSearch.value.trim()) + '”.'
-          : 'No customers yet. Add the first one below.') + '</p>';
+          : 'No customers yet. Add the first one with New, above.') + '</p>';
       return;
     }
 
     /* Two meta lines, both load-bearing: the wedding date is what the list is
-       sorted by, and the order count is what tells you whether there is
-       anything to open. The old "Created" line was neither. */
+       sorted by by default, and the order count is what tells you whether there
+       is anything to open. The old "Created" line was neither. */
     el.customerList.innerHTML = rows.map((c) => {
       const orders = (state.overview.ordersByCustomer[c.id] || []);
       const gross = orders.reduce((sum, o) => sum + docs.computeTotal(o.items), 0);
@@ -465,27 +505,47 @@ KK.app = (function () {
   const relativeDays = (days) =>
     days === 0 ? 'today' : days === 1 ? 'tomorrow' : 'in ' + days + ' days';
 
+  /** Full names vary too much in length to keep the calendar tile a fixed
+      width — the first name is enough to recognize who, and truncation
+      handles the rest. */
+  const firstName = (name) => (name || '').trim().split(/\s+/)[0] || '';
+
+  /** "2026-03-21" -> { day: "21", mon: "MAR" }, for the calendar tile's head. */
+  function calendarParts(iso) {
+    const parts = U.formatShortDate(iso).split(' ');
+    return { day: parts[0] || '', mon: (parts[1] || '').toUpperCase() };
+  }
+
+  /* Stacked full-width rows, each of them mostly empty space, cost three
+     screenfuls of height to say three dates. As calendar tiles in one
+     horizontal strip the section is a fifth of the height and holds twice as
+     many — and a date reads faster as a date than as a sentence about one. */
+  const DEADLINE_LIMIT = 8;
+
   function renderDeadlines() {
     const soon = state.customers
       .filter(isActive)
       .map((c) => ({ customer: c, deadline: nextDeadline(c) }))
       .filter((r) => r.deadline)
       .sort((a, b) => (a.deadline.date < b.deadline.date ? -1 : 1))
-      .slice(0, 3);
+      .slice(0, DEADLINE_LIMIT);
 
     el.deadlines.hidden = !soon.length;
     if (!soon.length) return;
 
     el.deadlineCards.innerHTML = soon.map((r) => {
       const days = daysUntil(r.deadline.date);
-      return '<a class="deadline' + (days <= 7 ? ' deadline--soon' : '') + '" ' +
-        'href="#/customer/' + r.customer.id + '">' +
-        '<span class="deadline__main">' +
-          '<span class="deadline__name">' + U.escapeHtml(r.customer.name) + '</span>' +
-          '<span class="deadline__what">' + r.deadline.what + ' · ' +
-            U.escapeHtml(U.formatShortDate(r.deadline.date)) + '</span>' +
+      const cal = calendarParts(r.deadline.date);
+      return '<a class="dcal" href="#/customer/' + r.customer.id + '">' +
+        '<span class="dcal__date">' +
+          '<span class="dcal__day">' + U.escapeHtml(cal.day) + '</span>' +
+          '<span class="dcal__month">' + U.escapeHtml(cal.mon) + '</span>' +
         '</span>' +
-        '<span class="deadline__when">' + relativeDays(days) + '</span>' +
+        '<span class="dcal__body">' +
+          '<span class="dcal__name">' + U.escapeHtml(firstName(r.customer.name)) + '</span>' +
+          '<span class="dcal__what">' + U.escapeHtml(r.deadline.what) + '</span>' +
+          '<span class="dcal__when">' + relativeDays(days) + '</span>' +
+        '</span>' +
       '</a>';
     }).join('');
   }
@@ -670,16 +730,16 @@ KK.app = (function () {
     return row.action;
   }
 
-  /* docs.DEPOSIT_LABELS carry the percentage because the invoice prints it.
+  /* A term's printed label carries the percentage because the invoice needs it.
      On screen the rupiah amount is on the same row, so the percentage is just
      the same fact twice — and it pushed every label onto two lines. */
-  const depositName = (i) => docs.DEPOSIT_LABELS[i].split(' - ')[0];
 
-  /* Which deposits have already been logged, so the page can show what is
-     outstanding and the chooser can stop offering a deposit twice. */
+  /* Which terms have already been logged, so the page can show what is
+     outstanding and the chooser can stop offering the same one twice. */
   function renderPayments(historyRows) {
     const total = docs.computeTotal(state.order.items);
-    const amounts = docs.depositAmounts(total);
+    const terms = docs.termsFor(state.order);
+    const amounts = docs.termAmounts(total, terms);
     const logged = {};
     historyRows.forEach((r) => {
       if (r.action !== 'payment_logged') return;
@@ -688,18 +748,18 @@ KK.app = (function () {
     });
     state.loggedDeposits = logged;
 
-    /* Deposits are shares of the total, so with no priced items there is
-       nothing to log but three Rp0 rows. */
+    /* Every term is a share of the total, so with no priced items there is
+       nothing to log but a column of Rp0 rows. */
     if (total <= 0) {
-      el.paymentSummary.innerHTML = '<p class="empty">Price the items to work out the deposits.</p>';
+      el.paymentSummary.innerHTML = '<p class="empty">Price the items to work out the payment terms.</p>';
       el.logPaymentBtn.hidden = true;
       el.paymentChooserOptions.hidden = true;
       return;
     }
 
-    el.paymentSummary.innerHTML = docs.DEPOSIT_LABELS.map((label, i) =>
+    el.paymentSummary.innerHTML = terms.map((t, i) =>
       '<div class="logrow">' +
-        '<span class="logrow__kind">' + U.escapeHtml(depositName(i)) + '</span>' +
+        '<span class="logrow__kind">' + U.escapeHtml(t.label) + '</span>' +
         '<span class="logrow__when">' +
           (logged[i] ? 'Paid ' + U.escapeHtml(U.formatShortDate(logged[i])) : 'Outstanding') +
         '</span>' +
@@ -707,7 +767,7 @@ KK.app = (function () {
       '</div>'
     ).join('');
 
-    const outstanding = docs.DEPOSIT_LABELS.some((_, i) => !logged[i]);
+    const outstanding = terms.some((_, i) => !logged[i]);
     el.logPaymentBtn.hidden = !outstanding;
     if (!outstanding) el.paymentChooserOptions.hidden = true;
   }
@@ -742,10 +802,11 @@ KK.app = (function () {
       issued, so the date is stamped here rather than typed into the editor. */
   function orderDataFromState() {
     return {
-      customerName: state.customer ? state.customer.name : '',
+      docName: state.order.doc_name || '',
       date: U.todayISO(),
       items: state.order.items || [],
-      includes: state.order.includes || []
+      includes: state.order.includes || [],
+      terms: docs.termsFor(state.order)
     };
   }
 
@@ -755,13 +816,23 @@ KK.app = (function () {
      down the right-hand edge, every figure — line prices, Total, Nett profit —
      lands on the same rule. */
   function renderItemsTable(items) {
-    const named = items.filter((it) => String(it.name || '').trim() !== '');
+    const named = items.filter(isNamed);
     const total = docs.computeTotal(items);
 
     if (!named.length) {
       el.oItemsDisplay.innerHTML = '<p class="empty">No items yet. Tap Edit to add one.</p>';
       return;
     }
+
+    /* Say which figure this is. With some costs unfilled it is the profit on
+       part of the order, and a number that quietly means something narrower
+       than its label is worse than no number. */
+    const uncosted = named.filter((it) => !isCosted(it)).length;
+    const profitNote = !uncosted ? ''
+      : uncosted === named.length
+        ? 'No production costs filled in yet.'
+        : 'Excludes ' + uncosted + ' of ' + named.length +
+          ' items with no production cost.';
 
     el.oItemsDisplay.innerHTML =
       '<div class="table__row table__row--head">' +
@@ -782,8 +853,11 @@ KK.app = (function () {
       '</div>' +
       '<div class="table__row table__row--profit">' +
         '<span class="table__item">Nett profit <span class="tag">Internal</span></span>' +
-        '<span class="table__price">' + U.formatRupiah(nettProfit(items)) + '</span>' +
-      '</div>';
+        '<span class="table__price">' +
+          (uncosted === named.length ? '—' : U.formatRupiah(nettProfit(items))) +
+        '</span>' +
+      '</div>' +
+      (profitNote ? '<p class="table__note">' + U.escapeHtml(profitNote) + '</p>' : '');
   }
 
   async function showOrder(id) {
@@ -798,13 +872,14 @@ KK.app = (function () {
     });
     renderOrderStatus();
 
+    el.oDocNameDisplay.textContent = state.order.doc_name || 'Not set';
     el.oFitting1Display.textContent = showDate(state.order.fitting_1_date);
     el.oFittingFinalDisplay.textContent = showDate(state.order.final_fitting_date);
     el.oWeddingDisplay.textContent = showDate(state.customer.wedding_date);
 
     const items = state.order.items || [];
     const total = docs.computeTotal(items);
-    const namedItems = items.filter((it) => String(it.name || '').trim() !== '');
+    const namedItems = items.filter(isNamed);
     renderItemsTable(items);
 
     /* Six filled black pills made the least important block on the page the
@@ -817,11 +892,18 @@ KK.app = (function () {
     el.totalDisplay.textContent = U.formatRupiah(total);
     el.paymentChooserOptions.hidden = true;
 
-    /* An empty order would export a document with no lines on it. */
-    const sellable = namedItems.length > 0 && total > 0;
+    /* An empty order would export a document with no lines on it, and one
+       without a document name would address it to nobody. The name is no
+       longer inherited from the customer, so it has to be asked for. */
+    const priced = namedItems.length > 0 && total > 0;
+    const hasDocName = String(state.order.doc_name || '').trim() !== '';
+    const sellable = priced && hasDocName;
     el.downloadQuote.disabled = !sellable;
     el.downloadInvoice.disabled = !sellable;
     el.downloadNote.hidden = sellable;
+    el.downloadNote.textContent = !priced
+      ? 'Add an item to enable downloads.'
+      : 'Add the name for documents to enable downloads.';
 
     setDirty(false);
     await refreshHistory();
@@ -841,8 +923,13 @@ KK.app = (function () {
     });
 
     el.oTitle.value = state.order.title || '';
+    el.oDocName.value = state.order.doc_name || '';
     el.oFitting1.value = state.order.fitting_1_date || '';
     el.oFittingFinal.value = state.order.final_fitting_date || '';
+
+    el.oScheme.value = state.order.payment_scheme === 'other' ? 'other' : 'standard';
+    buildTerms(state.order);
+    syncSchemeCard();
 
     el.itemList.innerHTML = '';
     const items = (state.order.items || []).length
@@ -858,13 +945,21 @@ KK.app = (function () {
   }
 
   async function saveOrder() {
+    if (!validateTerms()) return false;
+
     const items = readItems().map((it) => ({ name: it.name, qty: it.qty, price: it.price, cost: it.cost }));
+    const scheme = el.oScheme.value === 'other' ? 'other' : 'standard';
     /* Neither document_date nor status is sent: the first is stamped when a
        PDF is generated, the second is set by the events that earn it. */
     state.order = await db.updateOrder(state.order.id, {
       title: orNull(el.oTitle.value),
+      doc_name: orNull(el.oDocName.value),
       items: items,
       includes: checkedIncludes(),
+      payment_scheme: scheme,
+      /* Standard orders store nothing, so switching back to the package does
+         not leave a stale list behind to be read the next time it is edited. */
+      payment_terms: scheme === 'other' ? readTerms() : [],
       fitting_1_date: orNull(el.oFitting1.value),
       final_fitting_date: orNull(el.oFittingFinal.value)
     });
@@ -1069,6 +1164,140 @@ KK.app = (function () {
     setDirty(true);
   }
 
+  /* ----------------------------- Payment terms ---------------------------- */
+
+  /* The 35/35/30 split is the wedding-attire package's, and hard-coding it made
+     every other thing the studio sells un-quotable. An order on "other
+     services" carries its own list instead.
+
+     The one rule is that the shares add up to the whole job: terms that sum to
+     90% mean an invoice whose instalments do not reach its own total, which is
+     the kind of error that surfaces as an argument about money months later.
+     So the sum is shown live and the save is refused until it lands on 100. */
+
+  function createTermRow(t) {
+    const term = t || { label: '', percent: '', desc: '' };
+    const row = document.createElement('div');
+    row.className = 'term';
+    row.innerHTML =
+      '<div class="item__head">' +
+        '<span class="term__idx"></span>' +
+        '<button type="button" class="item__remove js-remove-term" aria-label="Remove term">' +
+          REMOVE_ICON +
+        '</button>' +
+      '</div>' +
+      '<div class="term__row">' +
+        '<label class="field term__namefield">' +
+          '<span class="field__label">Label</span>' +
+          '<input class="input js-tlabel" type="text" maxlength="40" placeholder="e.g. Down payment">' +
+        '</label>' +
+        '<label class="field term__pctfield">' +
+          '<span class="field__label">Share</span>' +
+          '<span class="prefixed prefixed--suffix">' +
+            '<input class="input js-tpct" type="text" inputmode="decimal" placeholder="0">' +
+            '<span class="suffix">%</span>' +
+          '</span>' +
+        '</label>' +
+      '</div>' +
+      '<label class="field">' +
+        '<span class="field__label">Description (optional)</span>' +
+        '<input class="input js-tdesc" type="text" maxlength="120" ' +
+          'placeholder="Printed under the share on the quotation">' +
+      '</label>';
+
+    $('.js-tlabel', row).value = term.label || '';
+    $('.js-tpct', row).value = term.percent === '' || term.percent == null ? '' : String(term.percent);
+    $('.js-tdesc', row).value = term.desc || '';
+    return row;
+  }
+
+  function addTermRow(data, focus) {
+    const row = createTermRow(data);
+    el.termList.appendChild(row);
+    refreshTermRemoveButtons();
+    refreshTermsSum();
+    if (focus) $('.js-tlabel', row).focus();
+    return row;
+  }
+
+  const termRowElements = () => $$('.term', el.termList);
+
+  function refreshTermRemoveButtons() {
+    const rows = termRowElements();
+    rows.forEach((row) => { $('.js-remove-term', row).disabled = rows.length <= 1; });
+  }
+
+  /** Blank stays blank rather than becoming 0 — an empty field is unanswered. */
+  const parsePercent = (raw) => {
+    const cleaned = String(raw || '').replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1');
+    return cleaned === '' || cleaned === '.' ? null : Number(cleaned);
+  };
+
+  function readTerms() {
+    return termRowElements().map((row) => ({
+      label: $('.js-tlabel', row).value.trim(),
+      percent: parsePercent($('.js-tpct', row).value),
+      desc: $('.js-tdesc', row).value.trim()
+    }));
+  }
+
+  const termsTotal = (terms) =>
+    terms.reduce((sum, t) => sum + (t.percent || 0), 0);
+
+  /* Rounded before comparing: three thirds typed as 33.33 are 99.99, and
+     refusing that would be pedantry rather than protection. */
+  const roundPct = (n) => Math.round(n * 100) / 100;
+
+  function refreshTermsSum() {
+    const total = roundPct(termsTotal(readTerms()));
+    const off = roundPct(100 - total);
+    el.termsSum.textContent = 'Shares total ' + total + '%' +
+      (off === 0 ? '' : (off > 0 ? ' — ' + off + '% short' : ' — ' + (-off) + '% over'));
+    el.termsSum.classList.toggle('termsum--off', off !== 0);
+  }
+
+  function showTermsError(message) {
+    el.errTerms.textContent = message;
+    el.errTerms.hidden = false;
+    el.termsCard.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    return false;
+  }
+
+  /** Only ever checked for the custom scheme — the package's terms are fixed. */
+  function validateTerms() {
+    el.errTerms.hidden = true;
+    if (el.oScheme.value !== 'other') return true;
+
+    const terms = readTerms();
+    if (!terms.length) return showTermsError('Add at least one payment term.');
+    if (terms.some((t) => !t.label)) return showTermsError('Every term needs a label.');
+    if (terms.some((t) => t.percent == null || t.percent <= 0)) {
+      return showTermsError('Every term needs a share above 0%.');
+    }
+
+    const total = roundPct(termsTotal(terms));
+    if (total !== 100) {
+      return showTermsError('The shares add up to ' + total + '%. They have to add up to 100%.');
+    }
+    return true;
+  }
+
+  /** Seeds the list on the first switch to custom, so it is never empty. */
+  function buildTerms(order) {
+    el.termList.innerHTML = '';
+    const saved = (order && order.payment_terms) || [];
+    const rows = saved.length ? saved : [{ label: 'Down payment', percent: 50, desc: '' },
+                                         { label: 'Final payment', percent: 50, desc: '' }];
+    rows.forEach((t) => addTermRow(t, false));
+  }
+
+  function syncSchemeCard() {
+    el.termsCard.hidden = el.oScheme.value !== 'other';
+    if (!el.termsCard.hidden && !termRowElements().length) buildTerms(null);
+    el.errTerms.hidden = true;
+    refreshTermsSum();
+  }
+
   /* ------------------------------ PDF download ---------------------------- */
 
   /** Both buttons lock during a capture; only the pressed one spins. */
@@ -1114,25 +1343,27 @@ KK.app = (function () {
      recording the same deposit twice. */
   function openPaymentChooser() {
     const total = docs.computeTotal(state.order.items);
-    const amounts = docs.depositAmounts(total);
+    const terms = docs.termsFor(state.order);
+    const amounts = docs.termAmounts(total, terms);
     const logged = state.loggedDeposits || {};
-    el.paymentChooserOptions.innerHTML = docs.DEPOSIT_LABELS
-      .map((label, i) => (logged[i] ? '' :
+    el.paymentChooserOptions.innerHTML = terms
+      .map((t, i) => (logged[i] ? '' :
         '<button type="button" class="btn btn--outline btn--block js-log-deposit" data-i="' + i + '">' +
-          U.escapeHtml(depositName(i)) + ' — ' + U.formatRupiah(amounts[i]) +
+          U.escapeHtml(t.label) + ' — ' + U.formatRupiah(amounts[i]) +
         '</button>')).join('');
     el.paymentChooserOptions.hidden = false;
   }
 
   async function logDeposit(i) {
     const total = docs.computeTotal(state.order.items);
-    const amount = docs.depositAmounts(total)[i];
+    const terms = docs.termsFor(state.order);
+    const amount = docs.termAmounts(total, terms)[i];
     try {
       await db.logOrderHistory(state.order.id, 'payment_logged', {
-        deposit_index: i, deposit_label: docs.DEPOSIT_LABELS[i], amount: amount
+        deposit_index: i, deposit_label: docs.termLabel(terms[i]), amount: amount
       });
       el.paymentChooserOptions.hidden = true;
-      showToast(depositName(i) + ' logged');
+      showToast(terms[i].label + ' logged');
       // Money down means the work is under way.
       await bumpStatus('In production');
       await refreshHistory();
@@ -1194,7 +1425,8 @@ KK.app = (function () {
         if (state.route.view === 'customer') await saveCustomer();
         else if (state.route.view === 'orderEdit') {
           const id = state.order.id;
-          await saveOrder();
+          // Refused by validation: stay on the form, where the error is.
+          if (!await saveOrder()) return;
           showToast('Order saved');
           leaveFormFor('#/order/' + id);
         }
@@ -1238,6 +1470,11 @@ KK.app = (function () {
     /* -- customer list / overview -- */
 
     el.customerSearch.addEventListener('input', renderCustomerList);
+
+    el.customerSort.addEventListener('change', () => {
+      localStorage.setItem(SORT_KEY, el.customerSort.value);
+      renderCustomerList();
+    });
 
     el.newCustomer.addEventListener('click', () => go('#/customer/new'));
 
@@ -1348,6 +1585,38 @@ KK.app = (function () {
 
     el.addInclude.addEventListener('click', addCustomInclude);
 
+    /* -- payment terms -- */
+
+    el.oScheme.addEventListener('change', () => {
+      syncSchemeCard();
+      setDirty(true);
+    });
+
+    el.addTerm.addEventListener('click', () => {
+      addTermRow(null, true);
+      setDirty(true);
+    });
+
+    el.termList.addEventListener('click', (e) => {
+      const btn = e.target.closest('.js-remove-term');
+      if (!btn || btn.disabled) return;
+      btn.closest('.term').remove();
+      refreshTermRemoveButtons();
+      refreshTermsSum();
+      setDirty(true);
+    });
+
+    el.termList.addEventListener('input', (e) => {
+      const input = e.target;
+      // One dot, digits either side of it, nothing else.
+      if (input.classList.contains('js-tpct')) {
+        input.value = input.value.replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1');
+      }
+      el.errTerms.hidden = true;
+      refreshTermsSum();
+      setDirty(true);
+    });
+
     el.customInclude.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
@@ -1415,6 +1684,7 @@ KK.app = (function () {
   async function init() {
     bindGate();
     bindEvents();
+    el.customerSort.value = savedSort();
 
     if (!db.isConfigured()) {
       el.boot.innerHTML =

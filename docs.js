@@ -3,7 +3,9 @@
    Owns the two locked templates: fills them from a plain data object and
    exports either as a single-page PDF via html2canvas + jsPDF. Knows nothing
    about the form, the database or the views — hand it
-   { customerName, date, items, includes } and it renders.
+   { docName, date, items, includes, terms } and it renders. docName is the
+   order's own document name, not the customer's; terms is its payment split,
+   which falls back to the standing package's when empty.
 
    The templates themselves live in index.html under .stage, and their CSS is
    Parts 2 and 3 of styles.css. Neither is to be restyled: only the data
@@ -19,10 +21,33 @@ KK.docs = (function () {
 
   /* ------------------------------- Constants ----------------------------- */
 
-  /* Invoice only: the quotation prints these as percentages with a description,
-     the invoice prints them as rupiah amounts. */
-  const DEPOSIT_LABELS = ['1st deposit - 35%', '2nd deposit - 35%', '3rd deposit - 30%'];
-  const DEPOSIT_SHARES = [0.35, 0.35, 0.30];
+  /* The wedding-attire package's terms. The quotation prints the percentage and
+     the description, the invoice prints the rupiah amount — same three rows,
+     read two ways.
+
+     An order can carry its own list instead (payment_scheme 'other'), for work
+     that is not quoted on the standing split. Standard orders store nothing and
+     read these, so the package's terms stay in one place. */
+  const STANDARD_TERMS = [
+    { label: '1st deposit', percent: 35, desc: 'To confirm order and start the design phase.' },
+    { label: '2nd deposit', percent: 35, desc: 'Upon design approval to start production phase.' },
+    { label: '3rd deposit', percent: 30, desc: 'After final fitting, 7 days before delivery.' }
+  ];
+
+  /** The terms an order is actually on — its own if it has any, else the package's. */
+  function termsFor(order) {
+    const own = (order && order.payment_terms) || [];
+    return (order && order.payment_scheme === 'other' && own.length)
+      ? own.map((t) => ({
+          label: String(t.label || '').trim() || 'Payment',
+          percent: Number(t.percent) || 0,
+          desc: String(t.desc || '')
+        }))
+      : STANDARD_TERMS.slice();
+  }
+
+  /** "1st deposit - 35%" — the form both documents print it in. */
+  const termLabel = (t) => t.label + ' - ' + t.percent + '%';
 
   /* Every face the two documents can paint with: .q-r is 200, .q-b is 400, and
      the 44px title is the only size that differs enough to be worth loading in
@@ -67,6 +92,7 @@ KK.docs = (function () {
     qDear: $('#qDear'),
     qItems: $('#qItems'),
     qIncludes: $('#qIncludes'),
+    qPaymentRow: $('#qPaymentRow'),
     invoice: $('#invoice'),
     iFor: $('#iFor'),
     iDate: $('#iDate'),
@@ -82,7 +108,7 @@ KK.docs = (function () {
   function watermarkSeed(kind, data) {
     return [
       kind,
-      String(data.customerName || '').trim(),
+      String(data.docName || '').trim(),
       data.date || '',
       (data.items || []).map((it) => it.name + '×' + it.qty + '@' + it.price).join('|')
     ].join('::');
@@ -176,14 +202,19 @@ KK.docs = (function () {
     (items || []).reduce((sum, it) => sum + (Number(it.qty) || 0) * (Number(it.price) || 0), 0);
 
   /**
-   * The 35 / 35 / 30 split, in rupiah. The first two are rounded to the
-   * nearest rupiah and the third takes whatever is left, so the three always
-   * add up to the Total exactly rather than drifting a rupiah off it.
+   * The terms split into rupiah. Every share but the last is rounded to the
+   * nearest rupiah and the last takes whatever is left, so they always add up
+   * to the Total exactly rather than drifting a rupiah off it.
    */
-  function depositAmounts(total) {
-    const first = Math.round(total * DEPOSIT_SHARES[0]);
-    const second = Math.round(total * DEPOSIT_SHARES[1]);
-    return [first, second, total - first - second];
+  function termAmounts(total, terms) {
+    const list = terms || STANDARD_TERMS;
+    let taken = 0;
+    return list.map((t, i) => {
+      if (i === list.length - 1) return total - taken;
+      const amount = Math.round(total * (Number(t.percent) || 0) / 100);
+      taken += amount;
+      return amount;
+    });
   }
 
   /** The items table, identical on both documents: named rows then the Total. */
@@ -209,9 +240,10 @@ KK.docs = (function () {
 
   /** Fill both templates from one record. Cheap enough to call on every edit. */
   function render(data) {
-    const name = String(data.customerName || '').trim();
+    const name = String(data.docName || '').trim();
     const items = data.items || [];
     const includes = data.includes || [];
+    const terms = data.terms && data.terms.length ? data.terms : STANDARD_TERMS;
     const total = computeTotal(items);
     const longDate = U.formatLongDate(data.date);
     const rows = itemRowsHtml(items, total);
@@ -227,12 +259,21 @@ KK.docs = (function () {
       '</span>'
     ).join('');
 
+    /* The quotation's terms block is filled from the order rather than sitting
+       in the template, so an order on its own terms prints its own rows. */
+    el.qPaymentRow.innerHTML = terms.map((t) =>
+      '<div class="q-deposit">' +
+        '<p class="q-b">' + U.escapeHtml(t.label) + ': ' + (Number(t.percent) || 0) + '%</p>' +
+        (t.desc ? '<p class="q-depdesc">' + U.escapeHtml(t.desc) + '</p>' : '') +
+      '</div>'
+    ).join('');
+
     el.iFor.textContent = name;
     el.iDate.textContent = longDate;
     el.iItems.innerHTML = rows;
-    el.iTerms.innerHTML = depositAmounts(total).map((amount, i) =>
+    el.iTerms.innerHTML = termAmounts(total, terms).map((amount, i) =>
       '<div class="q-row q-row--pair">' +
-        '<p class="q-c-item">' + DEPOSIT_LABELS[i] + '</p>' +
+        '<p class="q-c-item">' + U.escapeHtml(termLabel(terms[i])) + '</p>' +
         '<p class="q-c-price">' + U.formatRupiah(amount) + '</p>' +
       '</div>'
     ).join('');
@@ -319,7 +360,7 @@ KK.docs = (function () {
   function buildFilename(kind, data) {
     const prefix = DOCS[kind].name + '-KelakKembali-';
     const iso = data.date || U.todayISO();
-    const safe = U.sanitizeForFilename(data.customerName);
+    const safe = U.sanitizeForFilename(data.docName);
     return safe
       ? prefix + safe + '-' + iso + '.pdf'
       : prefix + iso + '.pdf';
@@ -393,5 +434,8 @@ KK.docs = (function () {
     return total;
   }
 
-  return { DOCS, DEPOSIT_LABELS, DEPOSIT_SHARES, computeTotal, depositAmounts, render, download };
+  return {
+    DOCS, STANDARD_TERMS, termsFor, termLabel, termAmounts,
+    computeTotal, render, download
+  };
 })();

@@ -85,7 +85,7 @@ They are plain `<script>` files sharing a `window.KK` namespace, not ES
 modules — modules would need `http://` even to open the file locally, and the
 whole point of this repo is that it has no build and no toolchain.
 
-`docs.js` takes `{ customerName, date, items, includes }` and knows nothing
+`docs.js` takes `{ docName, date, items, includes, terms }` and knows nothing
 about the database or the views, so the templates stay testable in isolation
 and the storage layer can be swapped by rewriting `db.js` alone.
 
@@ -258,8 +258,11 @@ a slightly lighter `#EBE9E4`, so the watermark's grain doesn't read as dirt on
 an already-mid-tone ground.
 
 **Fixed, never exposed in the form:** both logos, the "Quotation" title, the
-greeting paragraph, the Excludes sentence, and the 35/35/30 payment terms with
-their three descriptions. Payment terms show percentages only, as in Figma.
+greeting paragraph and the Excludes sentence. Payment terms show percentages
+only, as in Figma — but the terms themselves come from the order, so an order
+on the "other services" scheme prints its own labels, shares and descriptions
+in the same three-column block. The row wraps past three, so a longer list
+still fits the page width.
 
 The `Price` column shows each item's **unit** price; the Total is
 `Σ (qty × price)`.
@@ -334,8 +337,8 @@ What differs from the quotation:
 - **No Includes / Excludes block.** The Includes card in the form feeds the
   quotation only.
 - **Terms of payment** is a titled band — divider, 13/600 label, divider — with
-  the three deposits as rupiah amounts rather than the quotation's descriptions.
-  Deposit rows carry no Qty cell, so Figma widens their gap to 64px; the label
+  the order's terms as rupiah amounts rather than the quotation's descriptions.
+  Term rows carry no Qty cell, so Figma widens their gap to 64px; the label
   is flexible either way, so Price still lands at x=434.
 - **Payment to** is the same band, with the bank details at 24px leading, not
   the 20px used everywhere else. `BCA 6800 691 425 / Annisa Beauty` is fixed and
@@ -366,24 +369,44 @@ the quotation, from the identical code path.
 - **Price entry** — thousands separators are inserted as you type. The caret is
   restored by digit count, not by string offset, so it doesn't jump a place each
   time a new dot appears.
-- **Deposits** — the invoice prints 35 / 35 / 30 of the Total in rupiah. The
-  first two are rounded to the nearest rupiah and the third takes the
-  remainder, so the three always sum to the Total exactly rather than drifting
-  a rupiah off it.
-- **Filename** — `{Quotation|Invoice}-KelakKembali-{Customer}-{YYYY-MM-DD}.pdf`,
+- **Payment scheme** — two. `Wedding attire` is the standing 35 / 35 / 30 split
+  and stores nothing on the order, so the package's terms live in one place.
+  `Other services` carries the order's own list: any number of terms, each with
+  a label, a share and an optional description. The shares have to add up to
+  100% — a running total sits under the list and the save is refused until it
+  lands — because terms summing to 90% mean an invoice whose instalments never
+  reach its own total. Switching back to the standard scheme clears the custom
+  list rather than leaving it to be read again later.
+- **Deposit amounts** — every share but the last is rounded to the nearest
+  rupiah and the last takes the remainder, so the terms always sum to the Total
+  exactly rather than drifting a rupiah off it.
+- **Name on documents** — an order's own field, not the customer's name. The
+  record is filed under whoever books and pays; the document is addressed to
+  whoever the outfit is for, and on a family booking those are several different
+  people. It is asked for per order and starts blank, and both downloads stay
+  disabled until it is filled in — a document addressed to nobody is worse than
+  no document. It also feeds the filename and the watermark seed.
+- **Filename** — `{Quotation|Invoice}-KelakKembali-{DocName}-{YYYY-MM-DD}.pdf`,
   falling back to `{Kind}-KelakKembali-{YYYY-MM-DD}.pdf` when the name is blank.
 - **Validation** — shared. Either button runs the same check, and both lock
   while a capture is running; only the pressed one shows the spinner.
-- **Customer list order** — soonest wedding first; customers without a date
-  sink to the bottom. Search matches name, phone or Instagram handle, filtering
-  the already-loaded list rather than re-querying.
+- **Customer list order** — soonest wedding first by default; customers without
+  a date sink to the bottom. A sort control beside the count switches to
+  alphabetical, which is what you want when looking for one known name rather
+  than working through the week; the choice is kept in `localStorage`. Search
+  matches name, phone or Instagram handle, filtering the already-loaded list
+  rather than re-querying, and both orders honour it.
+- **Adding a customer** — the button sits beside the search field at the top of
+  the list card, not under the list. It is the reason you opened the page as
+  often as searching is, and it should not take a scroll past every existing
+  name to reach.
 - **Deleting** — always behind a confirm, and always cascading: a customer
   takes their orders and download log with them. Both deletes live in the app
   bar's overflow menu rather than as red buttons at the foot of the page, so
   the only irreversible actions in the UI take two deliberate taps to reach.
-- **Payments** — the order page lists all three deposits with their amounts and
+- **Payments** — the order page lists the order's terms with their amounts and
   whether each is paid, and the chooser only offers the ones still outstanding,
-  so the same deposit cannot be logged twice.
+  so the same term cannot be logged twice.
 - **Empty orders** — both download buttons are disabled until the order has at
   least one named item with a price, since the alternative is a document with
   no lines on it.
@@ -391,9 +414,18 @@ the quotation, from the identical code path.
   live target of 35% of that item's price: under it the hint names the ceiling,
   over it the hint names the overshoot. It is guidance, not validation — nothing
   is blocked.
-- **Homepage** — the three active customers with the soonest date still ahead of
-  them, sorted by whichever of wedding or fitting comes first and labelled with
-  which one it is. A customer is active until every order they have is
+- **Nett profit** — internal, and computed only over items that have a
+  production cost. A blank cost means nobody has worked it out yet, not that the
+  item is free to make; counting it as zero turned every unpriced item into pure
+  margin and quietly overstated the figure. Items without one sit out of the sum
+  and a line under it says how many did, so the number never means something
+  narrower than its label. With no costs filled in at all it reads `—`.
+- **Homepage** — the active customers with the soonest date still ahead of them,
+  sorted by whichever of wedding or fitting comes first and labelled with which
+  one it is, as calendar tiles in one horizontally scrolling strip. Stacked
+  full-width rows cost three screenfuls to say three dates and pushed the
+  customer list below the fold; the strip says the same in a fifth of the height
+  and holds eight. A customer is active until every order they have is
   delivered; someone with no orders yet counts as active, since they are the one
   who needs one.
 
