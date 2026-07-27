@@ -1,0 +1,15 @@
+# Kelak Kembali — Supabase CLI config.
+#
+# Only the Edge Function needs this file; the tables are still managed by
+# running schema.sql in the SQL editor, which is what the README describes.
+#
+# project_id is the reference in your project's URL, and the same one in
+# SUPABASE_URL in config.js.
+
+project_id = "lgockcjjfkvuihhofyxi"
+
+[functions.google-calendar]
+# Left on deliberately. With verify_jwt, Supabase rejects any call without a
+# valid session before the function runs, so the shared-password gate protects
+# the calendar exactly as it protects everything else.
+verify_jwt = true

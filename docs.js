@@ -49,11 +49,11 @@ KK.docs = (function () {
   /** "1st deposit - 35%" — the form both documents print it in. */
   const termLabel = (t) => t.label + ' - ' + t.percent + '%';
 
-  /* Every face the two documents can paint with: .q-r is 200, .q-b is 400, and
+  /* Every face the two documents can paint with: .q-r is 300, .q-b is 400, and
      the 44px title is the only size that differs enough to be worth loading in
      its own right. Both the live document and html2canvas's clone wait on
      these, so neither can be snapshotted mid-swap. */
-  const DOC_FACES = ['200 13px "Aileron"', '400 13px "Aileron"', '400 44px "Aileron"'];
+  const DOC_FACES = ['300 13px "Aileron"', '400 13px "Aileron"', '400 44px "Aileron"'];
 
   const PDF_PAGE_WIDTH_PT = 595.28;  // A4 width, so the file still prints sensibly
   const SNAPSHOT_SCALE = 3;

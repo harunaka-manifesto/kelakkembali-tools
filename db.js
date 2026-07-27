@@ -77,8 +77,29 @@ KK.db = (function () {
 
   /** Unwrap a PostgREST response, turning its error into a thrown one. */
   function unwrap(res) {
-    if (res.error) throw new Error(res.error.message || 'Request failed');
+    if (res.error) {
+      const err = new Error(res.error.message || 'Request failed');
+      err.code = res.error.code || '';
+      throw err;
+    }
     return res.data;
+  }
+
+  /* PostgREST rejects a token whose `exp`, `iat` or `nbf` is outside a 30-second
+     window around its own clock, and answers PGRST301 — "JWT expired", "JWT not
+     yet valid", "JWT issued at future". Every one of those means the same thing
+     to us: the token in hand is not usable and a fresh one might be. See
+     isStaleToken's caller in app.js for what we do about it. */
+  function isStaleToken(err) {
+    return !!err && (err.code === 'PGRST301' || /\bJWT\b/i.test(err.message || ''));
+  }
+
+  /** Mint a new access token from the stored refresh token. */
+  async function refreshSession() {
+    if (!init()) return null;
+    const { data, error } = await client.auth.refreshSession();
+    if (error) throw new Error(error.message || 'Could not refresh the session');
+    return data.session || null;
   }
 
   /* --------------------------------- Auth -------------------------------- */
@@ -235,12 +256,111 @@ KK.db = (function () {
       .eq('action', 'payment_logged'));
   }
 
+  /* ------------------------------ Order events ---------------------------- */
+
+  /* The fitting schedule. Computed by KK.calendar from the order's two anchor
+     dates and written here so each appointment can remember the Google event
+     it created. */
+
+  const EVENT_FIELDS = 'id,order_id,stage,event_date,google_event_id,synced_at';
+
+  async function listOrderEvents(orderId) {
+    return unwrap(await init()
+      .from('order_events')
+      .select(EVENT_FIELDS)
+      .eq('order_id', orderId)
+      .order('event_date', { ascending: true }));
+  }
+
+  /** Every appointment across every order, for the homepage overview. */
+  async function listAllOrderEvents() {
+    return unwrap(await init()
+      .from('order_events').select('order_id,stage,event_date'));
+  }
+
+  /**
+   * Make the stored schedule match a freshly computed one.
+   *
+   * Rewritten rather than diffed, because the computation is whole-programme:
+   * moving one anchor moves everything. The one thing that must survive the
+   * rewrite is google_event_id — losing it would orphan the event in Google
+   * and create a second one on the next sync — so surviving stages are updated
+   * in place and only genuinely gone ones are deleted.
+   *
+   * Returns the rows that no longer exist, so the caller can have their Google
+   * events deleted too.
+   */
+  async function replaceOrderEvents(orderId, events) {
+    const existing = await listOrderEvents(orderId);
+    const byStage = {};
+    existing.forEach((row) => { byStage[row.stage] = row; });
+
+    const wanted = {};
+    events.forEach((e) => { wanted[e.stage] = e; });
+
+    const removed = existing.filter((row) => !wanted[row.stage]);
+    if (removed.length) {
+      unwrap(await init()
+        .from('order_events').delete().in('id', removed.map((r) => r.id)));
+    }
+
+    for (const e of events) {
+      const prior = byStage[e.stage];
+      if (!prior) {
+        unwrap(await init().from('order_events')
+          .insert({ order_id: orderId, stage: e.stage, event_date: e.event_date }));
+      } else if (prior.event_date !== e.event_date) {
+        // synced_at is cleared, not the event id: the event still exists in
+        // Google, it is just no longer showing the right day.
+        unwrap(await init().from('order_events')
+          .update({ event_date: e.event_date, synced_at: null }).eq('id', prior.id));
+      }
+    }
+
+    return { removed: removed, events: await listOrderEvents(orderId) };
+  }
+
+  /* ---------------------------- Google Calendar --------------------------- */
+
+  /* Everything here goes through the google-calendar Edge Function. The
+     refresh token lives in a table no policy grants access to (see
+     schema.sql), so the browser can ask for a sync but can never hold the
+     credential that performs one. */
+
+  async function callGoogle(action, payload) {
+    const c = init();
+    if (!c) throw new Error('Supabase is not configured — see config.js');
+    const { data, error } = await c.functions.invoke('google-calendar', {
+      body: Object.assign({ action: action }, payload || {})
+    });
+    /* FunctionsHttpError carries the useful message in the response body, not
+       in error.message, which is only ever "Edge Function returned a non-2xx
+       status code". */
+    if (error) {
+      let detail = '';
+      try { detail = (await error.context.json()).error || ''; } catch (e) { /* not JSON */ }
+      throw new Error(detail || error.message || 'Google Calendar request failed');
+    }
+    if (data && data.error) throw new Error(data.error);
+    return data;
+  }
+
+  const googleStatus = () => callGoogle('status');
+  const googleExchange = (code, redirectUri) =>
+    callGoogle('exchange', { code: code, redirect_uri: redirectUri });
+  const googleDisconnect = () => callGoogle('disconnect');
+  const googleForget = (ids) => callGoogle('forget', { google_event_ids: ids });
+  const syncOrderCalendar = (orderId) => callGoogle('sync', { order_id: orderId });
+
   return {
     isConfigured, init, currentSession, signIn, signOut,
+    refreshSession, isStaleToken,
     rememberPreference, savedPassword,
     listCustomers, getCustomer, createCustomer, updateCustomer, deleteCustomer,
     listOrders, listAllOrders, getOrder, createOrder, updateOrder, deleteOrder,
     logDocument, listDocumentLog,
-    logOrderHistory, listOrderHistory, listAllPaymentLog
+    logOrderHistory, listOrderHistory, listAllPaymentLog,
+    listOrderEvents, listAllOrderEvents, replaceOrderEvents,
+    googleStatus, googleExchange, googleDisconnect, googleForget, syncOrderCalendar
   };
 })();

@@ -483,18 +483,12 @@ body.has-savebar .page {
 
 .deadlines[hidden] { display: none; }
 
-.deadlines__title {
-  margin: 0 2px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--label);
-}
-
 /* The negative margins let the strip bleed to the screen edges inside the
    page's padding, so the last tile is visibly cut off rather than sitting in a
-   gutter — which is what tells you it scrolls. */
+   gutter — which is what tells you it scrolls. That cut-off tile is the whole
+   affordance, so the scrollbar is hidden: a track drawn under the strip read as
+   a rule separating it from the list below, and said nothing the half-tile at
+   the edge was not already saying. */
 .deadlines__cards {
   display: flex;
   gap: 8px;
@@ -504,14 +498,10 @@ body.has-savebar .page {
   overflow-y: hidden;
   scroll-snap-type: x proximity;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
+  scrollbar-width: none;
 }
 
-.deadlines__cards::-webkit-scrollbar { height: 4px; }
-.deadlines__cards::-webkit-scrollbar-thumb {
-  background: var(--line-2);
-  border-radius: 999px;
-}
+.deadlines__cards::-webkit-scrollbar { display: none; }
 
 /* Same surface and border as every other card on the page — just narrow and
    in a row, so the strip reads as one family of cards rather than a
@@ -632,7 +622,11 @@ body.has-savebar .page {
 
 .listtools .searchrow { flex: 1 1 auto; min-width: 0; }
 
-/* Two classes deep: .btn--primary is declared further down and sets
+/* Outlined rather than solid: adding a customer is the reason you open this
+   page often enough to keep the button up here, but a black slab beside the
+   search field made it the loudest thing on a page whose subject is the list.
+
+   Two classes deep: .btn--secondary is declared further down and sets
    `width: 100%` for the full-width bars it normally lives in, which here would
    eat the search field beside it. */
 .btn.btn--newinline {
@@ -657,47 +651,20 @@ body.has-savebar .page {
   .btn--newinline .btn__label { display: none; }
 }
 
-/* Count on the left, order on the right: what you are looking at, and how it
-   is arranged. Neither is important enough for a row of its own. */
-.listbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin: -2px 2px -4px;
-}
-
-.listbar__count {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--label);
-}
-
-.listbar__sort {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.listbar__sortlabel {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--label);
-}
-
-/* A select that has to sit inside a row rather than fill one. */
-.input.input--mini {
-  width: auto;
-  min-height: 34px;
-  padding: 5px 30px 5px 10px;
+/* The sort select owns its row outright. Sharing it with a count and the word
+   "Sort" made three quiet things compete in one line; alone and full-width it
+   reads as the list's own header, which is what it is. Quieter than the search
+   field above it — no fill, just a hairline — because you set it once and then
+   ignore it. */
+.input.input--sort {
+  width: 100%;
+  min-height: 40px;
+  padding: 6px 34px 6px 12px;
   font-size: 13px;
   background-color: transparent;
   border-color: var(--line-2);
-  background-position: right 8px center;
-  background-size: 14px;
+  background-position: right 12px center;
+  background-size: 15px;
 }
 
 .list {
@@ -816,6 +783,88 @@ body.has-savebar .page {
 }
 
 .infolist__stack dd { text-align: left; }
+
+/* -------------------------------- Schedule ------------------------------- */
+
+/* Stage, date, gap. The gap column is the one that makes the list a schedule
+   rather than five dates: the whole point of the spacing rule is visible only
+   as the interval between rows, so it is printed instead of left to be worked
+   out from the dates. */
+.sched {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: sched;
+}
+
+.sched__row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 2px;
+  border-top: 1px solid var(--line);
+}
+
+.sched__row:first-child { border-top: none; }
+
+/* A date already gone is history, not a plan — it stays legible but stops
+   competing with the appointments still ahead. */
+.sched__row--past { color: var(--muted); }
+
+.sched__stage {
+  flex: 1 1 auto;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.sched__date {
+  flex: none;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sched__gap {
+  flex: none;
+  min-width: 38px;
+  text-align: right;
+  font-size: 12px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A filled dot means this exact date is in Google Calendar. Small and quiet:
+   it is a reassurance, not a status anyone reads the page for. The column is
+   always there, empty when unsynced, so the gaps stay in one line. */
+.sched__synced {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  align-self: center;
+}
+
+.sched__synced.is-synced { background: var(--ink); }
+
+/* Dropped fittings are the one thing on this card you might need to act on, so
+   it reads as a notice rather than as more metadata. */
+.sched__warn {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: rgba(164, 52, 31, 0.08);
+  color: var(--danger);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.sched__empty,
+.sched__note {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
 
 /* ------------------------------- Items table ----------------------------- */
 
@@ -947,6 +996,25 @@ body.has-savebar .page {
   font-size: 13.5px;
   color: var(--muted);
   text-align: center;
+}
+
+/* The way out of a search that found nothing. It is an <a>, not a <button>,
+   because it goes to a page — so it needs the centring and the underline reset
+   that .btn assumes a button already has.
+
+   The "+" is part of the label rather than a flex sibling of it: a long name
+   wraps this button to two lines, and as a sibling the "+" then sat alone
+   against the left edge with the text centred away from it. */
+.btn.btn--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  margin-top: -6px;
+  font-size: 14px;
+  line-height: 1.4;
+  text-align: center;
+  text-decoration: none;
 }
 
 /* Status badge. Draft is deliberately the quietest and Delivered the only
@@ -1619,6 +1687,17 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
      why this only ever showed up on a phone. */
   -webkit-text-size-adjust: none;
   text-size-adjust: none;
+  /* The −3% the Figma frame carried was cut when the face changed, and this is
+     not it coming back: it is +1%, the other way. Aileron's own tracking is
+     tight for a document meant to be read at arm's length off a phone, and a
+     hair of air is what makes 13px body legible there. Small on purpose — much
+     past this and the table columns start to drift wider than their headers.
+
+     In px, not em: 0.13px is 1% of the 13px body, and this document is a fixed
+     598px frame, so there is nothing for a relative unit to adapt to. An em
+     here would resolve against whatever font-size .q inherits — which is not
+     13px, and is not guaranteed to be the same inside html2canvas's clone. */
+  letter-spacing: 0.13px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -1628,7 +1707,7 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
 .q p { margin: 0; }
 
 .q-b { font-weight: 400; }
-.q-r { font-weight: 200; }
+.q-r { font-weight: 300; }
 
 /* 3px bullet — plain CSS circle, no image asset */
 .q-dot {

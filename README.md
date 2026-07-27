@@ -20,8 +20,10 @@ The app will not start until `config.js` points at a project. One-time setup:
 1. Create a project at [supabase.com](https://supabase.com) (the free tier is
    ample — this stores text, not files).
 2. **SQL Editor → New query**, paste the whole of [`schema.sql`](schema.sql),
-   run it. It creates the three tables, the `updated_at` triggers and the
-   row-level security policies. It is safe to re-run.
+   run it. It creates the tables, the `updated_at` triggers and the row-level
+   security policies. It is safe to re-run, and **must** be re-run after
+   pulling: every schema change since the first release is appended to the
+   bottom of that same file as an idempotent migration block.
 3. **Authentication → Users → Add user** → *Create new user*. Use any address
    you own — no mail is ever sent to it — and pick the password the studio will
    share. Tick *Auto Confirm User*. This single account is what the gate signs
@@ -72,12 +74,14 @@ npx vercel deploy --prod
 | `index.html` | The gate, the three views, and the two off-screen document templates |
 | `styles.css` | Part 1: app UI. Part 2: the quotation. Part 3: the invoice |
 | `fonts.css` | Plus Jakarta Sans, self-hosted and inlined (see below) |
-| `config.js` | Supabase URL, anon key and the shared account's email |
+| `config.js` | Supabase URL, anon key, the shared account's email, Google client ID |
 | `util.js` | Formatting, escaping, the seeded-PRNG primitives |
 | `docs.js` | The document engine: fills both templates, exports the PDF |
+| `calendar.js` | The fitting schedule: places the appointments, draws the card |
 | `db.js` | Every Supabase call — auth and CRUD, nothing else touches the client |
 | `app.js` | Routing, views, form state, validation |
-| `schema.sql` | The migration to run once in the Supabase SQL editor |
+| `schema.sql` | The migrations to run in the Supabase SQL editor |
+| `supabase/functions/google-calendar/` | The only server-side code: Google OAuth and calendar writes |
 | `serve.ps1` | Local static server, so testing needs nothing installed |
 | `assets/` | The two logo marks, exported from Figma at 4x |
 
@@ -91,23 +95,32 @@ and the storage layer can be swapped by rewriting `db.js` alone.
 
 ### The data model
 
-Three tables (see [`schema.sql`](schema.sql)):
+See [`schema.sql`](schema.sql):
 
-- **`customers`** — name, phone, Instagram, source, wedding date, estimated
-  first and final fitting dates, notes.
+- **`customers`** — name, phone, Instagram, source, wedding date, notes.
 - **`orders`** — belongs to a customer; carries a status
-  (`Quoted` → `Confirmed` → `In production` → `Delivered`) and the `items` and
-  `includes` as `jsonb`. Both are short, always read and written whole, and
-  order-sensitive; child tables would buy nothing and cost a position column
-  plus two round trips per save. `document_date` is still on the table for
-  compatibility but is no longer read or written by the app — see
-  *Order status* below.
+  (`Quoted` → `Confirmed` → `In production` → `Delivered`), the body
+  measurements and final fitting dates, and the `items` and `includes` as
+  `jsonb`. Both are short, always read and written whole, and order-sensitive;
+  child tables would buy nothing and cost a position column plus two round trips
+  per save. The fitting dates sit here rather than on the customer because a
+  bride and groom booked together are two orders needing two schedules.
+  `document_date` is still on the table for compatibility but is no longer read
+  or written by the app — see *Order status* below.
+- **`order_events`** — the fitting schedule, one row per appointment, derived
+  from the order's two dates. Each row remembers the Google event it created,
+  which is why the schedule is stored rather than recomputed on read.
 - **`document_log`** — one row per PDF actually saved: which kind, when, and
   for how much. No files, just the numbers. Rows are kept verbatim when the
   order is later edited, which is the whole point of having them.
+- **`order_history`** — what happened to an order and when: created, updated,
+  payment logged, schedule set, calendar synced.
+- **`google_credentials`** — one row, the Google refresh token. The only table
+  with RLS on and no policies, so nothing the browser holds can read it. See
+  *Google Calendar* below.
 
 A quotation and an invoice are two renderings of one order, not two records.
-Deleting a customer cascades to their orders and log rows.
+Deleting a customer cascades to their orders, schedule and log rows.
 
 ### Saving
 
@@ -236,10 +249,10 @@ has been removed), 44px title, 1px dividers at 10% black, 3px bullet dots,
 `rgba(0,0,0,.05)` 4px-radius total row.
 
 Two things have deliberately moved away from the Figma frame since — see
-*The document typeface* below: the face is now Aileron at 400/200 rather than
+*The document typeface* below: the face is now Aileron at 400/300 rather than
 Plus Jakarta Sans at 600/400, and the −3% tracking Figma carried has been
-dropped, because it was cut for Plus Jakarta Sans and Aileron sets tighter to
-begin with. Geometry is unchanged.
+dropped and replaced with +1%, because the −3% was cut for Plus Jakarta Sans
+and Aileron sets tighter to begin with. Geometry is unchanged.
 
 **The items table matches node `2:245` exactly**, measured live:
 
@@ -270,14 +283,25 @@ The `Price` column shows each item's **unit** price; the Total is
 ### The document typeface
 
 Both documents are set in **Aileron** (Sora Sagano, released into the public
-domain by [dot colon](https://dotcolon.net/font/aileron/), v1.02) — **UltraLight
-(200)** for body, **Regular (400)** for labels. That is the whole ladder either
-document uses, shifted down 200 from the 400/600 the Figma frame specified,
-because Aileron sets heavier than Plus Jakarta Sans at the same nominal weight.
-The app UI keeps Plus Jakarta Sans; only the two `.q` templates changed.
+domain by [dot colon](https://dotcolon.net/font/aileron/), v1.02) — **Light
+(300)** for body, **Regular (400)** for labels. That is the whole ladder either
+document uses, shifted down from the 400/600 the Figma frame specified, because
+Aileron sets heavier than Plus Jakarta Sans at the same nominal weight. The app
+UI keeps Plus Jakarta Sans; only the two `.q` templates changed.
 
-Tracking is Aileron's own. The −3% the frame carried was cut for Plus Jakarta
-Sans, and there is no `letter-spacing` left anywhere in Parts 2 and 3.
+Body was UltraLight (200) at first, one step further down. Aileron's UltraLight
+is genuinely hairline: fine on a screen, and it breaks up in print and in the
+downscaled PDF. Light holds together and is still clearly lighter than the 400
+labels, so the document keeps its contrast either way.
+
+Tracking is **+1%** (`letter-spacing: 0.13px` on `.q` — 1% of the 13px body,
+in px because the document is a fixed 598px frame and an em would resolve
+against an inherited size that the html2canvas clone need not share), and that
+is the only
+`letter-spacing` in Parts 2 and 3. The −3% the frame carried was cut for Plus
+Jakarta Sans and is gone; the +1% is the opposite correction, because Aileron's
+own tracking is tight for a document read at arm's length off a phone. Much
+past +1% and the table columns drift wider than their headers.
 
 Both faces are subset to latin and inlined into `fonts.css` as data URIs, for
 the same reason Plus Jakarta Sans is: html2canvas snapshots each document
@@ -391,15 +415,23 @@ the quotation, from the identical code path.
 - **Validation** — shared. Either button runs the same check, and both lock
   while a capture is running; only the pressed one shows the spinner.
 - **Customer list order** — soonest wedding first by default; customers without
-  a date sink to the bottom. A sort control beside the count switches to
-  alphabetical, which is what you want when looking for one known name rather
-  than working through the week; the choice is kept in `localStorage`. Search
-  matches name, phone or Instagram handle, filtering the already-loaded list
-  rather than re-querying, and both orders honour it.
+  a date sink to the bottom. The sort control switches to alphabetical, which is
+  what you want when looking for one known name rather than working through the
+  week; the choice is kept in `localStorage`. It has its row to itself: it used
+  to share one with a count and the word "Sort", which was three quiet labels
+  competing to say what the list already showed. Search matches name, phone or
+  Instagram handle, filtering the already-loaded list rather than re-querying,
+  and both orders honour it.
+- **Search that finds nothing** — offers to create the customer instead of just
+  reporting the miss, since searching for a name that is not there is mostly how
+  you discover it has not been entered yet. The name rides to the form in the
+  hash (`#/customer/new?name=…`), so it survives a reload of that URL, and the
+  caret lands on Phone rather than on the field already filled in.
 - **Adding a customer** — the button sits beside the search field at the top of
   the list card, not under the list. It is the reason you opened the page as
   often as searching is, and it should not take a scroll past every existing
-  name to reach.
+  name to reach. It is outlined, not solid: up there a black slab was the
+  loudest thing on a page whose subject is the list.
 - **Deleting** — always behind a confirm, and always cascading: a customer
   takes their orders and download log with them. Both deletes live in the app
   bar's overflow menu rather than as red buttons at the foot of the page, so
@@ -429,6 +461,100 @@ the quotation, from the identical code path.
   delivered; someone with no orders yet counts as active, since they are the one
   who needs one.
 
+## Google Calendar
+
+Optional. Without it the fitting schedule still works — it just stays inside the
+app. The one server-side piece in this project exists here, and only because a
+Google refresh token is a standing grant over a calendar and does not belong in
+a browser.
+
+**1. Create the OAuth client.** In the [Google Cloud
+Console](https://console.cloud.google.com/), make a project, enable the **Google
+Calendar API**, and create an **OAuth 2.0 Client ID** of type *Web application*.
+On the consent screen add the scope
+`https://www.googleapis.com/auth/calendar.events` and add your own Google
+account as a test user — the app never leaves testing, since it has exactly one
+user.
+
+Register both environments, or the redirect back from Google fails on whichever
+one you left out:
+
+| | Authorized JavaScript origin | Authorized redirect URI |
+|---|---|---|
+| Local | `http://localhost:4173` | `http://localhost:4173/` |
+| Live | `https://your-app.vercel.app` | `https://your-app.vercel.app/` |
+
+**2. Put the client ID in `config.js`.** It is public, exactly like the Supabase
+anon key — it names the app to Google and authorizes nothing:
+
+```js
+GOOGLE_CLIENT_ID: '…apps.googleusercontent.com'
+```
+
+**3. Give the secret to Supabase, never to the repo.**
+
+```bash
+supabase secrets set GOOGLE_CLIENT_ID=… GOOGLE_CLIENT_SECRET=… APP_URL=https://your-app.vercel.app
+```
+
+`APP_URL` is optional; it only puts a link back to the order in each event's
+description.
+
+**4. Deploy the function.**
+
+```bash
+supabase functions deploy google-calendar
+```
+
+**5. Connect.** Open the app, choose **Google Calendar** from the overflow menu,
+and press Connect. One consent screen, once.
+
+A few things worth knowing:
+
+- The refresh token is stored in `google_credentials`, which has RLS enabled and
+  **no policies at all**. The signed-in app cannot read it; only the function's
+  service-role key can. To confirm, run `await KK.db.init().from('google_credentials').select()`
+  in the browser console while signed in — it must come back empty.
+- Consent is requested with `access_type=offline&prompt=consent`. Both are
+  needed: without them Google hands back an access token that dies in an hour
+  and no refresh token, and syncing works only until you close the tab.
+- If Google ever declines to issue a refresh token, remove the app at
+  [myaccount.google.com/permissions](https://myaccount.google.com/permissions)
+  and connect again.
+
+## Fitting schedule
+
+An order carries two dates the client gives you upfront: **body measurements**
+and **final fitting**. They are the two ends of a programme, and everything
+between them follows from them, so it is computed rather than remembered.
+
+- **Five appointments** — Body measurements, Fitting 1, Fitting 2, Fitting 3,
+  Final fitting. The first and last are the dates you were given; the three in
+  the middle are placed evenly between them.
+- **Minimum 14 days apart.** A fitting is only useful once the last one has been
+  acted on, and that is cutting-and-sewing time, not calendar time. The full
+  programme therefore needs a 56-day window.
+- **A tight window drops fittings rather than crowding them** — Fitting 3 first,
+  then Fitting 2, then Fitting 1, until what is left fits at 14 days. The card
+  says how short the window was, what was left out, and how much room the full
+  programme wants. The two anchors are never dropped: they are promises already
+  made to the client.
+- **Rebuilt on every save**, and logged in the order's History only when the
+  dates actually moved. The result is stored rather than recomputed on read
+  because each row has to remember the Google event it created.
+- **One schedule per order.** A bride and groom booked together are two orders
+  and get two schedules, because the fitting dates already live on the order.
+- **Syncing is a separate press.** Saving builds the schedule; nothing reaches
+  Google until you press Sync on the order. Events are all-day, titled
+  `Fitting 2 — Sarah (Bride)`, with reminders 7 days and 3 days ahead.
+- **Re-syncing moves events, it does not duplicate them.** Each row stores its
+  Google event id and a later sync patches that event. A stage dropped by a
+  tighter window has its event deleted rather than left behind to be believed.
+  An event you deleted by hand in Google is simply recreated.
+- **The homepage strip reads the schedule**, so the fittings in between show up
+  there too. An order saved before schedules existed falls back to its two
+  anchor dates.
+
 ## Assets
 
 `fonts.css` carries three faces, all as base64 `woff2` data URIs and all latin
@@ -437,7 +563,7 @@ subsets — no request to Google Fonts, Adobe Fonts or any CDN for type:
 | Face | Used by | Size |
 |---|---|---|
 | Plus Jakarta Sans, variable 200–800 | the app UI | 27 KB |
-| Aileron UltraLight (200) | document body | 17 KB |
+| Aileron Light (300) | document body | 17 KB |
 | Aileron Regular (400) | document labels | 17 KB |
 
 The Plus Jakarta Sans file is kept unencoded at `assets/fonts/` for reference.

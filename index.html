@@ -80,6 +80,7 @@
       </button>
       <div class="menu__list" id="menuList" role="menu" hidden>
         <button type="button" class="menu__item" role="menuitem" id="menuDelete" hidden></button>
+        <a class="menu__item" role="menuitem" id="menuCalendar" href="#/calendar">Google Calendar</a>
         <button type="button" class="menu__item" role="menuitem" id="menuSignOut">Sign out</button>
       </div>
     </div>
@@ -102,10 +103,11 @@
   <!-- --------------------------- Customer list --------------------------- -->
   <section class="view" id="viewCustomers">
 
-    <!-- The three customers with the soonest date still ahead of them, each
-         labelled with which date it is. Tapping one opens that customer. -->
+    <!-- The customers with the soonest date still ahead of them, each labelled
+         with which date it is. Tapping one opens that customer. The strip needs
+         no heading: dated tiles at the top of the page are self-evidently what
+         is coming up, and the label was one more thing to read past. -->
     <section class="deadlines" id="deadlines" hidden>
-      <h2 class="deadlines__title">Coming up</h2>
       <div class="deadlines__cards" id="deadlineCards"></div>
     </section>
 
@@ -124,7 +126,7 @@
           <input class="input input--search" id="customerSearch" type="search" enterkeyhint="search"
                  placeholder="Search customers" autocapitalize="none" spellcheck="false">
         </div>
-        <button type="button" class="btn btn--primary btn--newinline" id="newCustomer"
+        <button type="button" class="btn btn--secondary btn--newinline" id="newCustomer"
                 aria-label="New customer">
           <span class="btn__plus" aria-hidden="true">+</span>
           <span class="btn__label">New</span>
@@ -132,17 +134,16 @@
       </div>
 
       <!-- The list is sorted by what is coming up soonest, which is right for
-           working through the week and wrong for finding one known name. -->
-      <div class="listbar">
-        <span class="listbar__count" id="customerCount"></span>
-        <label class="listbar__sort">
-          <span class="listbar__sortlabel">Sort</span>
-          <select class="input input--mini" id="customerSort">
-            <option value="wedding">Soonest wedding</option>
-            <option value="name">Name A–Z</option>
-          </select>
-        </label>
-      </div>
+           working through the week and wrong for finding one known name.
+
+           The select carries the row alone. A count and the word "Sort" beside
+           it were two labels for things the list already shows: you can see how
+           many names there are, and a control reading "Soonest wedding" does
+           not need to be told it sorts. -->
+      <select class="input input--sort" id="customerSort" aria-label="Sort customers">
+        <option value="wedding">Soonest wedding</option>
+        <option value="name">Name A–Z</option>
+      </select>
 
       <div class="list" id="customerList"></div>
     </section>
@@ -244,9 +245,11 @@
       <!-- No document date: it was only ever the date printed on the PDF, and a
            document is dated the day it is issued. Downloads stamp today.
            No status either — the log sets it. See "Order status" in the README. -->
+      <!-- The two ends of the fitting programme. Everything between them is
+           worked out from them — see the Schedule card on the order page. -->
       <div class="grid2 grid2--dates">
         <label class="field" for="oFitting1">
-          <span class="field__label">First fitting</span>
+          <span class="field__label">Body measurements</span>
           <input class="input js-ofield" id="oFitting1" type="date">
         </label>
         <label class="field" for="oFittingFinal">
@@ -254,6 +257,7 @@
           <input class="input js-ofield" id="oFittingFinal" type="date">
         </label>
       </div>
+      <p class="card__hint" id="oScheduleHint"></p>
     </section>
 
     <section class="card">
@@ -327,16 +331,56 @@
       <h2 class="card__title">Details</h2>
       <dl class="infolist">
         <div><dt>Name on documents</dt><dd id="oDocNameDisplay"></dd></div>
-        <div><dt>First fitting</dt><dd id="oFitting1Display"></dd></div>
+        <div><dt>Body measurements</dt><dd id="oFitting1Display"></dd></div>
         <div><dt>Final fitting</dt><dd id="oFittingFinalDisplay"></dd></div>
         <div><dt>Wedding</dt><dd id="oWeddingDisplay"></dd></div>
       </dl>
+    </section>
+
+    <!-- Read-only on purpose. The dates here are consequences of the two
+         anchors above, so the way to change one is to change those. -->
+    <section class="card" id="scheduleCard">
+      <div class="card__head">
+        <h2 class="card__title">Schedule</h2>
+        <span class="card__count" id="scheduleCount"></span>
+      </div>
+      <div id="scheduleList"></div>
+      <button type="button" class="btn btn--outline btn--block" id="syncCalendarBtn" hidden>
+        Sync to Google Calendar
+      </button>
+      <p class="card__hint" id="scheduleSyncNote"></p>
     </section>
 
     <details class="card card--fold">
       <summary class="card__title card__title--summary">History</summary>
       <div class="loglist" id="historyLog"></div>
     </details>
+  </section>
+
+  <!-- --------------------------- Google Calendar -------------------------- -->
+  <section class="view" id="viewCalendar" hidden>
+    <section class="card">
+      <h2 class="card__title">Connection</h2>
+      <p class="card__hint" id="gcalState">Checking…</p>
+      <button type="button" class="btn btn--primary btn--block" id="gcalConnect" hidden>
+        Connect Google Calendar
+      </button>
+      <button type="button" class="btn btn--outline btn--block" id="gcalDisconnect" hidden>
+        Disconnect
+      </button>
+      <p class="card__hint" id="gcalErr" hidden></p>
+    </section>
+
+    <section class="card">
+      <h2 class="card__title">What gets synced</h2>
+      <p class="card__hint">
+        Each order with both a body measurements date and a final fitting date
+        builds a schedule of up to five appointments. Pressing Sync on that
+        order writes them to your primary Google Calendar as all-day events,
+        with reminders 7 days and 3 days ahead. Syncing again moves the same
+        events rather than adding new ones.
+      </p>
+    </section>
   </section>
 
 </main>
@@ -549,6 +593,7 @@
 <script src="util.js"></script>
 <script src="docs.js"></script>
 <script src="db.js"></script>
+<script src="calendar.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

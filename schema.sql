@@ -225,3 +225,101 @@ alter table public.orders add constraint orders_payment_scheme_check
   check (payment_scheme in ('standard', 'other'));
 
 alter table public.orders add column if not exists payment_terms jsonb not null default '[]'::jsonb;
+
+-- =========================================================================
+-- Migration — fitting schedule + Google Calendar
+--
+-- The two dates an order already carries are the ends of a programme, not the
+-- whole of it: fitting_1_date is when the client comes in to be measured, and
+-- final_fitting_date is the last time they are seen before the wedding. The
+-- three fittings in between were only ever in someone's head.
+--
+-- They are derivable, so they are now derived — evenly spaced between the two
+-- anchors, never closer together than production can keep up with. The result
+-- is stored rather than computed on read because each row has to remember the
+-- Google event it created, so that moving a date moves that event instead of
+-- adding a second one.
+-- =========================================================================
+
+-- ---------------------------- Fitting schedule ----------------------------
+
+-- One row per appointment, anchors included: the anchors are what the client
+-- was promised and belong in the calendar as much as the fittings do. Rows are
+-- rewritten wholesale whenever the order's dates change, which is why the
+-- Google id has to survive that rewrite — see replaceOrderEvents in db.js.
+--
+-- A tight window drops the middle fittings rather than crowding them, so an
+-- order may legitimately have fewer than five rows. The unique constraint is
+-- on (order_id, stage) rather than a position column for exactly that reason:
+-- "Fitting 3" means the same thing whether or not "Fitting 2" exists.
+create table if not exists public.order_events (
+  id              uuid primary key default gen_random_uuid(),
+  order_id        uuid not null references public.orders (id) on delete cascade,
+  stage           text not null check (stage in (
+                    'Body measurements', 'Fitting 1', 'Fitting 2', 'Fitting 3',
+                    'Final fitting')),
+  event_date      date not null,
+  google_event_id text,        -- null until the first successful sync
+  synced_at       timestamptz, -- null while the row is ahead of the calendar
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+  unique (order_id, stage)
+);
+
+create index if not exists order_events_order_id_idx on public.order_events (order_id, event_date);
+
+-- The homepage reads every upcoming appointment across every order at once.
+create index if not exists order_events_event_date_idx on public.order_events (event_date);
+
+drop trigger if exists order_events_touch_updated_at on public.order_events;
+create trigger order_events_touch_updated_at
+  before update on public.order_events
+  for each row execute function public.touch_updated_at();
+
+alter table public.order_events enable row level security;
+
+drop policy if exists "signed-in full access" on public.order_events;
+create policy "signed-in full access" on public.order_events
+  for all to authenticated using (true) with check (true);
+
+-- --------------------------- Google credentials ---------------------------
+
+-- The one table in this schema with no policy on it, deliberately.
+--
+-- Everywhere else, "signed in" is the whole security model: the anon key is
+-- public, the shared password is the real gate, and anyone through it may read
+-- anything. That model does not stretch to a Google refresh token. A refresh
+-- token is a standing grant over a calendar — it does not expire with the
+-- session, and it is not ours to hand to the browser just because the browser
+-- authenticated.
+--
+-- RLS enabled with zero policies denies `anon` and `authenticated` alike. Only
+-- the service-role key bypasses RLS, and that key exists solely inside the
+-- google-calendar Edge Function. So the token can be written and used, and
+-- never read back out by the app. Confirm with a select from the browser
+-- console: it must return no rows even while signed in.
+create table if not exists public.google_credentials (
+  id            smallint primary key default 1 check (id = 1),
+  refresh_token text not null,
+  calendar_id   text not null default 'primary',
+  connected_at  timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+
+drop trigger if exists google_credentials_touch_updated_at on public.google_credentials;
+create trigger google_credentials_touch_updated_at
+  before update on public.google_credentials
+  for each row execute function public.touch_updated_at();
+
+alter table public.google_credentials enable row level security;
+
+-- Named only so a re-run cannot leave an older, laxer policy in place.
+drop policy if exists "signed-in full access" on public.google_credentials;
+
+-- ------------------------- History: two new actions ------------------------
+
+-- 'scheduled'       -> { "count": int, "dropped": [text], "dates": {stage: date} }
+-- 'calendar_synced' -> { "count": int }
+alter table public.order_history drop constraint if exists order_history_action_check;
+alter table public.order_history add constraint order_history_action_check
+  check (action in ('created', 'updated', 'payment_logged', 'scheduled', 'calendar_synced'));

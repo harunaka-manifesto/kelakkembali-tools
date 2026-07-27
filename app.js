@@ -17,6 +17,7 @@ KK.app = (function () {
   const U = KK.util;
   const db = KK.db;
   const docs = KK.docs;
+  const cal = KK.calendar;
   const $ = U.$;
   const $$ = U.$$;
 
@@ -73,6 +74,7 @@ KK.app = (function () {
     menuBtn: $('#menuBtn'),
     menuList: $('#menuList'),
     menuDelete: $('#menuDelete'),
+    menuCalendar: $('#menuCalendar'),
     menuSignOut: $('#menuSignOut'),
 
     viewCustomers: $('#viewCustomers'),
@@ -80,7 +82,6 @@ KK.app = (function () {
     deadlineCards: $('#deadlineCards'),
     customerSearch: $('#customerSearch'),
     customerSort: $('#customerSort'),
-    customerCount: $('#customerCount'),
     customerList: $('#customerList'),
     newCustomer: $('#newCustomer'),
 
@@ -116,12 +117,24 @@ KK.app = (function () {
     paymentSummary: $('#paymentSummary'),
     logPaymentBtn: $('#logPaymentBtn'),
     paymentChooserOptions: $('#paymentChooserOptions'),
+    scheduleCard: $('#scheduleCard'),
+    scheduleCount: $('#scheduleCount'),
+    scheduleList: $('#scheduleList'),
+    syncCalendarBtn: $('#syncCalendarBtn'),
+    scheduleSyncNote: $('#scheduleSyncNote'),
+
+    viewCalendar: $('#viewCalendar'),
+    gcalState: $('#gcalState'),
+    gcalConnect: $('#gcalConnect'),
+    gcalDisconnect: $('#gcalDisconnect'),
+    gcalErr: $('#gcalErr'),
 
     viewOrderEdit: $('#viewOrderEdit'),
     oTitle: $('#oTitle'),
     oDocName: $('#oDocName'),
     oFitting1: $('#oFitting1'),
     oFittingFinal: $('#oFittingFinal'),
+    oScheduleHint: $('#oScheduleHint'),
     oScheme: $('#oScheme'),
     termsCard: $('#termsCard'),
     termList: $('#termList'),
@@ -154,6 +167,8 @@ KK.app = (function () {
     order: null,             // record backing the order views
     overview: null,          // { ordersByCustomer } — every order, for the homepage
     loggedDeposits: {},      // { depositIndex: loggedAt } for the open order
+    schedule: null,          // computed programme + stored rows for the open order
+    googleConnected: null,   // null until asked; cached for the session
     dirty: false,
     saving: false
   };
@@ -300,13 +315,21 @@ KK.app = (function () {
 
   /* -------------------------------- Routing ------------------------------ */
 
-  /** #/customers | #/customer/new | #/customer/:id | #/order/:id | #/order/:id/edit */
+  /* #/customers | #/customer/new | #/customer/:id | #/order/:id | #/order/:id/edit
+
+     A route may carry a query — only `#/customer/new?name=` uses one today, to
+     seed the form from what was typed into the search field. It rides in the
+     hash rather than in a variable so a reload of that URL still prefills. */
   function parseHash() {
-    const parts = String(location.hash || '').replace(/^#\/?/, '').split('/').filter(Boolean);
-    if (parts[0] === 'customer' && parts[1]) return { view: 'customer', id: parts[1] };
-    if (parts[0] === 'order' && parts[1] && parts[2] === 'edit') return { view: 'orderEdit', id: parts[1] };
-    if (parts[0] === 'order' && parts[1]) return { view: 'order', id: parts[1] };
-    return { view: 'customers' };
+    const raw = String(location.hash || '').replace(/^#\/?/, '');
+    const cut = raw.indexOf('?');
+    const parts = (cut === -1 ? raw : raw.slice(0, cut)).split('/').filter(Boolean);
+    const query = new URLSearchParams(cut === -1 ? '' : raw.slice(cut + 1));
+    if (parts[0] === 'customer' && parts[1]) return { view: 'customer', id: parts[1], query };
+    if (parts[0] === 'order' && parts[1] && parts[2] === 'edit') return { view: 'orderEdit', id: parts[1], query };
+    if (parts[0] === 'order' && parts[1]) return { view: 'order', id: parts[1], query };
+    if (parts[0] === 'calendar') return { view: 'calendar', query };
+    return { view: 'customers', query };
   }
 
   function go(hash) {
@@ -356,16 +379,42 @@ KK.app = (function () {
     el.viewCustomer.hidden = next.view !== 'customer';
     el.viewOrder.hidden = next.view !== 'order';
     el.viewOrderEdit.hidden = next.view !== 'orderEdit';
+    el.viewCalendar.hidden = next.view !== 'calendar';
     window.scrollTo(0, 0);
 
-    try {
+    const render = async () => {
       if (next.view === 'customers') await showCustomers();
-      else if (next.view === 'customer') await showCustomer(next.id);
+      else if (next.view === 'customer') await showCustomer(next.id, next.query);
       else if (next.view === 'orderEdit') await showOrderEdit(next.id);
+      else if (next.view === 'calendar') await showCalendarSettings();
       else await showOrder(next.id);
+    };
+
+    /* The stored token can be a moment stale — expired between tabs, or minted
+       far enough either side of the API's clock to fall outside its 30-second
+       window ("JWT expired", "JWT issued at future"). The first load after
+       opening the app is exactly when that lands, and it used to arrive as a
+       toast of raw PostgREST wording over a half-drawn page. It is not
+       something to tell anyone about: get a fresh token and draw the page
+       again. Only a second failure is real, and only that one speaks up. */
+    try {
+      await render();
     } catch (err) {
-      console.error(err);
-      showToast(err.message || 'Could not load that');
+      if (!db.isStaleToken(err)) {
+        console.error(err);
+        showToast(err.message || 'Could not load that');
+        return;
+      }
+      console.warn('Stale token, refreshing and retrying:', err.message);
+      try {
+        await db.refreshSession();
+        await render();
+      } catch (retryErr) {
+        console.error(retryErr);
+        showToast(db.isStaleToken(retryErr)
+          ? 'Your session expired — please unlock again'
+          : (retryErr.message || 'Could not load that'));
+      }
     }
   }
 
@@ -405,11 +454,22 @@ KK.app = (function () {
     state.order = null;
     el.customerList.innerHTML = '<p class="empty">Loading…</p>';
 
-    const [customers, allOrders] = await Promise.all([
-      db.listCustomers(), db.listAllOrders()
+    /* The schedule table is the newest thing in the schema, and the homepage is
+       the first page anyone lands on. If it is missing — schema.sql not yet
+       re-run against this project — the strip falls back to the raw anchor
+       dates, which is what it showed before schedules existed. Losing the whole
+       customer list over it would be out of all proportion. */
+    const [customers, allOrders, allEvents] = await Promise.all([
+      db.listCustomers(),
+      db.listAllOrders(),
+      db.listAllOrderEvents().catch((err) => {
+        if (db.isStaleToken(err)) throw err;
+        console.warn('No order_events yet:', err.message);
+        return [];
+      })
     ]);
     state.customers = customers;
-    state.overview = buildOverview(allOrders);
+    state.overview = buildOverview(allOrders, allEvents);
     renderDeadlines();
     renderCustomerList();
   }
@@ -437,15 +497,19 @@ KK.app = (function () {
     const rows = sortCustomers(state.customers.filter((c) => !q ||
       [c.name, c.phone, c.instagram].some((v) => String(v || '').toLowerCase().includes(q))));
 
-    el.customerCount.textContent = rows.length
-      ? rows.length + (rows.length === 1 ? ' customer' : ' customers')
-      : '';
-
+    /* Searching for a name that is not here is how you find out a customer has
+       not been entered yet — so the dead end offers the next step instead of
+       just reporting the miss, and carries the name you already typed into the
+       form rather than making you type it a second time. */
     if (!rows.length) {
-      el.customerList.innerHTML = '<p class="empty">' +
-        (state.customers.length
-          ? 'No match for “' + U.escapeHtml(el.customerSearch.value.trim()) + '”.'
-          : 'No customers yet. Add the first one with New, above.') + '</p>';
+      const typed = el.customerSearch.value.trim();
+      el.customerList.innerHTML = state.customers.length
+        ? '<p class="empty">No match for “' + U.escapeHtml(typed) + '”.</p>' +
+          '<a class="btn btn--outline btn--new btn--block btn--empty" ' +
+             'href="#/customer/new?name=' + encodeURIComponent(typed) + '">' +
+            '+ Add “' + U.escapeHtml(typed) + '” as a new customer' +
+          '</a>'
+        : '<p class="empty">No customers yet. Add the first one with New, above.</p>';
       return;
     }
 
@@ -472,12 +536,26 @@ KK.app = (function () {
 
   /* ------------------------------- Overview -------------------------------- */
 
-  function buildOverview(allOrders) {
+  function buildOverview(allOrders, allEvents) {
     const ordersByCustomer = {};
     allOrders.forEach((o) => {
       (ordersByCustomer[o.customer_id] = ordersByCustomer[o.customer_id] || []).push(o);
     });
-    return { ordersByCustomer };
+
+    /* Appointments are keyed by order, and the strip is per customer, so they
+       are re-keyed here rather than joined in the query — the whole table is
+       five rows per order and already in hand. */
+    const orderCustomer = {};
+    allOrders.forEach((o) => { orderCustomer[o.id] = o.customer_id; });
+
+    const eventsByCustomer = {};
+    (allEvents || []).forEach((e) => {
+      const cid = orderCustomer[e.order_id];
+      if (!cid) return;
+      (eventsByCustomer[cid] = eventsByCustomer[cid] || []).push(e);
+    });
+
+    return { ordersByCustomer, eventsByCustomer };
   }
 
   /** A customer is active until every order they have is delivered. Someone
@@ -490,15 +568,29 @@ KK.app = (function () {
 
   /* Whichever date comes first, named. A fitting three days out matters more
      than a wedding three months out, and which one it is changes what you do
-     about it — so the card says. */
+     about it — so the card says.
+
+     The appointments come from the stored schedule, which includes the two
+     anchor dates as its first and last rows. Reading the anchor columns as
+     well would list the same two days twice. Orders with no schedule yet fall
+     back to their raw anchors, so nothing disappears from the strip while the
+     order is waiting to be saved. */
   function nextDeadline(customer) {
     const today = U.todayISO();
     const dates = [];
     if (customer.wedding_date) dates.push({ date: customer.wedding_date, what: 'Wedding' });
+
+    const scheduled = state.overview.eventsByCustomer[customer.id] || [];
+    scheduled.forEach((e) => dates.push({ date: e.event_date, what: e.stage }));
+
+    const hasSchedule = {};
+    scheduled.forEach((e) => { hasSchedule[e.order_id] = true; });
     (state.overview.ordersByCustomer[customer.id] || []).forEach((o) => {
-      if (o.fitting_1_date) dates.push({ date: o.fitting_1_date, what: 'First fitting' });
+      if (hasSchedule[o.id]) return;
+      if (o.fitting_1_date) dates.push({ date: o.fitting_1_date, what: 'Body measurements' });
       if (o.final_fitting_date) dates.push({ date: o.final_fitting_date, what: 'Final fitting' });
     });
+
     return dates.filter((d) => d.date >= today).sort((a, b) => (a.date < b.date ? -1 : 1))[0] || null;
   }
 
@@ -608,7 +700,7 @@ KK.app = (function () {
     return ago + (ago === 1 ? ' day' : ' days') + ' ago';
   }
 
-  async function showCustomer(id) {
+  async function showCustomer(id, query) {
     const isNew = id === 'new';
     setChrome({
       title: isNew ? 'New customer' : 'Customer',
@@ -618,13 +710,18 @@ KK.app = (function () {
     });
 
     state.customer = isNew ? Object.assign({}, BLANK_CUSTOMER) : await db.getCustomer(id);
+    // Arrived from a search that found nothing: the name is already known.
+    const seeded = isNew ? String((query && query.get('name')) || '').trim() : '';
+    if (seeded) state.customer.name = seeded;
     fillCustomerForm(state.customer);
     // A new customer has nothing to read, so it opens straight into the form.
     setCustomerMode(isNew);
     setDirty(isNew);
 
     if (isNew) {
-      el.cName.focus();
+      /* With the name filled in, the next empty field is what needs the caret —
+         landing on Name would only mean tabbing past what you just typed. */
+      (seeded ? el.cPhone : el.cName).focus();
       return;
     }
 
@@ -726,6 +823,16 @@ KK.app = (function () {
     if (row.action === 'payment_logged') {
       const label = (row.detail && row.detail.deposit_label) || 'Payment';
       return label.split(' - ')[0] + ' logged';
+    }
+    if (row.action === 'scheduled') {
+      const n = (row.detail && row.detail.count) || 0;
+      const dropped = (row.detail && row.detail.dropped) || [];
+      return 'Schedule set — ' + n + (n === 1 ? ' date' : ' dates') +
+        (dropped.length ? ', ' + dropped.length + ' left out' : '');
+    }
+    if (row.action === 'calendar_synced') {
+      const n = (row.detail && row.detail.count) || 0;
+      return 'Synced ' + n + (n === 1 ? ' date' : ' dates') + ' to Google Calendar';
     }
     return row.action;
   }
@@ -906,8 +1013,228 @@ KK.app = (function () {
       : 'Add the name for documents to enable downloads.';
 
     setDirty(false);
+    await refreshSchedule();
     await refreshHistory();
     syncBottomBar();
+  }
+
+  /* ------------------------------- Schedule ------------------------------- */
+
+  /* The card shows what is stored, not what would be computed right now. The
+     two are the same the moment after a save, and they have to be allowed to
+     differ before one: the stored rows are what carry the Google event ids, so
+     re-deriving them for display would quietly claim a sync that never
+     happened. */
+
+  async function refreshSchedule() {
+    const order = state.order;
+    const computed = cal.computeSchedule(order.fitting_1_date, order.final_fitting_date);
+
+    let rows = [];
+    try {
+      rows = await db.listOrderEvents(order.id);
+    } catch (err) {
+      // A schedule that will not load is not a reason to lose the whole page.
+      console.error(err);
+    }
+    state.schedule = { computed: computed, rows: rows };
+
+    const synced = rows.filter((r) => r.google_event_id);
+    const pending = rows.filter((r) => !r.synced_at);
+
+    cal.renderSchedule(el.scheduleList, {
+      events: rows,
+      warning: computed.warning,
+      reason: computed.reason || 'No schedule yet — save the order to build one.'
+    });
+
+    el.scheduleCount.textContent = rows.length ? rows.length + ' dates' : '';
+
+    /* Sync is offered only once there is something to send. Whether Google is
+       connected is a question for the settings page, not a reason to hide the
+       button — pressing it says so, which is a shorter path than discovering
+       the menu. */
+    el.syncCalendarBtn.hidden = !rows.length;
+    el.syncCalendarBtn.disabled = false;
+    el.syncCalendarBtn.textContent = synced.length && !pending.length
+      ? 'Re-sync to Google Calendar'
+      : 'Sync to Google Calendar';
+
+    el.scheduleSyncNote.textContent = !rows.length ? ''
+      : !synced.length ? 'Not in Google Calendar yet.'
+      : pending.length ? pending.length + ' of ' + rows.length + ' dates changed since the last sync.'
+      : 'All ' + rows.length + ' dates are in Google Calendar.';
+  }
+
+  /** One line under the date fields saying what the pair of them will build. */
+  function renderScheduleHint() {
+    const r = cal.computeSchedule(el.oFitting1.value, el.oFittingFinal.value);
+    el.oScheduleHint.textContent = r.events.length
+      ? r.events.length + ' appointments will be scheduled between these dates.' +
+        (r.warning ? ' ' + r.warning : '')
+      : r.reason;
+  }
+
+  /** Rebuild the stored programme from the order's anchors. Returns what
+      changed, so the caller can decide whether it is worth logging. */
+  async function rescheduleOrder(order) {
+    const computed = cal.computeSchedule(order.fitting_1_date, order.final_fitting_date);
+    const before = await db.listOrderEvents(order.id);
+    const after = await db.replaceOrderEvents(order.id, computed.events);
+
+    /* A stage that a tighter window cut out still has an event sitting in
+       Google. Nobody is going to notice a fitting that quietly stopped being
+       scheduled, so it is taken out rather than left to be believed. */
+    const orphans = after.removed.map((r) => r.google_event_id).filter(Boolean);
+    if (orphans.length) {
+      try {
+        await db.googleForget(orphans);
+      } catch (err) {
+        console.error('Dropped events left in Google Calendar:', err);
+      }
+    }
+
+    const was = before.map((r) => r.stage + '@' + r.event_date).sort().join('|');
+    const now = after.events.map((r) => r.stage + '@' + r.event_date).sort().join('|');
+    return { computed: computed, changed: was !== now, rows: after.events };
+  }
+
+  async function syncCalendar() {
+    const btn = el.syncCalendarBtn;
+    btn.disabled = true;
+    const label = btn.textContent;
+    btn.textContent = 'Syncing…';
+    try {
+      const res = await db.syncOrderCalendar(state.order.id);
+      const n = (res && res.count) || 0;
+      showToast(n + (n === 1 ? ' date' : ' dates') + ' in Google Calendar');
+      try {
+        await db.logOrderHistory(state.order.id, 'calendar_synced', { count: n });
+      } catch (err) {
+        console.error(err);
+      }
+      await refreshSchedule();
+      await refreshHistory();
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || 'Could not sync to Google Calendar');
+      btn.textContent = label;
+      btn.disabled = false;
+    }
+    syncBottomBar();
+  }
+
+  /* --------------------------- Google Calendar ---------------------------- */
+
+  /* The consent round trip leaves and re-enters the app, so it cannot use the
+     hash route — Google refuses a redirect_uri with a fragment in it. It comes
+     back to the page's own origin with ?code=, which boot picks up, spends, and
+     then scrubs out of the address bar. */
+
+  const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
+  const GOOGLE_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
+
+  /** Where Google sends the browser back to. Must match a redirect URI
+      registered on the OAuth client, for localhost and for the live domain. */
+  const googleRedirectUri = () => location.origin + location.pathname;
+
+  function connectGoogle() {
+    const clientId = (window.KK_CONFIG || {}).GOOGLE_CLIENT_ID || '';
+    if (!clientId) {
+      el.gcalErr.hidden = false;
+      el.gcalErr.textContent =
+        'No GOOGLE_CLIENT_ID in config.js — see “Google Calendar” in the README.';
+      return;
+    }
+    /* access_type=offline is what asks for a refresh token at all, and
+       prompt=consent is what makes Google issue a new one rather than assume
+       we kept the first. Without both, a re-connect silently yields an access
+       token that dies in an hour and a sync that works only today. */
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: googleRedirectUri(),
+      response_type: 'code',
+      scope: GOOGLE_SCOPE,
+      access_type: 'offline',
+      prompt: 'consent',
+      include_granted_scopes: 'true'
+    });
+    location.href = GOOGLE_AUTH_URL + '?' + params.toString();
+  }
+
+  async function showCalendarSettings() {
+    setChrome({
+      title: 'Google Calendar',
+      up: { label: 'Customers', hash: '#/customers' },
+      save: false, actions: false
+    });
+
+    el.gcalErr.hidden = true;
+    el.gcalConnect.hidden = true;
+    el.gcalDisconnect.hidden = true;
+    el.gcalState.textContent = 'Checking…';
+
+    let status;
+    try {
+      status = await db.googleStatus();
+    } catch (err) {
+      console.error(err);
+      el.gcalState.textContent = 'Could not reach the calendar service.';
+      el.gcalErr.hidden = false;
+      el.gcalErr.textContent = err.message || '';
+      el.gcalConnect.hidden = false;
+      return;
+    }
+
+    state.googleConnected = !!(status && status.connected);
+    el.gcalState.textContent = state.googleConnected
+      ? 'Connected' + (status.connected_at
+        ? ' since ' + U.formatShortDate(String(status.connected_at).slice(0, 10)) : '') + '.'
+      : 'Not connected. Fitting dates stay in this app until you connect.';
+    el.gcalConnect.hidden = state.googleConnected;
+    el.gcalDisconnect.hidden = !state.googleConnected;
+  }
+
+  async function disconnectGoogle() {
+    if (!window.confirm('Disconnect Google Calendar? Events already created stay where they are.')) return;
+    try {
+      await db.googleDisconnect();
+      state.googleConnected = false;
+      showToast('Disconnected');
+      await showCalendarSettings();
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || 'Could not disconnect');
+    }
+  }
+
+  /* Spends the ?code= Google sent us back with, then takes it out of the URL so
+     a reload cannot try to spend it twice — an authorization code is single
+     use, and the second attempt fails noisily for no reason. */
+  async function consumeGoogleRedirect() {
+    const params = new URLSearchParams(location.search);
+    const code = params.get('code');
+    const error = params.get('error');
+    if (!code && !error) return;
+
+    const clean = () =>
+      history.replaceState(null, '', location.pathname + location.hash);
+
+    if (error) {
+      clean();
+      showToast(error === 'access_denied' ? 'Google Calendar was not connected' : 'Google sign-in failed');
+      return;
+    }
+
+    clean();
+    try {
+      await db.googleExchange(code, googleRedirectUri());
+      state.googleConnected = true;
+      showToast('Google Calendar connected');
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || 'Could not connect Google Calendar');
+    }
   }
 
   /* ------------------------------- Order edit ------------------------------ */
@@ -926,6 +1253,8 @@ KK.app = (function () {
     el.oDocName.value = state.order.doc_name || '';
     el.oFitting1.value = state.order.fitting_1_date || '';
     el.oFittingFinal.value = state.order.final_fitting_date || '';
+
+    renderScheduleHint();
 
     el.oScheme.value = state.order.payment_scheme === 'other' ? 'other' : 'standard';
     buildTerms(state.order);
@@ -968,6 +1297,23 @@ KK.app = (function () {
       await db.logOrderHistory(state.order.id, 'updated', {});
     } catch (err) {
       console.error(err);
+    }
+
+    /* The programme follows the anchors, so it is rebuilt on every save and
+       logged only when it actually moved. Failing here must not undo a save
+       that already succeeded — the schedule is derived and can be rebuilt by
+       saving again, the order cannot. */
+    try {
+      const res = await rescheduleOrder(state.order);
+      if (res.changed) {
+        await db.logOrderHistory(state.order.id, 'scheduled', {
+          count: res.rows.length,
+          dropped: res.computed.dropped
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Saved, but the schedule could not be rebuilt');
     }
     return true;
   }
@@ -1526,11 +1872,26 @@ KK.app = (function () {
     el.downloadQuote.addEventListener('click', () => download('quotation'));
     el.downloadInvoice.addEventListener('click', () => download('invoice'));
 
+    /* -- calendar -- */
+
+    el.syncCalendarBtn.addEventListener('click', syncCalendar);
+    el.gcalConnect.addEventListener('click', connectGoogle);
+    el.gcalDisconnect.addEventListener('click', disconnectGoogle);
+    el.menuCalendar.addEventListener('click', closeMenu);
+
     /* -- order edit -- */
 
     $$('.js-ofield').forEach((input) => {
       input.addEventListener('input', () => setDirty(true));
       input.addEventListener('change', () => setDirty(true));
+    });
+
+    /* What the two anchor dates will produce, said while they are still being
+       chosen. A window too short to hold the full programme is worth knowing
+       about before saving, not after. */
+    [el.oFitting1, el.oFittingFinal].forEach((input) => {
+      input.addEventListener('input', renderScheduleHint);
+      input.addEventListener('change', renderScheduleHint);
     });
 
     el.addItem.addEventListener('click', () => {
@@ -1653,6 +2014,9 @@ KK.app = (function () {
     el.gate.hidden = true;
     el.app.hidden = false;
     handleRoute();
+    /* After the route, not before: exchanging the code needs a signed-in
+       session, and its only visible result is a toast. */
+    consumeGoogleRedirect();
   }
 
   function bindGate() {
