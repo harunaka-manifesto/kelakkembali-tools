@@ -1902,10 +1902,10 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
 
 /* =========================================================================
    PART 2 — QUOTATION DOCUMENT
-   Locked 1:1 to Figma (file RqeGM5NJD3CTeasfarP9iM, node 1:2).
-   Content width 534px + 32px padding = 598px total.
-   The inner document body is inset 100px on the right (434px wide),
-   exactly as in the source design.
+   Locked 1:1 to Figma (file RqeGM5NJD3CTeasfarP9iM, node 24:145).
+   Content width 467px + 64px padding = 595px total.
+   The Payment-to and section label rows are inset 100px on the right
+   (367px wide), exactly as in the source design.
    Do not restyle: only the data inside changes.
    ========================================================================= */
 
@@ -1913,13 +1913,13 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
   position: fixed;
   top: 0;
   left: -20000px;
-  width: 598px;
+  width: 595px;
   pointer-events: none;
 }
 
 .q {
-  width: 598px;
-  padding: 32px;
+  width: 595px;
+  padding: 64px;
   background: #EBE9E4;
   color: #000;
   font-family: 'Aileron', sans-serif;
@@ -1940,7 +1940,7 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
      past this and the table columns start to drift wider than their headers.
 
      In px, not em: 0.13px is 1% of the 13px body, and this document is a fixed
-     598px frame, so there is nothing for a relative unit to adapt to. An em
+     595px frame, so there is nothing for a relative unit to adapt to. An em
      here would resolve against whatever font-size .q inherits — which is not
      13px, and is not guaranteed to be the same inside html2canvas's clone. */
   letter-spacing: 0.13px;
@@ -2009,7 +2009,7 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
   gap: 12px;
 }
 
-.q-titlerow { width: 534px; display: flex; align-items: center; }
+.q-titlerow { width: 100%; display: flex; align-items: center; }
 
 .q-title {
   font-size: 44px;
@@ -2041,11 +2041,12 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
 
 .q-dim { opacity: 0.5; }
 
+/* Its own band between the header and the table, 32px of air either side. */
 .q-desc {
   width: 100%;
   display: flex;
   align-items: flex-end;
-  padding-top: 32px;
+  padding: 32px 0;
 }
 
 .q-desctext {
@@ -2058,12 +2059,14 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
   overflow-wrap: break-word;
 }
 
+/* The mark hangs from the bottom of a 95px box, so it sits level with the
+   For/Date row rather than with the top of the title. */
 .q-logobox {
   width: 120px;
+  height: 95px;
   flex: none;
-  align-self: stretch;
   display: flex;
-  align-items: flex-start;
+  align-items: flex-end;
   justify-content: center;
 }
 
@@ -2076,8 +2079,18 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
 
 /* ------------------------------ Items block ----------------------------- */
 
+/* Two groups, well apart: the table with its Includes/Excludes, then the
+   payment-terms band. Inside a group the rhythm is 20px, between them 48px. */
 .q-items {
-  width: 534px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 48px;
+}
+
+.q-group {
+  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -2183,7 +2196,7 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
 /* ----------------------------- Payment terms ---------------------------- */
 
 .q-payment {
-  width: 534px;
+  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -2204,12 +2217,14 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
   width: 100%;
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 20px;
   align-items: flex-start;
 }
 
+/* The basis is well under a third of the body so the package's three columns
+   share one line (142px each) and a fourth term pushes onto a second. */
 .q-deposit {
-  flex: 1 0 150px;
+  flex: 1 0 120px;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -2234,9 +2249,9 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
 /* ------------------------------- Signature ------------------------------ */
 
 .q-signature {
-  width: 534px;
+  width: 100%;
   padding-right: 160px;
-  padding-top: 12px;
+  padding-top: 32px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -2260,17 +2275,69 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
 
 /* =========================================================================
    PART 3 — INVOICE DOCUMENT
-   Locked 1:1 to Figma node 2:104. Same 598px shell, same header, table,
-   total row and signature as the quotation — everything above reapplies via
-   the shared .q classes. Only what the invoice adds or changes lives here.
+   Locked 1:1 to Figma node 24:22. Same 595px shell, same header, total row
+   and signature as the quotation — everything above reapplies via the shared
+   .q classes. Only what the invoice adds or changes lives here.
    ========================================================================= */
 
-/* No greeting paragraph, so the 32px that sat on top of .q-desc moves onto
-   the header container itself (2:105 pb-32). */
-.inv .q-header { padding-bottom: 32px; }
+/* No greeting band under the header, so the header carries the air itself. */
+.inv .q-header { padding-bottom: 48px; }
 
-/* A titled band: divider, 13/600 label, divider — "Terms of payment" (2:296)
-   and "Payment to" (2:297). Same 8px rhythm as the items header section. */
+/* The mark sits 16px below the top of the header rather than hanging from a
+   fixed box — the invoice has no description line to align against. */
+.inv .q-logobox {
+  height: auto;
+  padding-top: 16px;
+}
+
+/* The table and the deposit split are one group; Payment to is the next, and
+   it stands well clear of them. */
+.inv .q-items { gap: 64px; }
+
+/* No Qty column: the item name runs to x=303 and Price still starts at x=367. */
+.inv .q-row { gap: 64px; }
+
+/* The signature sits closer to the last rule than the quotation's does. */
+.inv .q-signature { padding-top: 12px; }
+
+/* Deposit rows: the label is pushed right against a bullet, and the amount
+   lands in the same 100px column as the prices above. */
+.q-termlist {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.q-row--pair {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 200;
+  line-height: 20px;
+  color: #000;
+}
+
+.q-row--pair .q-c-item {
+  flex: 1 0 0;
+  min-width: 0;
+  display: flex;
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
+/* The Payment to band: a rule, the block, a rule. */
+.q-paysection {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
 .q-section {
   width: 100%;
   display: flex;
@@ -2292,27 +2359,7 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
 
 .q-sectrow p { flex: 1 0 0; min-width: 0; }
 
-.q-termlist {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-}
-
-/* Deposit rows carry no Qty cell, so Figma widens the gap to 64px. The label
-   is flexible either way, so Price still lands at x=434. */
-.q-row--pair { gap: 64px; }
-
-.q-paysection {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-/* Bank details (2:307): 24px leading, not the 20px used everywhere else. */
+/* Bank details (24:103): 24px leading, not the 20px used everywhere else. */
 .q-paydetails {
   width: 100%;
   padding-right: 100px;

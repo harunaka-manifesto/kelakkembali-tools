@@ -57,7 +57,7 @@ KK.docs = (function () {
 
   const PDF_PAGE_WIDTH_PT = 595.28;  // A4 width, so the file still prints sensibly
   const SNAPSHOT_SCALE = 3;
-  const Q_PAD = 32;                  // the document's own padding, in CSS px
+  const Q_PAD = 64;                  // the document's own padding, in CSS px
   const CAPTURE_SLACK = 240;         // spare CSS px below the page, trimmed after
 
   /* Watermark: the document background is a soft, grainy field generated from a
@@ -217,14 +217,16 @@ KK.docs = (function () {
     });
   }
 
-  /** The items table, identical on both documents: named rows then the Total. */
-  function itemRowsHtml(items, total) {
+  /** The items table: named rows then the Total. The quotation prices the work
+      per unit and so prints a Qty column; the invoice bills the agreed sum and
+      leaves it out — otherwise the two are the same table. */
+  function itemRowsHtml(items, total, withQty) {
     const rows = (items || [])
       .filter((it) => String(it.name || '').trim() !== '')
       .map((it) =>
         '<div class="q-row">' +
           '<p class="q-c-item">' + U.escapeHtml(it.name) + '</p>' +
-          '<p class="q-c-qty">' + (Number(it.qty) || 0) + '</p>' +
+          (withQty ? '<p class="q-c-qty">' + (Number(it.qty) || 0) + '</p>' : '') +
           '<p class="q-c-price">' + U.formatRupiah(it.price) + '</p>' +
         '</div>'
       );
@@ -246,12 +248,11 @@ KK.docs = (function () {
     const terms = data.terms && data.terms.length ? data.terms : STANDARD_TERMS;
     const total = computeTotal(items);
     const longDate = U.formatLongDate(data.date);
-    const rows = itemRowsHtml(items, total);
 
     el.qFor.textContent = name;
     el.qDate.textContent = longDate;
     el.qDear.textContent = 'Dear ' + name + ',';
-    el.qItems.innerHTML = rows;
+    el.qItems.innerHTML = itemRowsHtml(items, total, true);
     el.qIncludes.innerHTML = '<p class="q-b">Includes:</p>' + includes.map((label, i) =>
       '<span class="q-inc">' +
         '<span>' + U.escapeHtml(label) + '</span>' +
@@ -270,10 +271,11 @@ KK.docs = (function () {
 
     el.iFor.textContent = name;
     el.iDate.textContent = longDate;
-    el.iItems.innerHTML = rows;
+    el.iItems.innerHTML = itemRowsHtml(items, total, false);
     el.iTerms.innerHTML = termAmounts(total, terms).map((amount, i) =>
-      '<div class="q-row q-row--pair">' +
+      '<div class="q-row--pair">' +
         '<p class="q-c-item">' + U.escapeHtml(termLabel(terms[i])) + '</p>' +
+        '<span class="q-dot"></span>' +
         '<p class="q-c-price">' + U.formatRupiah(amount) + '</p>' +
       '</div>'
     ).join('');
