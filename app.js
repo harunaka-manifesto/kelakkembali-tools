@@ -1451,11 +1451,18 @@ KK.app = (function () {
       amount: r.total
     }))).sort((a, b) => new Date(b.when) - new Date(a.when));
 
+    /* What happened reads down the left, when it happened down the right: the
+       dates line up as a column you can run your eye along, and the amount sits
+       under the entry it belongs to rather than competing with the date for the
+       end of the row. */
     el.historyLog.innerHTML = merged.length ? merged.map((r) =>
-      '<div class="logrow">' +
-        '<span class="logrow__kind">' + U.escapeHtml(r.label) + '</span>' +
+      '<div class="logrow logrow--stacked">' +
+        '<span class="logrow__what">' +
+          '<span class="logrow__kind">' + U.escapeHtml(r.label) + '</span>' +
+          (r.amount != null
+            ? '<span class="logrow__total">' + U.formatRupiah(r.amount) + '</span>' : '') +
+        '</span>' +
         '<span class="logrow__when">' + U.escapeHtml(U.formatShortDate(r.when)) + '</span>' +
-        (r.amount != null ? '<span class="logrow__total">' + U.formatRupiah(r.amount) + '</span>' : '') +
       '</div>'
     ).join('') : '<p class="empty">No history yet.</p>';
   }
@@ -1676,20 +1683,34 @@ KK.app = (function () {
       cal.pinsFrom(state.schedule && state.schedule.rows)
     );
 
-    const lines = [];
-    if (r.design.events.length) {
-      lines.push('Design phase ' + U.formatShortDate(r.design.events[0].event_date) +
-        ' – ' + U.formatShortDate(r.design.events[0].end_date) + '.');
-    } else {
-      lines.push(r.design.reason);
-    }
-    lines.push(r.production.events.length
-      ? r.production.events.length + ' appointments between ' +
-        U.formatShortDate(r.production.events[0].event_date) + ' and the wedding.' +
-        (r.production.warning ? ' ' + r.production.warning : '')
+    /* A bullet apiece: what the design dates produce, what the fitting dates
+       produce, and then one line per thing the window cost. Run together as a
+       paragraph these were a wall of prose nobody finished reading, and the
+       compromises — which are the only part worth acting on — were buried in
+       the middle of it. */
+    const facts = [];
+    facts.push(r.design.events.length
+      ? 'Design phase ' + U.formatShortDate(r.design.events[0].event_date) +
+        ' – ' + U.formatShortDate(r.design.events[0].end_date)
+      : r.design.reason);
+    facts.push(r.production.events.length
+      ? r.production.events.length + ' appointments from ' +
+        U.formatShortDate(r.production.events[0].event_date) + ' to the wedding'
       : r.production.reason);
 
-    el.oScheduleHint.textContent = lines.join(' ');
+    /* The warnings are written as sentences because the schedule card runs them
+       together into a paragraph. A bullet is not a sentence — the stop at the
+       end of a line that already ends is just a mark to trip over. */
+    const warnings = (r.production.events.length ? (r.production.warnings || []) : [])
+      .map((t) => t.replace(/\.$/, ''));
+
+    el.oScheduleHint.innerHTML =
+      '<ul class="hintbox__list">' +
+        facts.map((t) =>
+          '<li>' + U.escapeHtml(t.replace(/\.$/, '')) + '</li>').join('') +
+        warnings.map((t) =>
+          '<li class="hintbox__warn">' + U.escapeHtml(t) + '</li>').join('') +
+      '</ul>';
   }
 
   /** Rebuild the stored programme from the order's anchors. Returns what

@@ -467,6 +467,52 @@ body.has-savebar .page {
 
 .card__hint[hidden] { display: none; }
 
+/* A boxed summary of what the dates above will produce. It is a read-out rather
+   than another field, so it is tinted off the form and set as points: the eye
+   picks up four short lines it can scan, where the same words as a paragraph
+   were skipped whole. */
+.hintbox {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 11px 13px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.hintbox:empty { display: none; }
+
+.hintbox__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.hintbox__list > li {
+  position: relative;
+  padding-left: 13px;
+}
+
+.hintbox__list > li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 0.6em;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+/* What the tight window cost, marked apart from what the dates simply are —
+   these are the lines worth going back to the client about. */
+.hintbox__list > li.hintbox__warn { color: var(--danger); }
+
+.hintbox__list > li.hintbox__warn::before { background: currentColor; }
+
 /* ------------------------------- Deadlines ------------------------------- */
 
 /* The customers with the soonest date still ahead. This is the only thing on
@@ -1159,6 +1205,26 @@ body.has-savebar .page {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+/* History rows: the label and its amount stack on the left, the date is pinned
+   to the right edge so the dates read as a column. */
+.logrow--stacked { align-items: flex-start; }
+
+.logrow--stacked .logrow__what {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.logrow--stacked .logrow__when {
+  flex: 0 0 auto;
+  margin-left: auto;
+  text-align: right;
+}
+
+.logrow--stacked .logrow__total { color: var(--muted); }
 
 /* -------------------------------- Fields -------------------------------- */
 

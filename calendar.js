@@ -186,11 +186,12 @@ KK.calendar = (function () {
    * fit. The app is authoritative about the programme; the person who moved the
    * appointment is authoritative about the appointment.
    *
-   * Returns { events, dropped, warning, reason, missingAnchor, finalBufferDays,
-   * gapWeeks }:
+   * Returns { events, dropped, warnings, warning, reason, missingAnchor,
+   * finalBufferDays, gapWeeks }:
    *   events           [{ stage, event_date }] in date order — empty when unschedulable
    *   dropped          stage names left out because the window was too tight
-   *   warning          what to tell the user about a schedule that was cut down
+   *   warnings         one point per compromise, for a list
+   *   warning          the same points run together, for a sentence
    *   reason           why there is no schedule at all, when there isn't one
    *   missingAnchor    true when a date is absent rather than unworkable
    *   finalBufferDays  days between the final fitting and the wedding, or null
@@ -208,7 +209,7 @@ KK.calendar = (function () {
     const pinned = pins || {};
 
     const nothing = (reason, missingAnchor) => ({
-      events: [], dropped: [], warning: '', reason: reason,
+      events: [], dropped: [], warnings: [], warning: '', reason: reason,
       missingAnchor: !!missingAnchor, finalBufferDays: null, gapWeeks: MIN_GAP_WEEKS
     });
 
@@ -277,11 +278,14 @@ KK.calendar = (function () {
 
     const finalBufferDays = wedding - placed[placed.length - 1];
     const order = dropped.slice().sort((a, b) => STAGES.indexOf(a) - STAGES.indexOf(b));
+    const warnings = scheduleWarnings(
+      wedding - paid, order, finalBufferDays, tightest, squeezed);
 
     return {
       events: stages.map((stage, i) => ({ stage: stage, event_date: fromDay(placed[i]) })),
       dropped: order,
-      warning: scheduleWarning(wedding - paid, order, finalBufferDays, tightest, squeezed),
+      warnings: warnings,
+      warning: warnings.join(' '),
       reason: '',
       missingAnchor: false,
       finalBufferDays: finalBufferDays,
@@ -342,31 +346,34 @@ KK.calendar = (function () {
 
   /* Silent when nothing was compromised. Otherwise it says what the window was,
      what that cost, and what the uncompromised version would have looked like —
-     which together are enough to decide whether to go back to the client. */
-  function scheduleWarning(window, dropped, finalBufferDays, tightestGap, squeezed) {
+     which together are enough to decide whether to go back to the client.
+
+     One point per compromise rather than one paragraph: the caller decides
+     whether to set them as bullets or run them together into a sentence, and a
+     reader scanning for what went wrong can stop at the line that matters. */
+  function scheduleWarnings(window, dropped, finalBufferDays, tightestGap, squeezed) {
     const parts = [];
 
     if (dropped.length) {
       parts.push(listOf(dropped) + (dropped.length === 1 ? ' was' : ' were') +
         ' left out — the full programme needs ' +
-        weeks(MIN_GAP_WEEKS * (PRODUCTION_STAGES.length - 1)) +
-        ' from body measurements to the final fitting.');
+        weeks(MIN_GAP_WEEKS * (PRODUCTION_STAGES.length - 1)) + '.');
     }
     if (finalBufferDays < FINAL_BUFFER_QUIET) {
-      parts.push('The final fitting is ' + days(finalBufferDays) +
-        ' before the wedding rather than the usual ' + FINAL_BUFFER_IDEAL + '.');
+      parts.push('Final fitting ' + days(finalBufferDays) +
+        ' before the wedding, not the usual ' + FINAL_BUFFER_IDEAL + '.');
     }
     if (squeezed) {
       parts.push('The two appointments are ' + days(tightestGap) +
-        ' apart, closer together than the usual ' + weeks(MIN_GAP_WEEKS) + '.');
+        ' apart, not the usual ' + weeks(MIN_GAP_WEEKS) + '.');
     } else if (tightestGap < MIN_GAP_WEEKS * 7) {
-      parts.push('The appointments are as little as ' + days(tightestGap) +
-        ' apart rather than the usual ' + weeks(MIN_GAP_WEEKS) + '.');
+      parts.push('Appointments as little as ' + days(tightestGap) +
+        ' apart, not the usual ' + weeks(MIN_GAP_WEEKS) + '.');
     }
-    if (!parts.length) return '';
+    if (!parts.length) return [];
 
-    return 'Only ' + days(window) + ' between the production payment and the wedding. ' +
-      parts.join(' ');
+    return ['Only ' + days(window) + ' from the production payment to the wedding.']
+      .concat(parts);
   }
 
   /* ------------------------------ Both groups ----------------------------- */
@@ -400,6 +407,7 @@ KK.calendar = (function () {
       production: production,
       events: events,
       dropped: production.dropped,
+      warnings: production.warnings,
       warning: production.warning,
       reason: events.length ? '' : (design.reason || production.reason),
       missingAnchor: !events.length && (design.missingAnchor || production.missingAnchor),
