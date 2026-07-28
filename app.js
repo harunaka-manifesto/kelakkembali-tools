@@ -157,6 +157,8 @@ KK.app = (function () {
     viewOrder: $('#viewOrder'),
     oDocNameDisplay: $('#oDocNameDisplay'),
     oFirstPaymentDisplay: $('#oFirstPaymentDisplay'),
+    oSecondPaymentDisplay: $('#oSecondPaymentDisplay'),
+    oFinalPaymentDisplay: $('#oFinalPaymentDisplay'),
     oWeddingDisplay: $('#oWeddingDisplay'),
     oItemsDisplay: $('#oItemsDisplay'),
     oIncludesDisplay: $('#oIncludesDisplay'),
@@ -190,6 +192,8 @@ KK.app = (function () {
     oTitle: $('#oTitle'),
     oDocName: $('#oDocName'),
     oFirstPayment: $('#oFirstPayment'),
+    oSecondPayment: $('#oSecondPayment'),
+    oFinalPayment: $('#oFinalPayment'),
     oScheduleHint: $('#oScheduleHint'),
     oScheme: $('#oScheme'),
     termsCard: $('#termsCard'),
@@ -335,10 +339,10 @@ KK.app = (function () {
 
   /* The status is no longer something you set; it is what the record already
      says about itself. Downloading a quotation means it has been quoted,
-     downloading an invoice means it has been confirmed, logging a deposit
-     means it is in production, and a wedding in the past means it is done.
-     Reading it off those events is both less work and harder to get wrong
-     than remembering to change a dropdown. */
+     downloading an invoice means it has been confirmed, the deposit that pays
+     for cloth means it is in production, and the last deposit means it is
+     delivered. Reading it off those events is both less work and harder to get
+     wrong than remembering to change a dropdown. */
 
   const statusSlug = (status) => String(status).toLowerCase().replace(/\s+/g, '-');
 
@@ -352,12 +356,14 @@ KK.app = (function () {
     return b > a ? floor : (a === -1 ? STATUSES[0] : current);
   }
 
-  /* The last step is derived rather than stored: nobody marks a wedding as
-     having happened, and the date that decides it lives on the customer, where
-     it can still be corrected afterwards. */
-  function effectiveStatus(order, weddingDate) {
+  /* The last step used to be "the wedding date has passed", which quietly filed
+     away every order still owed money the morning after the day. The final
+     deposit is asked for before delivery, so it is the event that actually says
+     the garment went out — and an order the wedding has passed without one is
+     precisely the order you still need to see. */
+  function effectiveStatus(order) {
     const stored = STATUSES.includes(order.status) ? order.status : STATUSES[0];
-    return (weddingDate && weddingDate < U.todayISO()) ? 'Delivered' : stored;
+    return order.final_payment_date ? 'Delivered' : stored;
   }
 
   /** Writes the advance, if it is one. Called after the event it describes has
@@ -374,7 +380,7 @@ KK.app = (function () {
   }
 
   function renderOrderStatus() {
-    const status = effectiveStatus(state.order, state.customer && state.customer.wedding_date);
+    const status = effectiveStatus(state.order);
     el.viewSub.innerHTML = '<span class="' + badgeClass(status) + '">' +
       U.escapeHtml(status) + '</span>';
     el.viewSub.hidden = false;
@@ -390,11 +396,15 @@ KK.app = (function () {
      `orders` is whatever the caller has in hand — the customer page has the
      real list, the homepage has the overview projection. Both carry the two
      fields this needs, so neither has to fetch anything extra. */
+  /* Completed is the last payment, not the last day. A wedding in the past used
+     to end the story, which meant an unpaid final balance disappeared off the
+     list the morning after the wedding — exactly the balance you most need to
+     chase. Every order settled, and there is nothing left to do. */
   function customerStatus(customer, orders) {
     if (!customer) return 'In consultation';
     if (customer.cancelled_at) return 'Cancelled';
-    if (customer.wedding_date && customer.wedding_date < U.todayISO()) return 'Completed';
     const list = orders || [];
+    if (list.length && list.every((o) => o.final_payment_date)) return 'Completed';
     if (list.some(orderIsPaid)) return 'Active';
     return list.length ? 'Ordering' : 'In consultation';
   }
@@ -410,6 +420,24 @@ KK.app = (function () {
      status right even where that could not reach. */
   const orderIsPaid = (o) => !!o.first_payment_date ||
     STATUSES.indexOf(o.status) >= STATUSES.indexOf('In production');
+
+  /* ------------------------------- The anchors ---------------------------- */
+
+  /* Two payments start two different things. The first commissions the design,
+     which needs nothing but itself to be scheduled. The second commissions the
+     garment, and it is what the measurements and fittings count from.
+
+     A custom scheme has no second term we can reason about — it might have two
+     stages or five, and none of them necessarily means "design approved" — so
+     it gets no gate: its first payment starts everything at once. The standard
+     35/35/30 is the one we know the shape of. */
+  const productionIndex = (order) => (order && order.payment_scheme === 'other' ? 0 : 1);
+
+  const designAnchor = (order) => (order && order.first_payment_date) || null;
+
+  const productionAnchor = (order) => (!order ? null
+    : order.payment_scheme === 'other' ? order.first_payment_date
+    : order.second_payment_date) || null;
 
   /** The orders the open customer page already loaded, for customerStatus. */
   const openCustomerOrders = () => state.customerOrders || [];
@@ -924,9 +952,10 @@ KK.app = (function () {
     return { ordersByCustomer, eventsByCustomer };
   }
 
-  /** A customer is live work until the wedding is behind them, or until they
-      say no. Someone with no orders yet counts — they are the ones who need
-      one. Reads straight off the derived status so the strip and the badges can
+  /** A customer is live work until the last payment is in, or until they say
+      no. Someone with no orders yet counts — they are the ones who need one, and
+      so does someone whose wedding has been and gone still owing a balance.
+      Reads straight off the derived status so the strip and the badges can
       never disagree about who is still going. */
   const isActive = (customer) =>
     !['Cancelled', 'Completed'].includes(
@@ -948,7 +977,12 @@ KK.app = (function () {
       dates.push({ date: customer.follow_up_date, what: customer.follow_up_label || 'Follow up' });
     }
 
+    /* Rows with an end date are blocks of work rather than appointments — the
+       design phase is a fortnight you are inside, not a day to be somewhere.
+       The deadline that closes it is its own row and shows up here on its own
+       merits, which is the one worth a tile. */
     (state.overview.eventsByCustomer[customer.id] || [])
+      .filter((e) => !e.end_date)
       .forEach((e) => dates.push({ date: e.event_date, what: e.stage }));
 
     return dates.filter((d) => d.date >= today).sort((a, b) => (a.date < b.date ? -1 : 1))[0] || null;
@@ -1243,11 +1277,14 @@ KK.app = (function () {
        "1st fit not set · Final fit not set" on every new order. */
     el.orderList.innerHTML = orders.map((o) => {
       /* Recomputed rather than read from order_events: the programme is a pure
-         function of these two dates, so a row of it costs nothing here and
-         saves the customer page a second query it would otherwise need. */
-      const next = cal.computeSchedule(o.first_payment_date, wedding).events
+         function of these dates, so a row of it costs nothing here and saves
+         the customer page a second query it would otherwise need. Pins are the
+         one thing it cannot know without that query — a hand-moved date shows
+         up here on the next visit to the order page, which is soon enough for
+         a one-line summary. */
+      const next = cal.computeProduction(productionAnchor(o), wedding).events
         .map((e) => e.event_date).filter((d) => d >= U.todayISO())[0];
-      const status = effectiveStatus(o, wedding);
+      const status = effectiveStatus(o);
       return '<a class="row row--kanban" href="#/order/' + o.id + '">' +
         '<span class="row__main">' +
           '<span class="row__title">' + U.escapeHtml(orderLabel(o)) + '</span>' +
@@ -1316,7 +1353,9 @@ KK.app = (function () {
     try {
       const orders = await db.listOrders(state.customer.id);
       for (const order of orders) {
-        if (!order.first_payment_date) continue;   // nothing scheduled yet
+        /* Only the fittings hang off the wedding date, so an order that has not
+           reached production has nothing here to rebuild. */
+        if (!productionAnchor(order)) continue;
         const res = await rescheduleOrder(order, state.customer);
         if (res.changed) {
           await db.logOrderHistory(order.id, 'scheduled', {
@@ -1347,7 +1386,9 @@ KK.app = (function () {
     }
     if (row.action === 'calendar_synced') {
       const n = (row.detail && row.detail.count) || 0;
-      return 'Synced ' + n + (n === 1 ? ' date' : ' dates') + ' to Google Calendar';
+      const pinned = (row.detail && row.detail.pinned) || 0;
+      return 'Synced ' + n + (n === 1 ? ' date' : ' dates') + ' to Google Calendar' +
+        (pinned ? ', ' + pinned + ' kept as moved' : '');
     }
     return row.action;
   }
@@ -1496,6 +1537,8 @@ KK.app = (function () {
 
     el.oDocNameDisplay.textContent = state.order.doc_name || 'Not set';
     el.oFirstPaymentDisplay.textContent = showDate(state.order.first_payment_date);
+    el.oSecondPaymentDisplay.textContent = showDate(state.order.second_payment_date);
+    el.oFinalPaymentDisplay.textContent = showDate(state.order.final_payment_date);
     el.oWeddingDisplay.textContent = weddingText(state.customer);
 
     const items = state.order.items || [];
@@ -1540,14 +1583,19 @@ KK.app = (function () {
      re-deriving them for display would quietly claim a sync that never
      happened. */
 
-  /* The two ends of the programme live on different records — the money on the
-     order, the wedding on the customer — so every caller needs both. */
-  const scheduleFor = (order, customer) =>
-    cal.computeSchedule(order && order.first_payment_date, customer && customer.wedding_date);
+  /* The anchors live on two different records — the money on the order, the
+     wedding on the customer — so every caller needs both. `pins` comes from the
+     stored rows: an appointment moved by hand in Google is a fact about the
+     world that the calculator has to be told, not one it can derive. */
+  const scheduleFor = (order, customer, rows) => cal.computeSchedule(
+    designAnchor(order),
+    productionAnchor(order),
+    customer && customer.wedding_date,
+    cal.pinsFrom(rows)
+  );
 
   async function refreshSchedule() {
     const order = state.order;
-    const computed = scheduleFor(order, state.customer);
 
     let rows = [];
     try {
@@ -1556,6 +1604,8 @@ KK.app = (function () {
       // A schedule that will not load is not a reason to lose the whole page.
       console.error(err);
     }
+
+    const computed = scheduleFor(order, state.customer, rows);
     state.schedule = { computed: computed, rows: rows };
 
     const synced = rows.filter((r) => r.google_event_id);
@@ -1565,6 +1615,12 @@ KK.app = (function () {
       events: rows,
       warning: computed.warning,
       reason: computed.reason || 'No schedule yet — save the order to build one.'
+    }, {
+      /* The design block can exist on its own for a fortnight before there is
+         anything else to show. Saying why the rest is missing is the difference
+         between a schedule that is waiting and one that looks broken. */
+      note: rows.length && !rows.some((r) => cal.isProductionStage(r.stage))
+        ? computed.production.reason : ''
     });
 
     el.scheduleCount.textContent = rows.length ? rows.length + ' dates' : '';
@@ -1573,57 +1629,106 @@ KK.app = (function () {
        connected is a question for the settings page, not a reason to hide the
        button — pressing it says so, which is a shorter path than discovering
        the menu. */
-    /* A schedule built on "sometime in June" is a guess, and a guess in a real
+    /* A fitting built on "sometime in June" is a guess, and a guess in a real
        calendar is worse than no entry at all — you stop trusting the ones that
-       are right. The Edge Function refuses these too; this is just the version
-       of that answer you get before pressing the button. */
+       are right. The design block is not a guess: it counts from the payment
+       and never from the wedding, so it syncs either way, and only the
+       appointments that do depend on the wedding are held back. The Edge
+       Function draws the same line; this is the version of that answer you get
+       before pressing the button. */
     const approximate = isApproximateWedding(state.customer);
+    const guesses = approximate && rows.some((r) => cal.isProductionStage(r.stage));
+    const sendable = approximate ? rows.filter((r) => cal.isDesignStage(r.stage)) : rows;
 
-    el.syncCalendarBtn.hidden = !rows.length;
-    el.syncCalendarBtn.disabled = approximate;
+    el.syncCalendarBtn.hidden = !sendable.length;
+    el.syncCalendarBtn.disabled = false;
     el.syncCalendarBtn.textContent = synced.length && !pending.length
       ? 'Re-sync to Google Calendar'
       : 'Sync to Google Calendar';
 
+    const pinned = rows.filter((r) => r.pinned).length;
+    const pinNote = pinned
+      ? ' ' + pinned + (pinned === 1 ? ' date was' : ' dates were') +
+        ' moved in Google and will be kept as is.'
+      : '';
+
     el.scheduleSyncNote.textContent = !rows.length ? ''
-      : approximate ? 'These dates are estimates — confirm the exact wedding date to sync them.'
-      : !synced.length ? 'Not in Google Calendar yet.'
-      : pending.length ? pending.length + ' of ' + rows.length + ' dates changed since the last sync.'
-      : 'All ' + rows.length + ' dates are in Google Calendar.';
+      : (guesses
+          ? 'The fittings are estimates until the exact wedding date is confirmed — only the design block will sync.'
+          : !synced.length ? 'Not in Google Calendar yet.'
+          : pending.length ? pending.length + ' of ' + rows.length + ' dates changed since the last sync.'
+          : 'All ' + rows.length + ' dates are in Google Calendar.') + pinNote;
   }
 
-  /** One line under the payment field saying what it will build. */
+  /** What the dates in the editor will build, as they are typed. */
   function renderScheduleHint() {
-    const r = cal.computeSchedule(el.oFirstPayment.value,
-      state.customer && state.customer.wedding_date);
-    el.oScheduleHint.textContent = r.events.length
-      ? r.events.length + ' appointments will be scheduled between ' +
-        U.formatShortDate(r.events[0].event_date) + ' and the wedding.' +
-        (r.warning ? ' ' + r.warning : '')
-      : r.reason;
+    /* Read off the form rather than the record: the point of the hint is to
+       answer "what would this date do" before it has been saved. */
+    const draft = {
+      payment_scheme: el.oScheme.value,
+      first_payment_date: el.oFirstPayment.value,
+      second_payment_date: el.oSecondPayment.value
+    };
+    const r = cal.computeSchedule(
+      designAnchor(draft),
+      productionAnchor(draft),
+      state.customer && state.customer.wedding_date,
+      cal.pinsFrom(state.schedule && state.schedule.rows)
+    );
+
+    const lines = [];
+    if (r.design.events.length) {
+      lines.push('Design phase ' + U.formatShortDate(r.design.events[0].event_date) +
+        ' – ' + U.formatShortDate(r.design.events[0].end_date) + '.');
+    } else {
+      lines.push(r.design.reason);
+    }
+    lines.push(r.production.events.length
+      ? r.production.events.length + ' appointments between ' +
+        U.formatShortDate(r.production.events[0].event_date) + ' and the wedding.' +
+        (r.production.warning ? ' ' + r.production.warning : '')
+      : r.production.reason);
+
+    el.oScheduleHint.textContent = lines.join(' ');
   }
 
   /** Rebuild the stored programme from the order's anchors. Returns what
       changed, so the caller can decide whether it is worth logging. */
   async function rescheduleOrder(order, customer) {
-    const computed = scheduleFor(order, customer);
     const before = await db.listOrderEvents(order.id);
+    const computed = scheduleFor(order, customer, before);
 
-    /* A missing date is a question, not an answer. Replacing a stored schedule
-       with the empty result would delete every appointment — and, through
-       googleForget, every calendar entry with it — as a side effect of a save
-       that was only ever about an item price. An unworkable window still
-       rewrites, because that is a real answer about real dates. */
-    if (computed.missingAnchor && before.length) {
-      return { computed: computed, changed: false, rows: before };
+    /* The two groups are persisted one at a time, and this is why: a first
+       payment with no wedding date yet produces a design block and no fittings,
+       and writing that as one wholesale replacement would delete every fitting
+       the order already had. Each group is only ever allowed to rewrite itself.
+
+       Within a group, a missing date is a question, not an answer. Replacing a
+       stored group with the empty result would delete its appointments — and,
+       through googleForget, every calendar entry with them — as a side effect
+       of a save that was only ever about an item price. An unworkable window
+       still rewrites, because that is a real answer about real dates. */
+    const groups = [
+      { stages: cal.DESIGN_STAGES, result: computed.design },
+      { stages: cal.PRODUCTION_STAGES, result: computed.production }
+    ];
+
+    let rows = before;
+    const removed = [];
+
+    for (const g of groups) {
+      const held = before.filter((r) => g.stages.indexOf(r.stage) !== -1);
+      if (g.result.missingAnchor && held.length) continue;
+
+      const after = await db.replaceOrderEvents(order.id, g.result.events, g.stages);
+      removed.push.apply(removed, after.removed);
+      rows = after.events;
     }
-
-    const after = await db.replaceOrderEvents(order.id, computed.events);
 
     /* A stage that a tighter window cut out still has an event sitting in
        Google. Nobody is going to notice a fitting that quietly stopped being
        scheduled, so it is taken out rather than left to be believed. */
-    const orphans = after.removed.map((r) => r.google_event_id).filter(Boolean);
+    const orphans = removed.map((r) => r.google_event_id).filter(Boolean);
     if (orphans.length) {
       try {
         await db.googleForget(orphans);
@@ -1632,9 +1737,10 @@ KK.app = (function () {
       }
     }
 
-    const was = before.map((r) => r.stage + '@' + r.event_date).sort().join('|');
-    const now = after.events.map((r) => r.stage + '@' + r.event_date).sort().join('|');
-    return { computed: computed, changed: was !== now, rows: after.events };
+    const key = (r) => r.stage + '@' + r.event_date + (r.end_date ? '→' + r.end_date : '');
+    const was = before.map(key).sort().join('|');
+    const now = rows.map(key).sort().join('|');
+    return { computed: computed, changed: was !== now, rows: rows };
   }
 
   async function syncCalendar() {
@@ -1645,12 +1751,32 @@ KK.app = (function () {
     try {
       const res = await db.syncOrderCalendar(state.order.id);
       const n = (res && res.count) || 0;
-      showToast(n + (n === 1 ? ' date' : ' dates') + ' in Google Calendar');
+      const pinned = (res && res.pinned) || 0;
+
+      showToast(pinned
+        ? pinned + (pinned === 1 ? ' date had' : ' dates had') + ' been moved in Google — kept'
+        : n + (n === 1 ? ' date' : ' dates') + ' in Google Calendar');
+
       try {
-        await db.logOrderHistory(state.order.id, 'calendar_synced', { count: n });
+        await db.logOrderHistory(state.order.id, 'calendar_synced', {
+          count: n, pinned: pinned
+        });
       } catch (err) {
         console.error(err);
       }
+
+      /* The sync is the only thing that can discover a hand-moved date, and a
+         new fixed point changes where everything after it belongs. Rebuilding
+         here is what makes the reflow happen on the sync that found it rather
+         than on whatever unrelated save comes next. */
+      if (pinned) {
+        try {
+          await rescheduleOrder(state.order, state.customer);
+        } catch (err) {
+          console.error('Could not reflow around the moved date:', err);
+        }
+      }
+
       await refreshSchedule();
       await refreshHistory();
     } catch (err) {
@@ -1790,12 +1916,16 @@ KK.app = (function () {
     el.oTitle.value = state.order.title || '';
     el.oDocName.value = state.order.doc_name || '';
     el.oFirstPayment.value = state.order.first_payment_date || '';
+    el.oSecondPayment.value = state.order.second_payment_date || '';
+    el.oFinalPayment.value = state.order.final_payment_date || '';
 
-    renderScheduleHint();
-
+    /* The scheme decides which payment starts production, so the hint cannot be
+       drawn until the select holds the right value. */
     el.oScheme.value = state.order.payment_scheme === 'other' ? 'other' : 'standard';
     buildTerms(state.order);
     syncSchemeCard();
+
+    renderScheduleHint();
 
     el.itemList.innerHTML = '';
     const items = (state.order.items || []).length
@@ -1826,7 +1956,9 @@ KK.app = (function () {
       /* Standard orders store nothing, so switching back to the package does
          not leave a stale list behind to be read the next time it is edited. */
       payment_terms: scheme === 'other' ? readTerms() : [],
-      first_payment_date: orNull(el.oFirstPayment.value)
+      first_payment_date: orNull(el.oFirstPayment.value),
+      second_payment_date: orNull(el.oSecondPayment.value),
+      final_payment_date: orNull(el.oFinalPayment.value)
     });
     setDirty(false);
     try {
@@ -2348,10 +2480,44 @@ KK.app = (function () {
     el.paymentChooserOptions.hidden = false;
   }
 
+  /* Each deposit is a date on the order as well as a line in the history, and
+     which date depends on where it sits in the terms. The first commissions the
+     design, the production one commissions the garment, and the last is asked
+     for before delivery — so logging it is what finishes the order.
+
+     Stamped as today because that is when you are standing here; the order edit
+     form can correct any of them for the transfer that landed on Friday and got
+     logged on Monday. Each is written once — a date already set is the answer
+     to when that payment came in, and re-logging cannot improve on it. */
+  function paymentPatch(order, i, terms) {
+    const patch = {};
+    if (i === 0 && !order.first_payment_date) patch.first_payment_date = U.todayISO();
+    if (i === productionIndex(order) && !order.second_payment_date) {
+      patch.second_payment_date = U.todayISO();
+    }
+    if (i === terms.length - 1 && !order.final_payment_date) {
+      patch.final_payment_date = U.todayISO();
+    }
+    return patch;
+  }
+
   async function logDeposit(i) {
     const total = docs.computeTotal(state.order.items);
     const terms = docs.termsFor(state.order);
     const amount = docs.termAmounts(total, terms)[i];
+    const patch = paymentPatch(state.order, i, terms);
+
+    /* A one-term scheme collapses the whole ladder into a single click: the
+       same payment starts the design, starts production and closes the order.
+       That is a legitimate way to sell something, but it is not what anyone
+       expects a "log payment" button to do, so it is said out loud first. */
+    if (patch.first_payment_date && patch.final_payment_date) {
+      const ok = window.confirm(
+        'This is the only payment term, so logging it starts the schedule and ' +
+        'marks the order finished at the same time. Log it?');
+      if (!ok) return;
+    }
+
     try {
       await db.logOrderHistory(state.order.id, 'payment_logged', {
         deposit_index: i, deposit_label: docs.termLabel(terms[i]), amount: amount
@@ -2359,21 +2525,26 @@ KK.app = (function () {
       el.paymentChooserOptions.hidden = true;
       showToast(terms[i].label + ' logged');
 
-      /* The first money in starts the clock, and only the first: a second
-         deposit says nothing new about when the work began. Stamped as today
-         because that is when you are standing here — the order edit form can
-         correct it for the transfer that landed on Friday and got logged on
-         Monday. */
-      if (!state.order.first_payment_date) {
-        state.order = await db.updateOrder(state.order.id, {
-          first_payment_date: U.todayISO()
-        });
+      if (Object.keys(patch).length) {
+        state.order = await db.updateOrder(state.order.id, patch);
+      }
+      /* Only an anchor moving changes the programme. The final payment is money
+         and nothing else — rebuilding on it would be work that cannot produce a
+         different answer. */
+      if (patch.first_payment_date || patch.second_payment_date) {
         await startSchedule();
       }
 
-      // Money down means the work is under way.
-      await bumpStatus('In production');
+      /* The rung this deposit earns. Quoted and Confirmed come from downloads;
+         these are the two the money says. atLeast keeps it monotonic, so a
+         custom scheme whose first payment is also its last lands on Delivered
+         and stays there. */
+      if (patch.final_payment_date) await bumpStatus('Delivered');
+      else if (patch.second_payment_date) await bumpStatus('In production');
+      else if (patch.first_payment_date) await bumpStatus('Confirmed');
+
       await refreshHistory();
+      renderOrderStatus();
     } catch (err) {
       console.error(err);
       showToast(err.message || 'Could not log payment');
@@ -2384,11 +2555,19 @@ KK.app = (function () {
   async function startSchedule() {
     try {
       const res = await rescheduleOrder(state.order, state.customer);
-      if (res.rows.length) {
+      const fittings = res.rows.filter((r) => cal.isProductionStage(r.stage)).length;
+      if (fittings) {
         await db.logOrderHistory(state.order.id, 'scheduled', {
           count: res.rows.length, dropped: res.computed.dropped
         });
-        showToast(res.rows.length + ' fittings scheduled');
+        showToast(fittings + ' fittings scheduled');
+      } else if (res.rows.length) {
+        /* Design block only, which is the ordinary state of things between the
+           two payments. Worth confirming, not worth a warning. */
+        await db.logOrderHistory(state.order.id, 'scheduled', {
+          count: res.rows.length, dropped: res.computed.dropped
+        });
+        showToast('Design phase scheduled');
       } else if (res.computed.reason) {
         showToast(res.computed.reason);
       }
@@ -2588,10 +2767,11 @@ KK.app = (function () {
       input.addEventListener('change', () => setDirty(true));
     });
 
-    /* What the two anchor dates will produce, said while they are still being
+    /* What the anchor dates will produce, said while they are still being
        chosen. A window too short to hold the full programme is worth knowing
-       about before saving, not after. */
-    [el.oFirstPayment].forEach((input) => {
+       about before saving, not after. The scheme is in here because it decides
+       which payment starts production. */
+    [el.oFirstPayment, el.oSecondPayment, el.oScheme].forEach((input) => {
       input.addEventListener('input', renderScheduleHint);
       input.addEventListener('change', renderScheduleHint);
     });

@@ -246,12 +246,22 @@ async function callCalendar(
 const isGone = (err: unknown) =>
   err instanceof Told && (err.httpStatus === 404 || err.httpStatus === 410);
 
+/* The two rows that count from the first payment rather than from the wedding.
+   Kept in step with DESIGN_STAGES in calendar.js. */
+const DESIGN_STAGES = ['Design phase', 'Design deadline'];
+const isDesignStage = (stage: string) => DESIGN_STAGES.includes(stage);
+
 /**
  * Make Google match the stored schedule for one order.
  *
  * Every row carries the id of the event it created, so a moved date is a PATCH
  * to that event rather than a second one on a new day. That id is the whole
  * reason the schedule is stored rather than recomputed on read.
+ *
+ * It also makes this the one place that can notice the reverse: an event whose
+ * date in Google is no longer the date we hold was moved by hand, and the
+ * person who moved it knew something the calculator did not. Those are adopted
+ * and pinned rather than overwritten.
  */
 async function sync(orderId: string) {
   const cred = await readCredential();
@@ -272,24 +282,31 @@ async function sync(orderId: string) {
     .eq('id', order.customer_id)
     .single();
 
-  /* Every date in the schedule is measured back from the wedding, so when the
-     wedding is "sometime in June" every one of them is a guess. A guess in a
-     real calendar is worse than a gap: you stop trusting the entries that are
-     right. Checked here and not only in the app, because this is the door. */
-  if (customer?.wedding_date_precision === 'month') {
-    throw new Told(
-      'Confirm the exact wedding date before syncing — the schedule is only an estimate.',
-      409
-    );
-  }
-
-  const { data: events, error: eventsErr } = await db
+  const { data: allEvents, error: eventsErr } = await db
     .from('order_events')
-    .select('id,stage,event_date,google_event_id')
+    .select('id,stage,event_date,end_date,pinned,google_event_id')
     .eq('order_id', orderId)
     .order('event_date', { ascending: true });
   if (eventsErr) throw new Told('Could not read the schedule: ' + eventsErr.message, 500);
-  if (!events?.length) throw new Told('This order has no schedule to sync.', 409);
+  if (!allEvents?.length) throw new Told('This order has no schedule to sync.', 409);
+
+  /* Every fitting is measured back from the wedding, so when the wedding is
+     "sometime in June" every one of them is a guess. A guess in a real calendar
+     is worse than a gap: you stop trusting the entries that are right.
+
+     The design block is not a guess. It counts from the payment and never from
+     the wedding, so it is exact whatever the wedding date says, and holding it
+     back would mean no calendar entry at all for the fortnight where the work
+     actually is. So the approximate case sends the design rows and keeps the
+     fittings. Checked here and not only in the app, because this is the door. */
+  const approximate = customer?.wedding_date_precision === 'month';
+  const events = approximate ? allEvents.filter((e) => isDesignStage(e.stage)) : allEvents;
+  if (!events.length) {
+    throw new Told(
+      'Confirm the exact wedding date before syncing — the fittings are only an estimate.',
+      409
+    );
+  }
 
   const token = await accessToken(cred.refresh_token);
   const calendarId = cred.calendar_id || 'primary';
@@ -301,40 +318,89 @@ async function sync(orderId: string) {
   ].filter(Boolean).join('\n');
 
   let count = 0;
+  let pinnedCount = 0;
+
   for (const row of events) {
-    const body = {
+    /* end_date is set on blocks of work — the design phase is a fortnight, not
+       a day. Google's all-day end is exclusive, so it is the day after the last
+       one. Every other row has no end_date and stays a single all-day event. */
+    const bodyFor = (startDate: string, endDate: string | null) => ({
       summary: eventTitle(row.stage, customer?.name || '', order.title || ''),
       description,
-      start: { date: row.event_date },
-      end: { date: nextDay(row.event_date) },
+      start: { date: startDate },
+      end: { date: nextDay(endDate || startDate) },
       reminders: { useDefault: false, overrides: REMINDERS }
-    };
+    });
 
     let googleId: string | null = row.google_event_id;
+    let date = row.event_date;
+    let end = row.end_date as string | null;
+    let pinned = !!row.pinned;
+
     if (googleId) {
-      /* A PATCH to an event deleted by hand in Google answers 404 or 410. That
-         is not worth failing the sync over — the event is gone, so make a new
-         one and adopt its id. Every other error is real and is raised: creating
-         a replacement on, say, a 500 would leave two events behind. */
+      /* Read before writing. An event whose start in Google is not the date we
+         hold was dragged there by someone who had a conversation we did not:
+         the client can only do Thursdays, the fitting had to move a week. The
+         app owns the programme, but it does not own that appointment, so the
+         date is adopted and pinned instead of being overwritten — and the next
+         recalculation treats it as a fixed point and reflows the rest around
+         it. See computeProduction in calendar.js.
+
+         A GET on an event deleted by hand answers 404 or 410, and so does the
+         PATCH below. That is not worth failing the sync over — the event is
+         gone, so make a new one and adopt its id. Every other error is real and
+         is raised: creating a replacement on, say, a 500 would leave two events
+         behind, which is the failure this whole dance exists to avoid. */
       try {
-        await callCalendar(token, calendarId, `/${encodeURIComponent(googleId)}`, 'PATCH', body);
+        const live = await callCalendar(
+          token, calendarId, `/${encodeURIComponent(googleId)}`, 'GET');
+        const liveStart = live?.start?.date ?? null;
+
+        if (liveStart && liveStart !== date) {
+          /* A block keeps its length when it is dragged; only where it starts
+             has changed. */
+          if (end) {
+            const span = Date.parse(end + 'T00:00:00Z') - Date.parse(date + 'T00:00:00Z');
+            end = new Date(Date.parse(liveStart + 'T00:00:00Z') + span).toISOString().slice(0, 10);
+          }
+          date = liveStart;
+          pinned = true;
+          pinnedCount++;
+        }
+
+        /* The title and the link are still ours to keep current, so the PATCH
+           goes out either way — carrying the adopted date, which makes it a
+           no-op on the one field the user changed. */
+        await callCalendar(
+          token, calendarId, `/${encodeURIComponent(googleId)}`, 'PATCH', bodyFor(date, end));
       } catch (err) {
         if (!isGone(err)) throw err;
         googleId = null;
       }
     }
     if (!googleId) {
-      const created = await callCalendar(token, calendarId, '', 'POST', body);
+      /* The event is not there any more, so there is nothing left to have been
+         moved by hand. Whatever pin it carried died with it. */
+      pinned = false;
+      date = row.event_date;
+      end = row.end_date as string | null;
+      const created = await callCalendar(token, calendarId, '', 'POST', bodyFor(date, end));
       googleId = created?.id ?? null;
     }
 
     await db.from('order_events')
-      .update({ google_event_id: googleId, synced_at: new Date().toISOString() })
+      .update({
+        google_event_id: googleId,
+        event_date: date,
+        end_date: end,
+        pinned,
+        synced_at: new Date().toISOString()
+      })
       .eq('id', row.id);
     count++;
   }
 
-  return { count, calendar_id: calendarId };
+  return { count, pinned: pinnedCount, calendar_id: calendarId, partial: approximate };
 }
 
 /**

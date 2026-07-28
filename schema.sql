@@ -546,3 +546,100 @@ from (
 ) paid
 where o.id = paid.order_id
   and o.first_payment_date is null;
+
+
+-- =========================================================================
+-- Migration — the schedule gets a second anchor
+--
+-- The whole programme used to hang off the first payment: measurements a
+-- fortnight after it, then fittings spread out to the wedding. That put four
+-- fitting dates in the calendar before the design had even been approved,
+-- which is a calendar you stop believing.
+--
+-- What actually happens is two phases with two different anchors:
+--
+--   1st payment  design begins — a fortnight of drawing and revising, ending
+--                in a conversation and a request for the next payment
+--   2nd payment  production begins — body measurements within a week, then
+--                fittings at three-week gaps up to the wedding
+--   last payment the order is finished and the customer is done
+--
+-- So orders gains the other two payment dates, order_events gains a span (the
+-- design phase is a fortnight-long block, not a day) and a pinned flag, and
+-- the stage constraint widens to admit the two design rows.
+-- =========================================================================
+
+alter table public.orders add column if not exists second_payment_date date;
+alter table public.orders add column if not exists final_payment_date date;
+
+-- The design phase is the only row with a span. Null everywhere else, and
+-- everywhere else keeps meaning "one all-day event on event_date".
+alter table public.order_events add column if not exists end_date date;
+
+-- Set when the appointment has been moved by hand in Google Calendar. The app
+-- owns the programme; whoever dragged the event owns that appointment, so a
+-- pinned row keeps its date through every recalculation and the rest of the
+-- programme is redistributed around it. See computeProduction in calendar.js.
+alter table public.order_events
+  add column if not exists pinned boolean not null default false;
+
+alter table public.order_events drop constraint if exists order_events_stage_check;
+alter table public.order_events add constraint order_events_stage_check
+  check (stage in (
+    'Design phase', 'Design deadline',
+    'Body measurements', 'Fitting 1', 'Fitting 2', 'Fitting 3', 'Final fitting'));
+
+-- --------------- Orders: backfill the other two payment dates ---------------
+
+-- Same problem, same answer, as the first_payment_date backfill above: these
+-- columns are only written when a deposit is logged, so every deposit logged
+-- before today left them null. Without this every finished customer would read
+-- as Active again the moment completion starts being driven by the last
+-- payment instead of by the wedding date having passed.
+--
+-- at time zone, not a plain ::date cast, for the reason given above: a deposit
+-- logged at 9am in Jakarta is still the previous day in UTC.
+--
+-- deposit_index is the position in the order's own payment terms. The second
+-- deposit is index 1; the last is index 2 for the standard 35/35/30 scheme and
+-- one less than the term count for a custom one.
+
+update public.orders o
+set second_payment_date = paid.on_date
+from (
+  select order_id,
+         (min(created_at) at time zone 'Asia/Jakarta')::date as on_date
+  from public.order_history
+  where action = 'payment_logged'
+    and detail->>'deposit_index' = '1'
+  group by order_id
+) paid
+where o.id = paid.order_id
+  and o.second_payment_date is null;
+
+update public.orders o
+set final_payment_date = paid.on_date
+from (
+  select h.order_id,
+         (min(h.created_at) at time zone 'Asia/Jakarta')::date as on_date
+  from public.order_history h
+  join public.orders x on x.id = h.order_id
+  where h.action = 'payment_logged'
+    -- Guarded rather than cast blind: one malformed detail would fail the
+    -- whole migration, and this file has to stay re-runnable.
+    and h.detail->>'deposit_index' ~ '^[0-9]+$'
+    and (h.detail->>'deposit_index')::int = case
+      when x.payment_scheme = 'other' and jsonb_typeof(x.payment_terms) = 'array'
+        then jsonb_array_length(x.payment_terms) - 1
+      else 2
+    end
+  group by h.order_id
+) paid
+where o.id = paid.order_id
+  and o.final_payment_date is null;
+
+-- Nothing is backfilled into second_payment_date for custom schemes. They
+-- start production on their first payment — a scheme we cannot read term by
+-- term gets no gate — and productionAnchor in app.js reads first_payment_date
+-- directly for them. Copying it here would put a second payment in the order
+-- editor that nobody ever took.

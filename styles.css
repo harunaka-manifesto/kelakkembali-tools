@@ -885,6 +885,22 @@ body.has-savebar .page {
 
 .sched__synced.is-synced { background: var(--ink); }
 
+/* An appointment moved by hand in Google is no longer the calculator's to
+   place, and the row says so. A hollow ring rather than a second filled dot:
+   next to the sync dot two solid marks read as one smudge, and this one is
+   rarer and means something different. Same always-present column trick. */
+.sched__pinned {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  align-self: center;
+}
+
+.sched__pinned.is-pinned {
+  box-shadow: inset 0 0 0 1.5px var(--muted);
+}
+
 /* Dropped fittings are the one thing on this card you might need to act on, so
    it reads as a notice rather than as more metadata. */
 .sched__warn {

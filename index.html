@@ -314,14 +314,26 @@
       <!-- No document date: it was only ever the date printed on the PDF, and a
            document is dated the day it is issued. Downloads stamp today.
            No status either — the log sets it. See "Order status" in the README. -->
-      <!-- Where the fitting programme counts from. Logging the first deposit
-           fills this in; it stays editable for the times the money landed on a
-           Friday and got logged on Monday. The other end is the customer's
-           wedding date — see the Schedule card on the order page. -->
+      <!-- The three dates the schedule runs on. Logging a deposit fills the
+           matching one in; they stay editable for the times the money landed on
+           a Friday and got logged on Monday. The design block counts from the
+           first, the fittings from the second, and the last one closes the
+           order. The other end is the customer's wedding date — see the
+           Schedule card on the order page. -->
       <label class="field" for="oFirstPayment">
         <span class="field__label">First payment</span>
         <input class="input js-ofield" id="oFirstPayment" type="date">
-        <span class="field__hint">Set when you log the first deposit. The fitting schedule counts from here.</span>
+        <span class="field__hint">Starts the design phase — a fortnight from here.</span>
+      </label>
+      <label class="field" for="oSecondPayment">
+        <span class="field__label">Second payment</span>
+        <input class="input js-ofield" id="oSecondPayment" type="date">
+        <span class="field__hint">Starts production. Body measurements and the fittings count from here.</span>
+      </label>
+      <label class="field" for="oFinalPayment">
+        <span class="field__label">Final payment</span>
+        <input class="input js-ofield" id="oFinalPayment" type="date">
+        <span class="field__hint">Asked for before delivery. Setting it marks the order finished.</span>
       </label>
       <p class="card__hint" id="oScheduleHint"></p>
     </section>
@@ -398,12 +410,15 @@
       <dl class="infolist">
         <div><dt>Name on documents</dt><dd id="oDocNameDisplay"></dd></div>
         <div><dt>First payment</dt><dd id="oFirstPaymentDisplay"></dd></div>
+        <div><dt>Second payment</dt><dd id="oSecondPaymentDisplay"></dd></div>
+        <div><dt>Final payment</dt><dd id="oFinalPaymentDisplay"></dd></div>
         <div><dt>Wedding</dt><dd id="oWeddingDisplay"></dd></div>
       </dl>
     </section>
 
-    <!-- Read-only on purpose. Every date here is a consequence of the first
-         payment and the wedding, so the way to change one is to change those. -->
+    <!-- Read-only on purpose. Every date here is a consequence of the payments
+         and the wedding, so the way to change one is to change those — or to
+         move the appointment in Google Calendar, which pins it. -->
     <section class="card" id="scheduleCard">
       <div class="card__head">
         <h2 class="card__title">Schedule</h2>
@@ -581,54 +596,60 @@
             </div>
           </div>
         </div>
-        <div class="q-desc">
-          <div class="q-desctext">
-            <p id="qDear">Dear,</p>
-            <p>Please find below the quotation for the custom wedding attire as discussed. Kindly review the details below, and please feel free to reach out should you have any questions.</p>
-          </div>
-        </div>
       </div>
       <div class="q-logobox">
         <img class="q-logo1" src="assets/logo-header.png" alt="">
       </div>
     </div>
 
-    <!-- Items container -->
+    <!-- Description container: its own band under the header, 32px above and
+         below the greeting, not part of the header column. -->
+    <div class="q-desc">
+      <div class="q-desctext">
+        <p id="qDear">Dear,</p>
+        <p>Please find below the quotation for the custom wedding attire as discussed. Kindly review the details below, and please feel free to reach out should you have any questions.</p>
+      </div>
+    </div>
+
+    <!-- Items container: the table and its Includes/Excludes ride together in
+         one group, the payment terms band in another, 48px apart. -->
     <div class="q-items">
-      <div class="q-itemsection">
-        <div class="q-headersection">
-          <div class="q-divider"><div class="q-rule"></div></div>
-          <div class="q-row q-row--head">
-            <p class="q-c-item">Item</p>
-            <p class="q-c-qty">Qty</p>
-            <p class="q-c-price">Price</p>
+      <div class="q-group">
+        <div class="q-itemsection">
+          <div class="q-headersection">
+            <div class="q-divider"><div class="q-rule"></div></div>
+            <div class="q-row q-row--head">
+              <p class="q-c-item">Item</p>
+              <p class="q-c-qty">Qty</p>
+              <p class="q-c-price">Price</p>
+            </div>
+            <div class="q-divider"><div class="q-rule"></div></div>
           </div>
-          <div class="q-divider"><div class="q-rule"></div></div>
+          <div class="q-itemlist">
+            <div class="q-itemcol" id="qItems"></div>
+          </div>
         </div>
-        <div class="q-itemlist">
-          <div class="q-itemcol" id="qItems"></div>
-        </div>
-      </div>
 
-      <div class="q-divider"><div class="q-rule"></div></div>
-
-      <div class="q-includes">
-        <div class="q-includesrow" id="qIncludes"></div>
-        <div class="q-excludesrow">
-          <p><span class="q-b">Excludes: </span><span class="q-r">Lace fabric and any additional customization outside the agreed design scope.</span></p>
+        <div class="q-includes">
+          <div class="q-includesrow" id="qIncludes"></div>
+          <div class="q-excludesrow">
+            <p><span class="q-b">Excludes: </span><span class="q-r">Lace fabric and any additional customization outside the agreed design scope.</span></p>
+          </div>
         </div>
       </div>
 
-      <div class="q-divider"><div class="q-rule"></div></div>
+      <div class="q-group">
+        <div class="q-divider"><div class="q-rule"></div></div>
 
-      <div class="q-payment">
-        <p class="q-b q-paytitle">Payment terms</p>
-        <!-- Filled by docs.render from the order's own terms — the 35/35/30
-             package split is the default, not the only possibility. -->
-        <div class="q-paymentrow" id="qPaymentRow"></div>
+        <div class="q-payment">
+          <p class="q-b q-paytitle">Payment terms</p>
+          <!-- Filled by docs.render from the order's own terms — the 35/35/30
+               package split is the default, not the only possibility. -->
+          <div class="q-paymentrow" id="qPaymentRow"></div>
+        </div>
+
+        <div class="q-divider"><div class="q-rule"></div></div>
       </div>
-
-      <div class="q-divider"><div class="q-rule"></div></div>
     </div>
 
     <!-- Signature container -->
@@ -641,8 +662,9 @@
 </div>
 
 <!-- ===================== INVOICE DOCUMENT (locked spec) ===================== -->
-<!-- Figma node 2:104. Same shell as the quotation: no greeting, no Includes,
-     deposit amounts instead of descriptions, plus the Payment to block. -->
+<!-- Figma node 24:22. Same shell as the quotation: no greeting, no Includes,
+     no Qty column, deposit amounts instead of descriptions, plus the
+     Payment to block. -->
 <div class="stage" aria-hidden="true">
   <div class="q inv" id="invoice">
 
@@ -671,39 +693,33 @@
       </div>
     </div>
 
-    <!-- Items container -->
+    <!-- Items container: the table and the deposit split ride together in one
+         group, the Payment to band in another, 64px apart. -->
     <div class="q-items">
-      <div class="q-itemsection">
-        <div class="q-headersection">
-          <div class="q-divider"><div class="q-rule"></div></div>
-          <div class="q-row q-row--head">
-            <p class="q-c-item">Item</p>
-            <p class="q-c-qty">Qty</p>
-            <p class="q-c-price">Price</p>
+      <div class="q-group">
+        <div class="q-itemsection">
+          <div class="q-headersection">
+            <div class="q-divider"><div class="q-rule"></div></div>
+            <div class="q-row q-row--head">
+              <p class="q-c-item">Item</p>
+              <p class="q-c-price">Price</p>
+            </div>
+            <div class="q-divider"><div class="q-rule"></div></div>
           </div>
-          <div class="q-divider"><div class="q-rule"></div></div>
+          <div class="q-itemlist">
+            <div class="q-itemcol" id="iItems"></div>
+          </div>
         </div>
-        <div class="q-itemlist">
-          <div class="q-itemcol" id="iItems"></div>
-        </div>
-      </div>
 
-      <div class="q-section">
-        <div class="q-headersection">
-          <div class="q-divider"><div class="q-rule"></div></div>
-          <div class="q-sectrow"><p class="q-b">Terms of payment</p></div>
-          <div class="q-divider"><div class="q-rule"></div></div>
-        </div>
+        <!-- The deposit split sits straight under the table, right-aligned
+             against the Price column — it carries no header of its own. -->
         <div class="q-termlist" id="iTerms"></div>
       </div>
 
       <div class="q-paysection">
+        <div class="q-divider"><div class="q-rule"></div></div>
         <div class="q-section">
-          <div class="q-headersection">
-            <div class="q-divider"><div class="q-rule"></div></div>
-            <div class="q-sectrow"><p class="q-b">Payment to</p></div>
-            <div class="q-divider"><div class="q-rule"></div></div>
-          </div>
+          <div class="q-sectrow"><p class="q-b">Payment to</p></div>
           <div class="q-paydetails">
             <p>BCA 6800 691 425</p>
             <p>Annisa Beauty</p>

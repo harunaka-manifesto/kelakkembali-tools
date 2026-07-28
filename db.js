@@ -177,10 +177,15 @@ KK.db = (function () {
 
   const ORDER_FIELDS =
     'id,customer_id,title,doc_name,document_date,status,items,includes,' +
-    'payment_scheme,payment_terms,first_payment_date,created_at';
+    'payment_scheme,payment_terms,' +
+    'first_payment_date,second_payment_date,final_payment_date,created_at';
 
-  /** Lightweight: every order across every customer, for the homepage overview. */
-  const ORDER_OVERVIEW_FIELDS = 'id,customer_id,status,items,first_payment_date';
+  /* Lightweight: every order across every customer, for the homepage overview.
+     final_payment_date is here because the derived customer status needs it —
+     an order is finished when the last deposit is logged, not when the wedding
+     goes past. */
+  const ORDER_OVERVIEW_FIELDS =
+    'id,customer_id,status,items,first_payment_date,second_payment_date,final_payment_date';
 
   async function listOrders(customerId) {
     return unwrap(await init()
@@ -253,11 +258,12 @@ KK.db = (function () {
 
   /* ------------------------------ Order events ---------------------------- */
 
-  /* The fitting schedule. Computed by KK.calendar from the order's first
-     payment and the customer's wedding date, and written here so each
-     appointment can remember the Google event it created. */
+  /* The schedule. Computed by KK.calendar from the order's two payment dates
+     and the customer's wedding date, and written here so each appointment can
+     remember the Google event it created. */
 
-  const EVENT_FIELDS = 'id,order_id,stage,event_date,google_event_id,synced_at';
+  const EVENT_FIELDS =
+    'id,order_id,stage,event_date,end_date,pinned,google_event_id,synced_at';
 
   async function listOrderEvents(orderId) {
     return unwrap(await init()
@@ -270,22 +276,29 @@ KK.db = (function () {
   /** Every appointment across every order, for the homepage overview. */
   async function listAllOrderEvents() {
     return unwrap(await init()
-      .from('order_events').select('order_id,stage,event_date'));
+      .from('order_events').select('order_id,stage,event_date,end_date'));
   }
 
   /**
-   * Make the stored schedule match a freshly computed one.
+   * Make one group of the stored schedule match a freshly computed one.
    *
-   * Rewritten rather than diffed, because the computation is whole-programme:
-   * moving one anchor moves everything. The one thing that must survive the
-   * rewrite is google_event_id — losing it would orphan the event in Google
-   * and create a second one on the next sync — so surviving stages are updated
-   * in place and only genuinely gone ones are deleted.
+   * Rewritten rather than diffed, because the computation is whole-group:
+   * moving an anchor moves everything that hangs off it. The one thing that
+   * must survive the rewrite is google_event_id — losing it would orphan the
+   * event in Google and create a second one on the next sync — so surviving
+   * stages are updated in place and only genuinely gone ones are deleted.
+   *
+   * `stages` is the group being written: design or production. Only rows in
+   * that group can be deleted here. Without it, persisting a design block that
+   * a first payment produced would delete every fitting, because a fitting is
+   * simply not among the events being written.
    *
    * Returns the rows that no longer exist, so the caller can have their Google
    * events deleted too.
    */
-  async function replaceOrderEvents(orderId, events) {
+  async function replaceOrderEvents(orderId, events, stages) {
+    const inGroup = (stage) => !stages || stages.indexOf(stage) !== -1;
+
     const existing = await listOrderEvents(orderId);
     const byStage = {};
     existing.forEach((row) => { byStage[row.stage] = row; });
@@ -293,7 +306,7 @@ KK.db = (function () {
     const wanted = {};
     events.forEach((e) => { wanted[e.stage] = e; });
 
-    const removed = existing.filter((row) => !wanted[row.stage]);
+    const removed = existing.filter((row) => inGroup(row.stage) && !wanted[row.stage]);
     if (removed.length) {
       unwrap(await init()
         .from('order_events').delete().in('id', removed.map((r) => r.id)));
@@ -301,19 +314,31 @@ KK.db = (function () {
 
     for (const e of events) {
       const prior = byStage[e.stage];
+      const end = e.end_date || null;
       if (!prior) {
-        unwrap(await init().from('order_events')
-          .insert({ order_id: orderId, stage: e.stage, event_date: e.event_date }));
-      } else if (prior.event_date !== e.event_date) {
+        unwrap(await init().from('order_events').insert({
+          order_id: orderId, stage: e.stage, event_date: e.event_date, end_date: end
+        }));
+      } else if (prior.event_date !== e.event_date || (prior.end_date || null) !== end) {
+        /* A pinned row was moved by hand in Google and keeps its date. The
+           calculator already returns that date, so this only ever fires on a
+           disagreement — and when the two disagree the person who dragged the
+           event is the one who is right. */
+        if (prior.pinned) continue;
         // synced_at is cleared, not the event id: the event still exists in
         // Google, it is just no longer showing the right day.
         unwrap(await init().from('order_events')
-          .update({ event_date: e.event_date, synced_at: null }).eq('id', prior.id));
+          .update({ event_date: e.event_date, end_date: end, synced_at: null })
+          .eq('id', prior.id));
       }
     }
 
     return { removed: removed, events: await listOrderEvents(orderId) };
   }
+
+  /* Nothing here sets `pinned`. It is written by the google-calendar function,
+     which is the only thing that can see a date having been changed in Google —
+     the browser never talks to the calendar directly. */
 
   /* ---------------------------- Google Calendar --------------------------- */
 

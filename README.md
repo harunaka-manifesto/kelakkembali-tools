@@ -101,19 +101,21 @@ See [`schema.sql`](schema.sql):
 - **`customers`** — name, phone, Instagram, source, notes, the wedding date and
   how precisely it is known, the date the moodboard went out, the one open
   follow-up, and `cancelled_at`. There is no status column: every status but
-  Cancelled is derived from the orders and the wedding date. See
-  *The lifecycle* below.
+  Cancelled is derived from the orders. See *The lifecycle* below.
 - **`orders`** — belongs to a customer; carries a status
-  (`Quoted` → `Confirmed` → `In production` → `Delivered`), the first payment
-  date, and the `items` and `includes` as `jsonb`. Both are short, always read
+  (`Quoted` → `Confirmed` → `In production` → `Delivered`), the three payment
+  dates, and the `items` and `includes` as `jsonb`. Both are short, always read
   and written whole, and order-sensitive; child tables would buy nothing and
   cost a position column plus two round trips per save. `document_date` is
   still on the table for compatibility but is no longer read or written by the
   app — see *Order status* below.
-- **`order_events`** — the fitting schedule, one row per appointment, derived
-  from the order's first payment and the customer's wedding date. Each row
-  remembers the Google event it created, which is why the schedule is stored
-  rather than recomputed on read.
+- **`order_events`** — the schedule, one row per appointment or block: the
+  design phase and its deadline from the first payment, the measurements and
+  fittings from the production payment and the wedding date. `end_date` is set
+  only on the design phase, which is a fortnight rather than a day. `pinned`
+  marks an appointment moved by hand in Google, which the calculator then
+  treats as a fixed point. Each row remembers the Google event it created,
+  which is why the schedule is stored rather than recomputed on read.
 - **`document_log`** — one row per PDF actually saved: which kind, when, and
   for how much. No files, just the numbers. Rows are kept verbatim when the
   order is later edited, which is the whole point of having them.
@@ -132,7 +134,7 @@ Deleting a customer cascades to their orders, schedule and log rows.
 
 The wedding date lives on the customer rather than the order because a bride
 and groom booked together are one wedding and two orders. Each order still gets
-its own schedule, because each has its own first payment.
+its own schedule, because each has its own payments.
 
 ### Saving
 
@@ -169,7 +171,13 @@ one; a trail could only restate both, and wrapped onto two lines to do it.
 The app models the job as it actually runs:
 
 > enquiry → consultation → moodboard → quotation → invoice →
-> **first payment** → design phase → fittings → wedding
+> **first payment** → design phase → **second payment** → measurements →
+> fittings → **final payment** → wedding
+
+The three payments in bold are the only things that move the work along, and
+each one starts something different. Everything before the first is a
+conversation on WhatsApp with no timeline attached, which is why nothing lands
+in the calendar until money does.
 
 That is two ladders, not one, and they are split at the point where an order
 starts to exist. **Neither is something you set.** There is no status control
@@ -185,13 +193,17 @@ no order for it to live on. Shown beside the name and on every homepage card:
 | `In consultation` | No orders yet — still a conversation |
 | `Ordering` | At least one order exists |
 | `Active` | At least one order has a first payment |
-| `Completed` | The wedding date has passed |
+| `Completed` | Every order has its final payment |
 | `Cancelled` | They said no — the only one you set |
 
 Read in that order, most decisive first: a cancelled customer stays cancelled
-whatever else is true, and a wedding in the past outranks a deposit. Creating an
-order or logging a payment moves the status on its own; there is nothing to
-click.
+whatever else is true. Creating an order or logging a payment moves the status
+on its own; there is nothing to click.
+
+`Completed` used to mean "the wedding date has passed", which filed a customer
+away the morning after the day — including the ones still owing a balance, who
+are exactly the ones you need to see. It is the final payment now. A wedding
+that has been and gone with money still outstanding stays `Active`.
 
 `Cancelled` is the exception because it is the one thing no other record
 implies — nothing happens when a couple goes with another studio, so the
@@ -210,11 +222,13 @@ the record nothing new:
 | --- | --- |
 | Quotation PDF downloaded | `Quoted` |
 | Invoice PDF downloaded | `Confirmed` |
-| Any deposit logged | `In production` |
+| First deposit logged | `Confirmed` |
+| Production deposit logged | `In production` |
+| Final deposit logged | `Delivered` |
 
-`Delivered` is derived from the wedding date, the same way `Completed` is above.
-Nobody marks a wedding as having happened, and the date that decides it stays
-correctable afterwards.
+The final deposit is asked for before delivery, so logging it is the event that
+says the garment went out. That is a better answer than the wedding date, which
+only ever said the day arrived.
 
 ### The follow-up
 
@@ -480,6 +494,18 @@ the quotation, from the identical code path.
 - **Deposit amounts** — every share but the last is rounded to the nearest
   rupiah and the last takes the remainder, so the terms always sum to the Total
   exactly rather than drifting a rupiah off it.
+- **What each deposit starts** — logging a deposit stamps a date on the order as
+  well as writing a history line, and which date depends on where the term sits.
+  The first starts the design phase, the *production* deposit starts the
+  measurements and fittings, and the last marks the order finished. For the
+  standard 35 / 35 / 30 scheme the production deposit is the second. A custom
+  scheme has no second term anyone can reason about — it might have two stages
+  or five, and none of them necessarily means "design approved" — so it gets no
+  gate: its **first** payment starts everything at once. A custom scheme with a
+  single term therefore starts and finishes the order in one click, which is
+  legitimate but surprising, so it asks first. All three dates stay editable on
+  the order form, for the transfer that landed on Friday and got logged on
+  Monday.
 - **Name on documents** — an order's own field, not the customer's name. The
   record is filed under whoever books and pays; the document is addressed to
   whoever the outfit is for, and on a family booking those are several different
@@ -611,60 +637,98 @@ A few things worth knowing:
   `https://your-app.vercel.app/` are two different strings to Google, and
   registering only the first is what produces `Error 400: redirect_uri_mismatch`.
 
-## Fitting schedule
+## The schedule
 
-The programme has exactly two fixed points, and neither of them is a fitting:
-the **first payment** on the order and the **wedding date** on the customer.
-Nothing can be scheduled before the deposit clears — that is when the work is
-actually commissioned — and nothing can happen after the wedding. Everything in
-between is arithmetic on those two dates, so it is computed rather than
-remembered. All of it lives in [`calendar.js`](calendar.js), which is pure:
-dates in, dates out, no DOM and no network.
+**Two groups, two anchors.** They are computed separately and stored separately,
+and neither can ever delete the other. All of it lives in
+[`calendar.js`](calendar.js), which is pure: dates in, dates out, no DOM and no
+network.
+
+| Group | Anchored on | Needs the wedding date? |
+| --- | --- | --- |
+| Design phase, Design deadline | The **first payment** | No |
+| Body measurements, Fitting 1–3, Final fitting | The **production payment** and the **wedding date** | Yes |
+
+The design block needing nothing but the payment is the point of the split. A
+customer who has paid a deposit but is still arguing about the venue gets a
+calendar block for the fortnight of work that is genuinely happening, and a
+wedding date that arrives late — or moves — cannot take it away.
 
 **The rules**
 
 | | |
 | --- | --- |
-| Design phase | 14 days from the first payment, before anything is measured |
-| Appointments | Body measurements, Fitting 1, Fitting 2, Fitting 3, Final fitting |
-| Minimum gap | 14 days — a fitting is only useful once the last one has been acted on, and that is cutting-and-sewing time, not calendar time |
+| Design phase | The 14 days after the first payment, as one all-day block, with a deadline event on its last day: present the design, ask for the next payment |
+| Body measurements | Within 7 days of the production payment. A ceiling, not a target |
+| Minimum gap | 3 weeks — a fitting is only useful once the last one has been acted on, and that is cutting-and-sewing time, not calendar time |
 | Final fitting | 21 days before the wedding ideally, 7 at the very latest |
 
-A full five-appointment programme therefore wants **91 days** from payment to
-wedding: 14 of design, 56 of fittings, 21 of finishing.
+A full five-appointment programme wants **12 weeks** from measurements to the
+final fitting, plus the week before them and the three after: about **16 weeks**
+from the production payment to the wedding.
 
-**When it does not fit**, the buffer gives way before an appointment does. The
-final fitting slides later — from 21 days out toward 7 — and only when even that
-leaves too little room does it start dropping, middle-out: Fitting 3, then
-Fitting 2, then Fitting 1. Measurements and a final fitting are the two you
-cannot make a garment without, so those two are never dropped; below a 22-day
-window not even they fit, and the card says so instead of inventing a schedule.
+**Everything lands on a Monday.** Appointments are placed in whole weeks and
+snapped to the Monday on or before the computed date. Two reasons. Whole weeks
+make a three-week gap exactly three weeks instead of something that rounds to
+twenty days; and snapping *backwards* can never push an appointment past the
+7-day measurement ceiling or the final-fitting floor, which snapping forward
+could do. The day itself is a starting point for the conversation with the
+client, not a booking — move it in Google and it stays moved, see below.
+
+**When the wedding is far off** the gaps simply grow. There is no cap: the five
+appointments spread evenly across whatever room there is, so a booking two years
+out has months between fittings rather than a cluster near the wedding and a
+year of silence.
+
+**When it does not fit**, three things give way in order. The finishing buffer
+first — the final fitting slides from 21 days out toward 7. Then the gaps, down
+to a 2-week floor, because a cramped fitting still puts eyes on the garment and
+a missing one does not. Only when neither is enough does an appointment drop,
+middle-out: Fitting 3, then Fitting 2, then Fitting 1. Measurements and a final
+fitting are the two you cannot make a garment without, so those two are never
+dropped; below a two-week window not even they fit, and the card says so instead
+of inventing a schedule.
 
 The card explains every compromise it made — how much room there was, what it
 cost, and what the uncompromised version wants. It stays quiet about a buffer
 still over 14 days, because a warning that fires for losing one day of slack
 trains you to ignore the line that matters.
 
+**Moving an appointment in Google pins it.** The studio owns the programme; the
+person who dragged the event owns that appointment, because they had a
+conversation the calculator did not — the client can only do Thursdays, the
+fitting had to move a week. So the sync reads before it writes: an event whose
+date in Google is not the date we hold is adopted rather than overwritten, the
+row is marked pinned, and every recalculation from then on treats it as a fixed
+point and reflows the appointments after it around it. The card shows a hollow
+ring on a pinned row and says how many there are.
+
 **How it behaves**
 
-- **Built when the first payment is logged**, and rebuilt on every order save
-  and whenever the wedding date moves. Logged in the order's History only when
-  the dates actually changed. Stored rather than recomputed on read, because
-  each row has to remember the Google event it created.
-- **The first payment date is stamped as today** when you log the first deposit,
-  and stays editable in the order editor for the transfer that landed on Friday
-  and got logged on Monday. Only the first — a second deposit says nothing new
-  about when the work began.
+- **The design block is built when the first payment is logged**; the fittings
+  when the production payment is. Both are rebuilt on every order save, and the
+  fittings whenever the wedding date moves. Logged in the order's History only
+  when the dates actually changed. Stored rather than recomputed on read,
+  because each row has to remember the Google event it created.
+- **Each payment date is stamped as today** when you log that deposit, and all
+  three stay editable in the order editor. Each is written once — a date already
+  set is the answer to when that money came in.
 - **One schedule per order.** A bride and groom booked together are two orders
   with two deposits, so they get two schedules from one shared wedding date.
 - **Syncing is a separate press.** Nothing reaches Google until you press Sync
   on the order. Events are all-day, titled `Fitting 2 — Sarah (Bride)`, with
-  reminders 7 days and 3 days ahead. Follow-up nudges are the exception — see
-  below.
+  reminders 7 days and 3 days ahead. The design phase is the one multi-day
+  event. Follow-up nudges are the exception — see below.
+- **A month-precision wedding date holds back the fittings, not the design
+  block.** Every fitting is measured back from the wedding, so "sometime in
+  June" makes all of them guesses, and a guess in a real calendar is worse than
+  a gap. The design block is measured from the payment and is exact either way,
+  so it syncs. Both the app and the Edge Function draw that line.
 - **Re-syncing moves events, it does not duplicate them.** Each row stores its
   Google event id and a later sync patches that event. An appointment dropped by
   a tighter window has its event deleted rather than left behind to be believed.
-  An event you deleted by hand in Google is simply recreated.
+  An event you deleted by hand in Google is recreated — and loses its pin with
+  it, since there is no longer a hand-moved date to honour.
 - **The homepage strip reads the schedule**, alongside the wedding and whatever
   follow-up is outstanding — so a customer who has not paid yet still surfaces,
   which is exactly when the nudge is the thing worth seeing.
