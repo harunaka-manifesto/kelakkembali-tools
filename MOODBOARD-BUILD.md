@@ -46,6 +46,11 @@ probed again. Removing an image, leaving the moodboard, or starting a fresh one
 revokes the corresponding URLs. There is deliberately no saved draft or edit
 flow; remaking a moodboard starts with a fresh upload.
 
+Selection immediately shows a blocking **Preparing X of Y photos…** indicator.
+Photos are decoded sequentially so several large phone images do not trigger
+simultaneous HEIC conversions or a large memory spike. The picker and Generate
+controls remain disabled until preparation finishes.
+
 ### Layout engine (`moodboard.js`)
 
 `computeGrid(count, variation)` produces `{x, y, w, h}` cells for 1–16 images.
@@ -121,6 +126,8 @@ The migration at the end of `schema.sql`:
 ## Verification checklist
 
 - Select supported images and confirm thumbnails remain local and intact.
+- Select several large/HEIC photos and confirm preparation progress appears
+  before decoding begins and advances after each image.
 - Select an unsupported/corrupt image and confirm it is skipped with a message.
 - Generate on desktop and on a portrait phone without an orientation prompt.
 - Pinch, drag, wheel, and double-click the preview to verify zoom behavior.

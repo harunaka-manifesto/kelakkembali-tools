@@ -2462,6 +2462,11 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
 }
 .mb-dropzone.has-images { cursor: default; }
 .mb-dropzone.has-images .mb-dropzone__empty { display: none; }
+.mb-dropzone.is-loading {
+  cursor: progress;
+  border-style: solid;
+}
+.mb-dropzone.is-loading > :not(.mb-loading) { opacity: 0.28; }
 
 .mb-dropzone__icon {
   width: 48px;
@@ -2472,6 +2477,34 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
 .mb-dropzone__label {
   font-size: 14px;
   color: var(--muted);
+}
+
+.mb-loading[hidden] { display: none; }
+.mb-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  border-radius: calc(var(--radius) - 2px);
+  background: rgba(244, 243, 240, 0.88);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: progress;
+  backdrop-filter: blur(4px);
+}
+.mb-loading__spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(23, 21, 15, 0.18);
+  border-top-color: var(--ink);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
 }
 
 /* ----------------------------- Thumbnails -------------------------------- */

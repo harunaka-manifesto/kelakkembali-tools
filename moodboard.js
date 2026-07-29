@@ -246,13 +246,22 @@ KK.moodboard = (function () {
     }
   }
 
-  async function addFiles(fileList) {
+  async function addFiles(fileList, onProgress) {
     const remaining = MAX_IMAGES - images.length;
     if (remaining <= 0) return { added: 0, rejected: 0 };
 
     const files = Array.from(fileList).slice(0, remaining);
+    const cached = [];
 
-    const cached = await Promise.all(files.map(cacheImage));
+    /* Phone photos can be large, and HEIC conversion is expensive. Processing
+       sequentially avoids a burst of simultaneous decodes while the progress
+       callback gives the browser a chance to paint between files. */
+    for (let index = 0; index < files.length; index++) {
+      cached.push(await cacheImage(files[index]));
+      if (onProgress) onProgress(index + 1, files.length);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
     const valid = cached.filter(Boolean);
     images.push(...valid);
 

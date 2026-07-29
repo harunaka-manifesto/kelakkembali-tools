@@ -309,6 +309,10 @@ natively. Unsupported or corrupt images are skipped. Source images are never
 uploaded, and there is no saved draft/edit flow; remaking a moodboard means
 selecting the files again.
 
+While selected photos are decoded, the dropzone displays preparation progress.
+Files are handled sequentially to avoid simultaneous large-image or HEIC
+conversion work on mobile devices.
+
 **Generate Moodboard** opens a dedicated preview route rather than an embedded
 preview card. It does not change the device orientation. The composition fits
 inside a portrait screen and supports pinch/drag, wheel, and double-tap zoom.

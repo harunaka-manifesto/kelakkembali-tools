@@ -2476,6 +2476,7 @@ KK.app = (function () {
   const mb = KK.moodboard;
   let activeMoodboardOrderId = null;
   let moodboardView = null;
+  let moodboardFilesBusy = false;
 
   async function showMoodboard(orderId) {
     state.order = await db.getOrder(orderId);
@@ -2535,6 +2536,7 @@ KK.app = (function () {
     const thumbs = $('#mbThumbs');
 
     dropzone.addEventListener('click', function (e) {
+      if (moodboardFilesBusy) return;
       if (e.target.closest('.mb-thumb__remove') || e.target.closest('.mb-thumb')) return;
       if (!dropzone.classList.contains('has-images')) fileInput.click();
     });
@@ -2556,6 +2558,7 @@ KK.app = (function () {
     dropzone.addEventListener('drop', async function (e) {
       e.preventDefault();
       dropzone.classList.remove('is-over');
+      if (moodboardFilesBusy) return;
       if (e.dataTransfer.files.length) await addMoodboardFiles(e.dataTransfer.files);
     });
 
@@ -2577,11 +2580,49 @@ KK.app = (function () {
   }
 
   async function addMoodboardFiles(files) {
-    const result = await mb.addFiles(files);
-    if (result.rejected) {
-      showToast(result.rejected === 1
-        ? 'One image could not be opened and was skipped'
-        : result.rejected + ' images could not be opened and were skipped');
+    if (moodboardFilesBusy) return;
+
+    const loading = $('#mbLoading');
+    const loadingText = $('#mbLoadingText');
+    const addMore = $('#mbAddMore');
+    const generate = $('#mbGenerate');
+    const total = Math.min(Array.from(files).length, mb.MAX_IMAGES - mb.images.length);
+
+    moodboardFilesBusy = true;
+    loading.hidden = false;
+    $('#mbDropzone').classList.add('is-loading');
+    $('#mbDropzone').setAttribute('aria-busy', 'true');
+    loadingText.textContent = total > 1 ? 'Preparing 1 of ' + total + ' photos…' : 'Preparing photo…';
+    addMore.disabled = true;
+    generate.disabled = true;
+
+    /* Yield once so the loading state reaches the screen before a large phone
+       photo starts decoding or HEIC conversion occupies the main thread. */
+    await new Promise((resolve) => {
+      requestAnimationFrame(() => setTimeout(resolve, 0));
+    });
+
+    try {
+      const result = await mb.addFiles(files, function (completed, count) {
+        loadingText.textContent = count > 1
+          ? 'Preparing ' + completed + ' of ' + count + ' photos…'
+          : 'Preparing photo…';
+      });
+      if (result.rejected) {
+        showToast(result.rejected === 1
+          ? 'One image could not be opened and was skipped'
+          : result.rejected + ' images could not be opened and were skipped');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Could not prepare those photos — ' + (err.message || 'please try again'));
+    } finally {
+      moodboardFilesBusy = false;
+      loading.hidden = true;
+      $('#mbDropzone').classList.remove('is-loading');
+      $('#mbDropzone').removeAttribute('aria-busy');
+      addMore.disabled = false;
+      generate.disabled = mb.images.length === 0;
     }
   }
 
