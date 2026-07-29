@@ -49,13 +49,12 @@ flow; remaking a moodboard starts with a fresh upload.
 ### Layout engine (`moodboard.js`)
 
 `computeGrid(count, variation)` produces `{x, y, w, h}` cells for 1–16 images.
-
-- A — balanced rows and columns, selected by aspect-ratio fit.
-- B — a left-side hero with a supporting grid.
-- C — a right-side hero with a supporting grid.
-
-One image is full bleed. Two images receive a dedicated split. Randomize uses
-a non-identity image shuffle and always selects a different layout variation.
+For 2–16 images, the engine enumerates mosaics made from columns containing one
+to four stacked photos. It solves all column widths together so the cells share
+a portrait aspect ratio—favoring roughly 2:3—while the complete photo region
+remains filled. The three variations select and reorder alternate portrait
+mosaics. One image is necessarily full-bleed landscape. Randomize uses a
+non-identity image shuffle and selects a different layout variation.
 
 The document stage is fixed at 1920×1080. Its content grid is 1856×960 with a
 12px gap and begins at y=88 below the branded header.

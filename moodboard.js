@@ -62,110 +62,76 @@ KK.moodboard = (function () {
   function computeGrid(count, v) {
     if (count === 0) return [];
     if (count === 1) return [{ x: 0, y: 0, w: GRID_W, h: GRID_H }];
-
-    if (v === 'A') return balancedGrid(count);
-    if (v === 'B') return heroGrid(count, 'left');
-    return heroGrid(count, 'right');
+    return portraitGrid(count, v);
   }
 
-  function balancedGrid(count) {
-    if (count === 2) {
-      const w = (GRID_W - GAP) / 2;
-      return [
-        { x: 0, y: 0, w, h: GRID_H },
-        { x: w + GAP, y: 0, w, h: GRID_H }
-      ];
+  /* A column is split into one to four stacked images. Its width is derived
+     from that stack's tile height so every cell in a candidate shares one
+     portrait aspect ratio. Because the widths are solved together, the mosaic
+     still touches all four edges of the photo region with no blank remainder. */
+  function portraitPartitions(total, min, current, output) {
+    if (total === 0) {
+      output.push(current.slice());
+      return;
     }
-
-    const aspect = GRID_W / GRID_H;
-    let bestCols = 1, bestRows = count;
-    let bestScore = Infinity;
-
-    for (let cols = 1; cols <= count; cols++) {
-      const rows = Math.ceil(count / cols);
-      const cellW = (GRID_W - (cols - 1) * GAP) / cols;
-      const cellH = (GRID_H - (rows - 1) * GAP) / rows;
-      const cellAspect = cellW / cellH;
-      const score = Math.abs(Math.log(cellAspect / aspect));
-      if (score < bestScore) {
-        bestScore = score;
-        bestCols = cols;
-        bestRows = rows;
-      }
+    for (let size = min; size <= Math.min(4, total); size++) {
+      current.push(size);
+      portraitPartitions(total - size, size, current, output);
+      current.pop();
     }
-
-    return layoutCells(count, bestCols, bestRows, 0, 0, GRID_W, GRID_H);
   }
 
-  function layoutCells(count, cols, rows, ox, oy, totalW, totalH) {
-    const cellW = (totalW - (cols - 1) * GAP) / cols;
-    const cellH = (totalH - (rows - 1) * GAP) / rows;
-    const cells = [];
-
-    for (let i = 0; i < count; i++) {
-      const col = i % cols;
-      const row = Math.floor(i / cols);
-      const lastRow = row === rows - 1;
-      const itemsInLastRow = count - cols * (rows - 1);
-
-      let x, w;
-      if (lastRow && itemsInLastRow < cols) {
-        const lw = (totalW - (itemsInLastRow - 1) * GAP) / itemsInLastRow;
-        x = ox + (i - cols * (rows - 1)) * (lw + GAP);
-        w = lw;
-      } else {
-        x = ox + col * (cellW + GAP);
-        w = cellW;
-      }
-
-      cells.push({
-        x,
-        y: oy + row * (cellH + GAP),
-        w,
-        h: cellH
-      });
-    }
-    return cells;
-  }
-
-  function heroGrid(count, anchor) {
-    if (count === 2) {
-      const heroW = Math.round(GRID_W * 0.55);
-      const restW = GRID_W - heroW - GAP;
-      if (anchor === 'left') {
-        return [
-          { x: 0, y: 0, w: heroW, h: GRID_H },
-          { x: heroW + GAP, y: 0, w: restW, h: GRID_H }
-        ];
-      }
-      return [
-        { x: GRID_W - heroW, y: 0, w: heroW, h: GRID_H },
-        { x: 0, y: 0, w: restW, h: GRID_H }
-      ];
-    }
-
-    const rest = count - 1;
-
-    if (anchor === 'left') {
-      const heroW = Math.round(GRID_W * 0.45);
-      const sideW = GRID_W - heroW - GAP;
-      const sideCols = rest <= 3 ? 1 : 2;
-      const sideRows = Math.ceil(rest / sideCols);
-      const cells = [{ x: 0, y: 0, w: heroW, h: GRID_H }];
-      return cells.concat(
-        layoutCells(rest, sideCols, sideRows, heroW + GAP, 0, sideW, GRID_H)
-      );
-    }
-
-    // anchor === 'right': hero on right, vertical split
-    const heroW = Math.round(GRID_W * 0.45);
-    const sideW = GRID_W - heroW - GAP;
-    const sideCols = rest <= 3 ? 1 : 2;
-    const sideRows = Math.ceil(rest / sideCols);
-    const cells = [{ x: GRID_W - heroW, y: 0, w: heroW, h: GRID_H }];
-    return cells.concat(
-      layoutCells(rest, sideCols, sideRows, 0, 0, sideW, GRID_H)
+  function portraitCandidate(parts) {
+    const columnHeights = parts.map((rows) =>
+      (GRID_H - (rows - 1) * GAP) / rows
     );
+    const usableW = GRID_W - (parts.length - 1) * GAP;
+    const aspect = usableW / columnHeights.reduce((sum, height) => sum + height, 0);
+    return { parts, columnHeights, aspect };
+  }
+
+  function portraitGrid(count, variationName) {
+    const partitions = [];
+    portraitPartitions(count, 1, [], partitions);
+
+    let candidates = partitions
+      .map(portraitCandidate)
+      .filter((candidate) => candidate.aspect < 1)
+      .sort((a, b) => {
+        const aSpread = Math.max(...a.parts) - Math.min(...a.parts);
+        const bSpread = Math.max(...b.parts) - Math.min(...b.parts);
+        const aScore = Math.abs(a.aspect - 0.72) + aSpread * 0.012;
+        const bScore = Math.abs(b.aspect - 0.72) + bSpread * 0.012;
+        return aScore - bScore;
+      });
+
+    /* Two images are the tightest possible portrait fit. Keep a defensive
+       fallback in case the stage dimensions or gap are changed later. */
+    if (!candidates.length) candidates = [portraitCandidate(Array(count).fill(1))];
+
+    const variationIndex = VARIATIONS.indexOf(variationName);
+    const chosen = candidates[Math.max(0, variationIndex) % Math.min(3, candidates.length)];
+    let parts = chosen.parts.slice();
+    if (variationName === 'B') parts.reverse();
+    if (variationName === 'C' && parts.length > 1) parts.push(parts.shift());
+
+    const geometry = portraitCandidate(parts);
+    const cells = [];
+    let x = 0;
+
+    parts.forEach((rows, columnIndex) => {
+      const cellH = geometry.columnHeights[columnIndex];
+      const width = columnIndex === parts.length - 1
+        ? GRID_W - x
+        : geometry.aspect * cellH;
+
+      for (let row = 0; row < rows; row++) {
+        cells.push({ x, y: row * (cellH + GAP), w: width, h: cellH });
+      }
+      x += width + GAP;
+    });
+
+    return cells;
   }
 
   /* ------------------------------ Rendering ------------------------------- */

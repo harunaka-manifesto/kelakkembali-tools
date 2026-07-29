@@ -316,6 +316,11 @@ The presentation has only **Randomize** and **Download**. Randomize changes both
 photo order and layout variation in one press. Browser Back returns to the
 selection page without discarding the locally cached photos.
 
+For boards with 2–16 images, every layout keeps its image cells portrait while
+still filling the entire 16:9 photo region. Column widths flex around a roughly
+2:3 target and columns may contain one to four stacked photos. A one-image
+board is the sole exception because its image must fill the landscape region.
+
 Download creates a landscape PDF and starts the browser download first. It then
 uploads the same bytes as an archive copy in `Kelak Kembali Moodboards/` on
 Google Drive, logs the Drive link, and updates the moodboard follow-up. Both
