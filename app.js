@@ -573,6 +573,9 @@ KK.app = (function () {
     const query = new URLSearchParams(cut === -1 ? '' : raw.slice(cut + 1));
     if (parts[0] === 'customer' && parts[1]) return { view: 'customer', id: parts[1], query };
     if (parts[0] === 'order' && parts[1] && parts[2] === 'edit') return { view: 'orderEdit', id: parts[1], query };
+    if (parts[0] === 'order' && parts[1] && parts[2] === 'moodboard' && parts[3] === 'preview') {
+      return { view: 'moodboardPreview', id: parts[1], query };
+    }
     if (parts[0] === 'order' && parts[1] && parts[2] === 'moodboard') return { view: 'moodboard', id: parts[1], query };
     if (parts[0] === 'order' && parts[1]) return { view: 'order', id: parts[1], query };
     if (parts[0] === 'calendar') return { view: 'calendar', query };
@@ -622,9 +625,12 @@ KK.app = (function () {
     }
     if (location.hash !== lastHash) prevHash = lastHash;
     lastHash = location.hash;
-    if (previous && previous.view === 'moodboard' && next.view !== 'moodboard') {
+    const wasMoodboard = previous && (previous.view === 'moodboard' || previous.view === 'moodboardPreview');
+    const isMoodboard = next.view === 'moodboard' || next.view === 'moodboardPreview';
+    if (wasMoodboard && !isMoodboard) {
       closeMoodboardPresentation();
       mb.cleanup();
+      activeMoodboardOrderId = null;
     }
     state.route = next;
 
@@ -632,7 +638,7 @@ KK.app = (function () {
     el.viewCustomer.hidden = next.view !== 'customer';
     el.viewOrder.hidden = next.view !== 'order';
     el.viewOrderEdit.hidden = next.view !== 'orderEdit';
-    el.viewMoodboard.hidden = next.view !== 'moodboard';
+    el.viewMoodboard.hidden = !isMoodboard;
     el.viewCalendar.hidden = next.view !== 'calendar';
     el.viewEnquiry.hidden = next.view !== 'enquiry';
     window.scrollTo(0, 0);
@@ -642,6 +648,7 @@ KK.app = (function () {
       else if (next.view === 'customer') await showCustomer(next.id, next.query);
       else if (next.view === 'orderEdit') await showOrderEdit(next.id);
       else if (next.view === 'moodboard') await showMoodboard(next.id);
+      else if (next.view === 'moodboardPreview') await showMoodboardPreview(next.id);
       else if (next.view === 'calendar') await showCalendarSettings();
       else if (next.view === 'enquiry') await showEnquiry(next.id);
       else await showOrder(next.id);
@@ -2467,6 +2474,8 @@ KK.app = (function () {
   /* ----------------------------- Moodboard -------------------------------- */
 
   const mb = KK.moodboard;
+  let activeMoodboardOrderId = null;
+  let moodboardView = null;
 
   async function showMoodboard(orderId) {
     state.order = await db.getOrder(orderId);
@@ -2483,15 +2492,37 @@ KK.app = (function () {
     el.actionbar.hidden = true;
     setSaveBar(false);
     closeMoodboardPresentation();
-    $('#mbRotateHint').hidden = true;
 
-    mb.init({
-      orderId: state.order.id,
-      customerId: state.customer.id,
-      customerName: state.customer.name,
-      docName: state.order.doc_name || state.customer.name,
-      orderRef: state.order.title || ''
+    if (activeMoodboardOrderId !== orderId || !mb.images.length) {
+      mb.init({
+        orderId: state.order.id,
+        customerId: state.customer.id,
+        customerName: state.customer.name,
+        docName: state.order.doc_name || state.customer.name,
+        orderRef: state.order.title || ''
+      });
+      activeMoodboardOrderId = orderId;
+    }
+    $('#mbEditor').hidden = false;
+    $('#mbGenerate').hidden = false;
+  }
+
+  async function showMoodboardPreview(orderId) {
+    if (!mb.images.length || activeMoodboardOrderId !== orderId) {
+      go('#/order/' + orderId + '/moodboard');
+      return;
+    }
+
+    setChrome({
+      title: 'Moodboard preview',
+      up: { label: 'Images', hash: '#/order/' + orderId + '/moodboard' },
+      save: false, actions: false
     });
+    el.actionbar.hidden = true;
+    setSaveBar(false);
+    $('#mbEditor').hidden = true;
+    $('#mbGenerate').hidden = true;
+    enterMoodboardPresentation();
   }
 
   function setupMoodboardListeners() {
@@ -2501,7 +2532,6 @@ KK.app = (function () {
     const randomize = $('#mbRandomize');
     const generate = $('#mbGenerate');
     const download = $('#mbDownload');
-    const rotateContinue = $('#mbRotateContinue');
     const thumbs = $('#mbThumbs');
 
     dropzone.addEventListener('click', function (e) {
@@ -2541,8 +2571,9 @@ KK.app = (function () {
     });
 
     generate.addEventListener('click', openMoodboardPresentation);
-    rotateContinue.addEventListener('click', continueToMoodboard);
     download.addEventListener('click', downloadMoodboard);
+
+    setupMoodboardZoom($('#mbPresentationCanvas'));
   }
 
   async function addMoodboardFiles(files) {
@@ -2554,71 +2585,105 @@ KK.app = (function () {
     }
   }
 
-  function isPhone() {
-    return window.matchMedia('(pointer: coarse)').matches &&
-      Math.min(window.screen.width || innerWidth, window.screen.height || innerHeight) <= 820;
-  }
-
-  function isPortrait() {
-    return window.innerHeight > window.innerWidth;
-  }
-
-  async function requestLandscapeMode() {
-    const root = document.documentElement;
-    try {
-      if (!document.fullscreenElement && root.requestFullscreen) {
-        await root.requestFullscreen();
-      }
-      if (screen.orientation && screen.orientation.lock) {
-        await screen.orientation.lock('landscape');
-      }
-    } catch (_) { /* iOS and some browsers require the user to rotate manually */ }
-  }
-
-  async function openMoodboardPresentation() {
+  function openMoodboardPresentation() {
     if (!mb.images.length) return;
-    if (isPhone() && isPortrait()) {
-      $('#mbRotateHint').hidden = false;
-      return;
-    }
-    if (isPhone()) await requestLandscapeMode();
-    enterMoodboardPresentation();
-  }
-
-  async function continueToMoodboard() {
-    await requestLandscapeMode();
-
-    if (isPhone() && isPortrait()) {
-      $('.mb-rotate__text', $('#mbRotateHint')).textContent =
-        'Rotate your phone sideways, then tap Continue again.';
-      return;
-    }
-    enterMoodboardPresentation();
+    go('#/order/' + state.order.id + '/moodboard/preview');
   }
 
   function enterMoodboardPresentation() {
-    $('#mbRotateHint').hidden = true;
     $('#mbPresentation').hidden = false;
     document.body.classList.add('moodboard-presenting');
-    requestAnimationFrame(renderMoodboardPresentation);
+    resetMoodboardView();
+    requestAnimationFrame(() => renderMoodboardPresentation(true));
   }
 
-  function renderMoodboardPresentation() {
+  function resetMoodboardView() {
+    moodboardView = { zoom: 1, x: 0, y: 0, baseScale: 1, clone: null, pointers: new Map() };
+  }
+
+  function applyMoodboardTransform() {
+    if (!moodboardView || !moodboardView.clone) return;
+    const scale = moodboardView.baseScale * moodboardView.zoom;
+    moodboardView.clone.style.transform =
+      'translate(calc(-50% + ' + moodboardView.x + 'px),calc(-50% + ' + moodboardView.y + 'px)) scale(' + scale + ')';
+  }
+
+  function renderMoodboardPresentation(reset) {
     const presentation = $('#mbPresentation');
     const canvas = $('#mbPresentationCanvas');
     const stageEl = mb.stage;
     if (!presentation || presentation.hidden || !canvas || !stageEl) return;
 
     const rect = canvas.getBoundingClientRect();
-    const scale = Math.min(rect.width / 1920, rect.height / 1080);
+    if (!moodboardView || reset) resetMoodboardView();
+    moodboardView.baseScale = Math.min(rect.width / 1920, rect.height / 1080);
     const clone = stageEl.cloneNode(true);
     clone.querySelectorAll('[id]').forEach((node) => node.removeAttribute('id'));
     clone.removeAttribute('id');
     clone.style.cssText =
       'position:absolute;left:50%;top:50%;width:1920px;height:1080px;' +
-      'transform:translate(-50%,-50%) scale(' + scale + ');' +
       'transform-origin:50% 50%;pointer-events:none;';
     canvas.replaceChildren(clone);
+    moodboardView.clone = clone;
+    applyMoodboardTransform();
+  }
+
+  function setupMoodboardZoom(canvas) {
+    if (!canvas) return;
+
+    const clampZoom = (value) => Math.max(1, Math.min(5, value));
+    const point = (e) => ({ x: e.clientX, y: e.clientY });
+
+    canvas.addEventListener('pointerdown', function (e) {
+      if (!moodboardView) return;
+      canvas.setPointerCapture(e.pointerId);
+      moodboardView.pointers.set(e.pointerId, point(e));
+      moodboardView.lastDistance = null;
+    });
+
+    canvas.addEventListener('pointermove', function (e) {
+      if (!moodboardView || !moodboardView.pointers.has(e.pointerId)) return;
+      const previous = moodboardView.pointers.get(e.pointerId);
+      moodboardView.pointers.set(e.pointerId, point(e));
+      const points = Array.from(moodboardView.pointers.values());
+
+      if (points.length >= 2) {
+        const dx = points[0].x - points[1].x;
+        const dy = points[0].y - points[1].y;
+        const distance = Math.hypot(dx, dy);
+        if (moodboardView.lastDistance) {
+          moodboardView.zoom = clampZoom(moodboardView.zoom * distance / moodboardView.lastDistance);
+        }
+        moodboardView.lastDistance = distance;
+      } else if (moodboardView.zoom > 1) {
+        moodboardView.x += e.clientX - previous.x;
+        moodboardView.y += e.clientY - previous.y;
+      }
+      applyMoodboardTransform();
+    });
+
+    const endPointer = function (e) {
+      if (!moodboardView) return;
+      moodboardView.pointers.delete(e.pointerId);
+      moodboardView.lastDistance = null;
+    };
+    canvas.addEventListener('pointerup', endPointer);
+    canvas.addEventListener('pointercancel', endPointer);
+
+    canvas.addEventListener('wheel', function (e) {
+      if (!moodboardView) return;
+      e.preventDefault();
+      moodboardView.zoom = clampZoom(moodboardView.zoom * (e.deltaY < 0 ? 1.12 : 0.89));
+      if (moodboardView.zoom === 1) moodboardView.x = moodboardView.y = 0;
+      applyMoodboardTransform();
+    }, { passive: false });
+
+    canvas.addEventListener('dblclick', function () {
+      if (!moodboardView) return;
+      moodboardView.zoom = moodboardView.zoom > 1 ? 1 : 2;
+      if (moodboardView.zoom === 1) moodboardView.x = moodboardView.y = 0;
+      applyMoodboardTransform();
+    });
   }
 
   function closeMoodboardPresentation() {
@@ -2626,15 +2691,8 @@ KK.app = (function () {
     if (presentation) presentation.hidden = true;
     const canvas = $('#mbPresentationCanvas');
     if (canvas) canvas.replaceChildren();
-    const hint = $('#mbRotateHint');
-    if (hint) hint.hidden = true;
     document.body.classList.remove('moodboard-presenting');
-    if (screen.orientation && screen.orientation.unlock) {
-      try { screen.orientation.unlock(); } catch (_) { /* unsupported */ }
-    }
-    if (document.fullscreenElement && document.exitFullscreen) {
-      document.exitFullscreen().catch(() => {});
-    }
+    moodboardView = null;
   }
 
   async function downloadMoodboard() {
@@ -3171,8 +3229,7 @@ KK.app = (function () {
       }
     });
 
-    /* The bars change height with orientation, and the moodboard presentation
-       follows a phone as soon as it is turned sideways. */
+    /* Keep fixed bars and the zoomable moodboard fitted to the viewport. */
     window.addEventListener('resize', function () {
       syncBottomBar();
       renderMoodboardPresentation();

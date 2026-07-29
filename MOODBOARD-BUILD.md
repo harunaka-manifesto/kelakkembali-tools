@@ -3,7 +3,7 @@
 Status: **UI and browser flow complete; backend deployment still required.**
 
 The moodboard generator lets a stylist select 1–16 images, review the finished
-16:9 composition in a dedicated landscape presentation, randomize both its
+16:9 composition in a dedicated zoomable presentation, randomize both its
 image order and layout, download a watermarked PDF, and archive a copy in
 Google Drive.
 
@@ -12,12 +12,13 @@ Route: `#/order/:id/moodboard`, opened with **Create Moodboard** on an order.
 ## Current product flow
 
 1. Select images. Each file is decoded and retained only as a browser object
-   URL. An image the browser cannot decode is skipped instead of appearing as a
-   broken tile. Source images are never uploaded to Drive.
+   URL. Blank MIME metadata is accepted, and an unsupported HEIC/HEIF image is
+   converted locally to JPEG. An image that still cannot be decoded is skipped
+   instead of appearing as a broken tile. Source images are never uploaded to
+   Drive.
 2. Press **Generate Moodboard**. There is no embedded preview in the upload
-   form. Desktop opens the presentation immediately; a portrait phone first
-   shows a rotate hint. Where supported, the app requests fullscreen and locks
-   the screen to landscape.
+   form. The app navigates to `#/order/:id/moodboard/preview` without changing
+   or locking the device orientation.
 3. The presentation fills the viewport and exposes exactly two actions:
    **Randomize** and **Download**. Randomize changes both the photo order and
    the layout variation in one press.
@@ -39,7 +40,9 @@ The browser and Drive copy use the exact same filename and bytes.
 
 Images are represented as `{file, objectURL, id}`. `addFiles()` creates an
 object URL, loads it through an `Image` probe, and keeps it only after decoding
-succeeds. Removing an image, leaving the moodboard, or starting a fresh one
+succeeds. It probes files even when their MIME type is missing. When native
+HEIC/HEIF decoding fails, `heic2any` converts the blob locally and the JPEG is
+probed again. Removing an image, leaving the moodboard, or starting a fresh one
 revokes the corresponding URLs. There is deliberately no saved draft or edit
 flow; remaking a moodboard starts with a fresh upload.
 
@@ -59,14 +62,11 @@ The document stage is fixed at 1920×1080. Its content grid is 1856×960 with a
 
 ### Presentation (`app.js`, `styles.css`)
 
-The source stage stays off-screen. The presentation clones it, strips IDs, and
-scales it with `contain` geometry into a fixed viewport layer. Resize and
-orientation changes redraw the clone. Phone detection is limited to coarse
-pointer devices with a short screen dimension of at most 820 CSS pixels.
-
-Because mobile Safari does not expose orientation locking, the prompt also
-works without the Screen Orientation API: rotate the device, then press
-**Continue** to open the presentation.
+The source stage stays off-screen. The preview route clones it, strips IDs, and
+scales it with `contain` geometry into a fixed portrait-friendly viewport.
+Pinch changes the clone scale, a single finger drags while zoomed, and wheel or
+double-click gestures provide desktop zoom. Resize redraws the clone. Browser
+Back returns to image selection with the object URLs intact.
 
 ### PDF and Drive pipeline
 
@@ -123,7 +123,8 @@ The migration at the end of `schema.sql`:
 
 - Select supported images and confirm thumbnails remain local and intact.
 - Select an unsupported/corrupt image and confirm it is skipped with a message.
-- Generate on desktop and on portrait/landscape phones.
+- Generate on desktop and on a portrait phone without an orientation prompt.
+- Pinch, drag, wheel, and double-click the preview to verify zoom behavior.
 - Confirm Randomize changes both arrangement and layout.
 - Confirm the local PDF download begins before the Drive request.
 - Confirm local and Drive filenames match and contain a millisecond timestamp.

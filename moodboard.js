@@ -236,7 +236,7 @@ KK.moodboard = (function () {
 
   /* ----------------------------- Image handling --------------------------- */
 
-  function cacheImage(file) {
+  function probeImage(file) {
     const objectURL = URL.createObjectURL(file);
     return new Promise((resolve) => {
       const probe = new Image();
@@ -253,13 +253,38 @@ KK.moodboard = (function () {
     });
   }
 
+  function isHeic(file) {
+    return /(?:heic|heif)$/i.test(file.type || '') || /\.(?:heic|heif)$/i.test(file.name || '');
+  }
+
+  /* Google Photos and iCloud sometimes hand a browser a valid photo with an
+     empty MIME type. Try every selected blob instead of rejecting it by its
+     metadata. HEIC/HEIF is converted locally only when the browser cannot
+     decode the original itself. */
+  async function cacheImage(file) {
+    const native = await probeImage(file);
+    if (native || !isHeic(file) || typeof window.heic2any !== 'function') return native;
+
+    try {
+      let converted = await window.heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 });
+      if (Array.isArray(converted)) converted = converted[0];
+      if (!converted) return null;
+      const jpeg = new File(
+        [converted],
+        (file.name || 'photo').replace(/\.(?:heic|heif)$/i, '') + '.jpg',
+        { type: 'image/jpeg', lastModified: file.lastModified }
+      );
+      return probeImage(jpeg);
+    } catch (_) {
+      return null;
+    }
+  }
+
   async function addFiles(fileList) {
     const remaining = MAX_IMAGES - images.length;
     if (remaining <= 0) return { added: 0, rejected: 0 };
 
-    const files = Array.from(fileList)
-      .filter((f) => f.type.startsWith('image/'))
-      .slice(0, remaining);
+    const files = Array.from(fileList).slice(0, remaining);
 
     const cached = await Promise.all(files.map(cacheImage));
     const valid = cached.filter(Boolean);

@@ -2538,66 +2538,47 @@ body:not(.has-actionbar):not(.has-savebar) .toast {
   margin-top: 16px;
 }
 
-/* ----------------------- Rotate hint + presentation ---------------------- */
+/* -------------------------- Moodboard presentation ----------------------- */
 
-.mb-rotate,
 .mb-presentation {
   position: fixed;
   inset: 0;
   z-index: 80;
 }
 
-.mb-rotate[hidden],
 .mb-presentation[hidden] { display: none; }
-
-.mb-rotate {
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  padding-left: calc(24px + env(safe-area-inset-left, 0px));
-  padding-right: calc(24px + env(safe-area-inset-right, 0px));
-  background: var(--bg);
-}
-
-.mb-rotate__card {
-  width: min(100%, 340px);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  text-align: center;
-}
-
-.mb-rotate__icon {
-  width: 64px;
-  height: 64px;
-  margin-bottom: 4px;
-  color: var(--muted);
-}
-
-.mb-rotate__title {
-  margin: 0;
-  font-size: 24px;
-  line-height: 1.2;
-  letter-spacing: -0.6px;
-}
-
-.mb-rotate__text {
-  margin: 0 0 8px;
-  color: var(--muted);
-  font-size: 14px;
-}
 
 .mb-presentation {
   background: #17150F;
   overflow: hidden;
 }
 
+.mb-presentation__hint {
+  position: absolute;
+  z-index: 2;
+  top: calc(14px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 32px);
+  margin: 0;
+  padding: 7px 11px;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.82);
+  background: rgba(0, 0, 0, 0.38);
+  font-size: 12px;
+  pointer-events: none;
+}
+
 .mb-presentation__canvas {
   position: absolute;
   inset: 0;
   overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
 }
+.mb-presentation__canvas:active { cursor: grabbing; }
 
 .mb-presentation__actions {
   position: absolute;

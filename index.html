@@ -479,9 +479,11 @@
   <section class="view" id="viewMoodboard" hidden>
     <section class="card" id="mbEditor">
       <h2 class="card__title">Images</h2>
-      <p class="card__hint">Drop or select up to 16 images. They stay on this device until you download the moodboard.</p>
+      <p class="card__hint">Choose up to 16 photos. They stay on this device until you download the moodboard.</p>
 
       <div class="mb-dropzone" id="mbDropzone">
+        <!-- Keep this MIME-only: Android is more likely to open its native
+             photo picker (including Google Photos) than its generic Files UI. -->
         <input type="file" id="mbFileInput" multiple accept="image/*" hidden>
         <div class="mb-dropzone__empty">
           <svg class="mb-dropzone__icon" viewBox="0 0 48 48" fill="none" stroke="currentColor"
@@ -491,7 +493,7 @@
             <path d="M42 32l-10-10-14 14"/>
             <path d="M30 28l-4-4-8 8"/>
           </svg>
-          <p class="mb-dropzone__label">Tap to select or drag images here</p>
+          <p class="mb-dropzone__label">Choose photos</p>
         </div>
         <div class="mb-thumbs" id="mbThumbs"></div>
       </div>
@@ -507,22 +509,8 @@
       <span class="spinner" aria-hidden="true"></span>
     </button>
 
-    <div class="mb-rotate" id="mbRotateHint" role="dialog" aria-modal="true"
-         aria-labelledby="mbRotateTitle" hidden>
-      <div class="mb-rotate__card">
-        <svg class="mb-rotate__icon" viewBox="0 0 64 64" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <rect x="20" y="8" width="24" height="40" rx="4"/>
-          <path d="M12 34a22 22 0 0 0 34 17"/>
-          <path d="m43 56 4-5-6-2"/>
-        </svg>
-        <h2 class="mb-rotate__title" id="mbRotateTitle">Rotate your phone</h2>
-        <p class="mb-rotate__text">Turn your phone sideways so the moodboard can fill the screen.</p>
-        <button type="button" class="btn btn--primary btn--block" id="mbRotateContinue">Continue</button>
-      </div>
-    </div>
-
     <section class="mb-presentation" id="mbPresentation" aria-label="Moodboard preview" hidden>
+      <p class="mb-presentation__hint">Pinch, drag, or scroll to zoom</p>
       <div class="mb-presentation__canvas" id="mbPresentationCanvas"></div>
       <div class="mb-presentation__actions">
         <button type="button" class="btn btn--outline" id="mbRandomize">Randomize</button>
@@ -820,6 +808,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="config.js"></script>
 <script src="util.js"></script>

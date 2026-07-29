@@ -303,15 +303,18 @@ Three things guard against it:
 
 An order’s **Create Moodboard** action accepts 1–16 images. Selection is a
 browser-local working session: each file is decoded before use and retained as
-an object URL, while unsupported or corrupt images are skipped. Source images
-are never uploaded, and there is no saved draft/edit flow; remaking a moodboard
-means selecting the files again.
+an object URL. Files with missing MIME metadata are still tested, and HEIC/HEIF
+photos are converted locally to JPEG when the browser cannot display them
+natively. Unsupported or corrupt images are skipped. Source images are never
+uploaded, and there is no saved draft/edit flow; remaking a moodboard means
+selecting the files again.
 
-**Generate Moodboard** opens a dedicated 16:9 presentation rather than an
-embedded preview card. A portrait phone sees a rotate hint first; supported
-browsers also receive fullscreen and landscape-lock requests. The presentation
-has only **Randomize** and **Download**. Randomize changes both photo order and
-layout variation in one press.
+**Generate Moodboard** opens a dedicated preview route rather than an embedded
+preview card. It does not change the device orientation. The composition fits
+inside a portrait screen and supports pinch/drag, wheel, and double-tap zoom.
+The presentation has only **Randomize** and **Download**. Randomize changes both
+photo order and layout variation in one press. Browser Back returns to the
+selection page without discarding the locally cached photos.
 
 Download creates a landscape PDF and starts the browser download first. It then
 uploads the same bytes as an archive copy in `Kelak Kembali Moodboards/` on
