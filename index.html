@@ -590,10 +590,11 @@
 <!-- Fitting journal overlays stay outside the page flow. -->
 <section class="fitting-camera" id="fittingCamera" hidden aria-label="Take fitting photo" role="dialog" aria-modal="true">
   <video id="fittingCameraVideo" autoplay playsinline muted></video>
+  <p class="fitting-camera__status" id="fittingCameraStatus" role="status">Starting camera…</p>
   <button type="button" class="fitting-camera__close" id="fittingCameraClose" aria-label="Close camera">×</button>
   <div class="fitting-camera__controls">
     <button type="button" class="fitting-camera__button" id="fittingGallery" aria-label="Choose from gallery">▧</button>
-    <button type="button" class="fitting-camera__shutter" id="fittingShutter" aria-label="Take photo"></button>
+    <button type="button" class="fitting-camera__shutter" id="fittingShutter" aria-label="Take photo" disabled></button>
     <button type="button" class="fitting-camera__button" id="fittingFlip" aria-label="Flip camera">↻</button>
   </div>
   <input id="fittingFileInput" type="file" accept="image/*" hidden>

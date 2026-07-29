@@ -6,6 +6,22 @@ KK.fittings = (function () {
   const U = KK.util;
   const localURLs = new Map();
   let root = null, data = null, pending = null, stream = null, facingMode = 'environment', editPhoto = null, retakeTarget = null;
+  let pickerCancelHandler = null, focusBeforeOverlay = null;
+
+  const overlayIds = ['fittingCamera', 'fittingConfirm', 'fittingCaptionStep', 'fittingPicker', 'fittingEditSheet'];
+  function syncOverlayState() {
+    const open = overlayIds.some((id) => !document.querySelector('#' + id).hidden);
+    document.body.classList.toggle('has-modal', open);
+    if (!open && focusBeforeOverlay && document.contains(focusBeforeOverlay)) focusBeforeOverlay.focus();
+    if (!open) focusBeforeOverlay = null;
+  }
+  function showOverlay(id, focusSelector) {
+    if (!focusBeforeOverlay) focusBeforeOverlay = document.activeElement;
+    document.querySelector('#' + id).hidden = false;
+    syncOverlayState();
+    if (focusSelector) requestAnimationFrame(() => document.querySelector(focusSelector).focus());
+  }
+  function hideOverlay(id) { document.querySelector('#' + id).hidden = true; syncOverlayState(); }
 
   const thumbURL = (id, size) => id ? 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(id) + '&sz=w' + (size || 200) : '';
   const imageURL = (photo, size) => localURLs.get(photo.id) || thumbURL(photo.drive_file_id, size);
@@ -43,25 +59,35 @@ KK.fittings = (function () {
     return dated.length > 1 && dated[0].distance === dated[1].distance ? null : dated[0].event.stage;
   }
 
-  function showStagePicker(events, onPick) {
+  function showStagePicker(events, onPick, onCancel) {
     const picker = document.querySelector('#fittingPicker'), options = document.querySelector('#fittingPickerOptions');
+    pickerCancelHandler = onCancel || null;
     options.innerHTML = (events || []).filter((e) => KK.calendar.isProductionStage(e.stage)).map((e) => '<button type="button" class="fitting-picker__option" data-stage="' + U.escapeHtml(e.stage) + '">' + U.escapeHtml(e.stage) + (e.event_date ? ' · ' + U.escapeHtml(U.formatShortDate(e.event_date)) : '') + '</button>').join('');
-    picker.hidden = false;
-    options.querySelectorAll('button').forEach((button) => button.addEventListener('click', () => { picker.hidden = true; onPick(button.dataset.stage); }));
+    showOverlay('fittingPicker', '.fitting-picker__option');
+    options.querySelectorAll('button').forEach((button) => button.addEventListener('click', () => { hideOverlay('fittingPicker'); pickerCancelHandler = null; onPick(button.dataset.stage); }));
+  }
+
+  function cancelStagePicker() {
+    hideOverlay('fittingPicker');
+    const callback = pickerCancelHandler; pickerCancelHandler = null;
+    if (callback) callback();
   }
 
   function stopStream() { if (stream) stream.getTracks().forEach((track) => track.stop()); stream = null; }
   async function openCamera() {
-    const camera = document.querySelector('#fittingCamera'), video = document.querySelector('#fittingCameraVideo');
-    camera.hidden = false; stopStream();
+    const video = document.querySelector('#fittingCameraVideo');
+    const status = document.querySelector('#fittingCameraStatus'), shutter = document.querySelector('#fittingShutter');
+    status.hidden = false; shutter.disabled = true; stopStream();
+    showOverlay('fittingCamera', '#fittingCameraClose');
     try {
       stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: facingMode } }, audio: false });
       video.srcObject = stream;
+      video.onloadedmetadata = () => { status.hidden = true; shutter.disabled = false; video.play().catch(() => {}); };
       const devices = await navigator.mediaDevices.enumerateDevices();
       document.querySelector('#fittingFlip').hidden = devices.filter((d) => d.kind === 'videoinput').length < 2;
-    } catch (err) { camera.hidden = true; chooseFromGallery(); }
+    } catch (err) { hideOverlay('fittingCamera'); notify('Camera unavailable — choose a photo instead'); chooseFromGallery(); }
   }
-  function closeCamera() { stopStream(); document.querySelector('#fittingCamera').hidden = true; }
+  function closeCamera() { const video = document.querySelector('#fittingCameraVideo'); stopStream(); video.srcObject = null; video.onloadedmetadata = null; hideOverlay('fittingCamera'); }
   function captureFromVideo() {
     const video = document.querySelector('#fittingCameraVideo');
     if (!video.videoWidth) return;
@@ -78,12 +104,12 @@ KK.fittings = (function () {
   }
 
   function clearPending(revoke) { if (revoke && pending) URL.revokeObjectURL(pending.url); pending = null; }
-  function openConfirmation(blob) { closeCamera(); clearPending(true); pending = { blob: blob, url: URL.createObjectURL(blob), replacePhoto: retakeTarget }; retakeTarget = null; document.querySelector('#fittingConfirmPreview').src = pending.url; document.querySelector('#fittingConfirm').hidden = false; }
-  function retake() { document.querySelector('#fittingConfirm').hidden = true; clearPending(true); openCamera(); }
-  function usePhoto() { document.querySelector('#fittingConfirm').hidden = true; openCaptionStep(pending && pending.replacePhoto && pending.replacePhoto.caption); }
+  function openConfirmation(blob) { closeCamera(); clearPending(true); pending = { blob: blob, url: URL.createObjectURL(blob), replacePhoto: retakeTarget }; retakeTarget = null; document.querySelector('#fittingConfirmPreview').src = pending.url; showOverlay('fittingConfirm', '#fittingUsePhoto'); }
+  function retake() { hideOverlay('fittingConfirm'); clearPending(true); openCamera(); }
+  function usePhoto() { hideOverlay('fittingConfirm'); openCaptionStep(pending && pending.replacePhoto && pending.replacePhoto.caption); }
   function resizeCaption() { const box = document.querySelector('#fittingCaption'); box.style.height = 'auto'; box.style.height = Math.min(box.scrollHeight, 120) + 'px'; }
-  function openCaptionStep(caption) { if (!pending) return; const step = document.querySelector('#fittingCaptionStep'), box = document.querySelector('#fittingCaption'); document.querySelector('#fittingCaptionPreview').src = pending.url; box.value = caption || ''; step.hidden = false; resizeCaption(); setTimeout(() => box.focus(), 0); }
-  function closeCaptionStep(discard) { document.querySelector('#fittingCaptionStep').hidden = true; if (discard) clearPending(true); }
+  function openCaptionStep(caption) { if (!pending) return; const box = document.querySelector('#fittingCaption'); document.querySelector('#fittingCaptionPreview').src = pending.url; box.value = caption || ''; showOverlay('fittingCaptionStep', '#fittingCaption'); resizeCaption(); }
+  function closeCaptionStep(discard) { hideOverlay('fittingCaptionStep'); if (discard) clearPending(true); }
 
   function photosForSession() { return (data.photos || []).slice().sort((a, b) => Number(a.position) - Number(b.position) || String(a.created_at).localeCompare(String(b.created_at))); }
   function findPhoto(id) { return (data.photos || []).find((p) => p.id === id); }
@@ -134,17 +160,31 @@ KK.fittings = (function () {
     container.querySelectorAll('[data-session-id]').forEach((b) => b.addEventListener('click', () => { location.hash = '#/order/' + orderId + '/fitting/' + b.dataset.sessionId; }));
   }
   async function sharePhoto(photo) { if (!photo) return; const text = (photo.caption || '') + (photo.caption && photo.drive_link ? '\n' : '') + (photo.drive_link || ''); if (!text) return notify('This photo is still being backed up to Drive.'); if (navigator.share) { try { await navigator.share({ text }); return; } catch (err) { if (err && err.name === 'AbortError') return; } } window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank', 'noopener'); }
-  function openEditSheet(photo) { editPhoto = photo; document.querySelector('#fittingEditSheet').hidden = false; }
-  function closeEditSheet() { document.querySelector('#fittingEditSheet').hidden = true; }
+  function openEditSheet(photo) { editPhoto = photo; showOverlay('fittingEditSheet', '#fittingEditCaption'); }
+  function closeEditSheet() { hideOverlay('fittingEditSheet'); }
   function editCaption() { if (!editPhoto) return; closeEditSheet(); pending = { url: imageURL(editPhoto, 1600), blob: null }; openCaptionStep(editPhoto.caption); }
   function retakePhoto() { if (!editPhoto) return; retakeTarget = editPhoto; closeEditSheet(); openCamera(); }
   async function deletePhoto() { if (!editPhoto || !confirm('Delete this fitting photo from the journal? The Drive copy will remain available.')) return; try { await KK.db.deleteFittingPhoto(editPhoto.id); const url = localURLs.get(editPhoto.id); if (url) URL.revokeObjectURL(url); localURLs.delete(editPhoto.id); data.photos = data.photos.filter((p) => p.id !== editPhoto.id); closeEditSheet(); editPhoto = null; renderJournal(root, data); notify('Photo deleted'); } catch (err) { notify(err.message || 'Could not delete photo.'); } }
   function startSession(session, state, onToast) { data = Object.assign({}, state, { session, onToast }); openCamera(); }
   async function endSession(session, callback) { const count = (data && data.photos || []).length; if (!confirm('End fitting session? ' + count + ' photo' + (count === 1 ? '' : 's') + ' will be saved.')) return; try { await KK.db.updateFittingSession(session.id, { status: 'completed', completed_at: new Date().toISOString() }); callback(); } catch (err) { notify(err.message || 'Could not end fitting session.'); } }
+  function closeAll() {
+    stopStream();
+    document.querySelector('#fittingCameraVideo').srcObject = null;
+    overlayIds.forEach((id) => { document.querySelector('#' + id).hidden = true; });
+    pickerCancelHandler = null; editPhoto = null; retakeTarget = null; clearPending(true); syncOverlayState();
+  }
   function bindOverlays() {
     document.querySelector('#fittingCameraClose').addEventListener('click', closeCamera); document.querySelector('#fittingGallery').addEventListener('click', chooseFromGallery); document.querySelector('#fittingShutter').addEventListener('click', captureFromVideo); document.querySelector('#fittingFlip').addEventListener('click', flipCamera); document.querySelector('#fittingFileInput').addEventListener('change', galleryChanged);
     document.querySelector('#fittingRetake').addEventListener('click', retake); document.querySelector('#fittingUsePhoto').addEventListener('click', usePhoto); document.querySelector('#fittingCaptionCancel').addEventListener('click', () => { editPhoto = null; closeCaptionStep(true); }); document.querySelector('#fittingCaptionSave').addEventListener('click', saveCaptionAndPhoto); document.querySelector('#fittingCaption').addEventListener('input', resizeCaption);
-    document.querySelector('#fittingPickerCancel').addEventListener('click', () => { document.querySelector('#fittingPicker').hidden = true; }); document.querySelector('#fittingPicker .fitting-picker__backdrop').addEventListener('click', () => { document.querySelector('#fittingPicker').hidden = true; }); document.querySelector('#fittingEditCancel').addEventListener('click', closeEditSheet); document.querySelector('#fittingEditSheet .fitting-edit-sheet__backdrop').addEventListener('click', closeEditSheet); document.querySelector('#fittingEditCaption').addEventListener('click', editCaption); document.querySelector('#fittingRetakePhoto').addEventListener('click', retakePhoto); document.querySelector('#fittingDeletePhoto').addEventListener('click', deletePhoto);
+    document.querySelector('#fittingPickerCancel').addEventListener('click', cancelStagePicker); document.querySelector('#fittingPicker .fitting-picker__backdrop').addEventListener('click', cancelStagePicker); document.querySelector('#fittingEditCancel').addEventListener('click', closeEditSheet); document.querySelector('#fittingEditSheet .fitting-edit-sheet__backdrop').addEventListener('click', closeEditSheet); document.querySelector('#fittingEditCaption').addEventListener('click', editCaption); document.querySelector('#fittingRetakePhoto').addEventListener('click', retakePhoto); document.querySelector('#fittingDeletePhoto').addEventListener('click', deletePhoto);
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape' || !document.body.classList.contains('has-modal')) return;
+      if (!document.querySelector('#fittingEditSheet').hidden) closeEditSheet();
+      else if (!document.querySelector('#fittingPicker').hidden) cancelStagePicker();
+      else if (!document.querySelector('#fittingCaptionStep').hidden) { editPhoto = null; closeCaptionStep(true); }
+      else if (!document.querySelector('#fittingConfirm').hidden) { hideOverlay('fittingConfirm'); clearPending(true); }
+      else closeCamera();
+    });
   }
-  return { isHeic, usableBlob, compressImage, base64, thumbURL, imageURL, localURLs, archivePhoto, detectStage, showStagePicker, startSession, endSession, renderJournal, renderHistoryList, bindOverlays, openCamera, closeCamera };
+  return { isHeic, usableBlob, compressImage, base64, thumbURL, imageURL, localURLs, archivePhoto, detectStage, showStagePicker, startSession, endSession, renderJournal, renderHistoryList, bindOverlays, openCamera, closeCamera, closeAll };
 })();

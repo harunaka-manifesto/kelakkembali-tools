@@ -655,7 +655,9 @@ KK.app = (function () {
     el.viewCalendar.hidden = next.view !== 'calendar';
     el.viewEnquiry.hidden = next.view !== 'enquiry';
     if (previous && (previous.view === 'fittingNew' || previous.view === 'fittingJournal') &&
-        next.view !== 'fittingNew' && next.view !== 'fittingJournal') KK.fittings.closeCamera();
+        (next.view !== previous.view || next.id !== previous.id || next.sessionId !== previous.sessionId)) {
+      KK.fittings.closeAll();
+    }
     syncBottomBar();
     window.scrollTo(0, 0);
 
@@ -1129,8 +1131,16 @@ KK.app = (function () {
   }
 
   function renderCustomerReadOnly(c) {
-    el.dPhone.textContent = c.phone || '—';
-    el.dInstagram.textContent = c.instagram || '—';
+    const phoneDigits = String(c.phone || '').replace(/\D/g, '').replace(/^0/, '62');
+    el.dPhone.innerHTML = c.phone && phoneDigits.length >= 8
+      ? '<a class="contact-link" href="https://wa.me/' + encodeURIComponent(phoneDigits) +
+        '" target="_blank" rel="noopener" aria-label="Message on WhatsApp">' + U.escapeHtml(c.phone) + '</a>'
+      : U.escapeHtml(c.phone || '—');
+    const instagramHandle = String(c.instagram || '').trim().replace(/^@/, '');
+    el.dInstagram.innerHTML = instagramHandle
+      ? '<a class="contact-link" href="https://www.instagram.com/' + encodeURIComponent(instagramHandle) +
+        '/" target="_blank" rel="noopener">@' + U.escapeHtml(instagramHandle) + '</a>'
+      : '—';
     el.dSource.textContent = c.source || '—';
     el.dNotes.textContent = c.notes || '—';
     el.dCreated.textContent = c.created_at ? U.formatShortDate(c.created_at) : '—';
@@ -1634,13 +1644,15 @@ KK.app = (function () {
   async function showFittingNew(id) {
     state.order = await db.getOrder(id);
     state.customer = await db.getCustomer(state.order.customer_id);
-    const result = await Promise.all([db.listOrderEvents(id), db.listFittingSessions(id), db.listFittingPhotos(id)]);
+    setChrome({ title: 'New fitting', up: { label: orderLabel(state.order), hash: '#/order/' + id }, save: false, actions: false });
+    el.fittingJournalBar.hidden = true;
+    document.body.classList.remove('has-fitting-journal-bar');
+    syncBottomBar();
+    const result = await Promise.all([db.listOrderEvents(id), db.listFittingSessions(id)]);
     const active = result[1].find((session) => session.status === 'active');
     if (active) { go('#/order/' + id + '/fitting/' + active.id); return; }
     const stages = result[0].filter((event) => cal.isProductionStage(event.stage));
     if (!stages.length) {
-      el.fittingJournalBar.hidden = true;
-      document.body.classList.remove('has-fitting-journal-bar');
       setChrome({ title: 'Fitting Journal', up: { label: orderLabel(state.order), hash: '#/order/' + id }, save: false, actions: false });
       el.fittingJournal.innerHTML = '<section class="card"><h2 class="card__title">No fittings scheduled</h2><p class="card__hint">Save the order with production dates to begin a fitting journal.</p></section>';
       return;
@@ -1649,12 +1661,16 @@ KK.app = (function () {
       try {
         const session = await db.createFittingSession({ order_id: id, stage: stage, status: 'active' });
         setChrome({ title: stage, up: { label: orderLabel(state.order), hash: '#/order/' + id }, action: { label: 'Done', onClick: () => KK.fittings.endSession(session, () => go('#/order/' + id)) }, save: false, actions: false });
+        el.fittingJournalBar.hidden = false;
+        document.body.classList.add('has-fitting-journal-bar');
+        syncBottomBar();
         KK.fittings.renderJournal(el.fittingJournal, { order: state.order, customer: state.customer, session: session, photos: [], onToast: showToast });
         KK.fittings.startSession(session, { order: state.order, customer: state.customer, photos: [] }, showToast);
       } catch (err) { showToast(err.message || 'Could not start fitting session'); }
     };
     const stage = KK.fittings.detectStage(result[0]);
-    if (stage) await begin(stage); else KK.fittings.showStagePicker(result[0], begin);
+    if (stage) await begin(stage);
+    else KK.fittings.showStagePicker(result[0], begin, () => go('#/order/' + id));
   }
 
   async function showFittingJournal(id, sessionId) {
