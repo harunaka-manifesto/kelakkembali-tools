@@ -648,8 +648,9 @@ where o.id = paid.order_id
 -- =========================================================================
 -- Migration — moodboard generator
 --
--- The moodboard feature uploads images to Google Drive, compiles a 16:9 PDF,
--- and archives it in Drive. document_log gains a 'moodboard' kind and a
+-- The moodboard feature keeps source images in the browser, compiles a 16:9
+-- PDF, downloads it, and then archives a copy in Drive. document_log gains a
+-- 'moodboard' kind and a
 -- drive_link column so the generated file can be opened straight from the
 -- order history. order_history gains 'moodboard_generated' so the event
 -- shows in the timeline.
@@ -660,8 +661,8 @@ alter table public.document_log drop constraint if exists document_log_kind_chec
 alter table public.document_log add constraint document_log_kind_check
   check (kind in ('quotation', 'invoice', 'moodboard'));
 
--- The PDF lives in Google Drive, not locally. Quotation/invoice rows leave
--- this null; moodboard rows always fill it.
+-- Moodboard rows link to the archived Drive copy. Quotation/invoice rows leave
+-- this null.
 alter table public.document_log add column if not exists drive_link text;
 
 -- Moodboards have no monetary total — the column must accept null for them.

@@ -77,11 +77,13 @@ npx vercel deploy --prod
 | `config.js` | Supabase URL, anon key, the shared account's email, Google client ID |
 | `util.js` | Formatting, escaping, the seeded-PRNG primitives |
 | `docs.js` | The document engine: fills both templates, exports the PDF |
+| `moodboard.js` | Browser-local image cache, 16:9 layout engine, and moodboard PDF renderer |
 | `calendar.js` | The fitting schedule: places the appointments, draws the card |
 | `db.js` | Every Supabase call — auth and CRUD, nothing else touches the client |
 | `app.js` | Routing, views, form state, validation |
 | `schema.sql` | The migrations to run in the Supabase SQL editor |
 | `supabase/functions/google-calendar/` | Server-side: Google OAuth, fitting and follow-up calendar writes |
+| `supabase/functions/google-drive/` | Server-side: archives completed moodboard PDFs after download |
 | `supabase/functions/intake/` | Server-side: the public Tally webhook, HMAC-verified |
 | `serve.ps1` | Local static server, so testing needs nothing installed |
 | `assets/` | The two logo marks, exported from Figma at 4x |
@@ -296,6 +298,34 @@ Three things guard against it:
    the last row of ink plus the document's 32px padding, with the measured
    height as a floor. If the clone ever does lay out taller, the overflow is
    inside the canvas and is kept instead of being clipped away.
+
+## Moodboard generator
+
+An order’s **Create Moodboard** action accepts 1–16 images. Selection is a
+browser-local working session: each file is decoded before use and retained as
+an object URL, while unsupported or corrupt images are skipped. Source images
+are never uploaded, and there is no saved draft/edit flow; remaking a moodboard
+means selecting the files again.
+
+**Generate Moodboard** opens a dedicated 16:9 presentation rather than an
+embedded preview card. A portrait phone sees a rotate hint first; supported
+browsers also receive fullscreen and landscape-lock requests. The presentation
+has only **Randomize** and **Download**. Randomize changes both photo order and
+layout variation in one press.
+
+Download creates a landscape PDF and starts the browser download first. It then
+uploads the same bytes as an archive copy in `Kelak Kembali Moodboards/` on
+Google Drive, logs the Drive link, and updates the moodboard follow-up. Both
+copies share a millisecond timestamped filename, so repeated exports do not
+collide:
+
+`Moodboard-KelakKembali-{DocName}-{YYYY-MM-DD-HHmmss-SSS}.pdf`
+
+The Drive function needs the additional OAuth scope
+`https://www.googleapis.com/auth/drive.file`. It exposes only
+`save_moodboard_pdf`; no draft image upload or cleanup endpoints exist. After
+adding the scope, reconnect Google once so the stored refresh token includes
+the new permission.
 
 ## The watermark
 
@@ -574,10 +604,10 @@ standing grant over a calendar and does not belong in a browser.
 **1. Create the OAuth client.** In the [Google Cloud
 Console](https://console.cloud.google.com/), make a project, enable the **Google
 Calendar API**, and create an **OAuth 2.0 Client ID** of type *Web application*.
-On the consent screen add the scope
-`https://www.googleapis.com/auth/calendar.events` and add your own Google
-account as a test user — the app never leaves testing, since it has exactly one
-user.
+On the consent screen add the scopes
+`https://www.googleapis.com/auth/calendar.events` and
+`https://www.googleapis.com/auth/drive.file`, then add your own Google account
+as a test user — the app never leaves testing, since it has exactly one user.
 
 Register both environments, or the redirect back from Google fails on whichever
 one you left out:

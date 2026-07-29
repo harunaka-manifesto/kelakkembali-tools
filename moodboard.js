@@ -1,11 +1,11 @@
 /* Kelak Kembali — moodboard generator.
 
    Owns the 16:9 moodboard canvas: image management, the algorithmic grid
-   layout engine (three variations per image count), the off-screen render
-   pipeline (reusing docs.js's watermark/capture approach), and the Drive
-   upload integration.
+   layout engine (three variations per image count), and the off-screen render
+   pipeline (reusing docs.js's watermark/capture approach). Selected images
+   stay in the browser as object URLs; only the completed PDF leaves the device.
 
-   The view itself (dropzone, controls, preview) lives in index.html under
+   The view itself (dropzone and full-screen presentation) lives in index.html under
    #viewMoodboard; this module fills and drives it. */
 
 window.KK = window.KK || {};
@@ -54,10 +54,8 @@ KK.moodboard = (function () {
   let shuffleOrder = null;  // null = natural order, array = shuffled indices
   let stageEl = null;
   let gridEl = null;
-  let previewEl = null;
   let headerNameEl = null;
   let orderData = null;     // { orderId, customerId, customerName, docName, orderRef }
-  let draftFolderId = null;
 
   /* ----------------------------- Layout engine ---------------------------- */
 
@@ -178,7 +176,7 @@ KK.moodboard = (function () {
   }
 
   function renderPreview() {
-    if (!gridEl || !previewEl) return;
+    if (!gridEl) return;
 
     const ordered = getOrderedImages();
     const cells = computeGrid(ordered.length, variation);
@@ -231,39 +229,47 @@ KK.moodboard = (function () {
   function updateControls() {
     const countEl = $('#mbCount');
     const genBtn = $('#mbGenerate');
-    const randomBtn = $('#mbRandomize');
 
     if (countEl) countEl.textContent = images.length + '/' + MAX_IMAGES;
     if (genBtn) genBtn.disabled = images.length === 0;
-    if (randomBtn) randomBtn.disabled = images.length < 2;
-
-    $$('.mb-var-btn').forEach((btn) => {
-      btn.classList.toggle('is-active', btn.dataset.var === variation);
-    });
   }
 
   /* ----------------------------- Image handling --------------------------- */
 
-  function addFiles(fileList) {
+  function cacheImage(file) {
+    const objectURL = URL.createObjectURL(file);
+    return new Promise((resolve) => {
+      const probe = new Image();
+      probe.onload = () => resolve({
+        file,
+        objectURL,
+        id: Math.random().toString(36).slice(2)
+      });
+      probe.onerror = () => {
+        URL.revokeObjectURL(objectURL);
+        resolve(null);
+      };
+      probe.src = objectURL;
+    });
+  }
+
+  async function addFiles(fileList) {
     const remaining = MAX_IMAGES - images.length;
-    if (remaining <= 0) return;
+    if (remaining <= 0) return { added: 0, rejected: 0 };
 
     const files = Array.from(fileList)
       .filter((f) => f.type.startsWith('image/'))
       .slice(0, remaining);
 
-    files.forEach((file) => {
-      images.push({
-        file,
-        objectURL: URL.createObjectURL(file),
-        id: Math.random().toString(36).slice(2)
-      });
-    });
+    const cached = await Promise.all(files.map(cacheImage));
+    const valid = cached.filter(Boolean);
+    images.push(...valid);
 
     shuffleOrder = null;
     renderDropzone();
     renderPreview();
     updateControls();
+    return { added: valid.length, rejected: cached.length - valid.length };
   }
 
   function removeImage(index) {
@@ -275,14 +281,24 @@ KK.moodboard = (function () {
     updateControls();
   }
 
-  function shuffleImages() {
-    if (images.length < 2) return;
+  function shuffledIndices() {
     const indices = images.map((_, i) => i);
+    const previous = shuffleOrder ? shuffleOrder.slice() : indices.slice();
     for (let i = indices.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [indices[i], indices[j]] = [indices[j], indices[i]];
     }
-    shuffleOrder = indices;
+    if (indices.length > 1 && indices.every((value, i) => value === previous[i])) {
+      indices.push(indices.shift());
+    }
+    return indices;
+  }
+
+  function randomize() {
+    if (!images.length) return;
+    shuffleOrder = shuffledIndices();
+    const choices = VARIATIONS.filter((v) => v !== variation);
+    variation = choices[Math.floor(Math.random() * choices.length)];
     renderPreview();
   }
 
@@ -459,28 +475,31 @@ KK.moodboard = (function () {
     return btoa(binary);
   }
 
-  function buildFilename() {
-    const iso = U.todayISO();
+  function buildFilename(now) {
+    const date = now || new Date();
+    const pad = (value, width) => String(value).padStart(width || 2, '0');
+    const timestamp = [
+      date.getFullYear(), '-', pad(date.getMonth() + 1), '-', pad(date.getDate()), '-',
+      pad(date.getHours()), pad(date.getMinutes()), pad(date.getSeconds()), '-',
+      pad(date.getMilliseconds(), 3)
+    ].join('');
     const safe = U.sanitizeForFilename(
       orderData ? (orderData.docName || orderData.customerName) : ''
     );
     return safe
-      ? 'Moodboard-KelakKembali-' + safe + '-' + iso + '.pdf'
-      : 'Moodboard-KelakKembali-' + iso + '.pdf';
+      ? 'Moodboard-KelakKembali-' + safe + '-' + timestamp + '.pdf'
+      : 'Moodboard-KelakKembali-' + timestamp + '.pdf';
   }
 
   /* ------------------------------ Public API ------------------------------ */
 
   function init(opts) {
+    cleanup();
     orderData = opts;
-    images = [];
-    shuffleOrder = null;
     variation = 'A';
-    draftFolderId = null;
 
     stageEl = document.querySelector('.stage #moodboardStage');
     gridEl = stageEl ? stageEl.querySelector('#mbGrid') : null;
-    previewEl = $('#mbPreview');
     headerNameEl = stageEl ? stageEl.querySelector('#mbHeaderName') : null;
 
     renderPreview();
@@ -499,18 +518,17 @@ KK.moodboard = (function () {
     images.forEach((img) => URL.revokeObjectURL(img.objectURL));
     images = [];
     shuffleOrder = null;
-    draftFolderId = null;
+    if (gridEl) gridEl.innerHTML = '';
   }
 
   return {
     MAX_IMAGES,
     init, cleanup,
-    addFiles, removeImage, shuffleImages,
+    addFiles, removeImage, randomize,
     setVariation,
     generatePDF, pdfToBase64, buildFilename,
+    get stage() { return stageEl; },
     get images() { return images; },
-    get variation() { return variation; },
-    get draftFolderId() { return draftFolderId; },
-    set draftFolderId(v) { draftFolderId = v; }
+    get variation() { return variation; }
   };
 })();

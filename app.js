@@ -610,6 +610,7 @@ KK.app = (function () {
   let prevHash = '';
   async function handleRoute() {
     const next = parseHash();
+    const previous = state.route;
 
     // Guard the transition, and put the URL back if it is refused.
     if (state.dirty && lastHash !== location.hash) {
@@ -621,6 +622,10 @@ KK.app = (function () {
     }
     if (location.hash !== lastHash) prevHash = lastHash;
     lastHash = location.hash;
+    if (previous && previous.view === 'moodboard' && next.view !== 'moodboard') {
+      closeMoodboardPresentation();
+      mb.cleanup();
+    }
     state.route = next;
 
     el.viewCustomers.hidden = next.view !== 'customers';
@@ -1828,7 +1833,10 @@ KK.app = (function () {
      then scrubs out of the address bar. */
 
   const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
-  const GOOGLE_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
+  const GOOGLE_SCOPE = [
+    'https://www.googleapis.com/auth/calendar.events',
+    'https://www.googleapis.com/auth/drive.file'
+  ].join(' ');
 
   /** Where Google sends the browser back to. Must match a redirect URI
       registered on the OAuth client, for localhost and for the live domain. */
@@ -2462,7 +2470,10 @@ KK.app = (function () {
 
   async function showMoodboard(orderId) {
     state.order = await db.getOrder(orderId);
-    state.customer = await db.getCustomer(state.order.customer_id);
+    [state.customer, state.customerOrders] = await Promise.all([
+      db.getCustomer(state.order.customer_id),
+      db.listOrders(state.order.customer_id)
+    ]);
 
     setChrome({
       title: 'Moodboard',
@@ -2471,6 +2482,8 @@ KK.app = (function () {
     });
     el.actionbar.hidden = true;
     setSaveBar(false);
+    closeMoodboardPresentation();
+    $('#mbRotateHint').hidden = true;
 
     mb.init({
       orderId: state.order.id,
@@ -2487,8 +2500,9 @@ KK.app = (function () {
     const addMore = $('#mbAddMore');
     const randomize = $('#mbRandomize');
     const generate = $('#mbGenerate');
+    const download = $('#mbDownload');
+    const rotateContinue = $('#mbRotateContinue');
     const thumbs = $('#mbThumbs');
-    const variations = $('#mbVariations');
 
     dropzone.addEventListener('click', function (e) {
       if (e.target.closest('.mb-thumb__remove') || e.target.closest('.mb-thumb')) return;
@@ -2497,10 +2511,9 @@ KK.app = (function () {
 
     addMore.addEventListener('click', function () { fileInput.click(); });
 
-    fileInput.addEventListener('change', function () {
-      if (fileInput.files.length) mb.addFiles(fileInput.files);
+    fileInput.addEventListener('change', async function () {
+      if (fileInput.files.length) await addMoodboardFiles(fileInput.files);
       fileInput.value = '';
-      refreshMoodboardPreview();
     });
 
     dropzone.addEventListener('dragover', function (e) {
@@ -2510,69 +2523,141 @@ KK.app = (function () {
     dropzone.addEventListener('dragleave', function () {
       dropzone.classList.remove('is-over');
     });
-    dropzone.addEventListener('drop', function (e) {
+    dropzone.addEventListener('drop', async function (e) {
       e.preventDefault();
       dropzone.classList.remove('is-over');
-      if (e.dataTransfer.files.length) mb.addFiles(e.dataTransfer.files);
-      refreshMoodboardPreview();
+      if (e.dataTransfer.files.length) await addMoodboardFiles(e.dataTransfer.files);
     });
 
     thumbs.addEventListener('click', function (e) {
       const btn = e.target.closest('.mb-thumb__remove');
       if (!btn) return;
       mb.removeImage(Number(btn.dataset.i));
-      refreshMoodboardPreview();
-    });
-
-    variations.addEventListener('click', function (e) {
-      const btn = e.target.closest('.mb-var-btn');
-      if (!btn) return;
-      mb.setVariation(btn.dataset.var);
-      refreshMoodboardPreview();
     });
 
     randomize.addEventListener('click', function () {
-      mb.shuffleImages();
-      refreshMoodboardPreview();
+      mb.randomize();
+      renderMoodboardPresentation();
     });
 
-    generate.addEventListener('click', doGenerateMoodboard);
+    generate.addEventListener('click', openMoodboardPresentation);
+    rotateContinue.addEventListener('click', continueToMoodboard);
+    download.addEventListener('click', downloadMoodboard);
   }
 
-  function refreshMoodboardPreview() {
-    const previewInner = $('#mbPreviewInner');
-    if (!previewInner) return;
+  async function addMoodboardFiles(files) {
+    const result = await mb.addFiles(files);
+    if (result.rejected) {
+      showToast(result.rejected === 1
+        ? 'One image could not be opened and was skipped'
+        : result.rejected + ' images could not be opened and were skipped');
+    }
+  }
 
-    const stageEl = $('#moodboardStage');
-    if (!stageEl) return;
+  function isPhone() {
+    return window.matchMedia('(pointer: coarse)').matches &&
+      Math.min(window.screen.width || innerWidth, window.screen.height || innerHeight) <= 820;
+  }
 
-    const rect = previewInner.getBoundingClientRect();
-    const scale = rect.width / 1920;
-    previewInner.innerHTML = '';
+  function isPortrait() {
+    return window.innerHeight > window.innerWidth;
+  }
 
+  async function requestLandscapeMode() {
+    const root = document.documentElement;
+    try {
+      if (!document.fullscreenElement && root.requestFullscreen) {
+        await root.requestFullscreen();
+      }
+      if (screen.orientation && screen.orientation.lock) {
+        await screen.orientation.lock('landscape');
+      }
+    } catch (_) { /* iOS and some browsers require the user to rotate manually */ }
+  }
+
+  async function openMoodboardPresentation() {
+    if (!mb.images.length) return;
+    if (isPhone() && isPortrait()) {
+      $('#mbRotateHint').hidden = false;
+      return;
+    }
+    if (isPhone()) await requestLandscapeMode();
+    enterMoodboardPresentation();
+  }
+
+  async function continueToMoodboard() {
+    await requestLandscapeMode();
+
+    if (isPhone() && isPortrait()) {
+      $('.mb-rotate__text', $('#mbRotateHint')).textContent =
+        'Rotate your phone sideways, then tap Continue again.';
+      return;
+    }
+    enterMoodboardPresentation();
+  }
+
+  function enterMoodboardPresentation() {
+    $('#mbRotateHint').hidden = true;
+    $('#mbPresentation').hidden = false;
+    document.body.classList.add('moodboard-presenting');
+    requestAnimationFrame(renderMoodboardPresentation);
+  }
+
+  function renderMoodboardPresentation() {
+    const presentation = $('#mbPresentation');
+    const canvas = $('#mbPresentationCanvas');
+    const stageEl = mb.stage;
+    if (!presentation || presentation.hidden || !canvas || !stageEl) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const scale = Math.min(rect.width / 1920, rect.height / 1080);
     const clone = stageEl.cloneNode(true);
-    clone.style.cssText =
-      'position:absolute;left:0;top:0;width:1920px;height:1080px;' +
-      'transform:scale(' + scale + ');transform-origin:0 0;pointer-events:none;';
+    clone.querySelectorAll('[id]').forEach((node) => node.removeAttribute('id'));
     clone.removeAttribute('id');
-    previewInner.appendChild(clone);
+    clone.style.cssText =
+      'position:absolute;left:50%;top:50%;width:1920px;height:1080px;' +
+      'transform:translate(-50%,-50%) scale(' + scale + ');' +
+      'transform-origin:50% 50%;pointer-events:none;';
+    canvas.replaceChildren(clone);
   }
 
-  async function doGenerateMoodboard() {
-    const btn = $('#mbGenerate');
+  function closeMoodboardPresentation() {
+    const presentation = $('#mbPresentation');
+    if (presentation) presentation.hidden = true;
+    const canvas = $('#mbPresentationCanvas');
+    if (canvas) canvas.replaceChildren();
+    const hint = $('#mbRotateHint');
+    if (hint) hint.hidden = true;
+    document.body.classList.remove('moodboard-presenting');
+    if (screen.orientation && screen.orientation.unlock) {
+      try { screen.orientation.unlock(); } catch (_) { /* unsupported */ }
+    }
+    if (document.fullscreenElement && document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    }
+  }
+
+  async function downloadMoodboard() {
+    const btn = $('#mbDownload');
+    let downloaded = false;
+    let driveCopied = false;
     btn.disabled = true;
     btn.classList.add('is-busy');
-    $('.btn__label', btn).textContent = 'Generating…';
+    $('.btn__label', btn).textContent = 'Preparing PDF…';
 
     try {
       const pdf = await mb.generatePDF();
+      const fileName = mb.buildFilename(new Date());
 
-      $('.btn__label', btn).textContent = 'Uploading to Drive…';
+      /* The browser download is the primary action. Drive receives a copy only
+         after that action has been triggered, and gets the exact same bytes. */
+      pdf.save(fileName);
+      downloaded = true;
+
+      $('.btn__label', btn).textContent = 'Saving copy…';
       const pdfBase64 = mb.pdfToBase64(pdf);
-      const docName = state.order.doc_name || state.customer.name || '';
-      const result = await db.driveSaveMoodboardPdf(docName, pdfBase64);
-
-      pdf.save(mb.buildFilename());
+      const result = await db.driveSaveMoodboardPdf(fileName, pdfBase64);
+      driveCopied = true;
 
       await db.logMoodboard(state.order.id, result.drive_link);
       await db.logOrderHistory(state.order.id, 'moodboard_generated', {
@@ -2580,7 +2665,7 @@ KK.app = (function () {
         file_name: result.file_name
       });
 
-      await db.updateCustomer(state.customer.id, {
+      state.customer = await db.updateCustomer(state.customer.id, {
         moodboard_date: U.todayISO()
       });
 
@@ -2590,20 +2675,21 @@ KK.app = (function () {
         try { await db.syncFollowUp(state.customer.id); } catch (_) { /* best effort */ }
       }
 
-      if (mb.draftFolderId) {
-        try { await db.driveCleanupDraft(mb.draftFolderId); } catch (_) { /* best effort */ }
-      }
-
       mb.cleanup();
-      showToast('Moodboard saved to Google Drive');
+      closeMoodboardPresentation();
+      showToast('Moodboard downloaded and copied to Google Drive');
       go('#/order/' + state.order.id);
     } catch (err) {
       console.error(err);
-      showToast('Could not generate the moodboard — ' + (err.message || 'please try again'));
+      showToast(!downloaded
+        ? 'Could not generate the moodboard — ' + (err.message || 'please try again')
+        : driveCopied
+          ? 'PDF downloaded and copied, but its record could not be finished — ' + (err.message || 'please try again')
+          : 'PDF downloaded, but the Drive copy failed — ' + (err.message || 'please try again'));
     } finally {
       btn.disabled = false;
       btn.classList.remove('is-busy');
-      $('.btn__label', btn).textContent = 'Generate Moodboard';
+      $('.btn__label', btn).textContent = 'Download';
     }
   }
 
@@ -3085,8 +3171,12 @@ KK.app = (function () {
       }
     });
 
-    /* The bars change height with orientation, and with the download hint. */
-    window.addEventListener('resize', syncBottomBar);
+    /* The bars change height with orientation, and the moodboard presentation
+       follows a phone as soon as it is turned sideways. */
+    window.addEventListener('resize', function () {
+      syncBottomBar();
+      renderMoodboardPresentation();
+    });
 
     /* A reload is outside the router's reach, so it gets its own guard. */
     window.addEventListener('beforeunload', (e) => {

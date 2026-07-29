@@ -1,151 +1,130 @@
 # Moodboard Generator — Build Summary
 
-Status: **UI complete, backend not yet deployed.**
+Status: **UI and browser flow complete; backend deployment still required.**
 
-The moodboard generator lets stylists upload 1-16 images, arrange them in aesthetic 16:9 grids across 3 layout variations, preview live, generate a watermarked PDF, upload to Google Drive, and log everything in Supabase.
+The moodboard generator lets a stylist select 1–16 images, review the finished
+16:9 composition in a dedicated landscape presentation, randomize both its
+image order and layout, download a watermarked PDF, and archive a copy in
+Google Drive.
 
-Route: `#/order/:id/moodboard`, accessed via the **Create Moodboard** button on the order detail page.
+Route: `#/order/:id/moodboard`, opened with **Create Moodboard** on an order.
 
-## What was built
+## Current product flow
 
-### New files
+1. Select images. Each file is decoded and retained only as a browser object
+   URL. An image the browser cannot decode is skipped instead of appearing as a
+   broken tile. Source images are never uploaded to Drive.
+2. Press **Generate Moodboard**. There is no embedded preview in the upload
+   form. Desktop opens the presentation immediately; a portrait phone first
+   shows a rotate hint. Where supported, the app requests fullscreen and locks
+   the screen to landscape.
+3. The presentation fills the viewport and exposes exactly two actions:
+   **Randomize** and **Download**. Randomize changes both the photo order and
+   the layout variation in one press.
+4. Download generates the PDF and triggers the local browser download first.
+   Only then is the same PDF uploaded to Google Drive.
+5. A successful Drive archive writes the document/history rows, records the
+   moodboard date, recomputes the consultation follow-up, and returns to the
+   order.
 
-| File | Purpose |
-|---|---|
-| `moodboard.js` | IIFE module (`KK.moodboard`) — algorithmic grid layout engine, image management, off-screen stage rendering, watermark compositing, PDF generation |
-| `supabase/functions/google-drive/index.ts` | Edge function for Google Drive uploads — mirrors the `google-calendar` auth pattern (reads refresh token from `google_credentials`, mints fresh access token per invocation) |
+Every PDF filename includes a local timestamp down to milliseconds:
 
-### Modified files
+`Moodboard-KelakKembali-{DocName}-{YYYY-MM-DD-HHmmss-SSS}.pdf`
 
-| File | What changed |
-|---|---|
-| `index.html` | Added `#viewMoodboard` section (dropzone, preview, controls, generate button) + off-screen `.mb` stage template (1920x1080, header with logo + customer name, grid area) |
-| `styles.css` | Added Part 4: Moodboard generator CSS — dropzone, thumbnails (72px squares, hover-reveal remove button), preview (16:9 via `padding-bottom: 56.25%`), off-screen document styles, drive link in history |
-| `app.js` | Added `#/order/:id/moodboard` route, `showMoodboard()` handler, `setupMoodboardListeners()` (dropzone click/drag-drop, file input, thumbnail remove, variation toggle, randomize, generate), `refreshMoodboardPreview()` (clones off-screen stage at scale into preview container), `doGenerateMoodboard()` (PDF + Drive upload + logging + nudge compute + cleanup), `'moodboard_generated'` in `historyLabel()`, Drive link rendering in history |
-| `db.js` | Added `callDrive()`, `driveUploadDraftImages()`, `driveSaveMoodboardPdf()`, `driveCleanupDraft()`, `logMoodboard()`. Modified `listDocumentLog()` to select `drive_link` with graceful fallback (catches "column does not exist" error and retries without `drive_link`) |
-| `schema.sql` | Added migration block: widens `document_log.kind` constraint to include `'moodboard'`, adds `drive_link text` column, makes `total` nullable, widens `order_history.action` constraint to include `'moodboard_generated'` |
+The browser and Drive copy use the exact same filename and bytes.
 
 ## Architecture
 
-### Grid layout engine (`moodboard.js`)
+### Browser image cache (`moodboard.js`)
 
-The engine is **algorithmic**, not template-based. `computeGrid(count, variation)` returns an array of `{x, y, w, h}` cell positions for any image count 1-16.
+Images are represented as `{file, objectURL, id}`. `addFiles()` creates an
+object URL, loads it through an `Image` probe, and keeps it only after decoding
+succeeds. Removing an image, leaving the moodboard, or starting a fresh one
+revokes the corresponding URLs. There is deliberately no saved draft or edit
+flow; remaking a moodboard starts with a fresh upload.
 
-**Variation A (Balanced):** Finds the optimal cols/rows combination by minimizing aspect-ratio deviation from 16:9. Last row centers if it has fewer cells than the rows above.
+### Layout engine (`moodboard.js`)
 
-**Variation B (Highlight 1):** Hero image takes ~45% width on the LEFT, full height. Remaining images fill a grid on the right side.
+`computeGrid(count, variation)` produces `{x, y, w, h}` cells for 1–16 images.
 
-**Variation C (Highlight 2):** Same as B but hero on the RIGHT.
+- A — balanced rows and columns, selected by aspect-ratio fit.
+- B — a left-side hero with a supporting grid.
+- C — a right-side hero with a supporting grid.
 
-Edge cases: count=1 is full-bleed, count=2 is two equal columns.
+One image is full bleed. Two images receive a dedicated split. Randomize uses
+a non-identity image shuffle and always selects a different layout variation.
 
-Constants: `GRID_W=1856`, `GRID_H=960`, `GAP=12px`, `CONTENT_TOP=88px` (below header).
+The document stage is fixed at 1920×1080. Its content grid is 1856×960 with a
+12px gap and begins at y=88 below the branded header.
 
-### Rendering pipeline
+### Presentation (`app.js`, `styles.css`)
 
-1. Images managed as `{file, objectURL, id}` array in `moodboard.js`
-2. `renderPreview()` populates the off-screen `.mb-grid` with absolutely-positioned `.mb-cell` divs containing `<img>` tags with `object-fit: cover`
-3. `refreshMoodboardPreview()` in app.js clones `#moodboardStage` and scales it (via CSS transform) into the `#mbPreviewInner` container
-4. On generate: `html2canvas` at scale 3 captures the stage, watermark composited on top (same seeded-PRNG pattern as docs.js), placed into `jsPDF` landscape page as JPEG 0.95
+The source stage stays off-screen. The presentation clones it, strips IDs, and
+scales it with `contain` geometry into a fixed viewport layer. Resize and
+orientation changes redraw the clone. Phone detection is limited to coarse
+pointer devices with a short screen dimension of at most 820 CSS pixels.
 
-### Google Drive integration (`supabase/functions/google-drive/index.ts`)
+Because mobile Safari does not expose orientation locking, the prompt also
+works without the Screen Orientation API: rotate the device, then press
+**Continue** to open the presentation.
 
-Three actions:
+### PDF and Drive pipeline
 
-| Action | What it does |
-|---|---|
-| `upload_draft_images` | Creates temp folder `Moodboard Drafts/{customer}_{orderId}/`, uploads images |
-| `save_moodboard_pdf` | Writes PDF to `Kelak Kembali Moodboards/` archive folder, sets viewer permissions, returns `{drive_link, file_name}` |
-| `cleanup_draft` | Deletes the temp draft folder |
+`KK.moodboard.generatePDF()` waits for fonts and cached images, captures the
+stage with html2canvas at 3×, composites the deterministic watermark, and puts
+the JPEG onto a landscape PDF page with the same 16:9 ratio.
 
-Auth: reads `refresh_token` from `google_credentials` singleton table (same pattern as `google-calendar`), mints fresh access token per invocation. Uses multipart upload to Drive API.
+`downloadMoodboard()` then:
 
-PDF filename: `Moodboard-KelakKembali-{DocName}-{YYYY-MM-DD}.pdf`
+1. builds one timestamped filename;
+2. calls `pdf.save(filename)`;
+3. converts that PDF to base64;
+4. calls `db.driveSaveMoodboardPdf(filename, base64)`;
+5. logs the Drive link and history event;
+6. records `moodboard_date` and updates its follow-up.
 
-### Generate flow (`doGenerateMoodboard()` in app.js)
+If Drive fails after the browser download, the presentation stays open and the
+message explicitly says the PDF downloaded but its Drive copy failed.
 
-1. Generate PDF via `KK.moodboard.generatePDF()`
-2. Convert to base64, upload to Drive via `db.driveSaveMoodboardPdf()`
-3. Save PDF locally via `pdf.save()`
-4. Log to `document_log` (kind='moodboard', drive_link)
-5. Log to `order_history` (action='moodboard_generated')
-6. Update `customer.moodboard_date` to today
-7. Compute follow-up nudge, sync if applicable
-8. Clean up draft folder on Drive
-9. Navigate back to order detail page
+The `google-drive` Edge Function has one action:
 
-## Bug found and fixed during testing
+| Action | Payload | Result |
+|---|---|---|
+| `save_moodboard_pdf` | `{file_name, pdf_base64}` | Archives the PDF in `Kelak Kembali Moodboards/`, grants viewer access, and returns its Drive link |
 
-**Problem:** `gridEl` in `moodboard.js` was initialized via `$('#mbGrid')`, which resolves to `document.querySelector('#mbGrid')`. After `refreshMoodboardPreview()` clones the stage into the preview container, there are TWO elements with `id="mbGrid"` in the DOM — the clone comes first in DOM order. On subsequent `init()` calls, `$('#mbGrid')` returned the clone. When `refreshMoodboardPreview()` then destroyed and recreated the clone, `gridEl` pointed to a detached element, and all subsequent `renderPreview()` calls silently did nothing.
+The former draft-image upload and cleanup actions have been removed.
 
-**Fix:** Changed `init()` to scope the selectors through the stage element:
-```javascript
-stageEl = document.querySelector('.stage #moodboardStage');
-gridEl = stageEl ? stageEl.querySelector('#mbGrid') : null;
-headerNameEl = stageEl ? stageEl.querySelector('#mbHeaderName') : null;
-```
+## Database additions
 
-This ensures `gridEl` always references the original element in the off-screen `.stage` div, never a clone.
+The migration at the end of `schema.sql`:
 
-## What still needs to be done
+- permits `kind='moodboard'` in `document_log`;
+- adds nullable `document_log.drive_link`;
+- makes `document_log.total` nullable for a non-monetary document;
+- permits `action='moodboard_generated'` in `order_history`.
 
-### Must do (backend deployment)
+## Deployment
 
-1. **Run the schema migration on Supabase.** Open SQL Editor, paste and run the migration block at the end of `schema.sql` (the `alter table` statements for `document_log` and `order_history`). Until this runs, `listDocumentLog` falls back silently but logs a console error on each order page load.
+1. Re-run `schema.sql` in the Supabase SQL editor.
+2. Deploy the Drive function:
 
-2. **Deploy the google-drive edge function:**
    ```bash
    supabase functions deploy google-drive
    ```
 
-3. **Add `drive.file` scope to Google OAuth.** In the Google Cloud Console, add `https://www.googleapis.com/auth/drive.file` to the OAuth consent screen's scopes. This is in addition to the existing `calendar.events` scope.
+3. Add `https://www.googleapis.com/auth/drive.file` to the Google OAuth consent
+   scopes, alongside the existing Calendar scope.
+4. Ensure `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are configured as
+   Supabase secrets.
+5. Reconnect Google Calendar once so the stored refresh token receives the new
+   Drive permission.
 
-4. **Set the Google secrets for Drive** (if not already set for Calendar):
-   ```bash
-   supabase secrets set GOOGLE_CLIENT_ID=… GOOGLE_CLIENT_SECRET=…
-   ```
+## Verification checklist
 
-### Should verify after deployment
-
-- Full generate flow with real images (upload, PDF, Drive upload, logging)
-- Drive folder creation and permissions
-- `drive_link` column populates in `document_log` after migration
-- History section shows moodboard entries with clickable Drive links
-- Follow-up nudge computation after moodboard generation
-- `moodboard_date` updates on customer record
-
-### Known issues
-
-- **Console error on order page load:** `column document_log.drive_link does not exist` — this is expected until the schema migration runs. The fallback in `listDocumentLog` catches it and retries without `drive_link`. The error appears in the console but does not break functionality.
-- **Scroll behavior in the browser pane:** The Browser pane's native scroll action times out on this page. Use `javascript_tool` with `window.scrollBy()` or `element.scrollIntoView()` as workarounds when testing.
-
-## File reference
-
-```
-moodboard.js          — KK.moodboard IIFE module
-  init(opts)           — sets up DOM refs, resets state
-  addFiles(files)      — pushes images, renders preview + dropzone
-  removeImage(i)       — removes by index, revokes objectURL
-  shuffleImages()      — Fisher-Yates on display order
-  setVariation(v)      — 'A'|'B'|'C', re-renders grid
-  generatePDF()        — html2canvas + watermark + jsPDF → returns jsPDF doc
-  pdfToBase64(pdf)     — converts to base64 for Drive upload
-  buildFilename()      — returns formatted PDF filename
-  .images              — current image array (read-only property)
-  .variation           — current variation letter
-  .draftFolderId       — Drive folder ID for cleanup
-  .MAX_IMAGES          — 16
-
-app.js additions:
-  showMoodboard(id)    — route handler, loads order/customer, calls init
-  setupMoodboardListeners() — wires all UI event handlers
-  refreshMoodboardPreview() — clones stage into preview at scale
-  doGenerateMoodboard() — full generate + upload + log flow
-
-db.js additions:
-  callDrive(action, body)      — invokes google-drive edge function
-  driveUploadDraftImages(...)  — uploads images to temp Drive folder
-  driveSaveMoodboardPdf(...)   — uploads PDF to archive folder
-  driveCleanupDraft(folderId)  — deletes temp folder
-  logMoodboard(orderId, link)  — inserts document_log row
-```
+- Select supported images and confirm thumbnails remain local and intact.
+- Select an unsupported/corrupt image and confirm it is skipped with a message.
+- Generate on desktop and on portrait/landscape phones.
+- Confirm Randomize changes both arrangement and layout.
+- Confirm the local PDF download begins before the Drive request.
+- Confirm local and Drive filenames match and contain a millisecond timestamp.
+- Confirm the Drive history link and moodboard follow-up are recorded.
