@@ -229,7 +229,9 @@ KK.app = (function () {
     calcAddRow: $('#calcAddRow'),
     calcTotal: $('#calcTotal'),
     calcApply: $('#calcApply'),
-    calcBack: $('#calcBack')
+    calcBack: $('#calcBack'),
+    mbPresentation: $('#mbPresentation'),
+    mbPresentationClose: $('#mbPresentationClose')
   };
 
   const DOWNLOAD_BUTTONS = { quotation: el.downloadQuote, invoice: el.downloadInvoice };
@@ -276,6 +278,35 @@ KK.app = (function () {
       : (!el.savebar.hidden ? el.savebar : (!el.fittingJournalBar.hidden ? el.fittingJournalBar : null));
     document.documentElement.style.setProperty(
       '--bottombar-h', bar ? Math.round(bar.getBoundingClientRect().height) + 'px' : '0px');
+  }
+
+  /* iOS does not reliably resize fixed UI with its virtual keyboard. Publishing
+     the visual-viewport gap lets the thumb-zone bars stay above it instead. */
+  function syncVisualViewport() {
+    const vv = window.visualViewport;
+    const offset = vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
+    document.documentElement.style.setProperty('--keyboard-offset', Math.round(offset) + 'px');
+    syncBottomBar();
+  }
+
+  function keepFocusedControlVisible(target) {
+    if (!target.matches('input, select, textarea, button')) return;
+    requestAnimationFrame(() => setTimeout(() => {
+      if (document.activeElement === target) target.scrollIntoView({
+        block: 'center', inline: 'nearest',
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+      });
+    }, 80));
+  }
+
+  function trapModalFocus(event, modal) {
+    if (event.key !== 'Tab' || !modal || modal.hidden) return;
+    const focusable = Array.from(modal.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+      .filter((node) => !node.hidden && node.getClientRects().length);
+    if (!focusable.length) return;
+    const first = focusable[0], last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
   }
 
   /** Toggles the save bar independently of the view, so reading a customer
@@ -2522,6 +2553,7 @@ KK.app = (function () {
      when a draft ought to be forgotten. */
   const costCalcDrafts = new WeakMap();
   let calcTargetRow = null;
+  let calcFocusBeforeOpen = null;
 
   function snapshotCalcDraft() {
     if (!calcTargetRow) return;
@@ -2529,6 +2561,7 @@ KK.app = (function () {
   }
 
   function openCostCalc(itemRow) {
+    calcFocusBeforeOpen = document.activeElement;
     calcTargetRow = itemRow;
     const name = $('.js-name', itemRow).value.trim();
     el.calcItemLabel.textContent = name ? 'For "' + name + '"' : 'For this item';
@@ -2539,12 +2572,17 @@ KK.app = (function () {
     seed.forEach((cat) => addCalcRow(cat, false));
 
     el.calcSheet.hidden = false;
+    document.body.classList.add('has-app-modal');
+    requestAnimationFrame(() => $('.js-clabel', el.calcRowList)?.focus());
   }
 
   function closeCostCalc() {
     snapshotCalcDraft();
     el.calcSheet.hidden = true;
+    document.body.classList.remove('has-app-modal');
     calcTargetRow = null;
+    if (calcFocusBeforeOpen && document.contains(calcFocusBeforeOpen)) calcFocusBeforeOpen.focus();
+    calcFocusBeforeOpen = null;
   }
 
   function applyCostCalc() {
@@ -2562,6 +2600,7 @@ KK.app = (function () {
   let activeMoodboardOrderId = null;
   let moodboardView = null;
   let moodboardFilesBusy = false;
+  let moodboardFocusBeforeOpen = null;
 
   async function showMoodboard(orderId) {
     state.order = await db.getOrder(orderId);
@@ -2717,10 +2756,12 @@ KK.app = (function () {
   }
 
   function enterMoodboardPresentation() {
-    $('#mbPresentation').hidden = false;
+    moodboardFocusBeforeOpen = document.activeElement;
+    el.mbPresentation.hidden = false;
     document.body.classList.add('moodboard-presenting');
+    document.body.classList.add('has-app-modal');
     resetMoodboardView();
-    requestAnimationFrame(() => renderMoodboardPresentation(true));
+    requestAnimationFrame(() => { renderMoodboardPresentation(true); el.mbPresentationClose.focus(); });
   }
 
   function resetMoodboardView() {
@@ -2813,12 +2854,16 @@ KK.app = (function () {
   }
 
   function closeMoodboardPresentation() {
-    const presentation = $('#mbPresentation');
+    const presentation = el.mbPresentation;
+    const wasOpen = presentation && !presentation.hidden;
     if (presentation) presentation.hidden = true;
     const canvas = $('#mbPresentationCanvas');
     if (canvas) canvas.replaceChildren();
     document.body.classList.remove('moodboard-presenting');
+    document.body.classList.remove('has-app-modal');
     moodboardView = null;
+    if (wasOpen && moodboardFocusBeforeOpen && document.contains(moodboardFocusBeforeOpen)) moodboardFocusBeforeOpen.focus();
+    moodboardFocusBeforeOpen = null;
   }
 
   async function downloadMoodboard() {
@@ -3208,6 +3253,9 @@ KK.app = (function () {
     $('#createMoodboardBtn').addEventListener('click', function () {
       if (state.order) go('#/order/' + state.order.id + '/moodboard');
     });
+    el.mbPresentationClose.addEventListener('click', function () {
+      if (state.order) go('#/order/' + state.order.id + '/moodboard');
+    });
     el.logNewFittingBtn.addEventListener('click', function () {
       if (state.order) go('#/order/' + state.order.id + '/fitting/new');
     });
@@ -3362,8 +3410,20 @@ KK.app = (function () {
 
     /* Keep fixed bars and the zoomable moodboard fitted to the viewport. */
     window.addEventListener('resize', function () {
-      syncBottomBar();
+      syncVisualViewport();
       renderMoodboardPresentation();
+    });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', syncVisualViewport);
+      window.visualViewport.addEventListener('scroll', syncVisualViewport);
+    }
+    document.addEventListener('focusin', (e) => keepFocusedControlVisible(e.target));
+    document.addEventListener('keydown', (e) => {
+      trapModalFocus(e, el.calcSheet);
+      trapModalFocus(e, el.mbPresentation);
+      if (e.key !== 'Escape') return;
+      if (!el.calcSheet.hidden) { e.preventDefault(); closeCostCalc(); }
+      else if (!el.mbPresentation.hidden && state.order) { e.preventDefault(); go('#/order/' + state.order.id + '/moodboard'); }
     });
 
     /* A reload is outside the router's reach, so it gets its own guard. */

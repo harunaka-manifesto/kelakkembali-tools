@@ -520,7 +520,10 @@
       <span class="spinner" aria-hidden="true"></span>
     </button>
 
-    <section class="mb-presentation" id="mbPresentation" aria-label="Moodboard preview" hidden>
+    <section class="mb-presentation" id="mbPresentation" aria-label="Moodboard preview" role="dialog" aria-modal="true" hidden>
+      <button type="button" class="mb-presentation__close" id="mbPresentationClose" aria-label="Close moodboard preview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
       <p class="mb-presentation__hint">Pinch, drag, or scroll to zoom</p>
       <div class="mb-presentation__canvas" id="mbPresentationCanvas"></div>
       <div class="mb-presentation__actions">
@@ -629,11 +632,11 @@
 <!-- Cost calculator: a scratchpad over the order editor, not a page. It never
      touches location.hash and writes to exactly one item's cost field on
      Apply — everything here is thrown away otherwise. -->
-<div class="calcsheet" id="calcSheet" hidden>
+<div class="calcsheet" id="calcSheet" role="dialog" aria-modal="true" aria-labelledby="calcSheetTitle" hidden>
   <div class="calcsheet__panel">
     <div class="calcsheet__head">
       <div class="calcsheet__headtext">
-        <h2 class="calcsheet__title">Cost breakdown</h2>
+        <h2 class="calcsheet__title" id="calcSheetTitle">Cost breakdown</h2>
         <p class="calcsheet__sub" id="calcItemLabel"></p>
       </div>
     </div>
