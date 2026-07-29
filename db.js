@@ -347,7 +347,29 @@ KK.db = (function () {
   /* ------------------------------ Fitting photos ------------------------- */
 
   const FITTING_PHOTO_FIELDS =
-    'id,order_id,stage,caption,drive_file_id,drive_link,position,created_at';
+    'id,order_id,session_id,stage,caption,drive_file_id,drive_link,position,created_at';
+
+  const FITTING_SESSION_FIELDS =
+    'id,order_id,stage,status,created_at,completed_at';
+
+  async function listFittingSessions(orderId) {
+    return unwrap(await init().from('fitting_sessions').select(FITTING_SESSION_FIELDS)
+      .eq('order_id', orderId).order('created_at', { ascending: false }));
+  }
+
+  async function getFittingSession(id) {
+    return unwrap(await init().from('fitting_sessions').select(FITTING_SESSION_FIELDS).eq('id', id).single());
+  }
+
+  async function createFittingSession(patch) {
+    return unwrap(await init().from('fitting_sessions').insert(patch)
+      .select(FITTING_SESSION_FIELDS).single());
+  }
+
+  async function updateFittingSession(id, patch) {
+    return unwrap(await init().from('fitting_sessions').update(patch).eq('id', id)
+      .select(FITTING_SESSION_FIELDS).single());
+  }
 
   async function listFittingPhotos(orderId) {
     return unwrap(await init().from('fitting_photos').select(FITTING_PHOTO_FIELDS)
@@ -477,6 +499,7 @@ KK.db = (function () {
     logDocument, listDocumentLog,
     logOrderHistory, listOrderHistory,
     listOrderEvents, listAllOrderEvents, replaceOrderEvents,
+    listFittingSessions, getFittingSession, createFittingSession, updateFittingSession,
     listFittingPhotos, createFittingPhoto, updateFittingPhoto, deleteFittingPhoto,
     listIntake, getIntake, resolveIntake,
     googleStatus, googleExchange, googleDisconnect, googleForget,

@@ -171,6 +171,9 @@ KK.app = (function () {
     scheduleList: $('#scheduleList'),
     syncCalendarBtn: $('#syncCalendarBtn'),
     scheduleSyncNote: $('#scheduleSyncNote'),
+    fittingHistoryCard: $('#fittingHistoryCard'),
+    fittingHistoryList: $('#fittingHistoryList'),
+    logNewFittingBtn: $('#logNewFittingBtn'),
 
     viewCalendar: $('#viewCalendar'),
     gcalState: $('#gcalState'),
@@ -189,7 +192,10 @@ KK.app = (function () {
     enquiryDismiss: $('#enquiryDismiss'),
 
     viewMoodboard: $('#viewMoodboard'),
-    viewFittings: $('#viewFittings'),
+    viewFittingJournal: $('#viewFittingJournal'),
+    fittingJournal: $('#fittingJournal'),
+    fittingJournalBar: $('#fittingJournalBar'),
+    fittingJournalAdd: $('#fittingJournalAdd'),
     viewOrderEdit: $('#viewOrderEdit'),
     oTitle: $('#oTitle'),
     oDocName: $('#oDocName'),
@@ -267,7 +273,7 @@ KK.app = (function () {
      differ in height, and the action bar grows when its hint shows. */
   function syncBottomBar() {
     const bar = !el.actionbar.hidden ? el.actionbar
-      : (!el.savebar.hidden ? el.savebar : null);
+      : (!el.savebar.hidden ? el.savebar : (!el.fittingJournalBar.hidden ? el.fittingJournalBar : null));
     document.documentElement.style.setProperty(
       '--bottombar-h', bar ? Math.round(bar.getBoundingClientRect().height) + 'px' : '0px');
   }
@@ -578,7 +584,9 @@ KK.app = (function () {
       return { view: 'moodboardPreview', id: parts[1], query };
     }
     if (parts[0] === 'order' && parts[1] && parts[2] === 'moodboard') return { view: 'moodboard', id: parts[1], query };
-    if (parts[0] === 'order' && parts[1] && parts[2] === 'fittings') return { view: 'fittings', id: parts[1], query };
+    if (parts[0] === 'order' && parts[1] && parts[2] === 'fitting' && parts[3] === 'new') return { view: 'fittingNew', id: parts[1], query };
+    if (parts[0] === 'order' && parts[1] && parts[2] === 'fitting' && parts[3]) return { view: 'fittingJournal', id: parts[1], sessionId: parts[3], query };
+    if (parts[0] === 'order' && parts[1] && parts[2] === 'fittings') return { view: 'order', id: parts[1], query };
     if (parts[0] === 'order' && parts[1]) return { view: 'order', id: parts[1], query };
     if (parts[0] === 'calendar') return { view: 'calendar', query };
     if (parts[0] === 'enquiry' && parts[1]) return { view: 'enquiry', id: parts[1], query };
@@ -641,9 +649,14 @@ KK.app = (function () {
     el.viewOrder.hidden = next.view !== 'order';
     el.viewOrderEdit.hidden = next.view !== 'orderEdit';
     el.viewMoodboard.hidden = !isMoodboard;
-    el.viewFittings.hidden = next.view !== 'fittings';
+    el.viewFittingJournal.hidden = next.view !== 'fittingNew' && next.view !== 'fittingJournal';
+    el.fittingJournalBar.hidden = next.view !== 'fittingJournal' && next.view !== 'fittingNew';
+    document.body.classList.toggle('has-fitting-journal-bar', !el.fittingJournalBar.hidden);
     el.viewCalendar.hidden = next.view !== 'calendar';
     el.viewEnquiry.hidden = next.view !== 'enquiry';
+    if (previous && (previous.view === 'fittingNew' || previous.view === 'fittingJournal') &&
+        next.view !== 'fittingNew' && next.view !== 'fittingJournal') KK.fittings.closeCamera();
+    syncBottomBar();
     window.scrollTo(0, 0);
 
     const render = async () => {
@@ -652,7 +665,8 @@ KK.app = (function () {
       else if (next.view === 'orderEdit') await showOrderEdit(next.id);
       else if (next.view === 'moodboard') await showMoodboard(next.id);
       else if (next.view === 'moodboardPreview') await showMoodboardPreview(next.id);
-      else if (next.view === 'fittings') await showFittings(next.id);
+      else if (next.view === 'fittingNew') await showFittingNew(next.id);
+      else if (next.view === 'fittingJournal') await showFittingJournal(next.id, next.sessionId);
       else if (next.view === 'calendar') await showCalendarSettings();
       else if (next.view === 'enquiry') await showEnquiry(next.id);
       else await showOrder(next.id);
@@ -1606,21 +1620,58 @@ KK.app = (function () {
     setDirty(false);
     await refreshSchedule();
     await refreshHistory();
+    await refreshFittingHistory();
     syncBottomBar();
   }
 
-  async function showFittings(id) {
+  async function refreshFittingHistory() {
+    const result = await Promise.all([db.listFittingSessions(state.order.id), db.listFittingPhotos(state.order.id)]);
+    const hasHistory = result[0].length || result[1].length;
+    el.fittingHistoryCard.hidden = !hasHistory;
+    if (hasHistory) KK.fittings.renderHistoryList(el.fittingHistoryList, result[0], result[1], state.order.id);
+  }
+
+  async function showFittingNew(id) {
     state.order = await db.getOrder(id);
     state.customer = await db.getCustomer(state.order.customer_id);
-    const result = await Promise.all([db.listOrderEvents(id), db.listFittingPhotos(id)]);
+    const result = await Promise.all([db.listOrderEvents(id), db.listFittingSessions(id), db.listFittingPhotos(id)]);
+    const active = result[1].find((session) => session.status === 'active');
+    if (active) { go('#/order/' + id + '/fitting/' + active.id); return; }
+    const stages = result[0].filter((event) => cal.isProductionStage(event.stage));
+    if (!stages.length) {
+      el.fittingJournalBar.hidden = true;
+      document.body.classList.remove('has-fitting-journal-bar');
+      setChrome({ title: 'Fitting Journal', up: { label: orderLabel(state.order), hash: '#/order/' + id }, save: false, actions: false });
+      el.fittingJournal.innerHTML = '<section class="card"><h2 class="card__title">No fittings scheduled</h2><p class="card__hint">Save the order with production dates to begin a fitting journal.</p></section>';
+      return;
+    }
+    const begin = async (stage) => {
+      try {
+        const session = await db.createFittingSession({ order_id: id, stage: stage, status: 'active' });
+        setChrome({ title: stage, up: { label: orderLabel(state.order), hash: '#/order/' + id }, action: { label: 'Done', onClick: () => KK.fittings.endSession(session, () => go('#/order/' + id)) }, save: false, actions: false });
+        KK.fittings.renderJournal(el.fittingJournal, { order: state.order, customer: state.customer, session: session, photos: [], onToast: showToast });
+        KK.fittings.startSession(session, { order: state.order, customer: state.customer, photos: [] }, showToast);
+      } catch (err) { showToast(err.message || 'Could not start fitting session'); }
+    };
+    const stage = KK.fittings.detectStage(result[0]);
+    if (stage) await begin(stage); else KK.fittings.showStagePicker(result[0], begin);
+  }
+
+  async function showFittingJournal(id, sessionId) {
+    state.order = await db.getOrder(id);
+    state.customer = await db.getCustomer(state.order.customer_id);
+    const result = await Promise.all([db.getFittingSession(sessionId), db.listFittingPhotos(id)]);
+    const session = result[0], photos = result[1].filter((photo) => photo.session_id === session.id);
     setChrome({
-      title: 'Fitting Log',
+      title: session.stage,
       up: { label: orderLabel(state.order), hash: '#/order/' + id },
+      action: session.status === 'active' ? { label: 'Done', onClick: () => KK.fittings.endSession(session, () => go('#/order/' + id)) } : null,
       save: false, actions: false
     });
-    KK.fittings.render(el.viewFittings, {
-      order: state.order, customer: state.customer, events: result[0], photos: result[1], onToast: showToast
-    });
+    el.fittingJournalBar.hidden = session.status !== 'active';
+    document.body.classList.toggle('has-fitting-journal-bar', !el.fittingJournalBar.hidden);
+    syncBottomBar();
+    KK.fittings.renderJournal(el.fittingJournal, { order: state.order, customer: state.customer, session: session, photos: photos, onToast: showToast });
   }
 
   /* ------------------------------- Schedule ------------------------------- */
@@ -3141,9 +3192,10 @@ KK.app = (function () {
     $('#createMoodboardBtn').addEventListener('click', function () {
       if (state.order) go('#/order/' + state.order.id + '/moodboard');
     });
-    $('#fittingLogBtn').addEventListener('click', function () {
-      if (state.order) go('#/order/' + state.order.id + '/fittings');
+    el.logNewFittingBtn.addEventListener('click', function () {
+      if (state.order) go('#/order/' + state.order.id + '/fitting/new');
     });
+    el.fittingJournalAdd.addEventListener('click', () => KK.fittings.openCamera());
     KK.fittings.bindOverlays();
     setupMoodboardListeners();
 

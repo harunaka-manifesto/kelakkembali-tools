@@ -703,3 +703,30 @@ alter table public.fitting_photos enable row level security;
 drop policy if exists "signed-in full access" on public.fitting_photos;
 create policy "signed-in full access" on public.fitting_photos
   for all to authenticated using (true) with check (true);
+
+-- Fitting photos predate sessions, so session_id stays nullable.  Removing a
+-- session never removes the journal entries it collected.
+create table if not exists public.fitting_sessions (
+  id           uuid primary key default gen_random_uuid(),
+  order_id     uuid not null references public.orders (id) on delete cascade,
+  stage        text not null check (stage in (
+               'Body measurements', 'Fitting 1', 'Fitting 2', 'Fitting 3',
+               'Final fitting')),
+  status       text not null default 'active' check (status in ('active', 'completed')),
+  created_at   timestamptz not null default now(),
+  completed_at timestamptz
+);
+
+create index if not exists fitting_sessions_order_created_idx
+  on public.fitting_sessions (order_id, created_at desc);
+
+alter table public.fitting_sessions enable row level security;
+drop policy if exists "signed-in full access" on public.fitting_sessions;
+create policy "signed-in full access" on public.fitting_sessions
+  for all to authenticated using (true) with check (true);
+
+alter table public.fitting_photos
+  add column if not exists session_id uuid references public.fitting_sessions (id) on delete set null;
+
+create index if not exists fitting_photos_session_position_idx
+  on public.fitting_photos (session_id, position);

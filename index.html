@@ -434,8 +434,12 @@
     <button type="button" class="btn btn--outline btn--block" id="createMoodboardBtn">
       Create Moodboard
     </button>
-    <button type="button" class="btn btn--outline btn--block" id="fittingLogBtn">
-      Fitting Log
+    <section class="card" id="fittingHistoryCard" hidden>
+      <div class="card__head"><h2 class="card__title">Fitting History</h2></div>
+      <div id="fittingHistoryList"></div>
+    </section>
+    <button type="button" class="btn btn--outline btn--block" id="logNewFittingBtn">
+      Log New Fitting
     </button>
 
     <details class="card card--fold">
@@ -530,8 +534,8 @@
   </section>
 
   <!-- ------------------------------ Fitting log --------------------------- -->
-  <section class="view" id="viewFittings" hidden>
-    <div id="fittingsTimeline"></div>
+  <section class="view" id="viewFittingJournal" hidden>
+    <div id="fittingJournal"></div>
   </section>
 
   <!-- ---------------------------- Enquiry review --------------------------- -->
@@ -583,28 +587,33 @@
   </div>
 </div>
 
-<!-- Fitting capture and detail overlays stay outside the page flow. -->
-<section class="fitting-caption-sheet" id="fittingCaptionSheet" hidden aria-label="Caption fitting photo" role="dialog" aria-modal="true">
-  <div class="fitting-caption-sheet__preview"><img id="fittingCaptionPreview" alt="Selected fitting photo"></div>
-  <div class="fitting-caption-sheet__form">
-    <label class="field__label" for="fittingCaption">Revision note</label>
-    <input id="fittingCaption" type="text" placeholder="What changed?" enterkeyhint="done" autocomplete="off">
-    <div class="fitting-caption-sheet__actions">
-      <button type="button" class="btn btn--outline" id="fittingCaptionCancel">Cancel</button>
-      <button type="button" class="btn btn--primary" id="fittingCaptionSave">Save</button>
-    </div>
+<!-- Fitting journal overlays stay outside the page flow. -->
+<section class="fitting-camera" id="fittingCamera" hidden aria-label="Take fitting photo" role="dialog" aria-modal="true">
+  <video id="fittingCameraVideo" autoplay playsinline muted></video>
+  <button type="button" class="fitting-camera__close" id="fittingCameraClose" aria-label="Close camera">×</button>
+  <div class="fitting-camera__controls">
+    <button type="button" class="fitting-camera__button" id="fittingGallery" aria-label="Choose from gallery">▧</button>
+    <button type="button" class="fitting-camera__shutter" id="fittingShutter" aria-label="Take photo"></button>
+    <button type="button" class="fitting-camera__button" id="fittingFlip" aria-label="Flip camera">↻</button>
   </div>
+  <input id="fittingFileInput" type="file" accept="image/*" hidden>
 </section>
 
-<section class="fitting-detail" id="fittingDetail" hidden aria-label="Fitting photo" role="dialog" aria-modal="true">
-  <button type="button" class="fitting-detail__close" id="fittingDetailClose" aria-label="Close photo">×</button>
-  <div class="fitting-detail__image"><img id="fittingDetailImage" alt=""></div>
-  <p class="fitting-detail__caption" id="fittingDetailCaption"></p>
-  <div class="fitting-detail__actions">
-    <button type="button" class="btn btn--outline" id="fittingDetailShare">Share</button>
-    <button type="button" class="btn btn--danger" id="fittingDetailDelete">Delete</button>
-  </div>
+<section class="fitting-confirm" id="fittingConfirm" hidden aria-label="Confirm fitting photo" role="dialog" aria-modal="true">
+  <img id="fittingConfirmPreview" alt="Captured fitting photo">
+  <div class="fitting-confirm__actions"><button type="button" class="btn btn--outline" id="fittingRetake">Retake</button><button type="button" class="btn btn--primary" id="fittingUsePhoto">Use Photo</button></div>
 </section>
+
+<section class="fitting-caption-step" id="fittingCaptionStep" hidden aria-label="Caption fitting photo" role="dialog" aria-modal="true">
+  <div class="fitting-caption-step__preview"><img id="fittingCaptionPreview" alt="Selected fitting photo"></div>
+  <div class="fitting-caption-step__form"><label class="field__label" for="fittingCaption">Revision note</label><textarea class="input" id="fittingCaption" rows="1" placeholder="What changed?" enterkeyhint="done"></textarea><div class="fitting-caption-step__actions"><button type="button" class="btn btn--outline" id="fittingCaptionCancel">Cancel</button><button type="button" class="btn btn--primary" id="fittingCaptionSave">Save</button></div></div>
+</section>
+
+<section class="fitting-picker" id="fittingPicker" hidden aria-label="Choose fitting stage" role="dialog" aria-modal="true"><div class="fitting-picker__backdrop"></div><div class="fitting-picker__sheet"><h2 class="card__title">Which fitting is this?</h2><div id="fittingPickerOptions"></div><button type="button" class="btn btn--outline btn--block" id="fittingPickerCancel">Cancel</button></div></section>
+
+<section class="fitting-edit-sheet" id="fittingEditSheet" hidden aria-label="Edit fitting photo" role="dialog" aria-modal="true"><div class="fitting-edit-sheet__backdrop"></div><div class="fitting-edit-sheet__sheet"><button type="button" class="btn btn--outline btn--block" id="fittingEditCaption">Edit caption</button><button type="button" class="btn btn--outline btn--block" id="fittingRetakePhoto">Retake photo</button><button type="button" class="btn btn--danger btn--block" id="fittingDeletePhoto">Delete</button><button type="button" class="btn btn--outline btn--block" id="fittingEditCancel">Cancel</button></div></section>
+
+<div class="fitting-journal__bar" id="fittingJournalBar" hidden><div class="fitting-journal__bar-inner"><button type="button" class="btn btn--primary btn--block" id="fittingJournalAdd">Add Photo</button></div></div>
 
 <!-- Editing views only. Save is the primary action, so it sits in the thumb
      zone rather than in the top-right corner of the app bar. -->
