@@ -189,7 +189,6 @@ KK.app = (function () {
     enquiryDismiss: $('#enquiryDismiss'),
 
     viewMoodboard: $('#viewMoodboard'),
-    mbLandscape: $('#mbLandscape'),
     viewOrderEdit: $('#viewOrderEdit'),
     oTitle: $('#oTitle'),
     oDocName: $('#oDocName'),
@@ -631,7 +630,6 @@ KK.app = (function () {
     el.viewMoodboard.hidden = next.view !== 'moodboard';
     el.viewCalendar.hidden = next.view !== 'calendar';
     el.viewEnquiry.hidden = next.view !== 'enquiry';
-    if (next.view !== 'moodboard') exitMoodboardView();
     window.scrollTo(0, 0);
 
     const render = async () => {
@@ -2484,11 +2482,13 @@ KK.app = (function () {
   }
 
   function setupMoodboardListeners() {
-    var dropzone = $('#mbDropzone');
-    var fileInput = $('#mbFileInput');
-    var addMore = $('#mbAddMore');
-    var thumbs = $('#mbThumbs');
-    var createBtn = $('#mbCreate');
+    const dropzone = $('#mbDropzone');
+    const fileInput = $('#mbFileInput');
+    const addMore = $('#mbAddMore');
+    const randomize = $('#mbRandomize');
+    const generate = $('#mbGenerate');
+    const thumbs = $('#mbThumbs');
+    const variations = $('#mbVariations');
 
     dropzone.addEventListener('click', function (e) {
       if (e.target.closest('.mb-thumb__remove') || e.target.closest('.mb-thumb')) return;
@@ -2500,6 +2500,7 @@ KK.app = (function () {
     fileInput.addEventListener('change', function () {
       if (fileInput.files.length) mb.addFiles(fileInput.files);
       fileInput.value = '';
+      refreshMoodboardPreview();
     });
 
     dropzone.addEventListener('dragover', function (e) {
@@ -2513,107 +2514,65 @@ KK.app = (function () {
       e.preventDefault();
       dropzone.classList.remove('is-over');
       if (e.dataTransfer.files.length) mb.addFiles(e.dataTransfer.files);
+      refreshMoodboardPreview();
     });
 
     thumbs.addEventListener('click', function (e) {
-      var btn = e.target.closest('.mb-thumb__remove');
+      const btn = e.target.closest('.mb-thumb__remove');
       if (!btn) return;
       mb.removeImage(Number(btn.dataset.i));
+      refreshMoodboardPreview();
     });
 
-    createBtn.addEventListener('click', enterMoodboardView);
-    $('#mbBack').addEventListener('click', exitMoodboardView);
-    $('#mbLandscapeRandomize').addEventListener('click', function () {
-      mb.randomize();
-      renderMoodboardLandscape();
+    variations.addEventListener('click', function (e) {
+      const btn = e.target.closest('.mb-var-btn');
+      if (!btn) return;
+      mb.setVariation(btn.dataset.var);
+      refreshMoodboardPreview();
     });
-    $('#mbLandscapeDownload').addEventListener('click', doDownloadMoodboard);
+
+    randomize.addEventListener('click', function () {
+      mb.shuffleImages();
+      refreshMoodboardPreview();
+    });
+
+    generate.addEventListener('click', doGenerateMoodboard);
   }
 
-  /* ---- Landscape moodboard overlay ---- */
+  function refreshMoodboardPreview() {
+    const previewInner = $('#mbPreviewInner');
+    if (!previewInner) return;
 
-  function isMobile() {
-    return 'ontouchstart' in window || window.innerWidth <= 768;
-  }
-
-  function isLandscape() {
-    return window.innerWidth > window.innerHeight;
-  }
-
-  function handleMbOrientation() {
-    if (el.mbLandscape.hidden) return;
-    var hint = $('#mbRotateHint');
-    var view = $('#mbLandscapeView');
-    if (isMobile() && !isLandscape()) {
-      hint.hidden = false;
-      view.hidden = true;
-    } else {
-      hint.hidden = true;
-      view.hidden = false;
-      renderMoodboardLandscape();
-    }
-  }
-
-  function enterMoodboardView() {
-    if (mb.images.length === 0) return;
-    mb.randomize();
-    el.mbLandscape.hidden = false;
-    document.body.style.overflow = 'hidden';
-    handleMbOrientation();
-    window.addEventListener('resize', handleMbOrientation);
-  }
-
-  function exitMoodboardView() {
-    el.mbLandscape.hidden = true;
-    document.body.style.overflow = '';
-    window.removeEventListener('resize', handleMbOrientation);
-  }
-
-  function renderMoodboardLandscape() {
-    var canvas = $('#mbLandscapeCanvas');
-    if (!canvas) return;
-    var stageEl = document.querySelector('.stage #moodboardStage');
+    const stageEl = $('#moodboardStage');
     if (!stageEl) return;
 
-    mb.renderPreview();
+    const rect = previewInner.getBoundingClientRect();
+    const scale = rect.width / 1920;
+    previewInner.innerHTML = '';
 
-    var rect = canvas.getBoundingClientRect();
-    var scale = Math.min(rect.width / 1920, rect.height / 1080);
-
-    canvas.innerHTML = '';
-    var clone = stageEl.cloneNode(true);
-    clone.removeAttribute('id');
+    const clone = stageEl.cloneNode(true);
     clone.style.cssText =
-      'position:absolute;left:50%;top:50%;width:1920px;height:1080px;' +
-      'transform:translate(-50%,-50%) scale(' + scale + ');transform-origin:center center;' +
-      'pointer-events:none;';
-    canvas.appendChild(clone);
+      'position:absolute;left:0;top:0;width:1920px;height:1080px;' +
+      'transform:scale(' + scale + ');transform-origin:0 0;pointer-events:none;';
+    clone.removeAttribute('id');
+    previewInner.appendChild(clone);
   }
 
-  async function doDownloadMoodboard() {
-    var btn = $('#mbLandscapeDownload');
+  async function doGenerateMoodboard() {
+    const btn = $('#mbGenerate');
     btn.disabled = true;
     btn.classList.add('is-busy');
     $('.btn__label', btn).textContent = 'Generating…';
 
-    var pdf;
     try {
-      pdf = await mb.generatePDF();
-      pdf.save(mb.buildFilename());
-    } catch (err) {
-      console.error(err);
-      showToast('Could not generate — ' + (err.message || 'please try again'));
-      btn.disabled = false;
-      btn.classList.remove('is-busy');
-      $('.btn__label', btn).textContent = 'Download';
-      return;
-    }
+      const pdf = await mb.generatePDF();
 
-    try {
-      $('.btn__label', btn).textContent = 'Saving to Drive…';
-      var pdfBase64 = mb.pdfToBase64(pdf);
-      var fileName = mb.buildFilename();
-      var result = await db.driveSaveMoodboardPdf(fileName, pdfBase64);
+      $('.btn__label', btn).textContent = 'Uploading to Drive…';
+      const pdfBase64 = mb.pdfToBase64(pdf);
+      const docName = state.order.doc_name || state.customer.name || '';
+      const result = await db.driveSaveMoodboardPdf(docName, pdfBase64);
+
+      pdf.save(mb.buildFilename());
 
       await db.logMoodboard(state.order.id, result.drive_link);
       await db.logOrderHistory(state.order.id, 'moodboard_generated', {
@@ -2625,21 +2584,27 @@ KK.app = (function () {
         moodboard_date: U.todayISO()
       });
 
-      var nudge = consultNudgeFor(state.customer, state.customerOrders, U.todayISO());
+      const nudge = consultNudgeFor(state.customer, state.customerOrders, U.todayISO());
       if (nudge) {
         await db.updateCustomer(state.customer.id, nudge);
-        try { await db.syncFollowUp(state.customer.id); } catch (_) {}
+        try { await db.syncFollowUp(state.customer.id); } catch (_) { /* best effort */ }
       }
 
-      showToast('Saved to Google Drive');
+      if (mb.draftFolderId) {
+        try { await db.driveCleanupDraft(mb.draftFolderId); } catch (_) { /* best effort */ }
+      }
+
+      mb.cleanup();
+      showToast('Moodboard saved to Google Drive');
+      go('#/order/' + state.order.id);
     } catch (err) {
       console.error(err);
-      showToast('Downloaded, but could not save to Drive');
+      showToast('Could not generate the moodboard — ' + (err.message || 'please try again'));
+    } finally {
+      btn.disabled = false;
+      btn.classList.remove('is-busy');
+      $('.btn__label', btn).textContent = 'Generate Moodboard';
     }
-
-    btn.disabled = false;
-    btn.classList.remove('is-busy');
-    $('.btn__label', btn).textContent = 'Download';
   }
 
   /* ------------------------------ PDF download ---------------------------- */

@@ -390,8 +390,14 @@ KK.db = (function () {
     return data;
   }
 
-  const driveSaveMoodboardPdf = (fileName, pdfBase64) =>
-    callDrive('save_moodboard_pdf', { file_name: fileName, pdf_base64: pdfBase64 });
+  const driveUploadDraftImages = (customerName, orderId, images) =>
+    callDrive('upload_draft_images', { customer_name: customerName, order_id: orderId, images: images });
+
+  const driveSaveMoodboardPdf = (docName, pdfBase64) =>
+    callDrive('save_moodboard_pdf', { doc_name: docName, pdf_base64: pdfBase64 });
+
+  const driveCleanupDraft = (folderId) =>
+    callDrive('cleanup_draft', { folder_id: folderId });
 
   async function logMoodboard(orderId, driveLink) {
     unwrap(await init()
@@ -450,6 +456,6 @@ KK.db = (function () {
     listIntake, getIntake, resolveIntake,
     googleStatus, googleExchange, googleDisconnect, googleForget,
     syncOrderCalendar, syncFollowUp,
-    driveSaveMoodboardPdf, logMoodboard
+    driveUploadDraftImages, driveSaveMoodboardPdf, driveCleanupDraft, logMoodboard
   };
 })();
