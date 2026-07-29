@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <link rel="stylesheet" href="fonts.css">
+  <link rel="stylesheet" href="styles.css">
+  <title>UI audit harness</title>
+</head>
+<body class="has-savebar">
+  <div class="app">
+    <header class="appbar">
+      <div class="appbar__inner">
+        <a class="appbar__up" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 5l-7 7 7 7"/></svg><span class="appbar__up-label">Customers</span></a>
+        <a class="appbar__icon" href="#" aria-label="All customers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 11l9-8 9 8v10H3z"/></svg></a>
+        <button class="appbar__icon" aria-label="More actions"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></button>
+      </div>
+    </header>
+    <main class="page">
+      <div class="pagehead"><div class="pagehead__text"><h1 class="pagehead__title">New customer with a long name</h1><p class="pagehead__sub">Active · Wedding 24 Aug 2026</p></div><button class="btn btn--outline btn--sm">Cancel</button></div>
+      <section class="view">
+        <section class="card">
+          <h2 class="card__title">Customer details</h2>
+          <label class="field"><span class="field__label">Name</span><input class="input" value="Nadia &amp; Rizky"></label>
+          <div class="grid2"><label class="field"><span class="field__label">Phone / WhatsApp</span><input class="input" value="+62 812 3456 7890"></label><label class="field"><span class="field__label">Instagram</span><input class="input" value="@nadiaandrizky"></label></div>
+          <div class="field"><span class="field__label">Wedding date</span><div class="segmented"><button class="segmented__btn is-on">Exact date</button><button class="segmented__btn">Month only</button></div><input class="input" type="date" value="2026-08-24"></div>
+          <label class="field"><span class="field__label">Notes</span><textarea class="input input--area" rows="3">Prefers a quiet fitting appointment in the afternoon.</textarea></label>
+        </section>
+        <section class="card"><div class="card__head"><h2 class="card__title">Orders</h2><span class="card__count">Rp28,500,000</span></div><a class="row row--kanban" href="#"><span class="row__main"><span class="row__title">Bride — reception look with a very long title</span><span class="row__meta">Kebaya, veil, reception dress</span></span><span class="row__side"><span class="row__amount">Rp28,500,000</span><span class="row__status row__status--active">Active</span></span></a></section>
+      </section>
+    </main>
+    <div class="savebar"><div class="savebar__inner"><button class="btn btn--primary">Save changes</button></div></div>
+  </div>
+</body>
+</html>

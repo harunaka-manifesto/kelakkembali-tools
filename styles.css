@@ -1621,8 +1621,8 @@ select.input {
 }
 
 .chip__remove {
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   flex: none;
   display: grid;
   place-items: center;
@@ -2596,14 +2596,14 @@ body:not(.has-actionbar):not(.has-savebar):not(.has-fitting-journal-bar) .toast 
   position: absolute;
   top: 2px;
   right: 2px;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border: none;
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.55);
   color: #fff;
   font-size: 14px;
-  line-height: 36px;
+  line-height: 44px;
   text-align: center;
   padding: 0;
   cursor: pointer;

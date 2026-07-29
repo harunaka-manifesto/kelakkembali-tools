@@ -3417,6 +3417,8 @@ KK.app = (function () {
       window.visualViewport.addEventListener('resize', syncVisualViewport);
       window.visualViewport.addEventListener('scroll', syncVisualViewport);
     }
+    window.addEventListener('offline', () => showToast("You're offline — changes won't save until you're back online"));
+    window.addEventListener('online', () => showToast("Back online"));
     document.addEventListener('focusin', (e) => keepFocusedControlVisible(e.target));
     document.addEventListener('keydown', (e) => {
       trapModalFocus(e, el.calcSheet);
