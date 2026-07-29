@@ -78,12 +78,13 @@ npx vercel deploy --prod
 | `util.js` | Formatting, escaping, the seeded-PRNG primitives |
 | `docs.js` | The document engine: fills both templates, exports the PDF |
 | `moodboard.js` | Browser-local image cache, 16:9 layout engine, and moodboard PDF renderer |
+| `fittings.js` | Photo-first fitting revision log, captions, local previews, and Drive backup |
 | `calendar.js` | The fitting schedule: places the appointments, draws the card |
 | `db.js` | Every Supabase call — auth and CRUD, nothing else touches the client |
 | `app.js` | Routing, views, form state, validation |
 | `schema.sql` | The migrations to run in the Supabase SQL editor |
 | `supabase/functions/google-calendar/` | Server-side: Google OAuth, fitting and follow-up calendar writes |
-| `supabase/functions/google-drive/` | Server-side: archives completed moodboard PDFs after download |
+| `supabase/functions/google-drive/` | Server-side: archives moodboard PDFs and fitting photos in Google Drive |
 | `supabase/functions/intake/` | Server-side: the public Tally webhook, HMAC-verified |
 | `serve.ps1` | Local static server, so testing needs nothing installed |
 | `assets/` | The two logo marks, exported from Figma at 4x |
@@ -334,10 +335,25 @@ collide:
 `Moodboard-KelakKembali-{DocName}-{YYYY-MM-DD-HHmmss-SSS}.pdf`
 
 The Drive function needs the additional OAuth scope
-`https://www.googleapis.com/auth/drive.file`. It exposes only
-`save_moodboard_pdf`; no draft image upload or cleanup endpoints exist. After
-adding the scope, reconnect Google once so the stored refresh token includes
-the new permission.
+`https://www.googleapis.com/auth/drive.file`. It exposes `save_moodboard_pdf`
+and `save_fitting_photo`; no cleanup endpoint exists. After adding the scope,
+reconnect Google once so the stored refresh token includes the new permission.
+
+## Fitting log
+
+Each scheduled production stage has a photo-first revision log. Select a photo
+from the native camera/library chooser, add an optional note, and it appears in
+the timeline immediately. The browser compresses it to a 1600px JPEG before a
+background archive upload to `Kelak Kembali Fittings/{customer}/{order}/{stage}`
+in Google Drive. A failed archive does not remove the log row; its captured
+photo remains available in the current browser session. Photos can be opened,
+shared as a Drive link, or removed from the app (the Drive copy is retained).
+
+After applying the SQL migration, deploy the updated Drive function:
+
+```bash
+supabase functions deploy google-drive
+```
 
 ## The watermark
 

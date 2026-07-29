@@ -5,11 +5,12 @@
  * per invocation. The scope needed is drive.file, which lets this app manage
  * only files it created — nothing else in the user's Drive is touched.
  *
- * One action:
+ * Actions:
  *
  *   save_moodboard_pdf   { file_name, pdf_base64 }
  *     -> writes the already-downloaded PDF to the archive folder and returns
  *        a shareable link. Source images never reach Drive.
+ *   save_fitting_photo  -> writes a compressed fitting photo by client/order/stage.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
@@ -19,6 +20,7 @@ const DRIVE_API        = 'https://www.googleapis.com/drive/v3';
 const DRIVE_UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3';
 
 const ARCHIVE_FOLDER_NAME = 'Kelak Kembali Moodboards';
+const FITTINGS_FOLDER_NAME = 'Kelak Kembali Fittings';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -118,7 +120,8 @@ async function driveRequest(
 }
 
 async function findOrCreateFolder(token: string, name: string, parentId?: string) {
-  const q = `mimeType='application/vnd.google-apps.folder' and name='${name}' and trashed=false` +
+  const quotedName = String(name).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  const q = `mimeType='application/vnd.google-apps.folder' and name='${quotedName}' and trashed=false` +
     (parentId ? ` and '${parentId}' in parents` : '');
 
   const existing = await driveRequest(token, '/files', 'GET', undefined, {
@@ -210,6 +213,34 @@ async function saveMoodboardPdf(
   };
 }
 
+async function saveFittingPhoto(
+  token: string,
+  imageBase64: string,
+  mimeType: string,
+  requestedName: string,
+  customerName: string,
+  orderTitle: string,
+  stage: string
+) {
+  const rootId = await findOrCreateFolder(token, FITTINGS_FOLDER_NAME);
+  const customerId = await findOrCreateFolder(token, String(customerName || 'Unnamed customer'), rootId);
+  const orderId = await findOrCreateFolder(token, String(orderTitle || 'Untitled order'), customerId);
+  const stageId = await findOrCreateFolder(token, String(stage || 'Fitting'), orderId);
+  const safeName = String(requestedName || 'fitting-photo.jpg')
+    .split(/[\\/]/).pop()!
+    .replace(/[^\p{L}\p{N} ._-]/gu, '')
+    .trim() || 'fitting-photo.jpg';
+  const raw = Uint8Array.from(atob(imageBase64), (c) => c.charCodeAt(0));
+  const file = await uploadFile(token, stageId, safeName, mimeType || 'image/jpeg', raw);
+
+  await setViewPermission(token, file.id);
+  return {
+    file_id: file.id,
+    drive_link: file.webViewLink,
+    thumb_link: `https://drive.google.com/thumbnail?id=${file.id}&sz=w400`
+  };
+}
+
 /* -------------------------------- Handler --------------------------------- */
 
 Deno.serve(async (req) => {
@@ -228,6 +259,15 @@ Deno.serve(async (req) => {
       const { file_name, pdf_base64 } = payload;
       if (!pdf_base64) throw new Told('pdf_base64 is required.');
       return json(await saveMoodboardPdf(token, file_name || '', pdf_base64));
+    }
+
+    if (action === 'save_fitting_photo') {
+      const { image_base64, mime_type, file_name, customer_name, order_title, stage } = payload;
+      if (!image_base64) throw new Told('image_base64 is required.');
+      if (!mime_type) throw new Told('mime_type is required.');
+      return json(await saveFittingPhoto(
+        token, image_base64, mime_type, file_name || '', customer_name || '', order_title || '', stage || ''
+      ));
     }
 
     throw new Told(`Unknown action: ${action}`);

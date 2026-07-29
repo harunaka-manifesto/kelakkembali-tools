@@ -189,6 +189,7 @@ KK.app = (function () {
     enquiryDismiss: $('#enquiryDismiss'),
 
     viewMoodboard: $('#viewMoodboard'),
+    viewFittings: $('#viewFittings'),
     viewOrderEdit: $('#viewOrderEdit'),
     oTitle: $('#oTitle'),
     oDocName: $('#oDocName'),
@@ -577,6 +578,7 @@ KK.app = (function () {
       return { view: 'moodboardPreview', id: parts[1], query };
     }
     if (parts[0] === 'order' && parts[1] && parts[2] === 'moodboard') return { view: 'moodboard', id: parts[1], query };
+    if (parts[0] === 'order' && parts[1] && parts[2] === 'fittings') return { view: 'fittings', id: parts[1], query };
     if (parts[0] === 'order' && parts[1]) return { view: 'order', id: parts[1], query };
     if (parts[0] === 'calendar') return { view: 'calendar', query };
     if (parts[0] === 'enquiry' && parts[1]) return { view: 'enquiry', id: parts[1], query };
@@ -639,6 +641,7 @@ KK.app = (function () {
     el.viewOrder.hidden = next.view !== 'order';
     el.viewOrderEdit.hidden = next.view !== 'orderEdit';
     el.viewMoodboard.hidden = !isMoodboard;
+    el.viewFittings.hidden = next.view !== 'fittings';
     el.viewCalendar.hidden = next.view !== 'calendar';
     el.viewEnquiry.hidden = next.view !== 'enquiry';
     window.scrollTo(0, 0);
@@ -649,6 +652,7 @@ KK.app = (function () {
       else if (next.view === 'orderEdit') await showOrderEdit(next.id);
       else if (next.view === 'moodboard') await showMoodboard(next.id);
       else if (next.view === 'moodboardPreview') await showMoodboardPreview(next.id);
+      else if (next.view === 'fittings') await showFittings(next.id);
       else if (next.view === 'calendar') await showCalendarSettings();
       else if (next.view === 'enquiry') await showEnquiry(next.id);
       else await showOrder(next.id);
@@ -1603,6 +1607,20 @@ KK.app = (function () {
     await refreshSchedule();
     await refreshHistory();
     syncBottomBar();
+  }
+
+  async function showFittings(id) {
+    state.order = await db.getOrder(id);
+    state.customer = await db.getCustomer(state.order.customer_id);
+    const result = await Promise.all([db.listOrderEvents(id), db.listFittingPhotos(id)]);
+    setChrome({
+      title: 'Fitting Log',
+      up: { label: orderLabel(state.order), hash: '#/order/' + id },
+      save: false, actions: false
+    });
+    KK.fittings.render(el.viewFittings, {
+      order: state.order, customer: state.customer, events: result[0], photos: result[1], onToast: showToast
+    });
   }
 
   /* ------------------------------- Schedule ------------------------------- */
@@ -3123,6 +3141,10 @@ KK.app = (function () {
     $('#createMoodboardBtn').addEventListener('click', function () {
       if (state.order) go('#/order/' + state.order.id + '/moodboard');
     });
+    $('#fittingLogBtn').addEventListener('click', function () {
+      if (state.order) go('#/order/' + state.order.id + '/fittings');
+    });
+    KK.fittings.bindOverlays();
     setupMoodboardListeners();
 
     /* -- calendar -- */

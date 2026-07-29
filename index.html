@@ -434,6 +434,9 @@
     <button type="button" class="btn btn--outline btn--block" id="createMoodboardBtn">
       Create Moodboard
     </button>
+    <button type="button" class="btn btn--outline btn--block" id="fittingLogBtn">
+      Fitting Log
+    </button>
 
     <details class="card card--fold">
       <summary class="card__title card__title--summary">History</summary>
@@ -526,6 +529,11 @@
     </section>
   </section>
 
+  <!-- ------------------------------ Fitting log --------------------------- -->
+  <section class="view" id="viewFittings" hidden>
+    <div id="fittingsTimeline"></div>
+  </section>
+
   <!-- ---------------------------- Enquiry review --------------------------- -->
   <section class="view" id="viewEnquiry" hidden>
     <section class="card">
@@ -574,6 +582,29 @@
     <p class="actionbar__note" id="downloadNote" hidden>Add an item to enable downloads.</p>
   </div>
 </div>
+
+<!-- Fitting capture and detail overlays stay outside the page flow. -->
+<section class="fitting-caption-sheet" id="fittingCaptionSheet" hidden aria-label="Caption fitting photo" role="dialog" aria-modal="true">
+  <div class="fitting-caption-sheet__preview"><img id="fittingCaptionPreview" alt="Selected fitting photo"></div>
+  <div class="fitting-caption-sheet__form">
+    <label class="field__label" for="fittingCaption">Revision note</label>
+    <input id="fittingCaption" type="text" placeholder="What changed?" enterkeyhint="done" autocomplete="off">
+    <div class="fitting-caption-sheet__actions">
+      <button type="button" class="btn btn--outline" id="fittingCaptionCancel">Cancel</button>
+      <button type="button" class="btn btn--primary" id="fittingCaptionSave">Save</button>
+    </div>
+  </div>
+</section>
+
+<section class="fitting-detail" id="fittingDetail" hidden aria-label="Fitting photo" role="dialog" aria-modal="true">
+  <button type="button" class="fitting-detail__close" id="fittingDetailClose" aria-label="Close photo">×</button>
+  <div class="fitting-detail__image"><img id="fittingDetailImage" alt=""></div>
+  <p class="fitting-detail__caption" id="fittingDetailCaption"></p>
+  <div class="fitting-detail__actions">
+    <button type="button" class="btn btn--outline" id="fittingDetailShare">Share</button>
+    <button type="button" class="btn btn--danger" id="fittingDetailDelete">Delete</button>
+  </div>
+</section>
 
 <!-- Editing views only. Save is the primary action, so it sits in the thumb
      zone rather than in the top-right corner of the app bar. -->
@@ -818,6 +849,7 @@
 <script src="util.js"></script>
 <script src="docs.js"></script>
 <script src="moodboard.js"></script>
+<script src="fittings.js"></script>
 <script src="db.js"></script>
 <script src="calendar.js"></script>
 <script src="app.js"></script>

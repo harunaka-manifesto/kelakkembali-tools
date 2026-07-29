@@ -344,6 +344,30 @@ KK.db = (function () {
     return { removed: removed, events: await listOrderEvents(orderId) };
   }
 
+  /* ------------------------------ Fitting photos ------------------------- */
+
+  const FITTING_PHOTO_FIELDS =
+    'id,order_id,stage,caption,drive_file_id,drive_link,position,created_at';
+
+  async function listFittingPhotos(orderId) {
+    return unwrap(await init().from('fitting_photos').select(FITTING_PHOTO_FIELDS)
+      .eq('order_id', orderId).order('position', { ascending: true }));
+  }
+
+  async function createFittingPhoto(patch) {
+    return unwrap(await init().from('fitting_photos').insert(patch)
+      .select(FITTING_PHOTO_FIELDS).single());
+  }
+
+  async function updateFittingPhoto(id, patch) {
+    return unwrap(await init().from('fitting_photos').update(patch).eq('id', id)
+      .select(FITTING_PHOTO_FIELDS).single());
+  }
+
+  async function deleteFittingPhoto(id) {
+    unwrap(await init().from('fitting_photos').delete().eq('id', id));
+  }
+
   /* Nothing here sets `pinned`. It is written by the google-calendar function,
      which is the only thing that can see a date having been changed in Google —
      the browser never talks to the calendar directly. */
@@ -392,6 +416,12 @@ KK.db = (function () {
 
   const driveSaveMoodboardPdf = (fileName, pdfBase64) =>
     callDrive('save_moodboard_pdf', { file_name: fileName, pdf_base64: pdfBase64 });
+
+  const driveSaveFittingPhoto = (imageBase64, mimeType, fileName, customerName, orderTitle, stage) =>
+    callDrive('save_fitting_photo', {
+      image_base64: imageBase64, mime_type: mimeType, file_name: fileName,
+      customer_name: customerName, order_title: orderTitle, stage: stage
+    });
 
   async function logMoodboard(orderId, driveLink) {
     unwrap(await init()
@@ -447,9 +477,10 @@ KK.db = (function () {
     logDocument, listDocumentLog,
     logOrderHistory, listOrderHistory,
     listOrderEvents, listAllOrderEvents, replaceOrderEvents,
+    listFittingPhotos, createFittingPhoto, updateFittingPhoto, deleteFittingPhoto,
     listIntake, getIntake, resolveIntake,
     googleStatus, googleExchange, googleDisconnect, googleForget,
     syncOrderCalendar, syncFollowUp,
-    driveSaveMoodboardPdf, logMoodboard
+    driveSaveMoodboardPdf, driveSaveFittingPhoto, logMoodboard
   };
 })();

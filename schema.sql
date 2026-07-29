@@ -673,3 +673,33 @@ alter table public.document_log alter column total drop not null;
 alter table public.order_history drop constraint if exists order_history_action_check;
 alter table public.order_history add constraint order_history_action_check
   check (action in ('created', 'updated', 'payment_logged', 'scheduled', 'calendar_synced', 'moodboard_generated'));
+
+
+-- =========================================================================
+-- Migration — fitting revisions log
+--
+-- Fitting photos deliberately point to a stage name rather than an
+-- order_events row: schedules are recalculated, while fitting notes must last.
+-- =========================================================================
+
+create table if not exists public.fitting_photos (
+  id            uuid primary key default gen_random_uuid(),
+  order_id      uuid not null references public.orders (id) on delete cascade,
+  stage         text not null check (stage in (
+                  'Body measurements', 'Fitting 1', 'Fitting 2', 'Fitting 3',
+                  'Final fitting')),
+  caption       text,
+  drive_file_id text,
+  drive_link    text,
+  position      smallint not null default 0,
+  created_at    timestamptz not null default now()
+);
+
+create index if not exists fitting_photos_order_stage_idx
+  on public.fitting_photos (order_id, stage, position);
+
+alter table public.fitting_photos enable row level security;
+
+drop policy if exists "signed-in full access" on public.fitting_photos;
+create policy "signed-in full access" on public.fitting_photos
+  for all to authenticated using (true) with check (true);
