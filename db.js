@@ -230,11 +230,19 @@ KK.db = (function () {
   }
 
   async function listDocumentLog(orderId) {
-    return unwrap(await init()
+    const res = await init()
       .from('document_log')
-      .select('id,kind,total,created_at')
+      .select('id,kind,total,drive_link,created_at')
       .eq('order_id', orderId)
-      .order('created_at', { ascending: false }));
+      .order('created_at', { ascending: false });
+    if (res.error && /drive_link/.test(res.error.message)) {
+      return unwrap(await init()
+        .from('document_log')
+        .select('id,kind,total,created_at')
+        .eq('order_id', orderId)
+        .order('created_at', { ascending: false }));
+    }
+    return unwrap(res);
   }
 
   /* ------------------------------ Order history ---------------------------- */
@@ -365,6 +373,39 @@ KK.db = (function () {
     return data;
   }
 
+  /* ------------------------------ Google Drive ------------------------------ */
+
+  async function callDrive(action, payload) {
+    const c = init();
+    if (!c) throw new Error('Supabase is not configured — see config.js');
+    const { data, error } = await c.functions.invoke('google-drive', {
+      body: Object.assign({ action: action }, payload || {})
+    });
+    if (error) {
+      let detail = '';
+      try { detail = (await error.context.json()).error || ''; } catch (e) { /* not JSON */ }
+      throw new Error(detail || error.message || 'Google Drive request failed');
+    }
+    if (data && data.error) throw new Error(data.error);
+    return data;
+  }
+
+  const driveUploadDraftImages = (customerName, orderId, images) =>
+    callDrive('upload_draft_images', { customer_name: customerName, order_id: orderId, images: images });
+
+  const driveSaveMoodboardPdf = (docName, pdfBase64) =>
+    callDrive('save_moodboard_pdf', { doc_name: docName, pdf_base64: pdfBase64 });
+
+  const driveCleanupDraft = (folderId) =>
+    callDrive('cleanup_draft', { folder_id: folderId });
+
+  async function logMoodboard(orderId, driveLink) {
+    unwrap(await init()
+      .from('document_log').insert({
+        order_id: orderId, kind: 'moodboard', total: null, drive_link: driveLink
+      }));
+  }
+
   const googleStatus = () => callGoogle('status');
   const googleExchange = (code, redirectUri) =>
     callGoogle('exchange', { code: code, redirect_uri: redirectUri });
@@ -414,6 +455,7 @@ KK.db = (function () {
     listOrderEvents, listAllOrderEvents, replaceOrderEvents,
     listIntake, getIntake, resolveIntake,
     googleStatus, googleExchange, googleDisconnect, googleForget,
-    syncOrderCalendar, syncFollowUp
+    syncOrderCalendar, syncFollowUp,
+    driveUploadDraftImages, driveSaveMoodboardPdf, driveCleanupDraft, logMoodboard
   };
 })();

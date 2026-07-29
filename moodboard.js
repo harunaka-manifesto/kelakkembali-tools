@@ -1,0 +1,516 @@
+/* Kelak Kembali — moodboard generator.
+
+   Owns the 16:9 moodboard canvas: image management, the algorithmic grid
+   layout engine (three variations per image count), the off-screen render
+   pipeline (reusing docs.js's watermark/capture approach), and the Drive
+   upload integration.
+
+   The view itself (dropzone, controls, preview) lives in index.html under
+   #viewMoodboard; this module fills and drives it. */
+
+window.KK = window.KK || {};
+
+KK.moodboard = (function () {
+  'use strict';
+
+  const U = KK.util;
+  const $ = U.$;
+  const $$ = U.$$;
+
+  /* ------------------------------- Constants ------------------------------ */
+
+  const MAX_IMAGES = 16;
+  const GAP = 12;
+  const STAGE_W = 1920;
+  const STAGE_H = 1080;
+  const SNAPSHOT_SCALE = 3;
+
+  const HEADER_PAD_TOP = 24;
+  const HEADER_PAD_SIDE = 32;
+  const HEADER_PAD_BOTTOM = 32;
+  const HEADER_GAP = 16;
+  const HEADER_HEIGHT = 48;
+  const CONTENT_TOP = HEADER_PAD_TOP + HEADER_HEIGHT + HEADER_GAP;
+  const CONTENT_PAD = 32;
+  const GRID_TOP = CONTENT_TOP;
+  const GRID_LEFT = CONTENT_PAD;
+  const GRID_W = STAGE_W - CONTENT_PAD * 2;
+  const GRID_H = STAGE_H - GRID_TOP - CONTENT_PAD;
+
+  const WM_BASE = '#EBE9E4';
+  const WM_TONES = [
+    [255, 253, 250], [251, 247, 240], [245, 239, 228],
+    [236, 228, 213], [219, 206, 184], [199, 183, 156]
+  ];
+  const WM_FIELD_W = 48;
+  const WM_GRAIN = 21;
+
+  const VARIATIONS = ['A', 'B', 'C'];
+
+  /* -------------------------------- State --------------------------------- */
+
+  let images = [];          // { file, objectURL, id }
+  let variation = 'A';
+  let shuffleOrder = null;  // null = natural order, array = shuffled indices
+  let stageEl = null;
+  let gridEl = null;
+  let previewEl = null;
+  let headerNameEl = null;
+  let orderData = null;     // { orderId, customerId, customerName, docName, orderRef }
+  let draftFolderId = null;
+
+  /* ----------------------------- Layout engine ---------------------------- */
+
+  function computeGrid(count, v) {
+    if (count === 0) return [];
+    if (count === 1) return [{ x: 0, y: 0, w: GRID_W, h: GRID_H }];
+
+    if (v === 'A') return balancedGrid(count);
+    if (v === 'B') return heroGrid(count, 'left');
+    return heroGrid(count, 'right');
+  }
+
+  function balancedGrid(count) {
+    if (count === 2) {
+      const w = (GRID_W - GAP) / 2;
+      return [
+        { x: 0, y: 0, w, h: GRID_H },
+        { x: w + GAP, y: 0, w, h: GRID_H }
+      ];
+    }
+
+    const aspect = GRID_W / GRID_H;
+    let bestCols = 1, bestRows = count;
+    let bestScore = Infinity;
+
+    for (let cols = 1; cols <= count; cols++) {
+      const rows = Math.ceil(count / cols);
+      const cellW = (GRID_W - (cols - 1) * GAP) / cols;
+      const cellH = (GRID_H - (rows - 1) * GAP) / rows;
+      const cellAspect = cellW / cellH;
+      const score = Math.abs(Math.log(cellAspect / aspect));
+      if (score < bestScore) {
+        bestScore = score;
+        bestCols = cols;
+        bestRows = rows;
+      }
+    }
+
+    return layoutCells(count, bestCols, bestRows, 0, 0, GRID_W, GRID_H);
+  }
+
+  function layoutCells(count, cols, rows, ox, oy, totalW, totalH) {
+    const cellW = (totalW - (cols - 1) * GAP) / cols;
+    const cellH = (totalH - (rows - 1) * GAP) / rows;
+    const cells = [];
+
+    for (let i = 0; i < count; i++) {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const lastRow = row === rows - 1;
+      const itemsInLastRow = count - cols * (rows - 1);
+
+      let x, w;
+      if (lastRow && itemsInLastRow < cols) {
+        const lw = (totalW - (itemsInLastRow - 1) * GAP) / itemsInLastRow;
+        x = ox + (i - cols * (rows - 1)) * (lw + GAP);
+        w = lw;
+      } else {
+        x = ox + col * (cellW + GAP);
+        w = cellW;
+      }
+
+      cells.push({
+        x,
+        y: oy + row * (cellH + GAP),
+        w,
+        h: cellH
+      });
+    }
+    return cells;
+  }
+
+  function heroGrid(count, anchor) {
+    if (count === 2) {
+      const heroW = Math.round(GRID_W * 0.55);
+      const restW = GRID_W - heroW - GAP;
+      if (anchor === 'left') {
+        return [
+          { x: 0, y: 0, w: heroW, h: GRID_H },
+          { x: heroW + GAP, y: 0, w: restW, h: GRID_H }
+        ];
+      }
+      return [
+        { x: GRID_W - heroW, y: 0, w: heroW, h: GRID_H },
+        { x: 0, y: 0, w: restW, h: GRID_H }
+      ];
+    }
+
+    const rest = count - 1;
+
+    if (anchor === 'left') {
+      const heroW = Math.round(GRID_W * 0.45);
+      const sideW = GRID_W - heroW - GAP;
+      const sideCols = rest <= 3 ? 1 : 2;
+      const sideRows = Math.ceil(rest / sideCols);
+      const cells = [{ x: 0, y: 0, w: heroW, h: GRID_H }];
+      return cells.concat(
+        layoutCells(rest, sideCols, sideRows, heroW + GAP, 0, sideW, GRID_H)
+      );
+    }
+
+    // anchor === 'right': hero on right, vertical split
+    const heroW = Math.round(GRID_W * 0.45);
+    const sideW = GRID_W - heroW - GAP;
+    const sideCols = rest <= 3 ? 1 : 2;
+    const sideRows = Math.ceil(rest / sideCols);
+    const cells = [{ x: GRID_W - heroW, y: 0, w: heroW, h: GRID_H }];
+    return cells.concat(
+      layoutCells(rest, sideCols, sideRows, 0, 0, sideW, GRID_H)
+    );
+  }
+
+  /* ------------------------------ Rendering ------------------------------- */
+
+  function getOrderedImages() {
+    if (!shuffleOrder) return images.slice();
+    return shuffleOrder.map((i) => images[i]).filter(Boolean);
+  }
+
+  function renderPreview() {
+    if (!gridEl || !previewEl) return;
+
+    const ordered = getOrderedImages();
+    const cells = computeGrid(ordered.length, variation);
+
+    gridEl.innerHTML = '';
+    cells.forEach((cell, i) => {
+      if (!ordered[i]) return;
+      const div = document.createElement('div');
+      div.className = 'mb-cell';
+      div.style.cssText =
+        'position:absolute;' +
+        'left:' + cell.x + 'px;top:' + cell.y + 'px;' +
+        'width:' + cell.w + 'px;height:' + cell.h + 'px;overflow:hidden;';
+
+      const img = document.createElement('img');
+      img.src = ordered[i].objectURL;
+      img.style.cssText =
+        'width:100%;height:100%;object-fit:cover;object-position:50% 50%;display:block;';
+      div.appendChild(img);
+      gridEl.appendChild(div);
+    });
+
+    if (headerNameEl && orderData) {
+      headerNameEl.innerHTML =
+        '<span class="mb-header-light">Moodboard for </span>' +
+        '<span class="mb-header-bold">' + U.escapeHtml(orderData.docName || orderData.customerName) + '</span>';
+    }
+  }
+
+  function renderDropzone() {
+    const dropzone = $('#mbDropzone');
+    const thumbs = $('#mbThumbs');
+    if (!dropzone || !thumbs) return;
+
+    if (images.length === 0) {
+      dropzone.classList.remove('has-images');
+      thumbs.innerHTML = '';
+      return;
+    }
+
+    dropzone.classList.add('has-images');
+    thumbs.innerHTML = images.map((img, i) =>
+      '<div class="mb-thumb">' +
+        '<img src="' + img.objectURL + '" alt="">' +
+        '<button type="button" class="mb-thumb__remove" data-i="' + i + '" aria-label="Remove">&times;</button>' +
+      '</div>'
+    ).join('');
+  }
+
+  function updateControls() {
+    const countEl = $('#mbCount');
+    const genBtn = $('#mbGenerate');
+    const randomBtn = $('#mbRandomize');
+
+    if (countEl) countEl.textContent = images.length + '/' + MAX_IMAGES;
+    if (genBtn) genBtn.disabled = images.length === 0;
+    if (randomBtn) randomBtn.disabled = images.length < 2;
+
+    $$('.mb-var-btn').forEach((btn) => {
+      btn.classList.toggle('is-active', btn.dataset.var === variation);
+    });
+  }
+
+  /* ----------------------------- Image handling --------------------------- */
+
+  function addFiles(fileList) {
+    const remaining = MAX_IMAGES - images.length;
+    if (remaining <= 0) return;
+
+    const files = Array.from(fileList)
+      .filter((f) => f.type.startsWith('image/'))
+      .slice(0, remaining);
+
+    files.forEach((file) => {
+      images.push({
+        file,
+        objectURL: URL.createObjectURL(file),
+        id: Math.random().toString(36).slice(2)
+      });
+    });
+
+    shuffleOrder = null;
+    renderDropzone();
+    renderPreview();
+    updateControls();
+  }
+
+  function removeImage(index) {
+    const removed = images.splice(index, 1);
+    if (removed[0]) URL.revokeObjectURL(removed[0].objectURL);
+    shuffleOrder = null;
+    renderDropzone();
+    renderPreview();
+    updateControls();
+  }
+
+  function shuffleImages() {
+    if (images.length < 2) return;
+    const indices = images.map((_, i) => i);
+    for (let i = indices.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [indices[i], indices[j]] = [indices[j], indices[i]];
+    }
+    shuffleOrder = indices;
+    renderPreview();
+  }
+
+  /* ----------------------------- Watermark -------------------------------- */
+
+  function moodboardSeed() {
+    if (!orderData) return 'moodboard';
+    return ['moodboard', orderData.customerName || '', orderData.orderId || '',
+      U.todayISO()].join('::');
+  }
+
+  function buildWatermark(seed, cssW, cssH, scale) {
+    const rand = U.mulberry32(U.hashString(seed));
+    const W = Math.round(cssW * scale);
+    const H = Math.round(cssH * scale);
+
+    const fw = WM_FIELD_W;
+    const fh = Math.max(16, Math.round(fw * cssH / cssW));
+    const field = document.createElement('canvas');
+    field.width = fw;
+    field.height = fh;
+    const fc = field.getContext('2d');
+    fc.fillStyle = WM_BASE;
+    fc.fillRect(0, 0, fw, fh);
+
+    const blobs = 5 + Math.floor(rand() * 4);
+    for (let i = 0; i < blobs; i++) {
+      const tone = WM_TONES[Math.floor(rand() * WM_TONES.length)];
+      const cx = rand() * fw;
+      const cy = rand() * fh;
+      const r = (0.45 + rand() * 0.55) * fw;
+      const squash = 0.45 + rand() * 0.9;
+      const angle = rand() * Math.PI;
+      const alpha = (0.12 + rand() * 0.26) * (tone[0] < 225 ? 0.45 : 1);
+
+      fc.save();
+      fc.translate(cx, cy);
+      fc.rotate(angle);
+      fc.scale(1, squash);
+      const g = fc.createRadialGradient(0, 0, 0, 0, 0, r);
+      g.addColorStop(0, 'rgba(' + tone + ',' + alpha.toFixed(3) + ')');
+      g.addColorStop(0.55, 'rgba(' + tone + ',' + (alpha * 0.45).toFixed(3) + ')');
+      g.addColorStop(1, 'rgba(' + tone + ',0)');
+      fc.fillStyle = g;
+      fc.fillRect(-fw * 2, -fh * 2, fw * 4, fh * 4);
+      fc.restore();
+    }
+
+    const out = document.createElement('canvas');
+    out.width = W;
+    out.height = H;
+    const oc = out.getContext('2d');
+    oc.imageSmoothingEnabled = true;
+    oc.imageSmoothingQuality = 'high';
+    oc.drawImage(field, 0, 0, W, H);
+
+    const gw = Math.round(cssW);
+    const gh = Math.round(cssH);
+    const grain = document.createElement('canvas');
+    grain.width = gw;
+    grain.height = gh;
+    const gc = grain.getContext('2d');
+    const gimg = gc.createImageData(gw, gh);
+    const gd = gimg.data;
+    for (let j = 0; j < gd.length; j += 4) {
+      const v = 128 + (rand() - 0.5) * WM_GRAIN * 2;
+      gd[j] = gd[j + 1] = gd[j + 2] = v;
+      gd[j + 3] = 255;
+    }
+    gc.putImageData(gimg, 0, 0);
+
+    oc.globalCompositeOperation = 'overlay';
+    oc.imageSmoothingEnabled = false;
+    oc.drawImage(grain, 0, 0, W, H);
+    oc.globalCompositeOperation = 'source-over';
+
+    return out;
+  }
+
+  /* ----------------------------- PDF generation --------------------------- */
+
+  const MB_FACES = [
+    '300 20px "Plus Jakarta Sans"',
+    '600 20px "Plus Jakarta Sans"'
+  ];
+
+  async function fontsReady() {
+    if (!document.fonts) return;
+    try {
+      await Promise.all(MB_FACES.map((f) => document.fonts.load(f)));
+      await document.fonts.ready;
+    } catch (_) { /* fall through */ }
+  }
+
+  function imagesReady(root) {
+    const imgs = $$('img', root);
+    return Promise.all(imgs.map((img) => (
+      img.complete && img.naturalWidth
+        ? Promise.resolve()
+        : new Promise((res) => { img.onload = img.onerror = res; })
+    )));
+  }
+
+  async function cloneReady(doc) {
+    const root = doc.documentElement;
+    if (root) {
+      root.style.setProperty('-webkit-text-size-adjust', 'none');
+      root.style.setProperty('text-size-adjust', 'none');
+    }
+    if (!doc.fonts) return;
+    try {
+      await Promise.all(MB_FACES.map((f) => doc.fonts.load(f)));
+      await doc.fonts.ready;
+    } catch (_) { /* fall through */ }
+  }
+
+  async function generatePDF() {
+    if (!stageEl || images.length === 0) throw new Error('Nothing to generate.');
+
+    renderPreview();
+    await fontsReady();
+    await imagesReady(stageEl);
+
+    stageEl.style.backgroundColor = 'transparent';
+    let raw;
+    try {
+      raw = await html2canvas(stageEl, {
+        scale: SNAPSHOT_SCALE,
+        backgroundColor: null,
+        useCORS: true,
+        logging: false,
+        width: STAGE_W,
+        height: STAGE_H,
+        onclone: cloneReady
+      });
+    } finally {
+      stageEl.style.backgroundColor = '';
+    }
+
+    const watermark = buildWatermark(moodboardSeed(), STAGE_W, STAGE_H, SNAPSHOT_SCALE);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = raw.width;
+    canvas.height = raw.height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(watermark, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(raw, 0, 0);
+
+    const pageW = 841.89;  // A4 landscape width in pt
+    const pageH = pageW * (STAGE_H / STAGE_W);
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({
+      orientation: 'landscape',
+      unit: 'pt',
+      format: [pageW, pageH],
+      compress: true
+    });
+
+    pdf.addImage(
+      canvas.toDataURL('image/jpeg', 0.95), 'JPEG',
+      0, 0, pageW, pageH, undefined, 'FAST'
+    );
+
+    return pdf;
+  }
+
+  function pdfToBase64(pdf) {
+    const arrayBuffer = pdf.output('arraybuffer');
+    const bytes = new Uint8Array(arrayBuffer);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  }
+
+  function buildFilename() {
+    const iso = U.todayISO();
+    const safe = U.sanitizeForFilename(
+      orderData ? (orderData.docName || orderData.customerName) : ''
+    );
+    return safe
+      ? 'Moodboard-KelakKembali-' + safe + '-' + iso + '.pdf'
+      : 'Moodboard-KelakKembali-' + iso + '.pdf';
+  }
+
+  /* ------------------------------ Public API ------------------------------ */
+
+  function init(opts) {
+    orderData = opts;
+    images = [];
+    shuffleOrder = null;
+    variation = 'A';
+    draftFolderId = null;
+
+    stageEl = document.querySelector('.stage #moodboardStage');
+    gridEl = stageEl ? stageEl.querySelector('#mbGrid') : null;
+    previewEl = $('#mbPreview');
+    headerNameEl = stageEl ? stageEl.querySelector('#mbHeaderName') : null;
+
+    renderPreview();
+    renderDropzone();
+    updateControls();
+  }
+
+  function setVariation(v) {
+    if (VARIATIONS.indexOf(v) === -1) return;
+    variation = v;
+    renderPreview();
+    updateControls();
+  }
+
+  function cleanup() {
+    images.forEach((img) => URL.revokeObjectURL(img.objectURL));
+    images = [];
+    shuffleOrder = null;
+    draftFolderId = null;
+  }
+
+  return {
+    MAX_IMAGES,
+    init, cleanup,
+    addFiles, removeImage, shuffleImages,
+    setVariation,
+    generatePDF, pdfToBase64, buildFilename,
+    get images() { return images; },
+    get variation() { return variation; },
+    get draftFolderId() { return draftFolderId; },
+    set draftFolderId(v) { draftFolderId = v; }
+  };
+})();

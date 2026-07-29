@@ -643,3 +643,32 @@ where o.id = paid.order_id
 -- term gets no gate — and productionAnchor in app.js reads first_payment_date
 -- directly for them. Copying it here would put a second payment in the order
 -- editor that nobody ever took.
+
+
+-- =========================================================================
+-- Migration — moodboard generator
+--
+-- The moodboard feature uploads images to Google Drive, compiles a 16:9 PDF,
+-- and archives it in Drive. document_log gains a 'moodboard' kind and a
+-- drive_link column so the generated file can be opened straight from the
+-- order history. order_history gains 'moodboard_generated' so the event
+-- shows in the timeline.
+-- =========================================================================
+
+-- Widen document_log.kind to accept moodboard entries.
+alter table public.document_log drop constraint if exists document_log_kind_check;
+alter table public.document_log add constraint document_log_kind_check
+  check (kind in ('quotation', 'invoice', 'moodboard'));
+
+-- The PDF lives in Google Drive, not locally. Quotation/invoice rows leave
+-- this null; moodboard rows always fill it.
+alter table public.document_log add column if not exists drive_link text;
+
+-- Moodboards have no monetary total — the column must accept null for them.
+-- The original NOT NULL was correct for quotation/invoice but too tight now.
+alter table public.document_log alter column total drop not null;
+
+-- Widen order_history.action.
+alter table public.order_history drop constraint if exists order_history_action_check;
+alter table public.order_history add constraint order_history_action_check
+  check (action in ('created', 'updated', 'payment_logged', 'scheduled', 'calendar_synced', 'moodboard_generated'));

@@ -188,6 +188,7 @@ KK.app = (function () {
     enquiryAccept: $('#enquiryAccept'),
     enquiryDismiss: $('#enquiryDismiss'),
 
+    viewMoodboard: $('#viewMoodboard'),
     viewOrderEdit: $('#viewOrderEdit'),
     oTitle: $('#oTitle'),
     oDocName: $('#oDocName'),
@@ -572,6 +573,7 @@ KK.app = (function () {
     const query = new URLSearchParams(cut === -1 ? '' : raw.slice(cut + 1));
     if (parts[0] === 'customer' && parts[1]) return { view: 'customer', id: parts[1], query };
     if (parts[0] === 'order' && parts[1] && parts[2] === 'edit') return { view: 'orderEdit', id: parts[1], query };
+    if (parts[0] === 'order' && parts[1] && parts[2] === 'moodboard') return { view: 'moodboard', id: parts[1], query };
     if (parts[0] === 'order' && parts[1]) return { view: 'order', id: parts[1], query };
     if (parts[0] === 'calendar') return { view: 'calendar', query };
     if (parts[0] === 'enquiry' && parts[1]) return { view: 'enquiry', id: parts[1], query };
@@ -625,6 +627,7 @@ KK.app = (function () {
     el.viewCustomer.hidden = next.view !== 'customer';
     el.viewOrder.hidden = next.view !== 'order';
     el.viewOrderEdit.hidden = next.view !== 'orderEdit';
+    el.viewMoodboard.hidden = next.view !== 'moodboard';
     el.viewCalendar.hidden = next.view !== 'calendar';
     el.viewEnquiry.hidden = next.view !== 'enquiry';
     window.scrollTo(0, 0);
@@ -633,6 +636,7 @@ KK.app = (function () {
       if (next.view === 'customers') await showCustomers();
       else if (next.view === 'customer') await showCustomer(next.id, next.query);
       else if (next.view === 'orderEdit') await showOrderEdit(next.id);
+      else if (next.view === 'moodboard') await showMoodboard(next.id);
       else if (next.view === 'calendar') await showCalendarSettings();
       else if (next.view === 'enquiry') await showEnquiry(next.id);
       else await showOrder(next.id);
@@ -1390,6 +1394,7 @@ KK.app = (function () {
       return 'Synced ' + n + (n === 1 ? ' date' : ' dates') + ' to Google Calendar' +
         (pinned ? ', ' + pinned + ' kept as moved' : '');
     }
+    if (row.action === 'moodboard_generated') return 'Moodboard generated';
     return row.action;
   }
 
@@ -1447,24 +1452,30 @@ KK.app = (function () {
       amount: r.action === 'payment_logged' ? (r.detail && r.detail.amount) : null
     })).concat(docRows.map((r) => ({
       when: r.created_at,
-      label: (r.kind === 'invoice' ? 'Invoice' : 'Quotation') + ' downloaded',
-      amount: r.total
+      label: r.kind === 'moodboard' ? 'Moodboard saved' :
+        (r.kind === 'invoice' ? 'Invoice' : 'Quotation') + ' downloaded',
+      amount: r.total,
+      link: r.drive_link || null
     }))).sort((a, b) => new Date(b.when) - new Date(a.when));
 
     /* What happened reads down the left, when it happened down the right: the
        dates line up as a column you can run your eye along, and the amount sits
        under the entry it belongs to rather than competing with the date for the
        end of the row. */
-    el.historyLog.innerHTML = merged.length ? merged.map((r) =>
-      '<div class="logrow logrow--stacked">' +
+    el.historyLog.innerHTML = merged.length ? merged.map((r) => {
+      const labelHtml = r.link
+        ? '<a class="logrow__kind logrow__link" href="' + U.escapeHtml(r.link) + '" target="_blank" rel="noopener">' +
+            U.escapeHtml(r.label) + '</a>'
+        : '<span class="logrow__kind">' + U.escapeHtml(r.label) + '</span>';
+      return '<div class="logrow logrow--stacked">' +
         '<span class="logrow__what">' +
-          '<span class="logrow__kind">' + U.escapeHtml(r.label) + '</span>' +
+          labelHtml +
           (r.amount != null
             ? '<span class="logrow__total">' + U.formatRupiah(r.amount) + '</span>' : '') +
         '</span>' +
         '<span class="logrow__when">' + U.escapeHtml(U.formatShortDate(r.when)) + '</span>' +
-      '</div>'
-    ).join('') : '<p class="empty">No history yet.</p>';
+      '</div>';
+    }).join('') : '<p class="empty">No history yet.</p>';
   }
 
   /** What docs.render/download need — read from the saved record, since this
@@ -2445,6 +2456,157 @@ KK.app = (function () {
     closeCostCalc();
   }
 
+  /* ----------------------------- Moodboard -------------------------------- */
+
+  const mb = KK.moodboard;
+
+  async function showMoodboard(orderId) {
+    state.order = await db.getOrder(orderId);
+    state.customer = await db.getCustomer(state.order.customer_id);
+
+    setChrome({
+      title: 'Moodboard',
+      up: { label: orderLabel(state.order), hash: '#/order/' + orderId },
+      save: false, actions: false
+    });
+    el.actionbar.hidden = true;
+    setSaveBar(false);
+
+    mb.init({
+      orderId: state.order.id,
+      customerId: state.customer.id,
+      customerName: state.customer.name,
+      docName: state.order.doc_name || state.customer.name,
+      orderRef: state.order.title || ''
+    });
+  }
+
+  function setupMoodboardListeners() {
+    const dropzone = $('#mbDropzone');
+    const fileInput = $('#mbFileInput');
+    const addMore = $('#mbAddMore');
+    const randomize = $('#mbRandomize');
+    const generate = $('#mbGenerate');
+    const thumbs = $('#mbThumbs');
+    const variations = $('#mbVariations');
+
+    dropzone.addEventListener('click', function (e) {
+      if (e.target.closest('.mb-thumb__remove') || e.target.closest('.mb-thumb')) return;
+      if (!dropzone.classList.contains('has-images')) fileInput.click();
+    });
+
+    addMore.addEventListener('click', function () { fileInput.click(); });
+
+    fileInput.addEventListener('change', function () {
+      if (fileInput.files.length) mb.addFiles(fileInput.files);
+      fileInput.value = '';
+      refreshMoodboardPreview();
+    });
+
+    dropzone.addEventListener('dragover', function (e) {
+      e.preventDefault();
+      dropzone.classList.add('is-over');
+    });
+    dropzone.addEventListener('dragleave', function () {
+      dropzone.classList.remove('is-over');
+    });
+    dropzone.addEventListener('drop', function (e) {
+      e.preventDefault();
+      dropzone.classList.remove('is-over');
+      if (e.dataTransfer.files.length) mb.addFiles(e.dataTransfer.files);
+      refreshMoodboardPreview();
+    });
+
+    thumbs.addEventListener('click', function (e) {
+      const btn = e.target.closest('.mb-thumb__remove');
+      if (!btn) return;
+      mb.removeImage(Number(btn.dataset.i));
+      refreshMoodboardPreview();
+    });
+
+    variations.addEventListener('click', function (e) {
+      const btn = e.target.closest('.mb-var-btn');
+      if (!btn) return;
+      mb.setVariation(btn.dataset.var);
+      refreshMoodboardPreview();
+    });
+
+    randomize.addEventListener('click', function () {
+      mb.shuffleImages();
+      refreshMoodboardPreview();
+    });
+
+    generate.addEventListener('click', doGenerateMoodboard);
+  }
+
+  function refreshMoodboardPreview() {
+    const previewInner = $('#mbPreviewInner');
+    if (!previewInner) return;
+
+    const stageEl = $('#moodboardStage');
+    if (!stageEl) return;
+
+    const rect = previewInner.getBoundingClientRect();
+    const scale = rect.width / 1920;
+    previewInner.innerHTML = '';
+
+    const clone = stageEl.cloneNode(true);
+    clone.style.cssText =
+      'position:absolute;left:0;top:0;width:1920px;height:1080px;' +
+      'transform:scale(' + scale + ');transform-origin:0 0;pointer-events:none;';
+    clone.removeAttribute('id');
+    previewInner.appendChild(clone);
+  }
+
+  async function doGenerateMoodboard() {
+    const btn = $('#mbGenerate');
+    btn.disabled = true;
+    btn.classList.add('is-busy');
+    $('.btn__label', btn).textContent = 'Generating…';
+
+    try {
+      const pdf = await mb.generatePDF();
+
+      $('.btn__label', btn).textContent = 'Uploading to Drive…';
+      const pdfBase64 = mb.pdfToBase64(pdf);
+      const docName = state.order.doc_name || state.customer.name || '';
+      const result = await db.driveSaveMoodboardPdf(docName, pdfBase64);
+
+      pdf.save(mb.buildFilename());
+
+      await db.logMoodboard(state.order.id, result.drive_link);
+      await db.logOrderHistory(state.order.id, 'moodboard_generated', {
+        drive_link: result.drive_link,
+        file_name: result.file_name
+      });
+
+      await db.updateCustomer(state.customer.id, {
+        moodboard_date: U.todayISO()
+      });
+
+      const nudge = consultNudgeFor(state.customer, state.customerOrders, U.todayISO());
+      if (nudge) {
+        await db.updateCustomer(state.customer.id, nudge);
+        try { await db.syncFollowUp(state.customer.id); } catch (_) { /* best effort */ }
+      }
+
+      if (mb.draftFolderId) {
+        try { await db.driveCleanupDraft(mb.draftFolderId); } catch (_) { /* best effort */ }
+      }
+
+      mb.cleanup();
+      showToast('Moodboard saved to Google Drive');
+      go('#/order/' + state.order.id);
+    } catch (err) {
+      console.error(err);
+      showToast('Could not generate the moodboard — ' + (err.message || 'please try again'));
+    } finally {
+      btn.disabled = false;
+      btn.classList.remove('is-busy');
+      $('.btn__label', btn).textContent = 'Generate Moodboard';
+    }
+  }
+
   /* ------------------------------ PDF download ---------------------------- */
 
   /** Both buttons lock during a capture; only the pressed one spins. */
@@ -2770,6 +2932,13 @@ KK.app = (function () {
 
     el.downloadQuote.addEventListener('click', () => download('quotation'));
     el.downloadInvoice.addEventListener('click', () => download('invoice'));
+
+    /* -- moodboard -- */
+
+    $('#createMoodboardBtn').addEventListener('click', function () {
+      if (state.order) go('#/order/' + state.order.id + '/moodboard');
+    });
+    setupMoodboardListeners();
 
     /* -- calendar -- */
 
