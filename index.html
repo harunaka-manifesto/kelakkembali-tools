@@ -502,28 +502,40 @@
       </div>
     </section>
 
-    <section class="card">
-      <h2 class="card__title">Preview</h2>
-
-      <div class="mb-controls">
-        <div class="segmented" id="mbVariations">
-          <button type="button" class="segmented__btn mb-var-btn is-active" data-var="A">Balanced</button>
-          <button type="button" class="segmented__btn mb-var-btn" data-var="B">Highlight 1</button>
-          <button type="button" class="segmented__btn mb-var-btn" data-var="C">Highlight 2</button>
-        </div>
-        <button type="button" class="btn btn--outline btn--sm" id="mbRandomize" disabled>Randomize</button>
-      </div>
-
-      <div class="mb-preview" id="mbPreview">
-        <div class="mb-preview__inner" id="mbPreviewInner"></div>
-      </div>
-    </section>
-
-    <button type="button" class="btn btn--primary btn--block" id="mbGenerate" disabled>
-      <span class="btn__label">Generate Moodboard</span>
-      <span class="spinner" aria-hidden="true"></span>
+    <button type="button" class="btn btn--primary btn--block" id="mbCreate" disabled>
+      <span class="btn__label">Create Moodboard</span>
     </button>
   </section>
+
+  <!-- Landscape moodboard overlay -->
+  <div id="mbLandscape" class="mb-landscape" hidden>
+    <div class="mb-landscape__rotate" id="mbRotateHint">
+      <svg class="mb-landscape__rotate-icon" viewBox="0 0 64 64" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="16" y="8" width="24" height="42" rx="4" class="mb-rotate-phone"/>
+        <path d="M52 38c0-2.2-1.8-4-4-4H30" class="mb-rotate-arrow-path"/>
+        <path d="M34 30l-4 4 4 4" class="mb-rotate-arrow-head"/>
+      </svg>
+      <p class="mb-landscape__rotate-label">Rotate your phone to landscape</p>
+    </div>
+    <div class="mb-landscape__view" id="mbLandscapeView" hidden>
+      <div class="mb-landscape__canvas" id="mbLandscapeCanvas"></div>
+      <div class="mb-landscape__bar">
+        <button type="button" class="mb-landscape__back" id="mbBack" aria-label="Back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 12H5"/>
+            <path d="M12 19l-7-7 7-7"/>
+          </svg>
+        </button>
+        <button type="button" class="btn btn--outline btn--sm" id="mbLandscapeRandomize">Randomize</button>
+        <button type="button" class="btn btn--primary btn--sm" id="mbLandscapeDownload">
+          <span class="btn__label">Download</span>
+          <span class="spinner" aria-hidden="true"></span>
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- ---------------------------- Enquiry review --------------------------- -->
   <section class="view" id="viewEnquiry" hidden>

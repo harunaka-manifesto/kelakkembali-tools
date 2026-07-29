@@ -1,20 +1,14 @@
-/* Kelak Kembali — Google Drive sync for moodboard assets.
+/* Kelak Kembali — Google Drive sync for moodboard PDFs.
  *
  * Mirrors the google-calendar function's auth pattern: the refresh token lives
  * in google_credentials (service-role only), and a fresh access token is minted
  * per invocation. The scope needed is drive.file, which lets this app manage
  * only files it created — nothing else in the user's Drive is touched.
  *
- * Three actions:
+ * One action:
  *
- *   upload_draft_images  { customer_name, order_id, images[] }
- *     -> creates a temp folder, uploads images, returns their web view URLs
- *
- *   save_moodboard_pdf   { customer_name, order_id, doc_name, pdf_base64 }
+ *   save_moodboard_pdf   { file_name, pdf_base64 }
  *     -> writes compiled PDF to the archive folder, returns shareable link
- *
- *   cleanup_draft        { folder_id }
- *     -> deletes the temp draft folder and its contents
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
@@ -24,7 +18,6 @@ const DRIVE_API        = 'https://www.googleapis.com/drive/v3';
 const DRIVE_UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3';
 
 const ARCHIVE_FOLDER_NAME = 'Kelak Kembali Moodboards';
-const DRAFT_ROOT_NAME     = 'Moodboard Drafts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -185,58 +178,14 @@ async function setViewPermission(token: string, fileId: string) {
   });
 }
 
-async function deleteFile(token: string, fileId: string) {
-  const res = await fetch(`${DRIVE_API}/files/${fileId}`, {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  if (!res.ok && res.status !== 404) {
-    const out = await res.json().catch(() => ({}));
-    throw new Told('Delete failed: ' + (out.error?.message || res.status), 502);
-  }
-}
-
 /* -------------------------------- Actions --------------------------------- */
-
-async function uploadDraftImages(
-  token: string,
-  customerName: string,
-  orderId: string,
-  images: Array<{ name: string; mimeType: string; base64: string }>
-) {
-  const draftsRoot = await findOrCreateFolder(token, DRAFT_ROOT_NAME);
-  const folderName = `${customerName}_${orderId}`;
-  const folderId = await findOrCreateFolder(token, folderName, draftsRoot);
-
-  const results = [];
-  for (const img of images) {
-    const raw = Uint8Array.from(atob(img.base64), (c) => c.charCodeAt(0));
-    const file = await uploadFile(token, folderId, img.name, img.mimeType, raw);
-    results.push({
-      id: file.id,
-      name: img.name,
-      webViewLink: file.webViewLink,
-      webContentLink: file.webContentLink
-    });
-  }
-
-  return { folder_id: folderId, files: results };
-}
 
 async function saveMoodboardPdf(
   token: string,
-  docName: string,
+  fileName: string,
   pdfBase64: string
 ) {
   const archiveId = await findOrCreateFolder(token, ARCHIVE_FOLDER_NAME);
-
-  const today = new Date();
-  const iso = today.toISOString().slice(0, 10);
-  const safeName = docName.replace(/[^\p{L}\p{N}\s_-]/gu, '').trim().replace(/\s+/g, '-');
-  const fileName = safeName
-    ? `Moodboard-KelakKembali-${safeName}-${iso}.pdf`
-    : `Moodboard-KelakKembali-${iso}.pdf`;
-
   const raw = Uint8Array.from(atob(pdfBase64), (c) => c.charCodeAt(0));
   const file = await uploadFile(token, archiveId, fileName, 'application/pdf', raw);
 
@@ -247,11 +196,6 @@ async function saveMoodboardPdf(
     drive_link: file.webViewLink,
     file_name: fileName
   };
-}
-
-async function cleanupDraft(token: string, folderId: string) {
-  await deleteFile(token, folderId);
-  return { deleted: true };
 }
 
 /* -------------------------------- Handler --------------------------------- */
@@ -268,25 +212,10 @@ Deno.serve(async (req) => {
     if (!cred) throw new Told('Google is not connected. Connect from the Google Calendar page.', 409);
     const token = await accessToken(cred.refresh_token);
 
-    if (action === 'upload_draft_images') {
-      const { customer_name, order_id, images } = payload;
-      if (!customer_name || !order_id || !images?.length) {
-        throw new Told('customer_name, order_id and images[] are required.');
-      }
-      if (images.length > 16) throw new Told('Maximum 16 images.');
-      return json(await uploadDraftImages(token, customer_name, order_id, images));
-    }
-
     if (action === 'save_moodboard_pdf') {
-      const { doc_name, pdf_base64 } = payload;
+      const { file_name, pdf_base64 } = payload;
       if (!pdf_base64) throw new Told('pdf_base64 is required.');
-      return json(await saveMoodboardPdf(token, doc_name || '', pdf_base64));
-    }
-
-    if (action === 'cleanup_draft') {
-      const { folder_id } = payload;
-      if (!folder_id) throw new Told('folder_id is required.');
-      return json(await cleanupDraft(token, folder_id));
+      return json(await saveMoodboardPdf(token, file_name || 'Moodboard.pdf', pdf_base64));
     }
 
     throw new Told(`Unknown action: ${action}`);
