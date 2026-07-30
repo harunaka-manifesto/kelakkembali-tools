@@ -102,63 +102,41 @@
 
   <!-- --------------------------- Customer list --------------------------- -->
   <section class="view" id="viewCustomers">
+    <section class="home-hero" aria-label="Today">
+      <div class="home-hero__art" aria-hidden="true"></div>
+      <div class="home-hero__flower" aria-hidden="true">🌻</div>
+      <h2 class="home-hero__greeting">Good morning, Ichaku</h2>
+      <p class="home-hero__deadline" id="heroDeadline" hidden></p>
+    </section>
 
-    <!-- The customers with the soonest date still ahead of them, each labelled
-         with which date it is. Tapping one opens that customer. The strip needs
-         no heading: dated tiles at the top of the page are self-evidently what
-         is coming up, and the label was one more thing to read past. -->
-    <!-- Above the deadlines because it is the only thing on this page with
-         somebody waiting on the other end of it. Hidden entirely when the queue
-         is empty — an empty inbox card is a thing to check, and there is
-         nothing to check. -->
-    <section class="card" id="enquiriesCard" hidden>
-      <div class="card__head">
-        <h2 class="card__title">New enquiries</h2>
-        <span class="card__count" id="enquiriesCount"></span>
+    <section class="home-actions" aria-label="Shortcuts">
+      <div class="home-actions__grid" aria-disabled="true">
+        <span class="home-actions__cell home-actions__cell--schedule"><span class="home-actions__icon"><img src="assets/home-schedule-icon.svg" alt=""></span>Schedule</span>
+        <span class="home-actions__cell home-actions__cell--quote"><span class="home-actions__icon"><img src="assets/home-quote-icon.svg" alt=""></span>Quote</span>
+        <span class="home-actions__cell home-actions__cell--invoice"><span class="home-actions__icon"><img src="assets/home-invoice-icon.svg" alt=""></span>Invoice</span>
+        <span class="home-actions__cell home-actions__cell--fitting"><span class="home-actions__icon"><img src="assets/home-fitting-icon.svg" alt=""></span>Fitting</span>
       </div>
-      <div class="list" id="enquiryList"></div>
     </section>
 
-    <section class="deadlines" id="deadlines" hidden>
-      <div class="deadlines__cards" id="deadlineCards"></div>
+    <section class="home-alert" id="enquiriesCard" hidden>
+      <img class="home-alert__icon" src="assets/home-alert-icon.svg" alt="">
+      <span id="enquiriesCount"></span>
+      <img class="home-alert__chevron" src="assets/home-chevron-icon.svg" alt="">
     </section>
 
-    <section class="card card--list">
-      <!-- Search belongs to the list it filters, and is the first thing you
-           reach for once there are more than a screenful of names. Adding a
-           customer sits beside it rather than under the list: it is the reason
-           you opened this page as often as searching is, and it should not
-           take a scroll past every existing name to reach. -->
-      <div class="listtools">
-        <div class="searchrow">
-          <svg class="searchrow__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="2" stroke-linecap="round" aria-hidden="true">
-            <circle cx="11" cy="11" r="7"/><path d="M16.5 16.5L21 21"/>
-          </svg>
-          <input class="input input--search" id="customerSearch" type="search" enterkeyhint="search"
-                 placeholder="Search customers" autocapitalize="none" spellcheck="false">
-        </div>
-        <button type="button" class="btn btn--secondary btn--newinline" id="newCustomer"
-                aria-label="New customer">
-          <span class="btn__plus" aria-hidden="true">+</span>
-          <span class="btn__label">New</span>
-        </button>
+    <section class="home-customers" aria-label="Customers">
+      <!-- Search remains intentionally unchanged from the established product UI. -->
+      <div class="home-search searchrow">
+        <span class="searchrow__icon" aria-hidden="true">⌕</span>
+        <input id="customerSearch" type="search" enterkeyhint="search"
+               placeholder="Search customers" autocapitalize="none" spellcheck="false">
       </div>
 
-      <!-- The list is sorted by what is coming up soonest, which is right for
-           working through the week and wrong for finding one known name.
-
-           The select carries the row alone. A count and the word "Sort" beside
-           it were two labels for things the list already shows: you can see how
-           many names there are, and a control reading "Soonest wedding" does
-           not need to be told it sorts. -->
-      <select class="input input--sort" id="customerSort" aria-label="Sort customers">
-        <option value="wedding">Soonest wedding</option>
-        <option value="name">Name A–Z</option>
-      </select>
-
-      <div class="list" id="customerList"></div>
+      <div class="home-customer-list" id="customerList"></div>
+      <div class="home-customers__end" aria-hidden="true"></div>
     </section>
+
+    <footer class="home-footer">Made with <span aria-label="love">♥</span> for Ichaku</footer>
   </section>
 
   <!-- -------------------------- Customer detail -------------------------- -->

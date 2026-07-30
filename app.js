@@ -112,12 +112,9 @@ KK.app = (function () {
     menuSignOut: $('#menuSignOut'),
 
     viewCustomers: $('#viewCustomers'),
-    deadlines: $('#deadlines'),
-    deadlineCards: $('#deadlineCards'),
+    heroDeadline: $('#heroDeadline'),
     customerSearch: $('#customerSearch'),
-    customerSort: $('#customerSort'),
     customerList: $('#customerList'),
-    newCustomer: $('#newCustomer'),
 
     viewCustomer: $('#viewCustomer'),
     customerViewCard: $('#customerViewCard'),
@@ -183,7 +180,6 @@ KK.app = (function () {
 
     enquiriesCard: $('#enquiriesCard'),
     enquiriesCount: $('#enquiriesCount'),
-    enquiryList: $('#enquiryList'),
     viewEnquiry: $('#viewEnquiry'),
     enquiryWhen: $('#enquiryWhen'),
     enquiryAnswers: $('#enquiryAnswers'),
@@ -328,6 +324,7 @@ KK.app = (function () {
 
   function setChrome(opts) {
     el.viewTitle.textContent = opts.title;
+    document.body.classList.toggle('is-homepage', !!opts.homepage);
 
     /* The subtitle carries a badge on the order page, so it takes HTML —
        every caller builds it from escaped parts. */
@@ -764,7 +761,7 @@ KK.app = (function () {
   /* ---------------------------- Customer list ----------------------------- */
 
   async function showCustomers() {
-    setChrome({ title: 'Customers', up: null, save: false, actions: false });
+    setChrome({ title: 'Customers', up: null, save: false, actions: false, homepage: true });
     state.customer = null;
     state.order = null;
     el.customerList.innerHTML = '<p class="empty">Loading…</p>';
@@ -791,8 +788,8 @@ KK.app = (function () {
     ]);
     state.customers = customers;
     state.overview = buildOverview(allOrders, allEvents);
-    renderEnquiries(enquiries);
-    renderDeadlines();
+    renderHomepageAlert(enquiries);
+    renderHeroDeadline();
     renderCustomerList();
   }
 
@@ -802,19 +799,10 @@ KK.app = (function () {
      shown as any — accepting one is a judgement about whether it is real, and
      that judgement is the reason the queue exists rather than a direct write. */
 
-  function renderEnquiries(rows) {
+  function renderHomepageAlert(rows) {
     el.enquiriesCard.hidden = !rows.length;
     if (!rows.length) return;
-
-    el.enquiriesCount.textContent = rows.length;
-    el.enquiryList.innerHTML = rows.map((r) =>
-      '<a class="row" href="#/enquiry/' + encodeURIComponent(r.id) + '">' +
-        '<span class="row__main">' +
-          '<span class="row__title">' + U.escapeHtml(r.name || 'No name given') + '</span>' +
-          '<span class="row__meta">' + U.escapeHtml(enquirySummary(r)) + '</span>' +
-        '</span>' +
-        '<span class="row__amount">' + U.escapeHtml(U.formatShortDate(r.created_at)) + '</span>' +
-      '</a>').join('');
+    el.enquiriesCount.textContent = rows.length + ' new order submission' + (rows.length === 1 ? '' : 's');
   }
 
   const enquirySummary = (r) => [
@@ -923,28 +911,11 @@ KK.app = (function () {
     }
   }
 
-  /* Which order the list is in, kept across sessions — it is a working
-     preference, not something to re-pick every time the page loads. The
-     database already returns soonest-wedding order, so that mode sorts
-     nothing; alphabetical re-sorts a copy. */
-  const SORT_KEY = 'kk_customer_sort';
-  const SORT_MODES = ['wedding', 'name'];
-
-  function savedSort() {
-    const v = localStorage.getItem(SORT_KEY);
-    return SORT_MODES.includes(v) ? v : SORT_MODES[0];
-  }
-
-  function sortCustomers(rows) {
-    if (el.customerSort.value !== 'name') return rows;
-    return rows.slice().sort((a, b) =>
-      String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' }));
-  }
-
   function renderCustomerList() {
     const q = el.customerSearch.value.trim().toLowerCase();
-    const rows = sortCustomers(state.customers.filter((c) => !q ||
-      [c.name, c.phone, c.instagram].some((v) => String(v || '').toLowerCase().includes(q))));
+    const rows = state.customers.filter((c) => !q ||
+      [c.name, c.phone, c.instagram].some((v) => String(v || '').toLowerCase().includes(q)))
+      .sort(compareHomepageCustomers);
 
     /* Searching for a name that is not here is how you find out a customer has
        not been entered yet — so the dead end offers the next step instead of
@@ -958,41 +929,53 @@ KK.app = (function () {
              'href="#/customer/new?name=' + encodeURIComponent(typed) + '">' +
             '+ Add “' + U.escapeHtml(typed) + '” as a new customer' +
           '</a>'
-        : '<p class="empty">No customers yet. Add the first one with New, above.</p>';
+        : '<p class="empty">No customers yet.</p>';
       return;
     }
 
-    /* Two meta lines, both load-bearing: the wedding date is what the list is
-       sorted by by default, and the order count is what tells you whether there
-       is anything to open. The old "Created" line was neither. */
     el.customerList.innerHTML = rows.map((c) => {
       const orders = (state.overview.ordersByCustomer[c.id] || []);
       const gross = orders.reduce((sum, o) => sum + docs.computeTotal(o.items), 0);
-      const status = customerStatus(c, orders);
-      /* The status sits under the amount rather than beside the name, and as
-         plain coloured text rather than a badge. A pill on the left made every
-         card bottom-heavy on one side and put a filled shape next to the one
-         thing already competing for the eye — the name. Down here it balances
-         the amount, and colour alone carries the state at this size. */
-      return '<a class="row row--kanban" href="#/customer/' + c.id + '">' +
-        '<span class="row__main">' +
-          '<span class="row__title">' + U.escapeHtml(c.name) + '</span>' +
-          '<span class="row__meta">' +
-            (c.wedding_date ? 'Wedding ' + U.escapeHtml(U.formatShortDate(c.wedding_date)) : 'No wedding date') +
-          '</span>' +
-          /* Only when it says something the status does not: Ordering and
-             Active both already mean there is at least one. */
-          (orders.length > 1
-            ? '<span class="row__meta">' + orders.length + ' orders</span>' : '') +
-        '</span>' +
-        '<span class="row__side">' +
-          '<span class="row__amount">' + U.formatRupiah(gross) + '</span>' +
-          '<span class="row__status row__status--' + statusSlug(status) + '">' +
-            U.escapeHtml(status) +
-          '</span>' +
-        '</span>' +
+      const display = homepageStatus(c, orders);
+      const count = orders.length + ' order' + (orders.length === 1 ? '' : 's');
+      return '<a class="home-customer-card home-customer-card--' + display.tone +
+        '" href="#/customer/' + encodeURIComponent(c.id) + '">' +
+        '<span class="home-customer-card__top"><span class="home-customer-card__name">' +
+          U.escapeHtml(c.name || 'Unnamed customer') + '</span><span class="home-customer-card__badge">' +
+          U.escapeHtml(display.label) + '</span></span>' +
+        '<img class="home-customer-card__divider" src="assets/home-vector-1.svg" alt="">' +
+        '<span class="home-customer-card__meta"><span>' + U.escapeHtml(count) +
+          '</span><span>' + U.formatRupiah(gross) + '</span></span>' +
       '</a>';
     }).join('');
+  }
+
+  function homepageStatus(customer, orders) {
+    const list = orders || [];
+    /* A cancellation closes the customer record even if an older order still
+       carries a workflow label; it always sorts after live work. */
+    if (customer.cancelled_at) return { label: 'Cancelled', tone: 'quiet', rank: 5 };
+    if (list.some((o) => o.status === 'In production')) return { label: 'In production', tone: 'production', rank: 0 };
+    if (list.some((o) => o.status === 'Confirmed')) return { label: 'Invoice sent', tone: 'invoice', rank: 1 };
+    if (list.some((o) => o.status === 'Quoted')) return { label: 'Quote sent', tone: 'invoice', rank: 2 };
+    if (!list.length) return { label: 'In consultation', tone: 'quiet', rank: 3 };
+    if (list.some((o) => o.status === 'Delivered')) return { label: 'Finished', tone: 'quiet', rank: 4 };
+    return { label: 'Finished', tone: 'quiet', rank: 4 };
+  }
+
+  function compareHomepageCustomers(a, b) {
+    const aStatus = homepageStatus(a, state.overview.ordersByCustomer[a.id] || []);
+    const bStatus = homepageStatus(b, state.overview.ordersByCustomer[b.id] || []);
+    if (aStatus.rank !== bStatus.rank) return aStatus.rank - bStatus.rank;
+    const aDeadline = nextDeadline(a);
+    const bDeadline = nextDeadline(b);
+    const aDate = aDeadline ? aDeadline.date : '9999-12-31';
+    const bDate = bDeadline ? bDeadline.date : '9999-12-31';
+    if (aDate !== bDate) return aDate.localeCompare(bDate);
+    const aWedding = a.wedding_date || '9999-12-31';
+    const bWedding = b.wedding_date || '9999-12-31';
+    if (aWedding !== bWedding) return aWedding.localeCompare(bWedding);
+    return String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
   }
 
   /* ------------------------------- Overview -------------------------------- */
@@ -1069,38 +1052,15 @@ KK.app = (function () {
     return { day: parts[0] || '', mon: (parts[1] || '').toUpperCase() };
   }
 
-  /* Stacked full-width rows, each of them mostly empty space, cost three
-     screenfuls of height to say three dates. As calendar tiles in one
-     horizontal strip the section is a fifth of the height and holds twice as
-     many — and a date reads faster as a date than as a sentence about one. */
-  const DEADLINE_LIMIT = 8;
-
-  function renderDeadlines() {
+  function renderHeroDeadline() {
     const soon = state.customers
       .filter(isActive)
-      .map((c) => ({ customer: c, deadline: nextDeadline(c) }))
-      .filter((r) => r.deadline)
-      .sort((a, b) => (a.deadline.date < b.deadline.date ? -1 : 1))
-      .slice(0, DEADLINE_LIMIT);
-
-    el.deadlines.hidden = !soon.length;
-    if (!soon.length) return;
-
-    el.deadlineCards.innerHTML = soon.map((r) => {
-      const days = daysUntil(r.deadline.date);
-      const cal = calendarParts(r.deadline.date);
-      return '<a class="dcal" href="#/customer/' + r.customer.id + '">' +
-        '<span class="dcal__date">' +
-          '<span class="dcal__day">' + U.escapeHtml(cal.day) + '</span>' +
-          '<span class="dcal__month">' + U.escapeHtml(cal.mon) + '</span>' +
-        '</span>' +
-        '<span class="dcal__body">' +
-          '<span class="dcal__name">' + U.escapeHtml(firstName(r.customer.name)) + '</span>' +
-          '<span class="dcal__what">' + U.escapeHtml(r.deadline.what) + '</span>' +
-          '<span class="dcal__when">' + relativeDays(days) + '</span>' +
-        '</span>' +
-      '</a>';
-    }).join('');
+      .map((customer) => ({ customer, deadline: nextDeadline(customer) }))
+      .filter((row) => row.deadline)
+      .sort((a, b) => a.deadline.date.localeCompare(b.deadline.date))[0];
+    el.heroDeadline.hidden = !soon;
+    if (!soon) return;
+    el.heroDeadline.textContent = soon.deadline.what + ' · ' + U.formatShortDate(soon.deadline.date);
   }
 
   /* --------------------------- Customer detail ---------------------------- */
@@ -3174,13 +3134,6 @@ KK.app = (function () {
 
     el.customerSearch.addEventListener('input', renderCustomerList);
 
-    el.customerSort.addEventListener('change', () => {
-      localStorage.setItem(SORT_KEY, el.customerSort.value);
-      renderCustomerList();
-    });
-
-    el.newCustomer.addEventListener('click', () => go('#/customer/new'));
-
     /* -- customer detail -- */
 
     $$('.js-cfield').forEach((input) => {
@@ -3488,7 +3441,6 @@ KK.app = (function () {
   async function init() {
     bindGate();
     bindEvents();
-    el.customerSort.value = savedSort();
 
     if (!db.isConfigured()) {
       el.boot.innerHTML =

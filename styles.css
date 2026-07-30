@@ -60,6 +60,259 @@ button:focus-visible {
 body.has-modal { overflow: hidden; }
 body.has-app-modal { overflow: hidden; }
 
+/* -------------------------- Customers homepage ------------------------- */
+
+/* This view is deliberately a fixed mobile canvas until its desktop design is
+   supplied. The rest of the product retains the normal responsive shell. */
+body.is-homepage { background: #CDC7BB; }
+body.is-homepage .appbar,
+body.is-homepage .pagehead { display: none; }
+body.is-homepage .page {
+  width: min(390px, 100%);
+  max-width: 390px;
+  min-height: 100svh;
+  margin: 0 auto;
+  padding: 0 0 40px;
+  background: #CDC7BB;
+}
+body.is-homepage .view { gap: 0; }
+
+.home-hero {
+  position: relative;
+  height: 280px;
+  padding: 120px 16px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  overflow: hidden;
+  background: #DDDF28;
+  border-bottom: 1px solid #000;
+}
+
+/* The oversized decorative field begins above the hero, matching the supplied
+   mobile composition without affecting any other route. */
+.home-hero__art {
+  position: absolute;
+  top: -137px;
+  left: 0;
+  width: 390px;
+  height: 694px;
+  background: url('assets/home-hero-art.png') center / 390px 694px no-repeat;
+}
+
+.home-hero__flower {
+  z-index: 1;
+  padding: 2px;
+  background: #F8F1E1;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 40px;
+  letter-spacing: -.96px;
+}
+
+.home-hero__greeting {
+  z-index: 1;
+  margin: 0;
+  padding: 2px;
+  background: #F8F1E1;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 40px;
+  letter-spacing: -.96px;
+  white-space: nowrap;
+}
+
+.home-hero__deadline {
+  z-index: 1;
+  max-width: 358px;
+  min-height: 24px;
+  margin: 0;
+  padding: 2px;
+  overflow: hidden;
+  background: #E9F2D9;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: -.42px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home-hero__deadline[hidden] { display: none; }
+
+.home-actions {
+  height: 128.75px;
+  padding: 20px 16px;
+  background: #E9F2D9;
+  border-bottom: 1px solid #000;
+}
+.home-actions__grid {
+  width: 358px;
+  height: 88.75px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  background: #fff;
+  border: 1px solid #000;
+}
+.home-actions__cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 8px;
+  border-left: 1px solid #000;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: -.42px;
+}
+.home-actions__cell:first-child { border-left: 0; }
+.home-actions__icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+.home-actions__icon img { width: 24px; height: 24px; }
+.home-actions__cell--schedule .home-actions__icon { background: #D9EDF2; }
+.home-actions__cell--quote .home-actions__icon { background: #F2ECD9; }
+.home-actions__cell--quote .home-actions__icon img { width: 22px; height: 22px; }
+.home-actions__cell--invoice .home-actions__icon { background: #E9F2D9; }
+.home-actions__cell--fitting .home-actions__icon { background: #FFDEEF; }
+
+.home-alert {
+  height: 48px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #000;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+  letter-spacing: -.48px;
+}
+.home-alert[hidden] { display: none; }
+.home-alert__icon {
+  width: 24px;
+  height: 24px;
+  flex: none;
+}
+.home-alert__chevron { width: 24px; height: 24px; margin-left: auto; transform: rotate(90deg); }
+
+.home-search {
+  height: 60px;
+  margin: 0;
+  padding: 12px 16px 8px;
+}
+.home-search .searchrow__icon {
+  left: 28px;
+  z-index: 1;
+  font-size: 24px;
+  color: #000;
+}
+.home-search input {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px 0 38px;
+  border: 1.5px solid #000;
+  border-radius: 0;
+  outline: none;
+  background: #F6F6F6;
+  color: #000;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: -.39px;
+}
+.home-search input:focus { background: #fff; box-shadow: 2px 2px 0 #000; }
+
+.home-customers {
+  background: #fff;
+  overflow: hidden;
+}
+.home-customer-list { padding: 0 16px; }
+.home-customer-card {
+  position: relative;
+  min-height: 112px;
+  margin-top: -20px;
+  padding: 12px 12px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: #000;
+  text-decoration: none;
+  border: 1px solid #000;
+  border-bottom: 0;
+  border-radius: 12px 12px 0 0;
+  box-shadow: 0 -2px 0 rgba(0, 0, 0, .12);
+}
+.home-customer-card:first-child { margin-top: 0; }
+.home-customer-card:nth-child(1) { z-index: 12; }
+.home-customer-card:nth-child(2) { z-index: 11; }
+.home-customer-card:nth-child(3) { z-index: 10; }
+.home-customer-card:nth-child(4) { z-index: 9; }
+.home-customer-card--production { background: #E9F2D9; }
+.home-customer-card--invoice { background: #D9EDF2; }
+.home-customer-card--quiet { background: #F6F6F6; }
+.home-customer-card__top,
+.home-customer-card__meta { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.home-customer-card__divider { width: 100%; height: 1.55122px; display: block; }
+.home-customer-card__name {
+  min-width: 0;
+  display: -webkit-box;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 24px;
+  letter-spacing: -.6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.home-customer-card__badge {
+  flex: none;
+  padding: 2px;
+  background: #FFAED7;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: -.36px;
+  white-space: nowrap;
+}
+.home-customer-card--invoice .home-customer-card__badge { background: #AED8FF; }
+.home-customer-card--quiet .home-customer-card__badge { background: #DBDBDB; }
+.home-customer-card__meta {
+  margin-top: auto;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: -.39px;
+}
+body.is-homepage .empty { margin: 16px 0; font-size: 13px; color: rgba(0,0,0,.65); }
+.home-customers__end {
+  height: 12px;
+  margin-top: 0;
+  background: #000;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, .25);
+}
+.home-footer {
+  padding: 64px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  color: #888;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 24px;
+  letter-spacing: -.42px;
+}
+.home-footer span { color: #d8262d; }
+
 /* -------------------------------- Boot ---------------------------------- */
 
 /* Shown until the session check resolves, so the gate never flashes for
