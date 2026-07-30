@@ -1554,7 +1554,7 @@ KK.app = (function () {
       issued, so the date is stamped here rather than typed into the editor. */
   function orderDataFromState() {
     return {
-      docName: state.order.doc_name || '',
+      docName: state.order.doc_name || state.customer.name || '',
       date: U.todayISO(),
       items: state.order.items || [],
       includes: state.order.includes || [],
@@ -1646,10 +1646,9 @@ KK.app = (function () {
     el.paymentChooserOptions.hidden = true;
 
     /* An empty order would export a document with no lines on it, and one
-       without a document name would address it to nobody. The name is no
-       longer inherited from the customer, so it has to be asked for. */
+       without an order or customer name would address it to nobody. */
     const priced = namedItems.length > 0 && total > 0;
-    const hasDocName = String(state.order.doc_name || '').trim() !== '';
+    const hasDocName = String(state.order.doc_name || state.customer.name || '').trim() !== '';
     const sellable = priced && hasDocName;
     el.downloadQuote.disabled = !sellable;
     el.downloadInvoice.disabled = !sellable;
@@ -1682,12 +1681,13 @@ KK.app = (function () {
     const result = await Promise.all([db.listOrderEvents(id), db.listFittingSessions(id)]);
     const active = result[1].find((session) => session.status === 'active');
     if (active) { go('#/order/' + id + '/fitting/' + active.id); return; }
-    const stages = result[0].filter((event) => cal.isProductionStage(event.stage));
-    if (!stages.length) {
-      setChrome({ title: 'Fitting Journal', up: { label: orderLabel(state.order), hash: '#/order/' + id }, save: false, actions: false });
-      el.fittingJournal.innerHTML = '<section class="card"><h2 class="card__title">No fittings scheduled</h2><p class="card__hint">Save the order with production dates to begin a fitting journal.</p></section>';
-      return;
-    }
+    const scheduledStages = result[0].filter((event) => cal.isProductionStage(event.stage));
+    /* A fitting journal records what happened, whether or not the payment-led
+       calendar programme has been generated yet. Without a programme, offer
+       every production stage for a manual log; these placeholders are never
+       persisted as calendar events. */
+    const stages = scheduledStages.length ? scheduledStages
+      : cal.PRODUCTION_STAGES.map((stage) => ({ stage: stage }));
     const begin = async (stage) => {
       try {
         const session = await db.createFittingSession({ order_id: id, stage: stage, status: 'active' });
@@ -1699,9 +1699,9 @@ KK.app = (function () {
         KK.fittings.startSession(session, { order: state.order, customer: state.customer, photos: [] }, showToast);
       } catch (err) { showToast(err.message || 'Could not start fitting session'); }
     };
-    const stage = KK.fittings.detectStage(result[0]);
+    const stage = KK.fittings.detectStage(scheduledStages);
     if (stage) await begin(stage);
-    else KK.fittings.showStagePicker(result[0], begin, () => go('#/order/' + id));
+    else KK.fittings.showStagePicker(stages, begin, () => go('#/order/' + id));
   }
 
   async function showFittingJournal(id, sessionId) {
