@@ -1005,7 +1005,7 @@ KK.app = (function () {
       const display = homepageStatus(c, orders);
       const count = orders.length + ' order' + (orders.length === 1 ? '' : 's');
       return '<a class="home-customer-card home-customer-card--' + display.tone +
-        '" style="--card-index:' + Math.min(i, 8) + '"' +
+        '" style="--card-index:' + Math.min(i, 8) + ';--stack-index:' + i + '"' +
         ' href="#/customer/' + encodeURIComponent(c.id) + '">' +
         '<span class="home-customer-card__top"><span class="home-customer-card__name">' +
           U.escapeHtml(c.name || 'Unnamed customer') + '</span><span class="home-customer-card__badge">' +

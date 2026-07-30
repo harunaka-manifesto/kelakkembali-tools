@@ -317,8 +317,9 @@ body.is-homepage .view { gap: 0; }
 .home-customer-list { padding: 0 16px; }
 .home-customer-card {
   position: relative;
+  z-index: calc(var(--stack-index, 0) + 1);
   min-height: 112px;
-  margin-top: 0;
+  margin-top: -20px;
   padding: 12px 12px 40px;
   display: flex;
   flex-direction: column;
@@ -333,6 +334,7 @@ body.is-homepage .view { gap: 0; }
   animation: card-in .25s ease both;
   animation-delay: calc(var(--card-index, 0) * 40ms);
 }
+.home-customer-card:first-child { margin-top: 0; }
 .home-customer-card:active {
   transform: translateY(1px);
   box-shadow: 0 0 0 rgba(0, 0, 0, .12);
