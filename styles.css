@@ -77,61 +77,106 @@ body.is-homepage .page {
 }
 body.is-homepage .view { gap: 0; }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The controls float over the 390px homepage canvas while the hero keeps a
+   matching in-flow spacer. The 44px targets contain the 40px Figma circles. */
+.homepage-nav {
+  position: fixed;
+  inset: 0 auto auto 50%;
+  z-index: 35;
+  width: min(390px, 100%);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.homepage-nav[hidden] { display: none; }
+.homepage-nav__inner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: max(30px, calc(env(safe-area-inset-top) - 2px)) 14px 0;
+}
+.homepage-nav__target {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: #000;
+  text-decoration: none;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.homepage-nav__control {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  border: 1px solid #000;
+  border-radius: 50%;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, .25);
+}
+.homepage-nav__target:hover .homepage-nav__control { background: #f7f7f4; }
+.homepage-nav__target:active .homepage-nav__control { transform: translateY(1px); box-shadow: 0 1px 0 rgba(0, 0, 0, .25); }
+.homepage-nav__control img { display: block; width: 24px; height: 24px; }
+.homepage-nav__menu { position: relative; pointer-events: auto; }
+.homepage-nav__menu-list { top: 50px; right: 2px; pointer-events: auto; }
+
 .home-hero {
   position: relative;
-  height: 280px;
-  padding: 120px 16px 32px;
+  min-height: calc(328px + var(--hero-greeting-extra, 0px));
+  padding: 32px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 12% 82%, var(--hero-2, #EEA746), transparent 62%),
+    radial-gradient(circle at 92% 86%, var(--hero-3, #D8DEA0), transparent 58%),
+    radial-gradient(circle at 52% 52%, var(--hero-1, #F3D46A), transparent 70%),
+    var(--hero-0, #F7F3DA);
+  border-bottom: 1px solid #000;
+  transition: min-height .15s ease;
+}
+.home-hero__canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 900ms ease;
+}
+.home-hero__canvas.is-revealed { opacity: 1; }
+.home-hero--fallback .home-hero__canvas { display: none; }
+.home-hero__nav-spacer { position: relative; z-index: 1; width: 100%; height: 40px; flex: none; }
+.home-hero__content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  margin-top: auto;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 8px;
-  overflow: hidden;
-  background: #DDDF28;
-  border-bottom: 1px solid #000;
 }
 
-/* Three animated gradient layers stand in for the shader-gradient background
-   in the Figma file — hardware-composited, zero-JS. Palette swaps by
-   time-of-day via the data-time attribute set from app.js. */
-.home-hero[data-time="morning"] {
-  --hero-a: #F7C873; --hero-b: #E8A94A; --hero-c: #D9C79E;
-}
-.home-hero[data-time="afternoon"] {
-  --hero-a: #FFB894; --hero-b: #FF8F6B; --hero-c: #F2DCB8;
-}
-.home-hero[data-time="evening"] {
-  --hero-a: #4B4468; --hero-b: #6E5A82; --hero-c: #3C3E52;
-}
-.home-hero::before,
-.home-hero::after {
-  content: '';
-  position: absolute;
-  inset: -20%;
-  z-index: 0;
-  pointer-events: none;
-}
-.home-hero::before {
-  background: radial-gradient(circle at 30% 30%, var(--hero-a, #DDDF28), transparent 60%);
-  mix-blend-mode: soft-light;
-  animation: hero-drift 12s ease-in-out infinite;
-}
-.home-hero::after {
-  background: conic-gradient(from 0deg at 70% 60%, var(--hero-b, #DDDF28), var(--hero-c, #DDDF28), var(--hero-b, #DDDF28));
-  mix-blend-mode: soft-light;
-  opacity: .8;
-  animation: hero-rotate 8s linear infinite;
-}
-@keyframes hero-drift {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50%      { transform: translate(4%, -3%) scale(1.08); }
-}
-@keyframes hero-rotate {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
-}
-
-.home-hero__flower {
-  z-index: 1;
+.home-hero__emoji {
   padding: 2px;
   background: #F8F1E1;
   font-size: 32px;
@@ -141,23 +186,36 @@ body.is-homepage .view { gap: 0; }
 }
 
 .home-hero__greeting {
-  z-index: 1;
+  width: 100%;
   max-width: 100%;
   min-width: 0;
   margin: 0;
-  padding: 2px;
-  overflow: hidden;
-  background: #F8F1E1;
   font-size: 32px;
   font-weight: 600;
   line-height: 40px;
   letter-spacing: -.96px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
+.home-hero__greeting-visual {
+  padding: 2px;
+  background: #F8F1E1;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.home-hero__greeting-visual.is-typing::after {
+  content: '';
+  display: inline-block;
+  width: 2px;
+  height: .82em;
+  margin-left: 2px;
+  background: currentColor;
+  vertical-align: -.06em;
+  animation: hero-caret .7s steps(1, end) infinite;
+}
+@keyframes hero-caret { 50% { opacity: 0; } }
 
 .home-hero__deadline {
-  z-index: 1;
   max-width: 100%;
   min-width: 0;
   min-height: 24px;
@@ -173,19 +231,23 @@ body.is-homepage .view { gap: 0; }
   white-space: nowrap;
 }
 .home-hero__deadline[hidden] { display: none; }
-
-/* 11a. Hero content staggers in on first route entry only. */
-@keyframes hero-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
+.home-hero__deadline.is-awaiting-reveal { opacity: 0; transform: translateY(4px); }
+.home-hero__deadline.is-revealed {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 280ms ease, transform 280ms ease;
 }
-.home-hero__flower   { animation: hero-in .3s ease both; }
-.home-hero__greeting { animation: hero-in .3s ease .06s both; }
-.home-hero__deadline { animation: hero-in .3s ease .12s both; }
-.home-hero.no-animate .home-hero__flower,
-.home-hero.no-animate .home-hero__greeting,
-.home-hero.no-animate .home-hero__deadline {
-  animation: none;
+.home-hero__emoji.is-awaiting-reveal,
+.home-hero__greeting.is-awaiting-reveal { opacity: 0; }
+.home-hero__emoji.is-revealed,
+.home-hero__greeting.is-revealed { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .home-hero,
+  .home-hero__canvas,
+  .home-hero__deadline { transition: none; }
+  .home-hero__greeting-visual.is-typing::after { animation: none; }
 }
 
 .home-actions {
@@ -277,19 +339,27 @@ body.is-homepage .view { gap: 0; }
 }
 
 .home-search {
-  height: 60px;
   margin: 0;
-  padding: 24px 16px;
+  /* The Figma search component reserves 24px below the field before the
+     customer cards begin. A fixed height used to consume that padding. */
+  padding: 0 16px 24px;
 }
 .home-search .searchrow__icon {
   left: 32px;
+  /* The search row's 24px bottom padding is intentionally outside the input,
+     so centre against the field rather than the padded row. */
+  top: calc((100% - 24px) / 2);
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  line-height: 1;
   z-index: 1;
   font-size: 24px;
   color: #000;
 }
 .home-search input {
   width: 100%;
-  height: 40px;
   padding: 12px 12px 12px 42px;
   border: 1px solid #000;
   border-radius: 12px;
@@ -307,6 +377,29 @@ body.is-homepage .view { gap: 0; }
   background: #fff;
   transform: translateY(-1px);
   box-shadow: 0 3px 0 rgba(0, 0, 0, .25);
+}
+
+/* A separate composer leaves the in-flow homepage field entirely untouched. */
+.homepage-search-overlay { position: fixed; inset: 0; z-index: 100; pointer-events: none; }
+.homepage-search-overlay.is-open, .homepage-search-overlay.is-closing { display: block; }
+.homepage-search-overlay.is-open { pointer-events: auto; }
+.homepage-search-overlay__backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, .48); opacity: 0; transition: opacity .17s ease; }
+.homepage-search-composer { position: absolute; right: 0; bottom: calc(var(--keyboard-offset) + env(safe-area-inset-bottom, 0px)); left: 0; padding: 8px 0 12px; background: #fff; transform: translateY(calc(100% + var(--keyboard-offset))); transition: transform .17s ease; will-change: transform; }
+.homepage-search-overlay.is-open .homepage-search-overlay__backdrop { opacity: 1; }
+.homepage-search-overlay.is-closing .homepage-search-overlay__backdrop { opacity: 0; }
+.homepage-search-overlay.is-open .homepage-search-composer { transform: translateY(var(--search-drag-offset, 0px)); }
+.homepage-search-overlay.is-closing .homepage-search-composer { transform: translateY(calc(100% + var(--keyboard-offset))); }
+.homepage-search-composer__drag { height: 14px; display: grid; place-items: center; touch-action: none; cursor: grab; }
+.homepage-search-composer__drag span { width: 36px; height: 4px; border-radius: 99px; background: rgba(0,0,0,.28); }
+.homepage-search-composer__drag:active { cursor: grabbing; }
+.homepage-search-composer__field { padding-bottom: 0; }
+.homepage-search-composer__field .searchrow__icon { top: 50%; }
+body.has-homepage-search { overflow: hidden; overscroll-behavior: none; }
+
+@media (min-width: 600px) {
+  .homepage-search-composer { right: auto; left: 50%; width: min(390px, calc(100% - 32px)); border-radius: 14px; box-shadow: 0 5px 22px rgba(0,0,0,.22); transform: translate(-50%, calc(100% + 16px)); }
+  .homepage-search-overlay.is-open .homepage-search-composer { transform: translate(-50%, var(--search-drag-offset, 0px)); }
+  .homepage-search-overlay.is-closing .homepage-search-composer { transform: translate(-50%, calc(100% + 16px)); }
 }
 
 .home-customers {

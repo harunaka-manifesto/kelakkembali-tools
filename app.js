@@ -95,6 +95,13 @@ KK.app = (function () {
     gateSubmit: $('#gateSubmit'),
 
     app: $('#app'),
+    homepageNav: $('#homepageNav'),
+    homepageHome: $('#homepageHome'),
+    homepageMenu: $('#homepageMenu'),
+    homepageMenuBtn: $('#homepageMenuBtn'),
+    homepageMenuList: $('#homepageMenuList'),
+    homepageMenuCalendar: $('#homepageMenuCalendar'),
+    homepageMenuSignOut: $('#homepageMenuSignOut'),
     upLink: $('#upLink'),
     upLabel: $('#upLabel'),
     appbarBrand: $('#appbarBrand'),
@@ -113,13 +120,22 @@ KK.app = (function () {
 
     viewCustomers: $('#viewCustomers'),
     homeHero: $('#homeHero'),
+    heroCanvas: $('#heroCanvas'),
+    heroEmoji: $('#heroEmoji'),
     homeActions: $('#homeActions'),
     homeCustomers: $('#homeCustomers'),
     homeFooter: $('#homeFooter'),
     heroGreeting: $('#heroGreeting'),
+    heroGreetingAccessible: $('#heroGreetingAccessible'),
+    heroGreetingVisual: $('#heroGreetingVisual'),
     heroDeadline: $('#heroDeadline'),
     customerSearch: $('#customerSearch'),
     customerList: $('#customerList'),
+    homepageSearchOverlay: $('#homepageSearchOverlay'),
+    homepageSearchBackdrop: $('#homepageSearchBackdrop'),
+    homepageSearchForm: $('#homepageSearchForm'),
+    homepageSearchInput: $('#homepageSearchInput'),
+    homepageSearchDrag: $('#homepageSearchDrag'),
 
     viewCustomer: $('#viewCustomer'),
     customerViewCard: $('#customerViewCard'),
@@ -251,8 +267,18 @@ KK.app = (function () {
     enquiry: null,           // the intake submission being reviewed
     googleConnected: null,   // null until asked; cached for the session
     dirty: false,
-    saving: false
+    saving: false,
+    homepageEntered: false,
+    homepageEntrancePlayed: false
   };
+
+  let heroController = null;
+  let heroTyping = false;
+  let homepageSearchOpen = false;
+  let homepageSearchHistory = false;
+  let homepageSearchScrollY = 0;
+  let homepageSearchCloseTimer = null;
+  let homepageSearchDrag = null;
 
   /* -------------------------------- Chrome ------------------------------- */
 
@@ -288,6 +314,70 @@ KK.app = (function () {
     const offset = vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
     document.documentElement.style.setProperty('--keyboard-offset', Math.round(offset) + 'px');
     syncBottomBar();
+  }
+
+  function homepageSearchReducedMotion() {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  function openHomepageSearch() {
+    if (homepageSearchOpen || !state.route || state.route.view !== 'customers') return;
+    homepageSearchOpen = true;
+    homepageSearchScrollY = window.scrollY;
+    el.homepageSearchInput.value = el.customerSearch.value;
+    el.homepageSearchOverlay.hidden = false;
+    el.homepageSearchOverlay.setAttribute('aria-hidden', 'false');
+    el.homepageSearchOverlay.classList.remove('is-closing');
+    el.homepageSearchOverlay.classList.add('is-open');
+    document.body.classList.add('has-homepage-search');
+    history.pushState(Object.assign({}, history.state, { kkHomepageSearch: true }), '', location.href);
+    homepageSearchHistory = true;
+    requestAnimationFrame(() => {
+      el.homepageSearchInput.focus({ preventScroll: true });
+      const end = el.homepageSearchInput.value.length;
+      el.homepageSearchInput.setSelectionRange(end, end);
+    });
+  }
+
+  function finishHomepageSearchClose(restoreFocus, restoreScroll) {
+    clearTimeout(homepageSearchCloseTimer);
+    homepageSearchOpen = false;
+    homepageSearchDrag = null;
+    el.homepageSearchOverlay.hidden = true;
+    el.homepageSearchOverlay.setAttribute('aria-hidden', 'true');
+    el.homepageSearchOverlay.classList.remove('is-open', 'is-closing');
+    el.homepageSearchOverlay.style.removeProperty('--search-drag-offset');
+    document.body.classList.remove('has-homepage-search');
+    if (restoreScroll) window.scrollTo(0, homepageSearchScrollY);
+    if (restoreFocus && state.route && state.route.view === 'customers') el.customerSearch.focus({ preventScroll: true });
+  }
+
+  function closeHomepageSearch(options) {
+    const opts = Object.assign({ restoreFocus: true, restoreScroll: true, fromHistory: false, immediate: false, discardHistory: false }, options);
+    if (!homepageSearchOpen) return;
+    clearTimeout(homepageSearchCloseTimer);
+    el.homepageSearchInput.blur();
+    el.homepageSearchOverlay.classList.remove('is-open');
+    el.homepageSearchOverlay.classList.add('is-closing');
+    homepageSearchCloseTimer = setTimeout(
+      () => finishHomepageSearchClose(opts.restoreFocus, opts.restoreScroll),
+      opts.immediate || homepageSearchReducedMotion() ? 0 : 260);
+    if (homepageSearchHistory && opts.discardHistory) {
+      homepageSearchHistory = false;
+      const nextState = Object.assign({}, history.state);
+      delete nextState.kkHomepageSearch;
+      history.replaceState(nextState, '', location.href);
+    } else if (homepageSearchHistory && !opts.fromHistory) {
+      homepageSearchHistory = false;
+      history.back();
+    } else if (opts.fromHistory) homepageSearchHistory = false;
+  }
+
+  function submitHomepageSearch(event) {
+    event.preventDefault();
+    el.customerSearch.value = el.homepageSearchInput.value.trim();
+    renderCustomerList();
+    closeHomepageSearch({ restoreFocus: false, restoreScroll: false });
   }
 
   function keepFocusedControlVisible(target) {
@@ -330,6 +420,7 @@ KK.app = (function () {
   function setChrome(opts) {
     el.viewTitle.textContent = opts.title;
     document.body.classList.toggle('is-homepage', !!opts.homepage);
+    el.homepageNav.hidden = !opts.homepage;
 
     /* The subtitle carries a badge on the order page, so it takes HTML —
        every caller builds it from escaped parts. */
@@ -368,12 +459,21 @@ KK.app = (function () {
   function closeMenu() {
     el.menuList.hidden = true;
     el.menuBtn.setAttribute('aria-expanded', 'false');
+    el.homepageMenuList.hidden = true;
+    el.homepageMenuBtn.setAttribute('aria-expanded', 'false');
   }
 
   function toggleMenu() {
     const open = el.menuList.hidden;
     el.menuList.hidden = !open;
     el.menuBtn.setAttribute('aria-expanded', String(open));
+  }
+
+  function toggleHomepageMenu() {
+    const open = el.homepageMenuList.hidden;
+    closeMenu();
+    el.homepageMenuList.hidden = !open;
+    el.homepageMenuBtn.setAttribute('aria-expanded', String(open));
   }
 
   /* ------------------------------ Order status ---------------------------- */
@@ -658,6 +758,10 @@ KK.app = (function () {
     const next = parseHash();
     const previous = state.route;
 
+    if (homepageSearchOpen && next.view !== 'customers') {
+      closeHomepageSearch({ restoreFocus: false, restoreScroll: false, immediate: true, discardHistory: true });
+    }
+
     // Guard the transition, and put the URL back if it is refused.
     if (state.dirty && lastHash !== location.hash) {
       if (!confirmLeave()) {
@@ -765,13 +869,125 @@ KK.app = (function () {
 
   /* ---------------------------- Customer list ----------------------------- */
 
-  /** Returns both the greeting text and the time-of-day key, so the hero
-      gradient can key off the same hour split as the words above it. */
-  function greetingForNow() {
-    const hour = new Date().getHours();
-    const timeOfDay = hour >= 5 && hour < 12 ? 'morning' : hour >= 12 && hour < 18 ? 'afternoon' : 'evening';
-    const label = timeOfDay === 'morning' ? 'Good morning' : timeOfDay === 'afternoon' ? 'Good afternoon' : 'Good evening';
-    return { text: label + ', Ichaku', timeOfDay };
+  function greetingForClock(clock) {
+    const label = clock.period === 'dawn' || clock.period === 'morning'
+      ? 'Good morning'
+      : (clock.period === 'noon' || clock.period === 'afternoon' ? 'Good afternoon' : 'Good evening');
+    return label + ', Ichaku';
+  }
+
+  function syncHeroHeight() {
+    const range = document.createRange();
+    range.selectNodeContents(el.heroGreetingVisual);
+    const tops = Array.from(range.getClientRects()).map((rect) => Math.round(rect.top));
+    const lineCount = new Set(tops).size || 1;
+    el.homeHero.style.setProperty('--hero-greeting-extra', Math.max(0, lineCount - 1) * 40 + 'px');
+  }
+
+  function applyHeroClock(clock) {
+    const greeting = greetingForClock(clock);
+    el.homeHero.dataset.period = clock.period;
+    el.heroEmoji.textContent = clock.emoji;
+    el.heroGreetingAccessible.textContent = greeting;
+    if (state.homepageEntrancePlayed && !heroTyping) {
+      el.heroGreetingVisual.textContent = greeting;
+      requestAnimationFrame(syncHeroHeight);
+    }
+  }
+
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  function graphemes(text) {
+    if (window.Intl && Intl.Segmenter) {
+      return Array.from(new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text), (part) => part.segment);
+    }
+    return Array.from(text);
+  }
+
+  function showHeroImmediately() {
+    const clock = heroController ? heroController.setClock(new Date()) : KK.heroShader.resolveTime(new Date());
+    const greeting = greetingForClock(clock);
+    heroTyping = false;
+    el.heroGreetingAccessible.textContent = greeting;
+    el.heroGreetingVisual.textContent = greeting;
+    el.heroGreetingVisual.classList.remove('is-typing');
+    el.heroEmoji.classList.remove('is-awaiting-reveal');
+    el.heroGreeting.classList.remove('is-awaiting-reveal');
+    el.heroDeadline.classList.remove('is-awaiting-reveal');
+    el.heroEmoji.classList.add('is-revealed');
+    el.heroGreeting.classList.add('is-revealed');
+    if (!el.heroDeadline.hidden) el.heroDeadline.classList.add('is-revealed');
+    if (heroController) {
+      heroController.reveal();
+      heroController.setMotionEnabled(!window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    }
+    requestAnimationFrame(syncHeroHeight);
+  }
+
+  function prepareHeroEntrance() {
+    if (state.homepageEntrancePlayed) return;
+    heroTyping = false;
+    el.heroGreetingVisual.textContent = '';
+    el.heroGreetingVisual.classList.remove('is-typing');
+    el.heroEmoji.classList.remove('is-revealed');
+    el.heroGreeting.classList.remove('is-revealed');
+    el.heroDeadline.classList.remove('is-revealed');
+    el.heroEmoji.classList.add('is-awaiting-reveal');
+    el.heroGreeting.classList.add('is-awaiting-reveal');
+  }
+
+  async function runHomepageEntrance() {
+    if (state.homepageEntrancePlayed) {
+      showHeroImmediately();
+      return;
+    }
+    state.homepageEntrancePlayed = true;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced) {
+      showHeroImmediately();
+      if (heroController) heroController.setMotionEnabled(false);
+      return;
+    }
+
+    const clock = heroController ? heroController.setClock(new Date()) : KK.heroShader.resolveTime(new Date());
+    const greeting = greetingForClock(clock);
+    const characters = graphemes(greeting);
+    heroTyping = true;
+    el.heroGreetingAccessible.textContent = greeting;
+    el.heroGreetingVisual.textContent = '';
+    el.heroGreetingVisual.classList.add('is-typing');
+    el.heroEmoji.classList.add('is-awaiting-reveal');
+    el.heroGreeting.classList.add('is-awaiting-reveal');
+    el.heroDeadline.classList.toggle('is-awaiting-reveal', !el.heroDeadline.hidden);
+    el.heroDeadline.classList.remove('is-revealed');
+
+    for (let i = 0; i < characters.length; i += 1) {
+      if (i === 0) {
+        el.heroEmoji.classList.remove('is-awaiting-reveal');
+        el.heroGreeting.classList.remove('is-awaiting-reveal');
+        el.heroEmoji.classList.add('is-revealed');
+        el.heroGreeting.classList.add('is-revealed');
+      }
+      el.heroGreetingVisual.textContent += characters[i];
+      syncHeroHeight();
+      await sleep(25);
+    }
+    heroTyping = false;
+    el.heroGreetingVisual.classList.remove('is-typing');
+
+    if (!el.heroDeadline.hidden) {
+      await sleep(120);
+      el.heroDeadline.classList.remove('is-awaiting-reveal');
+      el.heroDeadline.classList.add('is-revealed');
+      await sleep(280);
+      await sleep(120);
+    }
+    if (heroController) {
+      heroController.reveal();
+      heroController.setMotionEnabled(true);
+    }
   }
 
   const SKELETON_CARD = '<div class="home-customer-card home-customer-card--skeleton">' +
@@ -804,9 +1020,10 @@ KK.app = (function () {
     state.customer = null;
     state.order = null;
 
-    const greeting = greetingForNow();
-    el.heroGreeting.textContent = greeting.text;
-    el.homeHero.dataset.time = greeting.timeOfDay;
+    prepareHeroEntrance();
+    if (heroController) heroController.setClock(new Date());
+    else applyHeroClock(KK.heroShader.resolveTime(new Date()));
+    if (state.homepageEntrancePlayed) showHeroImmediately();
     [el.homeHero, el.homeActions, el.homeCustomers, el.homeFooter, el.enquiriesCard].forEach((section) => {
       section.classList.toggle('no-animate', !!state.homepageEntered);
     });
@@ -840,6 +1057,7 @@ KK.app = (function () {
       console.error(err);
       renderCustomerListError(err instanceof TypeError);
       showToast(err.message || 'Could not load customers');
+      await runHomepageEntrance();
       state.homepageEntered = true;
       return;
     }
@@ -849,6 +1067,7 @@ KK.app = (function () {
     renderHomepageAlert(enquiries);
     renderHeroDeadline();
     renderCustomerList();
+    await runHomepageEntrance();
     state.homepageEntered = true;
   }
 
@@ -3140,6 +3359,14 @@ KK.app = (function () {
 
   /* --------------------------------- Events ------------------------------ */
 
+  async function signOutFromMenu() {
+    closeMenu();
+    if (!confirmLeave()) return;
+    await db.signOut();
+    location.hash = '';
+    showGate();
+  }
+
   function bindEvents() {
     window.addEventListener('hashchange', handleRoute);
 
@@ -3174,24 +3401,33 @@ KK.app = (function () {
     /* -- overflow menu -- */
 
     el.menuBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleMenu(); });
+    el.homepageMenuBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleHomepageMenu(); });
+
+    el.homepageHome.addEventListener('click', (e) => {
+      if (state.route && state.route.view === 'customers') {
+        e.preventDefault();
+        window.scrollTo({
+          top: 0,
+          behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+        });
+        closeMenu();
+      }
+    });
 
     document.addEventListener('click', (e) => {
-      if (!el.menuList.hidden && !el.menu.contains(e.target)) closeMenu();
+      if ((!el.menuList.hidden && !el.menu.contains(e.target)) ||
+          (!el.homepageMenuList.hidden && !el.homepageMenu.contains(e.target))) closeMenu();
     });
 
     document.addEventListener('keydown', (e) => {
-      if (e.key !== 'Escape' || el.menuList.hidden) return;
+      if (e.key !== 'Escape' || (el.menuList.hidden && el.homepageMenuList.hidden)) return;
+      const homepageWasOpen = !el.homepageMenuList.hidden;
       closeMenu();
-      el.menuBtn.focus();
+      (homepageWasOpen ? el.homepageMenuBtn : el.menuBtn).focus();
     });
 
-    el.menuSignOut.addEventListener('click', async () => {
-      closeMenu();
-      if (!confirmLeave()) return;
-      await db.signOut();
-      location.hash = '';
-      showGate();
-    });
+    el.menuSignOut.addEventListener('click', signOutFromMenu);
+    el.homepageMenuSignOut.addEventListener('click', signOutFromMenu);
 
     el.menuDelete.addEventListener('click', () => {
       closeMenu();
@@ -3201,7 +3437,41 @@ KK.app = (function () {
 
     /* -- customer list / overview -- */
 
-    el.customerSearch.addEventListener('input', renderCustomerList);
+    /* The visible field is an applied-query display and opens the composer;
+       only that form's submit path filters the list. */
+    el.customerSearch.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      openHomepageSearch();
+    });
+    el.customerSearch.addEventListener('focus', openHomepageSearch);
+    el.homepageSearchForm.addEventListener('submit', submitHomepageSearch);
+    el.homepageSearchBackdrop.addEventListener('click', () => closeHomepageSearch());
+    window.addEventListener('popstate', () => {
+      if (homepageSearchOpen) closeHomepageSearch({ fromHistory: true });
+    });
+    el.homepageSearchDrag.addEventListener('pointerdown', (e) => {
+      if (e.isPrimary === false) return;
+      homepageSearchDrag = { id: e.pointerId, y: e.clientY, at: performance.now() };
+      el.homepageSearchDrag.setPointerCapture(e.pointerId);
+    });
+    el.homepageSearchDrag.addEventListener('pointermove', (e) => {
+      if (!homepageSearchDrag || e.pointerId !== homepageSearchDrag.id) return;
+      const distance = Math.max(0, e.clientY - homepageSearchDrag.y);
+      el.homepageSearchOverlay.style.setProperty('--search-drag-offset', distance + 'px');
+    });
+    el.homepageSearchDrag.addEventListener('pointerup', (e) => {
+      if (!homepageSearchDrag || e.pointerId !== homepageSearchDrag.id) return;
+      const distance = Math.max(0, e.clientY - homepageSearchDrag.y);
+      const velocity = distance / Math.max(1, performance.now() - homepageSearchDrag.at);
+      homepageSearchDrag = null;
+      if (distance >= 48 || velocity > .55) closeHomepageSearch();
+      else el.homepageSearchOverlay.style.removeProperty('--search-drag-offset');
+    });
+    el.homepageSearchDrag.addEventListener('pointercancel', () => {
+      homepageSearchDrag = null;
+      el.homepageSearchOverlay.style.removeProperty('--search-drag-offset');
+    });
+    window.addEventListener('resize', () => requestAnimationFrame(syncHeroHeight));
 
     /* -- customer detail -- */
 
@@ -3294,6 +3564,7 @@ KK.app = (function () {
     el.enquiryAccept.addEventListener('click', acceptEnquiry);
     el.enquiryDismiss.addEventListener('click', dismissEnquiry);
     el.menuCalendar.addEventListener('click', closeMenu);
+    el.homepageMenuCalendar.addEventListener('click', closeMenu);
 
     /* -- order edit -- */
 
@@ -3443,6 +3714,12 @@ KK.app = (function () {
     window.addEventListener('online', () => showToast("Back online"));
     document.addEventListener('focusin', (e) => keepFocusedControlVisible(e.target));
     document.addEventListener('keydown', (e) => {
+      trapModalFocus(e, el.homepageSearchOverlay);
+      if (e.key === 'Escape' && homepageSearchOpen) {
+        e.preventDefault();
+        closeHomepageSearch();
+        return;
+      }
       trapModalFocus(e, el.calcSheet);
       trapModalFocus(e, el.mbPresentation);
       if (e.key !== 'Escape') return;
@@ -3510,6 +3787,14 @@ KK.app = (function () {
   async function init() {
     bindGate();
     bindEvents();
+
+    heroController = KK.heroShader.mount(el.heroCanvas, {
+      fps: 30,
+      maxDpr: 1.5,
+      periods: KK.heroShader.periods,
+      palettes: KK.heroShader.palettes,
+      onClock: applyHeroClock
+    });
 
     if (!db.isConfigured()) {
       el.boot.innerHTML =
