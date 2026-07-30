@@ -102,14 +102,13 @@
 
   <!-- --------------------------- Customer list --------------------------- -->
   <section class="view" id="viewCustomers">
-    <section class="home-hero" aria-label="Today">
-      <div class="home-hero__art" aria-hidden="true"></div>
+    <section class="home-hero" id="homeHero" aria-label="Today">
       <div class="home-hero__flower" aria-hidden="true">🌻</div>
-      <h2 class="home-hero__greeting">Good morning, Ichaku</h2>
+      <h2 class="home-hero__greeting" id="heroGreeting"></h2>
       <p class="home-hero__deadline" id="heroDeadline" hidden></p>
     </section>
 
-    <section class="home-actions" aria-label="Shortcuts">
+    <section class="home-actions" id="homeActions" aria-label="Shortcuts">
       <div class="home-actions__grid" aria-disabled="true">
         <span class="home-actions__cell home-actions__cell--schedule"><span class="home-actions__icon"><img src="assets/home-schedule-icon.svg" alt=""></span>Schedule</span>
         <span class="home-actions__cell home-actions__cell--quote"><span class="home-actions__icon"><img src="assets/home-quote-icon.svg" alt=""></span>Quote</span>
@@ -118,25 +117,25 @@
       </div>
     </section>
 
-    <section class="home-alert" id="enquiriesCard" hidden>
+    <section class="home-alert" id="enquiriesCard" role="button" tabindex="0" hidden>
       <img class="home-alert__icon" src="assets/home-alert-icon.svg" alt="">
       <span id="enquiriesCount"></span>
       <img class="home-alert__chevron" src="assets/home-chevron-icon.svg" alt="">
     </section>
 
-    <section class="home-customers" aria-label="Customers">
+    <section class="home-customers" id="homeCustomers" aria-label="Customers">
       <!-- Search remains intentionally unchanged from the established product UI. -->
       <div class="home-search searchrow">
         <span class="searchrow__icon" aria-hidden="true">⌕</span>
         <input id="customerSearch" type="search" enterkeyhint="search"
-               placeholder="Search customers" autocapitalize="none" spellcheck="false">
+               placeholder="Search customer name" autocapitalize="none" spellcheck="false">
       </div>
 
       <div class="home-customer-list" id="customerList"></div>
       <div class="home-customers__end" aria-hidden="true"></div>
     </section>
 
-    <footer class="home-footer">Made with <span aria-label="love">♥</span> for Ichaku</footer>
+    <footer class="home-footer" id="homeFooter">Made with <span aria-label="love">♥</span> for Ichaku</footer>
   </section>
 
   <!-- -------------------------- Customer detail -------------------------- -->

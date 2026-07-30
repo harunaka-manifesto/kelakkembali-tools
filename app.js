@@ -112,6 +112,11 @@ KK.app = (function () {
     menuSignOut: $('#menuSignOut'),
 
     viewCustomers: $('#viewCustomers'),
+    homeHero: $('#homeHero'),
+    homeActions: $('#homeActions'),
+    homeCustomers: $('#homeCustomers'),
+    homeFooter: $('#homeFooter'),
+    heroGreeting: $('#heroGreeting'),
     heroDeadline: $('#heroDeadline'),
     customerSearch: $('#customerSearch'),
     customerList: $('#customerList'),
@@ -760,11 +765,53 @@ KK.app = (function () {
 
   /* ---------------------------- Customer list ----------------------------- */
 
+  /** Returns both the greeting text and the time-of-day key, so the hero
+      gradient can key off the same hour split as the words above it. */
+  function greetingForNow() {
+    const hour = new Date().getHours();
+    const timeOfDay = hour >= 5 && hour < 12 ? 'morning' : hour >= 12 && hour < 18 ? 'afternoon' : 'evening';
+    const label = timeOfDay === 'morning' ? 'Good morning' : timeOfDay === 'afternoon' ? 'Good afternoon' : 'Good evening';
+    return { text: label + ', Ichaku', timeOfDay };
+  }
+
+  const SKELETON_CARD = '<div class="home-customer-card home-customer-card--skeleton">' +
+    '<span class="home-customer-card__top">' +
+      '<span class="skeleton-block" style="width:60%;height:24px"></span>' +
+      '<span class="skeleton-block" style="width:72px;height:16px"></span>' +
+    '</span>' +
+    '<span class="skeleton-block skeleton-block--divider"></span>' +
+    '<span class="home-customer-card__meta">' +
+      '<span class="skeleton-block" style="width:64px;height:16px"></span>' +
+      '<span class="skeleton-block" style="width:96px;height:16px"></span>' +
+    '</span>' +
+  '</div>';
+
+  function renderCustomerListError(networkIssue) {
+    el.customerList.innerHTML =
+      '<div class="home-error">' +
+        '<p class="home-error__message">' + (networkIssue
+          ? 'No connection — check your network'
+          : 'Could not load customers') + '</p>' +
+        '<button type="button" class="home-error__retry btn btn--outline btn--sm">Try again</button>' +
+      '</div>';
+    const retry = el.customerList.querySelector('.home-error__retry');
+    if (retry) retry.addEventListener('click', () => { showCustomers(); });
+    el.enquiriesCard.hidden = true;
+  }
+
   async function showCustomers() {
     setChrome({ title: 'Customers', up: null, save: false, actions: false, homepage: true });
     state.customer = null;
     state.order = null;
-    el.customerList.innerHTML = '<p class="empty">Loading…</p>';
+
+    const greeting = greetingForNow();
+    el.heroGreeting.textContent = greeting.text;
+    el.homeHero.dataset.time = greeting.timeOfDay;
+    [el.homeHero, el.homeActions, el.homeCustomers, el.homeFooter, el.enquiriesCard].forEach((section) => {
+      section.classList.toggle('no-animate', !!state.homepageEntered);
+    });
+
+    el.customerList.innerHTML = SKELETON_CARD.repeat(3);
 
     /* The schedule and intake tables are the newest things in the schema, and
        the homepage is the first page anyone lands on. If either is missing —
@@ -780,17 +827,29 @@ KK.app = (function () {
       return [];
     };
 
-    const [customers, allOrders, allEvents, enquiries] = await Promise.all([
-      db.listCustomers(),
-      db.listAllOrders(),
-      db.listAllOrderEvents().catch(optional('order_events')),
-      db.listIntake('new').catch(optional('intake_submissions'))
-    ]);
+    let customers, allOrders, allEvents, enquiries;
+    try {
+      [customers, allOrders, allEvents, enquiries] = await Promise.all([
+        db.listCustomers(),
+        db.listAllOrders(),
+        db.listAllOrderEvents().catch(optional('order_events')),
+        db.listIntake('new').catch(optional('intake_submissions'))
+      ]);
+    } catch (err) {
+      if (db.isStaleToken(err)) throw err;
+      console.error(err);
+      renderCustomerListError(err instanceof TypeError);
+      showToast(err.message || 'Could not load customers');
+      state.homepageEntered = true;
+      return;
+    }
+
     state.customers = customers;
     state.overview = buildOverview(allOrders, allEvents);
     renderHomepageAlert(enquiries);
     renderHeroDeadline();
     renderCustomerList();
+    state.homepageEntered = true;
   }
 
   /* ----------------------------- Enquiry queue ---------------------------- */
@@ -804,6 +863,13 @@ KK.app = (function () {
     if (!rows.length) return;
     el.enquiriesCount.textContent = rows.length + ' new order submission' + (rows.length === 1 ? '' : 's');
   }
+
+  // TODO: navigate to submissions page
+  function onEnquiriesCardActivate() {}
+  el.enquiriesCard.addEventListener('click', onEnquiriesCardActivate);
+  el.enquiriesCard.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onEnquiriesCardActivate(); }
+  });
 
   const enquirySummary = (r) => [
     r.wedding_date
@@ -933,13 +999,14 @@ KK.app = (function () {
       return;
     }
 
-    el.customerList.innerHTML = rows.map((c) => {
+    el.customerList.innerHTML = rows.map((c, i) => {
       const orders = (state.overview.ordersByCustomer[c.id] || []);
       const gross = orders.reduce((sum, o) => sum + docs.computeTotal(o.items), 0);
       const display = homepageStatus(c, orders);
       const count = orders.length + ' order' + (orders.length === 1 ? '' : 's');
       return '<a class="home-customer-card home-customer-card--' + display.tone +
-        '" href="#/customer/' + encodeURIComponent(c.id) + '">' +
+        '" style="--card-index:' + Math.min(i, 8) + '"' +
+        ' href="#/customer/' + encodeURIComponent(c.id) + '">' +
         '<span class="home-customer-card__top"><span class="home-customer-card__name">' +
           U.escapeHtml(c.name || 'Unnamed customer') + '</span><span class="home-customer-card__badge">' +
           U.escapeHtml(display.label) + '</span></span>' +
@@ -958,7 +1025,7 @@ KK.app = (function () {
     if (list.some((o) => o.status === 'In production')) return { label: 'In production', tone: 'production', rank: 0 };
     if (list.some((o) => o.status === 'Confirmed')) return { label: 'Invoice sent', tone: 'invoice', rank: 1 };
     if (list.some((o) => o.status === 'Quoted')) return { label: 'Quote sent', tone: 'invoice', rank: 2 };
-    if (!list.length) return { label: 'In consultation', tone: 'quiet', rank: 3 };
+    if (!list.length) return { label: 'In consultation', tone: 'consultation', rank: 3 };
     if (list.some((o) => o.status === 'Delivered')) return { label: 'Finished', tone: 'quiet', rank: 4 };
     return { label: 'Finished', tone: 'quiet', rank: 4 };
   }
@@ -1060,7 +1127,9 @@ KK.app = (function () {
       .sort((a, b) => a.deadline.date.localeCompare(b.deadline.date))[0];
     el.heroDeadline.hidden = !soon;
     if (!soon) return;
-    el.heroDeadline.textContent = soon.deadline.what + ' · ' + U.formatShortDate(soon.deadline.date);
+    const days = Math.ceil((new Date(soon.deadline.date) - new Date(U.todayISO())) / 86400000);
+    const when = days <= 0 ? 'Today' : days === 1 ? 'Tomorrow' : 'In ' + days + ' days';
+    el.heroDeadline.textContent = when + ': ' + firstName(soon.customer.name) + ' - ' + soon.deadline.what;
   }
 
   /* --------------------------- Customer detail ---------------------------- */
