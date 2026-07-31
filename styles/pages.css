@@ -37,6 +37,11 @@
   --space-4: 16px;
   --space-5: 20px;
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-emphasized: cubic-bezier(0.76, 0, 0.24, 1);
+  --motion-quick: 140ms;
+  --motion-standard: 240ms;
+  --motion-enter: 320ms;
 }
 
 * { box-sizing: border-box; }

@@ -20,7 +20,7 @@
 
 .boot[hidden] { display: none; }
 .boot.is-animating {
-  transition: transform 520ms cubic-bezier(.76, 0, .24, 1);
+  transition: transform 520ms var(--ease-emphasized, cubic-bezier(.76, 0, .24, 1));
 }
 .boot.is-below { transform: translateY(100%); }
 body.is-page-transitioning { overflow: hidden; pointer-events: none; }
@@ -352,6 +352,8 @@ body.is-page-transitioning { overflow: hidden; pointer-events: none; }
   border: 1px solid var(--line-2);
   border-radius: 10px;
   box-shadow: 0 12px 28px rgba(23, 21, 15, 0.16);
+  transform-origin: top right;
+  animation: surface-pop var(--motion-standard) var(--ease-standard) both;
 }
 
 .menu__list[hidden] { display: none; }
@@ -1383,7 +1385,7 @@ body.has-fitting-journal-bar .page {
   border: 1px solid var(--line-2);
   border-radius: 10px;
   appearance: none;
-  transition: border-color .15s ease, box-shadow .15s ease;
+  transition: border-color var(--motion-standard) var(--ease-standard), box-shadow var(--motion-standard) var(--ease-standard), background-color var(--motion-standard) var(--ease-standard);
 }
 
 .input::placeholder { color: var(--faint); font-weight: 400; }
@@ -1725,10 +1727,12 @@ select.input {
   border-radius: 10px;
   border: 1px solid transparent;
   cursor: pointer;
-  transition: background .15s ease, border-color .15s ease, opacity .15s ease;
+  transform: translateY(0) scale(1);
+  transition: transform var(--motion-quick) var(--ease-standard), background-color var(--motion-standard) var(--ease-standard), border-color var(--motion-standard) var(--ease-standard), color var(--motion-standard) var(--ease-standard), box-shadow var(--motion-standard) var(--ease-standard), opacity var(--motion-standard) var(--ease-standard);
 }
 
 .btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.btn:not(:disabled):active { transform: translateY(1px) scale(.985); }
 
 /* Solid: a real, present thing to act on. */
 .btn--outline {
@@ -1931,6 +1935,7 @@ select.input {
   flex-direction: column;
   background: var(--bg);
   overscroll-behavior: contain;
+  animation: surface-rise var(--motion-enter) var(--ease-standard) both;
 }
 
 .calcsheet__panel {
@@ -2073,7 +2078,7 @@ select.input {
   border-radius: 999px;
   opacity: 0;
   pointer-events: none;
-  transition: opacity .2s ease, transform .2s ease;
+  transition: opacity var(--motion-standard) var(--ease-standard), transform var(--motion-standard) var(--ease-standard);
 }
 
 .toast.is-visible { opacity: 1; transform: translate(-50%, 0); }
@@ -2082,6 +2087,53 @@ select.input {
    home indicator on its own. */
 body:not(.has-savebar):not(.has-fitting-journal-bar) .toast {
   bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+}
+
+/* -------------------------- Interaction motion -------------------------- */
+
+@keyframes surface-pop {
+  from { opacity: 0; transform: translateY(-6px) scale(.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes surface-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.appbar__up,
+.appbar__icon,
+.item__remove,
+.chip__remove,
+.calc-trigger {
+  transition-property: transform, background-color, border-color, color, opacity;
+  transition-duration: var(--motion-standard);
+  transition-timing-function: var(--ease-standard);
+}
+
+.appbar__up:active { transform: translateX(-2px); }
+.appbar__icon:active,
+.item__remove:active:not(:disabled),
+.chip__remove:active,
+.calc-trigger:active { transform: scale(.92); }
+
+.row,
+.dcal {
+  transition-property: transform, background-color, border-color, box-shadow;
+  transition-duration: var(--motion-standard);
+  transition-timing-function: var(--ease-standard);
+}
+
+.row:active,
+.dcal:active { transform: scale(.992); }
+
+@media (hover: hover) and (pointer: fine) {
+  .row:hover,
+  .dcal:hover { transform: translateY(-2px); }
+
+  .btn--primary:hover:not(:disabled) { box-shadow: 0 6px 16px rgba(23, 21, 15, .18); transform: translateY(-1px); }
+  .btn--outline:hover:not(:disabled),
+  .btn--secondary:hover:not(:disabled) { box-shadow: 0 4px 12px rgba(23, 21, 15, .08); transform: translateY(-1px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
