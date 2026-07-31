@@ -19,4 +19,4 @@ not the current architecture source of truth.
 - **Goal:** To adjust authentication guards, route protections, or user permissions. -> **Look here:** `app.js`, `db.js`, `config.js`
 - **Goal:** To tweak shared utility functions, date formatters, or math helpers. -> **Look here:** `util.js`, `calendar.js`
 - **Goal:** To alter complex frontend UI rendering, event listeners, or component state. -> **Look here:** `app.js`, `fittings.js`, `docs.js`, `moodboard.js`
-- **Goal:** To update color schemes, typography, layout structures, and global variables. -> **Look here:** `styles.css`, `fonts.css`
+- **Goal:** To update color schemes, typography, layout structures, and global variables. -> **Look here:** `/styles`, `fonts.css`

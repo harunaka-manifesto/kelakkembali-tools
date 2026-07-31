@@ -1,0 +1,2001 @@
+/* Page-specific presentation for the homepage, customer views, and order
+   detail. Shared forms, overlays, controls, and document canvases live in the
+   other files in this directory. This file intentionally loads first. */
+
+:root {
+  /* Figma homepage 37:54 variables. */
+  --home-white:      #fefaf1;
+  --home-white-dark: #e3e3e3;
+  --home-black:      #0d0d0d;
+  --home-black-light:#292929;
+  --home-grid:       #4c4c4c;
+  --home-orange:     #ff6a00;
+  --home-green:      #23b620;
+  --home-blue:       #1e72ef;
+  --home-pink:       #fc4fac;
+  --bg:        #E4E2DD;
+  --surface:   #F4F3F0;
+  --surface-2: #FBFAF8;
+  --ink:       #17150F;
+  --muted:     rgba(23, 21, 15, 0.56);
+  /* Section labels and metadata used to sit on --faint (38%), which lands around
+     2.4:1 on the card surface — unreadable at 11–12px. --label is the smallest
+     tone that still clears 4.5:1; --faint is now only for decorative marks. */
+  --label:     rgba(23, 21, 15, 0.66);
+  --faint:     rgba(23, 21, 15, 0.38);
+  --line:      rgba(23, 21, 15, 0.13);
+  --line-2:    rgba(23, 21, 15, 0.22);
+  --danger:    #A4341F;
+  --radius:    12px;
+  /* Height of whichever fixed bottom bar is showing, published by app.js so the
+     toast can clear it instead of guessing. */
+  --bottombar-h: 0px;
+  --keyboard-offset: 0px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  min-height: 100svh;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 16px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+button, input, select, textarea, a { touch-action: manipulation; }
+button, input, select, textarea { font: inherit; }
+button:disabled { cursor: default; }
+
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+body.has-modal { overflow: hidden; }
+body.has-app-modal { overflow: hidden; }
+
+/* -------------------------- Customers homepage ------------------------- */
+
+/* Figma node 37:54. The homepage is a fixed 390px mobile canvas centred on
+   wider screens. Every visible colour belongs to the canvas itself, so the
+   page around it is only a frame. */
+body.is-homepage { background: #292929; overflow-x: hidden; }
+body.is-homepage .appbar,
+body.is-homepage .pagehead { display: none; }
+body.is-homepage .page {
+  width: min(390px, 100%);
+  max-width: 390px;
+  min-height: 100svh;
+  margin: 0 auto;
+  padding: 0;
+  background: var(--home-black);
+}
+body.is-homepage .view { gap: 0; }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --------------------------- Stage and layers --------------------------- */
+
+/* The ready layer is built and measured while it is still covered by the
+   skeleton, so the only thing that ever changes on screen is opacity. The
+   measuring layer is anchored top-left rather than inset, otherwise it would
+   report the stage height instead of its own content height. */
+.home-stage { position: relative; min-height: 1322px; }
+.home-state { width: 100%; }
+/* The layers set their own display, which would otherwise beat [hidden]. */
+.home-state[hidden] { display: none; }
+.home-state--ready { background: var(--home-white); }
+.home-state--ready.is-measuring {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  visibility: hidden;
+}
+.home-state.is-transitioning {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+.home-state.is-transitioning.is-visible { opacity: 1; }
+.home-state--loading.is-hidden { opacity: 0; }
+
+/* ------------------------------- Hero ---------------------------------- */
+
+.home-hero {
+  height: 344px;
+  min-height: 0;
+  padding: 240px 24px 24px;
+  display: flex;
+  align-items: flex-end;
+  background: var(--home-white);
+  border: 0;
+  overflow: hidden;
+}
+.home-hero__content {
+  width: 100%;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.home-hero__greeting {
+  margin: 0;
+  color: var(--home-black);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 32px;
+  letter-spacing: -.72px;
+}
+.home-hero__deadline {
+  margin: 0;
+  min-height: 0;
+  padding: 0;
+  background: none;
+  color: var(--home-black);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: -.42px;
+  white-space: normal;
+  overflow: visible;
+}
+/* ------------------------ Fixed Navigation Bar --------------------------- */
+
+.home-nav {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 390px;
+  padding: 12px 16px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  z-index: 100;
+  pointer-events: none;
+}
+body:not(.is-homepage) .home-nav { display: none; }
+
+.home-nav-btn {
+  pointer-events: auto;
+  width: 56px;
+  height: 55px;
+  padding: 0;
+  border: 1px solid var(--home-white-dark, #e3e3e3);
+  border-radius: 4px;
+  background: transparent;
+  display: grid;
+  grid-template-rows: 48px 7px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: grid-template-rows 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.home-nav-btn__face {
+  min-width: 0;
+  background: var(--home-white, #fefaf1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.home-nav-btn__face img {
+  display: block;
+  width: 24px;
+  height: 24px;
+}
+.home-nav-btn__rail {
+  display: block;
+  background: var(--home-white-dark, #e3e3e3);
+}
+.home-nav-btn:active,
+.home-nav-btn.is-pressed {
+  grid-template-rows: 53px 2px;
+}
+.home-nav-btn:active .home-nav-btn__face,
+.home-nav-btn.is-pressed .home-nav-btn__face {
+  background-image: linear-gradient(180deg, transparent, rgba(0,0,0,.06));
+}
+
+.home-nav-menu-wrapper {
+  position: relative;
+  pointer-events: auto;
+}
+
+/* ---------------------------- Shortcut row ------------------------------ */
+
+/* Each cell stays exactly 98px in every state; pressing only moves the split
+   between the face and the rail, so neighbours never shift. */
+.home-actions {
+  height: 98px;
+  padding: 0;
+  background: none;
+  border: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+}
+.home-action {
+  height: 98px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--home-white);
+  display: grid;
+  grid-template-rows: 86px 12px;
+  cursor: pointer;
+  transition: grid-template-rows 180ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.home-action__face {
+  min-width: 0;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+  letter-spacing: -.42px;
+  text-align: center;
+}
+.home-action__face img { display: block; width: 24px; height: 24px; }
+.home-action__rail { display: block; }
+.home-action--schedule  .home-action__face { background: linear-gradient(180deg, rgba(0,0,0,.04), transparent), #ff6a00; }
+.home-action--schedule  .home-action__rail { background: #dd5d01; }
+.home-action--quotation .home-action__face { background: linear-gradient(180deg, rgba(0,0,0,.04), transparent), #23b620; }
+.home-action--quotation .home-action__rail { background: #19aa16; }
+.home-action--invoice   .home-action__face { background: linear-gradient(180deg, rgba(0,0,0,.04), transparent), #1e72ef; }
+.home-action--invoice   .home-action__rail { background: #1866da; }
+.home-action--fitting   .home-action__face { background: linear-gradient(180deg, rgba(0,0,0,.06), transparent), #fc4fac; }
+.home-action--fitting   .home-action__rail { background: #e72a90; }
+.home-action:active,
+.home-action.is-pressed,
+.home-action.is-appear-pressed { grid-template-rows: 96px 2px; }
+.home-action:active .home-action__face,
+.home-action.is-pressed .home-action__face { background-image: linear-gradient(180deg, transparent, rgba(0,0,0,.10)); }
+
+/* -------------------------- Submissions bar ----------------------------- */
+
+/* Present only when the submissions query returned rows, so an empty result
+   removes the whole 63px block instead of reserving a gap. */
+.home-alert {
+  width: 100%;
+  height: 63px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--home-white);
+  display: grid;
+  grid-template-rows: 56px 7px;
+  text-align: left;
+  cursor: pointer;
+  transition: grid-template-rows 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.home-alert[hidden] { display: none; }
+.home-alert__face {
+  min-width: 0;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(255,255,255,.1), transparent), #292929;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+  letter-spacing: -.48px;
+}
+.home-alert__face > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home-alert__icon,
+.home-alert__chevron { flex: none; display: block; width: 24px; height: 24px; }
+/* The Figma chevron is the shared up glyph rotated a quarter turn. */
+.home-alert__chevron { transform: rotate(90deg); }
+.home-alert__rail { background: var(--home-black); }
+.home-alert:active,
+.home-alert.is-pressed { grid-template-rows: 61px 2px; }
+.home-alert:active .home-alert__face,
+.home-alert.is-pressed .home-alert__face { background-image: linear-gradient(180deg, transparent, rgba(0,0,0,.16)); }
+
+/* ------------------------------- Search --------------------------------- */
+
+.home-search-section { background: var(--home-white); }
+.home-search {
+  height: 48px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.home-search__icon { flex: none; display: block; width: 20px; height: 20px; }
+.home-search input {
+  min-width: 0;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--home-black);
+  font: 400 16px/20px 'Plus Jakarta Sans', sans-serif;
+  letter-spacing: -.48px;
+}
+.home-search input::-webkit-search-cancel-button { -webkit-appearance: none; }
+.home-search__rail { height: 7px; background: var(--home-white-dark); }
+
+/* ---------------------------- Customer ledger --------------------------- */
+
+/* The rules and ticks are real elements rather than a background pattern, so
+   they stay pixel-aligned whatever height a card ends up at. */
+.home-customers {
+  padding: 0;
+  background: var(--home-black);
+  color: var(--home-grid);
+  overflow: visible;
+}
+.home-summary {
+  height: 36px;
+  padding: 8px 24px;
+  border-top: 1px solid var(--home-grid);
+  border-bottom: 1px solid var(--home-grid);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: -.42px;
+  white-space: nowrap;
+}
+.home-summary i {
+  flex: none;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: var(--home-grid);
+}
+.home-grid-rule { height: 1px; background: var(--home-grid); }
+.home-grid-spacer { height: 24px; position: relative; }
+.home-grid-spacer::before,
+.home-grid-spacer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 24px;
+  background: var(--home-grid);
+}
+.home-grid-spacer::before { left: 24px; }
+.home-grid-spacer::after  { right: 24px; }
+
+.home-customer-list { padding: 0; }
+.home-customer-record__inset { padding: 0 24px; }
+.home-customer-card {
+  display: block;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  color: var(--home-black);
+  text-decoration: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.home-customer-card__face {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--home-white);
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
+  transition: padding 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.home-customer-card__top {
+  display: flex;
+  align-items: flex-start;
+  gap: 48px;
+}
+.home-customer-card__name {
+  flex: 1;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 24px;
+  letter-spacing: -.6px;
+}
+.home-customer-card__badge {
+  flex: none;
+  height: 24px;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: -.36px;
+  white-space: nowrap;
+}
+.home-customer-card--production   .home-customer-card__badge { color: #e72a90; }
+.home-customer-card--invoice      .home-customer-card__badge { color: #1866da; }
+.home-customer-card--consultation .home-customer-card__badge,
+.home-customer-card--quiet        .home-customer-card__badge { color: var(--home-grid); }
+.home-customer-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: -.39px;
+}
+.home-customer-card__meta span:first-child { flex: none; width: 120px; }
+.home-customer-card__meta span:last-child { flex: 1; min-width: 0; text-align: right; }
+.home-customer-card__rail {
+  height: 12px;
+  display: block;
+  background: var(--home-white-dark);
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
+  transition: height 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+/* Pressing takes 8px off the rail and gives it to the face (4px top, 4px bottom),
+   so the customer card face becomes taller while the record's total height stays put. */
+.home-customer-card:active .home-customer-card__face,
+.home-customer-card.is-pressed .home-customer-card__face {
+  padding-top: 16px;
+  padding-bottom: 16px;
+  background: linear-gradient(180deg, transparent, rgba(0,0,0,.06)), var(--home-white);
+}
+.home-customer-card:active .home-customer-card__rail,
+.home-customer-card.is-pressed .home-customer-card__rail { height: 4px; }
+
+/* The no-match and empty states live inside the black ledger. */
+body.is-homepage .empty {
+  margin: 0;
+  padding: 24px;
+  color: var(--home-grid);
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: -.42px;
+  text-align: center;
+}
+body.is-homepage .btn--empty {
+  margin: 0 24px 24px;
+  background: var(--home-white);
+  color: var(--home-black);
+  border: 1px solid var(--home-grid);
+  border-radius: 0;
+}
+
+/* ------------------------------- Footer --------------------------------- */
+
+.home-footer {
+  height: 72px;
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--home-black);
+  color: var(--home-grid);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 24px;
+  letter-spacing: -.42px;
+}
+
+/* ---------------------------- Loading skeleton -------------------------- */
+
+/* A structural stand-in for the real page rather than a set of stacked cards.
+   Only colour animates — nothing here can move the layout. */
+.home-skel {
+  min-height: 1322px;
+  display: flex;
+  flex-direction: column;
+  background: var(--home-black);
+}
+.home-skel__block {
+  display: block;
+  background: rgba(76,76,76,.18);
+  animation: home-shimmer 1.2s ease-in-out infinite;
+}
+.home-skel__hero {
+  height: 344px;
+  padding: 240px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--home-white);
+}
+.home-skel__line { height: 32px; display: flex; align-items: center; }
+.home-skel__lines { height: 40px; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+.home-skel__actions {
+  height: 98px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  background: var(--home-white);
+}
+.home-skel__actions i { display: grid; grid-template-rows: 86px 12px; }
+.home-skel__actions i::before,
+.home-skel__actions i::after { content: ''; display: block; }
+.home-skel__actions i::before { background: rgba(76,76,76,.18); animation: home-shimmer 1.2s ease-in-out infinite; }
+.home-skel__actions i::after  { background: rgba(76,76,76,.32); }
+.home-skel__search { height: 48px; background: var(--home-white); }
+.home-skel__rail { height: 7px; background: var(--home-white-dark); }
+.home-skel__ledger { flex: 1; background: var(--home-black); }
+.home-skel__summary {
+  height: 36px;
+  padding: 8px 24px;
+  border-top: 1px solid var(--home-grid);
+  border-bottom: 1px solid var(--home-grid);
+  display: flex;
+  align-items: center;
+}
+/* The summary sits on the black ledger, so its placeholder lifts off the
+   background instead of tinting towards it. */
+.home-skel__summary .home-skel__block {
+  background: rgba(255,255,255,.10);
+  animation-name: home-shimmer-dark;
+}
+.home-skel__face {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  background: var(--home-white);
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
+}
+.home-skel__name { display: flex; flex-direction: column; }
+.home-skel__name span { height: 24px; display: flex; align-items: center; }
+.home-skel__meta { height: 20px; display: flex; align-items: center; justify-content: space-between; }
+.home-skel__cardrail {
+  height: 12px;
+  background: var(--home-white-dark);
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
+}
+.home-skel__footer { height: 72px; background: var(--home-black); }
+@keyframes home-shimmer {
+  50% { background-color: rgba(76,76,76,.32); }
+}
+@keyframes home-shimmer-dark {
+  50% { background-color: rgba(255,255,255,.18); }
+}
+
+/* ------------------------------ Error state ------------------------------ */
+
+/* Keeps the ledger's geometry so a failure never collapses the page. */
+.home-state--error {
+  min-height: 1322px;
+  padding: 24px;
+  display: grid;
+  place-items: center;
+  background: var(--home-black);
+}
+.home-error-panel {
+  width: 100%;
+  max-width: 342px;
+  padding: 24px;
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  text-align: center;
+  background: var(--home-white);
+  border: 1px solid var(--home-grid);
+  color: var(--home-black);
+}
+.home-error-panel__title { margin: 0; font-size: 16px; font-weight: 700; line-height: 24px; letter-spacing: -.48px; }
+.home-error-panel__hint { margin: 0; font-size: 14px; line-height: 20px; letter-spacing: -.42px; color: #4c4c4c; }
+.home-error__retry {
+  padding: 10px 16px;
+  background: var(--home-black);
+  color: var(--home-white);
+  border: 0;
+  border-radius: 0;
+  font: 700 14px/20px 'Plus Jakarta Sans', sans-serif;
+  letter-spacing: -.42px;
+  cursor: pointer;
+}
+.home-error__retry:focus-visible { outline: 2px solid #ff6a00; outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .home-skel__block,
+  .home-skel__actions i::before { animation: none; background-color: rgba(76,76,76,.25); }
+  .home-skel__summary .home-skel__block { background-color: rgba(255,255,255,.14); }
+  .home-state.is-transitioning,
+  .home-action,
+  .home-alert,
+  .home-customer-card__face,
+  .home-customer-card__rail { transition: none; }
+}
+
+/* --------------------------- Customer detail ---------------------------- */
+
+/* Figma node 65:399. The same canvas the homepage uses — a 390px mobile page
+   centred on anything wider, where every colour on screen belongs to the page
+   itself. Sharing the frame is what lets a customer row on the homepage and
+   the page it opens read as one continuous surface. */
+body.is-custpage { background: #292929; overflow-x: hidden; }
+body.is-custpage .appbar,
+body.is-custpage .pagehead { display: none; }
+body.is-custpage .page {
+  width: min(390px, 100%);
+  max-width: 390px;
+  min-height: 100svh;
+  margin: 0 auto;
+  padding: 0;
+  background: var(--home-black);
+}
+body.is-custpage .view { gap: 0; }
+
+.cust {
+  display: flex;
+  flex-direction: column;
+  background: var(--home-white);
+}
+
+/* ------------------------------ Navigation ------------------------------ */
+
+/* Fixed and transparent, like the homepage nav: the buttons ride above the
+   page and the content scrolls under them. Only the buttons take pointer
+   events, so the strip either side of them is not a dead zone. */
+.cust-nav {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 390px;
+  padding: 12px 16px 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  z-index: 100;
+  background: none;
+  pointer-events: none;
+}
+.cust-nav-btn { pointer-events: auto; }
+.cust-nav-btn {
+  min-width: 0;
+  height: 55px;
+  border: 1px solid var(--home-white-dark);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--home-black);
+  text-decoration: none;
+  display: grid;
+  grid-template-rows: 48px 7px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: grid-template-rows 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.cust-nav-btn--icon { width: 56px; flex: none; }
+.cust-nav-btn__face {
+  min-width: 0;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  overflow: hidden;
+  background: var(--home-white);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: -.48px;
+  white-space: nowrap;
+}
+.cust-nav-btn--icon .cust-nav-btn__face { padding: 12px; }
+.cust-nav-btn__face img { flex: none; display: block; width: 24px; height: 24px; }
+.cust-nav-btn__rail { display: block; background: var(--home-white-dark); }
+.cust-nav-btn:active,
+.cust-nav-btn.is-pressed { grid-template-rows: 53px 2px; }
+.cust-nav-btn:active .cust-nav-btn__face,
+.cust-nav-btn.is-pressed .cust-nav-btn__face {
+  background-image: linear-gradient(180deg, transparent, rgba(0,0,0,.06));
+}
+
+/* --------------------------------- Hero --------------------------------- */
+
+/* 67px of it replaces the nav that no longer takes up space, so the name still
+   lands 80px below the buttons. */
+.cust-hero {
+  padding: 147px 24px 24px;
+  background: var(--home-white);
+}
+.cust-hero__name {
+  margin: 0;
+  color: var(--home-black);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 40px;
+  letter-spacing: -.96px;
+  overflow-wrap: anywhere;
+}
+
+/* -------------------------------- Banners -------------------------------- */
+
+/* Each banner is a fixed 52px block. Pressing moves five pixels from the rail
+   into the face rather than changing the height, so nothing below it shifts —
+   the same trick the homepage shortcuts use. */
+.cust-banners { display: flex; flex-direction: column; }
+.cust-banner {
+  min-width: 0;
+  color: var(--home-white);
+  text-decoration: none;
+  user-select: none;
+}
+.cust-banner__face {
+  min-height: 44px;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: -.42px;
+  transition: padding 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+/* Both sides shrink rather than one flattening the other, so a long stage name
+   and a long date truncate side by side instead of overlapping. */
+.cust-banner__left {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.cust-banner__icon { flex: none; display: block; width: 20px; height: 20px; }
+.cust-banner__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cust-banner__value {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 62%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cust-banner__rail {
+  display: block;
+  height: 8px;
+  transition: height 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+.cust-banner--wedding   .cust-banner__face { background: var(--home-black-light); }
+.cust-banner--wedding   .cust-banner__rail { background: var(--home-black); }
+.cust-banner--next      .cust-banner__face { background: linear-gradient(180deg, rgba(0,0,0,.04), transparent), var(--home-orange); }
+.cust-banner--next      .cust-banner__rail { background: #dd5d01; }
+.cust-banner--fittings  .cust-banner__face { background: linear-gradient(180deg, rgba(0,0,0,.06), transparent), var(--home-pink); }
+.cust-banner--fittings  .cust-banner__rail { background: #e72a90; }
+.cust-banner--quotation .cust-banner__face { background: linear-gradient(180deg, rgba(0,0,0,.04), transparent), var(--home-green); }
+.cust-banner--quotation .cust-banner__rail { background: #19aa16; }
+.cust-banner--invoice   .cust-banner__face { background: linear-gradient(180deg, rgba(0,0,0,.04), transparent), var(--home-blue); }
+.cust-banner--invoice   .cust-banner__rail { background: #1866da; }
+
+.cust-banner:active .cust-banner__face,
+.cust-banner.is-pressed .cust-banner__face {
+  padding-top: 18px;
+  padding-bottom: 19px;
+  background-image: linear-gradient(180deg, transparent, rgba(0,0,0,.14));
+}
+.cust-banner:active .cust-banner__rail,
+.cust-banner.is-pressed .cust-banner__rail { height: 3px; }
+
+/* Two half-width banners on one row; each keeps the full-width geometry. */
+.cust-banner-split { display: flex; }
+.cust-banner-split .cust-banner { flex: 1 1 0; min-width: 0; }
+.cust-banner-split .cust-banner__face { padding-left: 24px; padding-right: 12px; }
+
+/* ------------------------------ Order ledger ----------------------------- */
+
+/* The rules and ticks are real elements, not a background pattern, so they stay
+   pixel-aligned whatever height a card ends up at. Identical geometry to the
+   homepage ledger — an order row and a customer row are the same object. */
+.cust-orders {
+  background: var(--home-black);
+  color: var(--home-grid);
+}
+.cust-summary {
+  height: 46px;
+  padding: 8px 24px;
+  border-top: 1px solid var(--home-grid);
+  border-bottom: 1px solid var(--home-grid);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--home-white);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 28px;
+  letter-spacing: -.42px;
+  white-space: nowrap;
+}
+.cust-grid-rule { height: 1px; background: var(--home-grid); }
+.cust-grid-spacer { height: 24px; position: relative; }
+.cust-grid-spacer::before,
+.cust-grid-spacer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 24px;
+  background: var(--home-grid);
+}
+.cust-grid-spacer::before { left: 24px; }
+.cust-grid-spacer::after  { right: 24px; }
+
+.cust-order-record__inset,
+.cust-inset { padding: 0 24px; }
+.cust-order-card {
+  display: block;
+  color: var(--home-black);
+  text-decoration: none;
+}
+.cust-order-card__face {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--home-white);
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
+  transition: padding 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.cust-order-card__top {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+.cust-order-card__name {
+  flex: 1;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 24px;
+  letter-spacing: -.6px;
+}
+.cust-order-card__badge {
+  flex: none;
+  height: 24px;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: -.36px;
+  white-space: nowrap;
+}
+.cust-order-card--production .cust-order-card__badge { color: #e72a90; }
+.cust-order-card--invoice    .cust-order-card__badge { color: #1866da; }
+.cust-order-card--quiet      .cust-order-card__badge { color: var(--home-grid); }
+.cust-order-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: -.39px;
+}
+.cust-order-card__meta span:first-child { flex: none; width: 120px; }
+.cust-order-card__meta span:last-child { flex: 1; min-width: 0; text-align: right; }
+.cust-order-card__rail {
+  height: 12px;
+  display: block;
+  background: var(--home-white-dark);
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
+  transition: height 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+/* Pressing takes 8px off the rail and gives it to the face, so the face grows
+   while the record's total height stays put. */
+.cust-order-card:active .cust-order-card__face,
+.cust-order-card.is-pressed .cust-order-card__face {
+  padding-top: 16px;
+  padding-bottom: 16px;
+  background: linear-gradient(180deg, transparent, rgba(0,0,0,.06)), var(--home-white);
+}
+.cust-order-card:active .cust-order-card__rail,
+.cust-order-card.is-pressed .cust-order-card__rail { height: 4px; }
+
+/* The empty state lives inside the black ledger, between two grid spacers. */
+.cust-order-list .empty {
+  margin: 0;
+  padding: 24px;
+  color: var(--home-grid);
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: -.42px;
+  text-align: center;
+}
+
+.cust-footer {
+  height: 72px;
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--home-black);
+  color: var(--home-grid);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 24px;
+  letter-spacing: -.42px;
+}
+
+/* --------------------------- Customer editor ---------------------------- */
+
+/* The editor is the detail page's ledger with the cards opened up: same 24px
+   inset, same side rules, same shadow rail. A field you type into and an order
+   you tap through are the same object, so focusing one presses it. */
+body.is-custeditpage { background: #292929; overflow-x: hidden; }
+body.is-custeditpage .appbar,
+body.is-custeditpage .pagehead { display: none; }
+/* The `.has-savebar` clearance rule further down adds 32px of breathing room
+   this page does not want, and matches on specificity, so this outweighs it. */
+body.is-custeditpage .page,
+body.is-custeditpage.has-savebar .page {
+  width: min(390px, 100%);
+  max-width: 390px;
+  min-height: 100svh;
+  margin: 0 auto;
+  /* Exactly the save bar and nothing more: scrolled to the end, delete sits
+     directly on top of it. */
+  padding: 0 0 var(--bottombar-h, 0px);
+  background: var(--home-black);
+}
+body.is-custeditpage .view { gap: 0; }
+
+.custedit {
+  display: flex;
+  flex-direction: column;
+  background: var(--home-black);
+}
+/* The nav is fixed, so the ledger opens with its height to keep the title
+   clear of the buttons at rest. */
+.custedit-ledger { padding-top: 67px; background: var(--home-black); }
+
+/* The page title sits inside the ledger rather than above it, the way an order
+   title does — the white hero belongs to the page you read, not the one you
+   fill in. */
+.custedit-title { padding: 12px 24px; }
+.custedit-title h1 {
+  margin: 0;
+  color: var(--home-white);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 40px;
+  letter-spacing: -.96px;
+  overflow-wrap: anywhere;
+}
+
+.custedit-field[hidden] { display: none; }
+.custedit-card {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--home-white);
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
+  transition: padding 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.custedit-card__label {
+  color: var(--home-grid);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+}
+/* A second label inside one card — the follow-up pair reads as one thing. */
+.custedit-card__label--split { margin-top: 6px; }
+.custedit-card__rail {
+  height: 12px;
+  display: block;
+  background: var(--home-white-dark);
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
+  transition: height 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+/* Focus presses the card exactly as tapping presses an order card: 8px moves
+   off the rail into the face, so the field's total height never changes and
+   the fields below it hold still while you tab through the form. */
+.custedit-card:focus-within {
+  padding-top: 16px;
+  padding-bottom: 16px;
+  background: linear-gradient(180deg, transparent, rgba(0,0,0,.06)), var(--home-white);
+}
+.custedit-card:focus-within + .custedit-card__rail { height: 4px; }
+
+.custedit-input {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--home-black);
+  font: 500 16px/24px 'Plus Jakarta Sans', sans-serif;
+  letter-spacing: -.48px;
+}
+.custedit-input::placeholder { color: rgba(13, 13, 13, .38); }
+.custedit-input[hidden] { display: none; }
+/* No drag handle: it is the one control on the page that would not belong to
+   the system, and the field already grows with its rows. */
+.custedit-input--area { resize: none; min-height: 96px; }
+/* Native date fields keep their own picker but not their own metrics. */
+.custedit-input[type="date"],
+.custedit-input[type="month"] { -webkit-appearance: none; appearance: none; height: 24px; }
+.custedit-input.is-invalid { color: var(--danger); }
+
+.custedit-select { position: relative; display: flex; align-items: center; }
+.custedit-select select {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 28px;
+  cursor: pointer;
+}
+/* The shared chevron is drawn white for the dark bars it normally sits on, so
+   on a white card it is inverted rather than redrawn. */
+.custedit-select__chevron {
+  position: absolute;
+  right: 0;
+  width: 20px;
+  height: 20px;
+  pointer-events: none;
+  transform: rotate(180deg);
+  filter: invert(1);
+}
+
+/* Two flat cells, each with the same face-and-rail body as everything else. */
+.custedit-segmented { display: flex; gap: 8px; margin: 2px 0 4px; }
+.custedit-segmented__btn {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid var(--home-white-dark);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--home-black);
+  display: grid;
+  grid-template-rows: 32px 5px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: grid-template-rows 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.custedit-segmented__face {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--home-white);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 16px;
+  letter-spacing: -.39px;
+}
+.custedit-segmented__rail { display: block; background: var(--home-white-dark); }
+.custedit-segmented__btn.is-on { border-color: var(--home-black); }
+.custedit-segmented__btn.is-on .custedit-segmented__face {
+  background: var(--home-black);
+  color: var(--home-white);
+}
+.custedit-segmented__btn.is-on .custedit-segmented__rail { background: var(--home-grid); }
+.custedit-segmented__btn:active,
+.custedit-segmented__btn.is-pressed { grid-template-rows: 35px 2px; }
+
+/* ------------------------------ Error state ------------------------------ */
+
+/* A field that is wrong says so in three places at once: the label, the value,
+   and the rail underneath it. The rail is what carries at a glance while
+   scrolling — a red bar in a column of grey ones. */
+.custedit-card__req { color: var(--danger); margin-left: 2px; }
+.custedit-err {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  letter-spacing: -.36px;
+}
+.custedit-err[hidden] { display: none; }
+.custedit-err::before {
+  content: '!';
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--danger);
+  color: var(--home-white);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+}
+.custedit-card.is-invalid { background: linear-gradient(180deg, rgba(164,52,31,.07), transparent), var(--home-white); }
+.custedit-card.is-invalid .custedit-card__label { color: var(--danger); }
+.custedit-card.is-invalid + .custedit-card__rail { background: var(--danger); }
+.custedit-input.is-invalid::placeholder { color: rgba(164, 52, 31, .5); }
+
+/* ---------------------------- Status actions ----------------------------- */
+
+/* Full-bleed rows in the banner shape, so the two things that change what a
+   customer *is* look like decisions rather than form controls. */
+.custedit-actions { display: flex; flex-direction: column; }
+.custedit-actions .cust-banner {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+}
+.custedit-actions .cust-banner[hidden] { display: none; }
+.cust-banner--stop   .cust-banner__face { background: var(--home-black-light); }
+.cust-banner--stop   .cust-banner__rail { background: var(--home-grid); }
+.cust-banner--reopen .cust-banner__face { background: linear-gradient(180deg, rgba(0,0,0,.04), transparent), var(--home-green); }
+.cust-banner--reopen .cust-banner__rail { background: #19aa16; }
+
+/* Delete keeps the form's own margin and the card's own rules, so the only
+   irreversible control on the page is also the narrowest. */
+.custedit-danger[hidden] { display: none; }
+.custedit-danger__btn {
+  width: 100%;
+  padding: 0;
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
+  border-top: 0;
+  border-bottom: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--home-white);
+  display: grid;
+  grid-template-rows: 44px 12px;
+  align-items: stretch;
+  justify-items: stretch;
+  overflow: hidden;
+  cursor: pointer;
+  transition: grid-template-rows 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.custedit-danger__face {
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  background: var(--danger);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: -.42px;
+}
+.custedit-danger__rail { display: block; background: #7f2817; }
+.custedit-danger__btn:active,
+.custedit-danger__btn.is-pressed { grid-template-rows: 52px 4px; }
+.custedit-danger__btn:active .custedit-danger__face,
+.custedit-danger__btn.is-pressed .custedit-danger__face {
+  background-image: linear-gradient(180deg, transparent, rgba(0,0,0,.16));
+}
+
+/* ------------------------------- Save bar -------------------------------- */
+
+/* The app's own save bar, re-skinned rather than replaced, so the dirty and
+   saving states keep driving it. */
+body.is-custeditpage .savebar {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  width: min(390px, 100%);
+  max-width: 390px;
+  padding: 0;
+  border: 0;
+  background: none;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+body.is-custeditpage .savebar__inner {
+  max-width: none;
+  padding: 0 0 env(safe-area-inset-bottom, 0px);
+  gap: 0;
+}
+body.is-custeditpage #saveBtn {
+  width: 100%;
+  height: 64px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--home-white);
+  display: grid;
+  grid-template-rows: 56px 8px;
+  /* The base button centres its contents and gaps them; the face and rail must
+     fill and meet instead. */
+  gap: 0;
+  align-items: stretch;
+  justify-items: stretch;
+  justify-content: stretch;
+  overflow: hidden;
+  transition: grid-template-rows 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+body.is-custeditpage #saveBtn .btn__label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, rgba(0,0,0,.04), transparent), var(--home-green);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+  letter-spacing: -.48px;
+}
+/* The rail is a real element rather than a pseudo, so it is never at the mercy
+   of the base button's own box. */
+.btn__rail { display: none; }
+body.is-custeditpage #saveBtn .btn__rail {
+  display: block;
+  background: #128f10;
+}
+body.is-custeditpage #saveBtn:disabled { cursor: default; }
+body.is-custeditpage #saveBtn:disabled .btn__label {
+  background: var(--home-black-light);
+  color: var(--home-grid);
+}
+body.is-custeditpage #saveBtn:disabled .btn__rail { background: var(--home-black); }
+body.is-custeditpage #saveBtn:not(:disabled):active,
+body.is-custeditpage #saveBtn.is-pressed { grid-template-rows: 62px 2px; }
+body.is-custeditpage #saveBtn:not(:disabled):active .btn__label,
+body.is-custeditpage #saveBtn.is-pressed .btn__label {
+  background-image: linear-gradient(180deg, transparent, rgba(0,0,0,.14));
+}
+
+/* The global focus ring is the ink colour, which disappears on these pages.
+   Everything that takes focus over the black ledger gets the paper colour. */
+body.is-custpage a:focus-visible,
+body.is-custpage button:focus-visible,
+body.is-custeditpage a:focus-visible,
+body.is-custeditpage button:focus-visible,
+body.is-custeditpage .custedit-input:focus-visible {
+  outline: 2px solid var(--home-white);
+  outline-offset: 2px;
+}
+body.is-custeditpage .custedit-card:focus-within a:focus-visible,
+body.is-custeditpage .custedit-card .custedit-input:focus-visible,
+body.is-custeditpage .custedit-segmented__btn:focus-visible {
+  outline-color: var(--home-black);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cust-nav-btn,
+  .cust-banner__face,
+  .cust-banner__rail,
+  .cust-order-card__face,
+  .cust-order-card__rail,
+  .custedit-card,
+  .custedit-card__rail,
+  .custedit-segmented__btn,
+  .custedit-danger__btn,
+  body.is-custeditpage #saveBtn { transition: none; }
+}
+
+/* ---------------------------- Order detail ------------------------------ */
+
+/* Figma node 81:726. The same 390px canvas as the homepage and the customer
+   page, read as a ledger: a black grid with 24px ticks, and everything worth
+   reading inset in it as a card with its own rail. */
+body.is-orderpage { background: #292929; overflow-x: hidden; }
+body.is-orderpage .appbar,
+body.is-orderpage .pagehead { display: none; }
+body.is-orderpage .page {
+  width: min(390px, 100%);
+  max-width: 390px;
+  min-height: 100svh;
+  margin: 0 auto;
+  padding: 0;
+  background: var(--home-black);
+}
+body.is-orderpage .view { gap: 0; }
+
+/* --------------------------- Stage and layers --------------------------- */
+
+/* Three layers of the same geometry. The ready layer is built and measured
+   under the skeleton, so the handover is a crossfade and nothing else. */
+.order-stage { position: relative; min-height: 100svh; }
+.order-state { width: 100%; }
+.order-state[hidden] { display: none; }
+.order-state--loading,
+.order-state--ready {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+  background: var(--home-black);
+}
+.order-state--ready.is-measuring {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  visibility: hidden;
+}
+.order-state.is-transitioning {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+.order-state.is-transitioning.is-visible { opacity: 1; }
+.order-state--loading.is-hidden { opacity: 0; }
+
+/* ------------------------------ Navigation ------------------------------ */
+
+/* In flow rather than fixed: the title band below it is the page's own
+   heading, so nothing needs to scroll under the buttons. */
+.order-nav {
+  padding: calc(12px + env(safe-area-inset-top)) 16px 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--home-black);
+}
+.order-nav__actions { display: flex; align-items: flex-start; justify-content: flex-end; gap: 12px; }
+.order-nav-btn {
+  min-width: 0;
+  height: 55px;
+  /* History is a <button>: without this its UA padding insets the face and
+     leaves the canvas showing down both sides of the fill. */
+  padding: 0;
+  border: 1px solid var(--home-white-dark);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--home-black);
+  text-decoration: none;
+  display: grid;
+  grid-template-rows: 48px 7px;
+  overflow: hidden;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition: grid-template-rows 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.order-nav-btn--icon { width: 56px; flex: none; }
+.order-nav-btn__face {
+  min-width: 0;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  overflow: hidden;
+  background: var(--home-white);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: -.48px;
+  white-space: nowrap;
+}
+.order-nav-btn--icon .order-nav-btn__face { padding: 12px; }
+.order-nav-btn__face img { flex: none; display: block; width: 24px; height: 24px; }
+.order-nav-btn__rail { display: block; background: var(--home-white-dark); }
+/* The rail gives its height to the face, so the row never changes height. */
+.order-nav-btn:active,
+.order-nav-btn.is-pressed { grid-template-rows: 53px 2px; }
+.order-nav-btn:active .order-nav-btn__face,
+.order-nav-btn.is-pressed .order-nav-btn__face {
+  background-image: linear-gradient(180deg, transparent, rgba(0,0,0,.06));
+}
+
+/* ------------------------------- Ledger --------------------------------- */
+
+.order-ledger { flex: 1; background: var(--home-black); }
+.order-grid-rule { height: 1px; background: var(--home-grid); }
+.order-grid-spacer { height: 24px; position: relative; }
+.order-grid-spacer::before,
+.order-grid-spacer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 24px;
+  background: var(--home-grid);
+}
+.order-grid-spacer::before { left: 24px; }
+.order-grid-spacer::after  { right: 24px; }
+.order-inset { padding: 0 24px; }
+
+.order-title-band {
+  padding: 12px 24px;
+  border-top: 1px solid var(--home-grid);
+  border-bottom: 1px solid var(--home-grid);
+}
+.order-title {
+  margin: 0;
+  color: var(--home-white);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 40px;
+  letter-spacing: -.96px;
+  overflow-wrap: anywhere;
+}
+
+/* -------------------------------- Cards --------------------------------- */
+
+/* Three sides only: the section rule above the card is its fourth. */
+.order-card {
+  padding: 16px 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--home-white);
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
+  border-bottom: 1px solid var(--home-grid);
+  color: var(--home-black);
+}
+.order-card--schedules { padding: 16px 0 0; background: var(--home-white-dark); }
+.order-card__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 24px;
+  letter-spacing: -.6px;
+  overflow-wrap: anywhere;
+}
+.order-card__title--inset { padding: 0 16px; }
+.order-card__error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 13px;
+  line-height: 20px;
+  letter-spacing: -.39px;
+}
+.order-card__error[hidden] { display: none; }
+
+/* ------------------------------ Items table ------------------------------ */
+
+/* One column template for every row, so the three columns line up down the
+   card without the rows having to share a single grid. */
+.order-items { display: flex; flex-direction: column; gap: 12px; }
+.order-items__row {
+  display: grid;
+  grid-template-columns: 160px 32px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: -.39px;
+}
+.order-items__row--head { font-weight: 700; align-items: center; }
+.order-items__name { min-width: 0; overflow-wrap: anywhere; }
+/* Two lines is the most a name gets in the default view; the full text stays
+   available to the pointer and to assistive technology. */
+.order-items__row:not(.order-items__row--head) .order-items__name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+.order-items__qty {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.order-items__price {
+  min-width: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.order-items__rule { height: 1px; background: var(--home-grid); }
+.order-items__totals { display: flex; flex-direction: column; gap: 4px; }
+.order-items__totals .order-items__price { grid-column: 2 / -1; }
+.order-items__row--total { font-weight: 700; }
+/* Internal data, and marked as such in the design by tone alone. */
+.order-items__row--profit { color: var(--home-grid); }
+.order-items__empty {
+  margin: 0;
+  color: var(--home-grid);
+  font-size: 13px;
+  line-height: 20px;
+  letter-spacing: -.39px;
+}
+
+/* ------------------------------- Payments -------------------------------- */
+
+.order-payments { display: flex; flex-direction: column; gap: 12px; }
+.order-payment {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 13px;
+  line-height: 20px;
+  letter-spacing: -.39px;
+}
+.order-payment__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.order-payment__head { display: flex; align-items: center; gap: 4px; }
+.order-payment__label { font-weight: 700; overflow-wrap: anywhere; }
+.order-payment__tick { flex: none; display: block; width: 16px; height: 16px; }
+.order-payment__when { color: var(--home-grid); font-weight: 500; }
+.order-payment__amount {
+  flex: none;
+  width: 100px;
+  text-align: right;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.order-payments__rule { height: 1px; background: var(--home-grid); }
+
+/* Opens between the card and its button, which is where the choice belongs.
+   Grid rows rather than height, so the reveal can actually animate. */
+.order-chooser {
+  display: grid;
+  grid-template-rows: 0fr;
+  background: var(--home-white);
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
+  transition: grid-template-rows 180ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.order-chooser[hidden] { display: none; }
+.order-chooser.is-open { grid-template-rows: 1fr; }
+.order-chooser__inner { overflow: hidden; min-height: 0; }
+.order-chooser__list {
+  padding: 0 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-bottom: 1px solid var(--home-grid);
+}
+.order-choice {
+  display: grid;
+  grid-template-rows: 44px 4px;
+  width: 100%;
+  padding: 0;
+  border: 1px solid var(--home-grid);
+  border-radius: 0;
+  background: transparent;
+  color: var(--home-black);
+  cursor: pointer;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  transition: grid-template-rows 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.order-choice__face {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 12px;
+  background: var(--home-white);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: -.39px;
+}
+.order-choice__face span:last-child { font-weight: 500; font-variant-numeric: tabular-nums; }
+.order-choice__rail { display: block; background: var(--home-white-dark); }
+.order-choice:active,
+.order-choice.is-pressed { grid-template-rows: 46px 2px; }
+.order-choice:disabled { cursor: default; opacity: .6; }
+
+/* ------------------------------- Schedules ------------------------------- */
+
+.order-schedule { display: flex; flex-direction: column; }
+/* Each record is boxed by the card's own rules, 16px in from its edges. */
+.order-schedule__record {
+  padding: 0 16px;
+  border-top: 1px solid var(--home-grid);
+  border-bottom: 1px solid var(--home-grid);
+}
+.order-schedule__spacer { height: 24px; position: relative; }
+.order-schedule__spacer::before,
+.order-schedule__spacer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 24px;
+  background: var(--home-grid);
+}
+.order-schedule__spacer::before { left: 16px; }
+.order-schedule__spacer::after  { right: 16px; }
+
+.order-schedule-record {
+  display: grid;
+  grid-template-rows: auto 8px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--home-black);
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.order-schedule-record__face {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 12px;
+  background: var(--home-white);
+  border: 1px solid var(--home-grid);
+  transition: padding 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.order-schedule-record--photos .order-schedule-record__face { padding: 12px; }
+.order-schedule-record__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.order-schedule-record__stage {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+  letter-spacing: -.48px;
+  overflow-wrap: anywhere;
+}
+.order-schedule-record__tick { flex: none; display: block; width: 16px; height: 16px; }
+.order-schedule-record__date {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 24px;
+  letter-spacing: -.42px;
+  overflow-wrap: anywhere;
+}
+.order-schedule-record__rule { height: 1px; background: var(--home-white-dark); }
+.order-schedule-record__photos { display: flex; align-items: center; gap: 12px; }
+.order-schedule-record__thumbs { display: flex; align-items: center; gap: 4px; flex: none; }
+/* Fixed boxes: a photo that decodes late must not move the row it is in. */
+.order-schedule-record__thumb {
+  display: block;
+  width: 32px;
+  height: 32px;
+  aspect-ratio: 1;
+  border-radius: 4px;
+  background: var(--home-black);
+  object-fit: cover;
+  overflow: hidden;
+}
+.order-schedule-record__count {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 24px;
+  letter-spacing: -.42px;
+}
+.order-schedule-record__rail {
+  display: block;
+  background: #bcbcbc;
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
+  border-bottom: 1px solid var(--home-grid);
+  transition: height 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+/* Five pixels move from the rail into the face, so the record's total height
+   is the same pressed as it is at rest. */
+.order-schedule-record:active,
+.order-schedule-record.is-pressed { grid-template-rows: auto 3px; }
+.order-schedule-record:active .order-schedule-record__face,
+.order-schedule-record.is-pressed .order-schedule-record__face {
+  padding-top: 18px;
+  padding-bottom: 19px;
+  background-image: linear-gradient(180deg, transparent, rgba(0,0,0,.05));
+}
+.order-schedule-record--photos:active .order-schedule-record__face,
+.order-schedule-record--photos.is-pressed .order-schedule-record__face {
+  padding-top: 14px;
+  padding-bottom: 15px;
+}
+.order-schedule__message {
+  margin: 0;
+  padding: 16px 12px;
+  background: var(--home-white);
+  border: 1px solid var(--home-grid);
+  color: var(--home-grid);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: -.42px;
+}
+.order-schedule__warning {
+  margin: 0;
+  padding: 12px 16px;
+  color: var(--home-black);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: -.39px;
+}
+.order-schedule__retry {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: var(--home-black);
+  color: var(--home-white);
+  border: 0;
+  font: 700 13px/20px 'Plus Jakarta Sans', sans-serif;
+  letter-spacing: -.39px;
+  cursor: pointer;
+}
+
+/* -------------------------------- Actions -------------------------------- */
+
+/* 52px face over an 8px rail, and pressing moves five of those pixels up into
+   the face — the same tactile language as the homepage shortcuts. */
+.order-action {
+  display: grid;
+  grid-template-rows: 52px 8px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition: grid-template-rows 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.order-action__face {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  overflow: hidden;
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
+  color: var(--home-white);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: -.42px;
+  text-align: left;
+}
+.order-action__icon { flex: none; display: block; width: 20px; height: 20px; }
+.order-action__label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.order-action__rail {
+  display: block;
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
+}
+.order-action--moodboard .order-action__face { background: linear-gradient(180deg, rgba(0,0,0,.04), transparent), var(--home-orange); }
+.order-action--moodboard .order-action__rail { background: #dd5d01; border-bottom: 1px solid var(--home-grid); }
+.order-action--payment  .order-action__face { background: var(--home-grid); }
+.order-action--payment  .order-action__rail { background: var(--home-black-light); }
+.order-action--fitting  .order-action__face { background: linear-gradient(180deg, rgba(0,0,0,.06), transparent), var(--home-pink); }
+.order-action--fitting  .order-action__rail { background: #e72a90; }
+/* The split keeps one continuous outer border: only the outer edges are drawn. */
+.order-action-split { display: flex; }
+.order-action-split .order-action { flex: 1 1 0; min-width: 0; }
+.order-action--quote .order-action__face,
+.order-action--quote .order-action__rail { border-right: 0; }
+.order-action--invoice .order-action__face,
+.order-action--invoice .order-action__rail { border-left: 0; }
+.order-action--quote   .order-action__face { background: linear-gradient(180deg, rgba(0,0,0,.04), transparent), var(--home-green); }
+.order-action--quote   .order-action__rail { background: #19aa16; }
+.order-action--invoice .order-action__face { background: linear-gradient(180deg, rgba(0,0,0,.04), transparent), var(--home-blue); }
+.order-action--invoice .order-action__rail { background: #1866da; }
+.order-action:not(:disabled):active,
+.order-action.is-pressed { grid-template-rows: 57px 3px; }
+.order-action:not(:disabled):active .order-action__face,
+.order-action.is-pressed .order-action__face {
+  background-image: linear-gradient(180deg, transparent, rgba(0,0,0,.12));
+}
+/* A disabled document button keeps its place in the split: the row would
+   otherwise change shape depending on the data. */
+.order-action:disabled {
+  cursor: not-allowed;
+  filter: grayscale(.55);
+  opacity: .72;
+}
+.order-action[aria-busy="true"] .order-action__label { opacity: .85; }
+
+/* -------------------------------- Footer --------------------------------- */
+
+.order-footer {
+  padding: 24px;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--home-black);
+  color: var(--home-grid);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 24px;
+  letter-spacing: -.42px;
+  text-align: center;
+}
+
+/* ---------------------------- Loading skeleton --------------------------- */
+
+.order-skel__nav {
+  padding: calc(12px + env(safe-area-inset-top)) 16px 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.order-skel__navgroup { display: flex; gap: 12px; }
+.order-skel__navbtn {
+  display: block;
+  width: 56px;
+  height: 55px;
+  border: 1px solid rgba(227,227,227,.35);
+  background: rgba(255,255,255,.10);
+  animation: home-shimmer-dark 1.2s ease-in-out infinite;
+}
+.order-skel__navbtn--back { width: 116px; }
+.order-skel__ledger { background: var(--home-black); }
+.order-skel__title {
+  padding: 12px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid var(--home-grid);
+  border-bottom: 1px solid var(--home-grid);
+}
+.order-skel__title .order-skel__block { height: 32px; background: rgba(255,255,255,.12); animation: home-shimmer-dark 1.2s ease-in-out infinite; }
+.order-skel__card {
+  padding: 16px 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--home-white);
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
+  border-bottom: 1px solid var(--home-grid);
+}
+.order-skel__card--grey { background: var(--home-white-dark); }
+.order-skel__block {
+  display: block;
+  height: 20px;
+  background-color: rgba(76,76,76,.18);
+  animation: home-shimmer 1.2s ease-in-out infinite;
+}
+.order-skel__block--head { height: 24px; width: 40%; }
+.order-skel__block--short { width: 60%; }
+.order-skel__action { display: block; height: 60px; background: rgba(76,76,76,.30); }
+.order-skel__split { display: flex; }
+.order-skel__split .order-skel__action { flex: 1 1 0; }
+.order-skel__record { display: block; height: 72px; background: rgba(76,76,76,.22); }
+.order-skel__footer { height: 72px; background: var(--home-black); }
+
+/* ------------------------------ Error state ------------------------------ */
+
+.order-state--error {
+  min-height: 100svh;
+  padding: 24px;
+  display: grid;
+  place-items: center;
+  background: var(--home-black);
+}
+.order-error-panel {
+  width: 100%;
+  max-width: 342px;
+  padding: 24px;
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  text-align: center;
+  background: var(--home-white);
+  border: 1px solid var(--home-grid);
+  color: var(--home-black);
+}
+.order-error-panel__title { margin: 0; font-size: 16px; font-weight: 700; line-height: 24px; letter-spacing: -.48px; }
+.order-error-panel__hint { margin: 0; font-size: 14px; line-height: 20px; letter-spacing: -.42px; color: var(--home-grid); }
+.order-error-panel__actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.order-error__btn {
+  padding: 10px 16px;
+  background: var(--home-black);
+  color: var(--home-white);
+  border: 0;
+  border-radius: 0;
+  text-decoration: none;
+  font: 700 14px/20px 'Plus Jakarta Sans', sans-serif;
+  letter-spacing: -.42px;
+  cursor: pointer;
+}
+.order-error__btn--quiet { background: var(--home-white); color: var(--home-black); border: 1px solid var(--home-grid); }
+
+/* The ink focus ring disappears against this canvas, so everything over the
+   black ledger takes the paper colour, and everything on a card the ink. */
+body.is-orderpage a:focus-visible,
+body.is-orderpage button:focus-visible {
+  outline: 2px solid var(--home-white);
+  outline-offset: 2px;
+}
+body.is-orderpage .order-card a:focus-visible,
+body.is-orderpage .order-card button:focus-visible,
+body.is-orderpage .order-choice:focus-visible,
+body.is-orderpage .order-schedule-record:focus-visible {
+  outline-color: var(--home-black);
+  outline-offset: -2px;
+}
+
+/* Narrow phones: the name column gives up its fixed width first, and the
+   amounts keep enough room to stay on one line. */
+@media (max-width: 389px) {
+  .order-items__row { grid-template-columns: minmax(0, 1fr) 36px minmax(88px, auto); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .order-skel__block,
+  .order-skel__navbtn,
+  .order-skel__title .order-skel__block { animation: none; }
+  .order-state.is-transitioning,
+  .order-nav-btn,
+  .order-action,
+  .order-choice,
+  .order-chooser,
+  .order-schedule-record__face,
+  .order-schedule-record__rail { transition: none; }
+}

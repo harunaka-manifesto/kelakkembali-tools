@@ -8,9 +8,9 @@ framework, package manifest, or generated application code.
 
 | Task | Primary files | Supporting files |
 | --- | --- | --- |
-| Change a route, screen, form, or interaction | `app.js`, `index.html` | Relevant feature section in `styles.css` |
+| Change a route, screen, form, or interaction | `app.js`, `index.html` | Relevant file under `styles/` |
 | Change customer/order persistence or auth | `db.js` | `schema.sql`, `config.js` |
-| Change quotation or invoice content/PDF output | `docs.js`, document templates in `index.html` | Document section of `styles.css`, `fonts.css` |
+| Change quotation or invoice content/PDF output | `docs.js`, document templates in `index.html` | `styles/documents.css`, `fonts.css` |
 | Change moodboards | `moodboard.js` | Moodboard view in `index.html`, moodboard CSS, `google-drive` |
 | Change fitting photos/journal | `fittings.js` | Fitting markup/CSS, `db.js`, `google-drive` |
 | Change schedule rules | `calendar.js` | Schedule rendering in `app.js`, `google-calendar` |
@@ -48,8 +48,9 @@ every browser module. Lower-level modules must not call `app.js`.
 - `index.html` owns static structure only: SPA views, overlays, fixed action
   bars, and three off-screen PDF canvases. It does not fetch data or decide
   business state.
-- `styles.css` owns all layout and presentation. Its order is significant
-  because later feature/revamp rules override older shared rules.
+- `styles/` owns layout and presentation. `pages.css`, `shared.css`,
+  `documents.css`, and `moodboard.css` load in that order; preserve it because
+  the existing cascade intentionally lets shared rules refine page rules.
 - `app.js` owns hash routing, in-memory page state, rendering, validation, and
   workflow orchestration. It should obtain persistent data only through
   `KK.db` and schedule calculations only through `KK.calendar`.
@@ -104,4 +105,3 @@ The detailed lifecycle, payment, scheduling, and rendering rules remain in
    authenticated Supabase, Edge Function, and visual flows require manual checks.
 5. Add database changes as new idempotent blocks at the end of `schema.sql` and
    update the corresponding `db.js` projection/write in the same change.
-

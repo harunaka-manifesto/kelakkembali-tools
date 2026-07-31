@@ -76,7 +76,7 @@ business, rendering, and design contracts.
 | File | Role |
 |---|---|
 | `index.html` | The gate, SPA views/overlays, and three off-screen document templates |
-| `styles.css` | Part 1: app UI. Part 2: the quotation. Part 3: the invoice |
+| `styles/` | Page, shared UI, document, and moodboard/fitting styles in cascade order |
 | `fonts.css` | Plus Jakarta Sans, self-hosted and inlined (see below) |
 | `config.js` | Supabase URL, anon key, the shared account's email, Google client ID |
 | `util.js` | Formatting, escaping, the seeded-PRNG primitives |
@@ -391,7 +391,7 @@ cleanly behind them.
 
 ## The design contract — quotation
 
-`styles.css` Part 2 is a locked reproduction of the Figma frame
+`styles/documents.css` is a locked reproduction of the Figma frame
 (`RqeGM5NJD3CTeasfarP9iM`, node `1:2`, table `2:245`). Only the data inside it
 changes.
 
@@ -487,7 +487,8 @@ a CSS weight difference, and raising the snapshot scale to 4x does not reduce it
 
 ## The design contract — invoice
 
-`styles.css` Part 3 is a locked reproduction of node `2:104` in the same file.
+The invoice section of `styles/documents.css` is a locked reproduction of node
+`2:104` in the same file.
 It reuses every `.q-` class the quotation already defines — same 598px shell,
 32px padding, 534px column, dividers, header, items table, Total row and
 signature — and adds only what the invoice does differently.

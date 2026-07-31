@@ -1,0 +1,1970 @@
+/* Shared SPA presentation: boot/gate chrome, reusable records, forms, buttons,
+   schedules, overlays, bottom bars, and toast. Loaded after pages.css so these
+   established primitives retain their original cascade precedence. */
+
+/* -------------------------------- Boot ---------------------------------- */
+
+/* Shown until the session check resolves, so the gate never flashes for
+   someone who is already signed in. */
+.boot {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--bg);
+}
+
+.boot[hidden] { display: none; }
+
+.boot__spin {
+  width: 26px;
+  height: 26px;
+  border: 2px solid var(--line-2);
+  border-top-color: var(--ink);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+
+.boot__msg {
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.boot__msg code {
+  font-size: 13px;
+  padding: 1px 5px;
+  background: rgba(23, 21, 15, 0.07);
+  border-radius: 4px;
+}
+
+/* -------------------------------- Gate ---------------------------------- */
+
+.gate {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--bg);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-padding: 24px;
+}
+
+.gate[hidden] { display: none; }
+
+.gate__card {
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 28px 24px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.gate__mark { width: 52px; height: auto; }
+
+.gate__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+}
+
+.gate__sub {
+  margin: -10px 0 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.check input {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  accent-color: var(--ink);
+}
+
+/* ------------------------------- App bar -------------------------------- */
+
+.app[hidden] { display: none; }
+
+.appbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(228, 226, 221, 0.92);
+  backdrop-filter: saturate(150%) blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+
+/* The bar now holds navigation only — no title, no page action. That is what
+   lets a labelled Up button and two icons fit a 320px screen without any of
+   them truncating. */
+.appbar__inner {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: calc(6px + env(safe-area-inset-top, 0px))
+    calc(14px + env(safe-area-inset-right, 0px)) 6px
+    calc(8px + env(safe-area-inset-left, 0px));
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* An unlabelled chevron only ever says "somewhere behind you". This says where,
+   which is the whole point of Up over Back. */
+.appbar__up {
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 10px 0 4px;
+  border-radius: 22px;
+  color: var(--ink);
+  text-decoration: none;
+  transition: background .15s ease;
+}
+
+.appbar__up:hover { background: rgba(23, 21, 15, 0.07); }
+.appbar__up[hidden] { display: none; }
+.appbar__up svg { width: 20px; height: 20px; flex: none; }
+
+.appbar__up-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.2px;
+}
+
+/* Root view only, where nothing else needs the corner. */
+.appbar__brand {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-left: 6px;
+}
+
+.appbar__brand[hidden] { display: none; }
+.appbar__mark { width: 34px; height: auto; flex: none; }
+
+.appbar__wordmark {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+
+/* Pushes the icons to the right whichever of Up / brand is showing. */
+.appbar__up,
+.appbar__brand { margin-right: auto; }
+
+/* 44px is the floor for a touch target, and these are the most-used controls
+   in the app. They were 38. */
+.appbar__icon {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  color: var(--ink);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background .15s ease;
+}
+
+.appbar__icon:hover { background: rgba(23, 21, 15, 0.07); }
+.appbar__icon[hidden] { display: none; }
+.appbar__icon svg { width: 19px; height: 19px; color: var(--muted); }
+
+/* ------------------------------ Overflow menu ---------------------------- */
+
+/* Sign out and the two deletes are rare, and two of the three are
+   irreversible. Keeping them here means the app bar holds no action that can
+   be hit by accident while reaching for something else. */
+.menu { position: relative; flex: none; }
+
+.menu__list {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  min-width: 190px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-2);
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(23, 21, 15, 0.16);
+}
+
+.menu__list[hidden] { display: none; }
+
+.menu__item {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu__item[hidden] { display: none; }
+.menu__item:hover { background: rgba(23, 21, 15, 0.06); }
+.menu__item--danger { color: var(--danger); }
+.menu__item--danger:hover { background: rgba(164, 52, 31, 0.09); }
+
+/* ------------------------------ Page header ------------------------------ */
+
+/* The trail is gone. Up already names the level above, and the title below
+   names this one — a breadcrumb could only restate both, and it wrapped onto
+   two lines to do it. */
+.pagehead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.pagehead__text { min-width: 0; }
+
+.pagehead__title {
+  margin: 0;
+  font-size: 25px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.7px;
+  overflow-wrap: anywhere;
+}
+
+.pagehead__sub {
+  margin: 5px 0 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.pagehead__sub[hidden] { display: none; }
+
+/* Aligns with the cap height of the title rather than the top of its line box. */
+.pagehead > .btn { margin-top: 2px; }
+
+/* -------------------------------- Layout -------------------------------- */
+
+.page {
+  --page-pad: var(--space-5);
+  max-width: 560px;
+  margin: 0 auto;
+  padding: var(--space-4) max(var(--page-pad), env(safe-area-inset-right, 0px))
+    calc(48px + env(safe-area-inset-bottom, 0px))
+    max(var(--page-pad), env(safe-area-inset-left, 0px));
+}
+
+@media (max-width: 399px) {
+  .page { --page-pad: var(--space-4); }
+  .pagehead { margin-bottom: 14px; }
+  .pagehead__title { font-size: 23px; }
+  .page .card { padding: 16px 14px; }
+  .page .card__title--summary {
+    margin-right: -14px;
+    margin-left: -14px;
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+}
+
+/* Clearance for whichever fixed bottom bar is up, measured rather than
+   guessed — the save bar and the fitting bar are different heights. */
+body.has-savebar .page,
+body.has-fitting-journal-bar .page {
+  padding-bottom: calc(var(--bottombar-h) + 32px);
+}
+
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.view[hidden] { display: none; }
+
+.card {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* The `hidden` attribute's UA rule is `display: none` with no !important, so
+   an author rule of equal specificity — like `.card { display: flex }` —
+   normally wins the cascade regardless of source order, leaving a
+   JS-toggled `.card` visible with an empty shell. This makes hidden win. */
+.card[hidden] { display: none; }
+
+.card__title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--label);
+}
+
+.card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.card__count {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+/* History is a reference, not something you read on arrival. */
+.card--fold { gap: 0; }
+.card--fold[open] { gap: 14px; }
+
+.card__title--summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  /* Full-width, 44px tall hit area, pulled back so the card does not visibly
+     grow just to hold it. */
+  min-height: 44px;
+  margin: -8px -16px;
+  padding: 0 16px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.card__title--summary::-webkit-details-marker { display: none; }
+
+.card__title--summary::after {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-right: 1.8px solid currentColor;
+  border-bottom: 1.8px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform .15s ease;
+}
+
+.card--fold[open] .card__title--summary::after { transform: translateY(1px) rotate(225deg); }
+.card__title--summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+
+.tag {
+  flex: none;
+  padding: 2px 7px;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;          /* "INTERN / AL" is not a warning */
+  color: var(--muted);
+}
+
+/* Includes, read-only: a quiet line rather than six filled black pills, which
+   read as the loudest thing on a page where they are the least important. */
+.meta {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.meta:empty { display: none; }
+
+.btn--sm {
+  flex: none;
+  min-height: 44px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+
+.card__hint {
+  margin: -8px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.card__hint[hidden] { display: none; }
+
+/* A boxed summary of what the dates above will produce. It is a read-out rather
+   than another field, so it is tinted off the form and set as points: the eye
+   picks up four short lines it can scan, where the same words as a paragraph
+   were skipped whole. */
+.hintbox {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 11px 13px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.hintbox:empty { display: none; }
+
+.hintbox__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.hintbox__list > li {
+  position: relative;
+  padding-left: 13px;
+}
+
+.hintbox__list > li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 0.6em;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+/* What the tight window cost, marked apart from what the dates simply are —
+   these are the lines worth going back to the client about. */
+.hintbox__list > li.hintbox__warn { color: var(--danger); }
+
+.hintbox__list > li.hintbox__warn::before { background: currentColor; }
+
+/* ------------------------------- Deadlines ------------------------------- */
+
+/* The customers with the soonest date still ahead. This is the only thing on
+   the homepage that is time-sensitive, so it is the only thing above the list.
+
+   Full-width stacked rows cost three screenfuls to say three dates and pushed
+   the customer list below the fold. Calendar tiles in one horizontal strip say
+   the same in a fifth of the height and hold twice as many. */
+.deadlines {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.deadlines[hidden] { display: none; }
+
+/* The negative margins let the strip bleed to the screen edges inside the
+   page's padding, so the last tile is visibly cut off rather than sitting in a
+   gutter — which is what tells you it scrolls. That cut-off tile is the whole
+   affordance, so the scrollbar is hidden: a track drawn under the strip read as
+   a rule separating it from the list below, and said nothing the half-tile at
+   the edge was not already saying. */
+.deadlines__cards {
+  display: flex;
+  gap: 8px;
+  margin: 0 calc(var(--page-pad, 16px) * -1);
+  padding: 2px var(--page-pad, 16px) 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.deadlines__cards::-webkit-scrollbar { display: none; }
+
+/* Same surface and border as every other card on the page — just narrow and
+   in a row, so the strip reads as one family of cards rather than a
+   different kind of thing bolted onto the homepage. */
+.dcal {
+  flex: 0 0 136px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  scroll-snap-align: start;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 11px 12px 12px;
+  box-shadow: 0 1px 2px rgba(23, 21, 15, 0.05);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.dcal:hover {
+  border-color: var(--line-2);
+  box-shadow: 0 2px 6px rgba(23, 21, 15, 0.08);
+}
+
+.dcal__date {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.dcal__day {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.dcal__month {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.dcal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dcal__name {
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dcal__what,
+.dcal__when {
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dcal__what { color: var(--muted); }
+.dcal__when { font-weight: 600; color: var(--label); }
+
+/* --------------------------- Lists and records --------------------------- */
+
+/* Grouped with the list it filters, and given the height of a primary control
+   rather than sitting loose above the cards as a plain text box. */
+.searchrow { position: relative; display: flex; }
+
+.searchrow__icon {
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  transform: translateY(-50%);
+  color: var(--label);
+  pointer-events: none;
+}
+
+/* Two classes deep on purpose: .input is declared further down this file, so a
+   single-class rule here would lose the padding to it and the placeholder
+   would start underneath the icon. */
+.input.input--search {
+  min-height: 52px;
+  padding-left: 43px;
+  background-color: var(--surface);
+  border-color: transparent;
+}
+
+.input.input--search:focus { background-color: #fff; }
+.input--search::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+
+/* A card whose whole job is to hold the list — the search field is its
+   heading, so it needs no other one. */
+.card--list { gap: 12px; }
+
+/* Search and New share the card's top row. Adding a customer used to sit under
+   the list, which meant scrolling past every existing name to reach the one
+   thing you do most often on this page. */
+.listtools {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.listtools .searchrow { flex: 1 1 auto; min-width: 0; }
+
+/* Outlined rather than solid: adding a customer is the reason you open this
+   page often enough to keep the button up here, but a black slab beside the
+   search field made it the loudest thing on a page whose subject is the list.
+
+   Two classes deep: .btn--secondary is declared further down and sets
+   `width: 100%` for the full-width bars it normally lives in, which here would
+   eat the search field beside it. */
+.btn.btn--newinline {
+  flex: none;
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 52px;
+  padding: 0 16px;
+  white-space: nowrap;
+}
+
+.btn__plus { font-size: 18px; font-weight: 500; line-height: 1; }
+
+/* Below this the label is the first thing worth losing — the "+" alone is
+   unambiguous next to a search field, and a search field squeezed down to its
+   icon is not. */
+@media (max-width: 339px) {
+  .btn.btn--newinline { padding: 0 14px; }
+  .btn--newinline .btn__label { display: none; }
+}
+
+/* The sort select owns its row outright. Sharing it with a count and the word
+   "Sort" made three quiet things compete in one line; alone and full-width it
+   reads as the list's own header, which is what it is. Quieter than the search
+   field above it — no fill, just a hairline — because you set it once and then
+   ignore it. */
+.input.input--sort {
+  width: 100%;
+  min-height: 40px;
+  padding: 6px 34px 6px 12px;
+  font-size: 13px;
+  background-color: transparent;
+  border-color: var(--line-2);
+  background-position: right 12px center;
+  background-size: 15px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 62px;
+  padding: 12px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color .15s ease, background .15s ease;
+}
+
+.row:hover { border-color: var(--line-2); background: #fff; }
+
+.row__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.row__title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row__meta {
+  font-size: 12.5px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Status badge plus the next date, on one wrapping line. */
+.row__tags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin-top: 2px;
+}
+
+/* Kanban-style card: name/title up top, one or two meta lines beneath, and a
+   prominent amount on the right — taller than the plain .row it extends. */
+.row--kanban {
+  align-items: flex-start;
+  min-height: 74px;
+  padding: 14px 14px;
+}
+
+.row--kanban .row__main { gap: 4px; }
+
+/* The right-hand column: the amount, and the status beneath it. Two lines each
+   side keeps the card level — the status used to sit under the name, which put
+   all of the weight in one corner. */
+.row__side {
+  flex: none;
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.row__amount {
+  flex: none;
+  align-self: center;
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.2px;
+}
+
+/* Inside .row__side the amount is one of two stacked items, so it stops
+   centring itself against the whole row. */
+.row__side .row__amount { align-self: flex-end; }
+
+/* No pill, no fill, no border. At this size a badge is a lot of shape to say
+   one word, and it was competing with the name for the eye. Weight and colour
+   carry it instead — and the colours climb with the commitment, so the ones
+   that need attention are the ones that get it. */
+.row__status {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.row__status--in-consultation { color: var(--label); }
+.row__status--ordering        { color: #8C6E28; }
+.row__status--active          { color: #4A3A14; }
+.row__status--completed       { color: var(--label); }
+.row__status--cancelled       { color: var(--label); text-decoration: line-through; }
+
+/* Read-only key/value rows — customer and order detail pages. */
+.infolist {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.infolist > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 2px;
+  border-top: 1px solid var(--line);
+}
+
+.infolist > div:first-child { border-top: none; }
+
+/* Rows that only appear once they mean something — a consultation that has
+   happened, a reason an enquiry stopped. The display:flex above outranks the
+   browser's own [hidden] rule, so it has to be said again here, as everywhere
+   else in this file that hides a flex item. */
+.infolist > div[hidden] { display: none; }
+
+.infolist dt {
+  flex: none;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.infolist dd {
+  margin: 0;
+  text-align: right;
+  font-size: 14px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+/* Notes run to several lines, and right-aligned prose is hard to scan — it
+   gives every line a different starting edge. */
+.infolist__stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.infolist__stack dd { text-align: left; }
+
+.contact-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin: -8px 0;
+  color: inherit;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 3px;
+}
+
+.contact-link:active { opacity: .62; }
+
+/* -------------------------------- Schedule ------------------------------- */
+
+/* Stage, date, gap. The gap column is the one that makes the list a schedule
+   rather than five dates: the whole point of the spacing rule is visible only
+   as the interval between rows, so it is printed instead of left to be worked
+   out from the dates. */
+.sched {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: sched;
+}
+
+.sched__row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 2px;
+  border-top: 1px solid var(--line);
+}
+
+.sched__row:first-child { border-top: none; }
+
+/* A date already gone is history, not a plan — it stays legible but stops
+   competing with the appointments still ahead. */
+.sched__row--past { color: var(--muted); }
+
+.sched__stage {
+  flex: 1 1 auto;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.sched__date {
+  flex: none;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sched__gap {
+  flex: none;
+  min-width: 38px;
+  text-align: right;
+  font-size: 12px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A filled dot means this exact date is in Google Calendar. Small and quiet:
+   it is a reassurance, not a status anyone reads the page for. The column is
+   always there, empty when unsynced, so the gaps stay in one line. */
+.sched__synced {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  align-self: center;
+}
+
+.sched__synced.is-synced { background: var(--ink); }
+
+/* An appointment moved by hand in Google is no longer the calculator's to
+   place, and the row says so. A hollow ring rather than a second filled dot:
+   next to the sync dot two solid marks read as one smudge, and this one is
+   rarer and means something different. Same always-present column trick. */
+.sched__pinned {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  align-self: center;
+}
+
+.sched__pinned.is-pinned {
+  box-shadow: inset 0 0 0 1.5px var(--muted);
+}
+
+/* Dropped fittings are the one thing on this card you might need to act on, so
+   it reads as a notice rather than as more metadata. */
+.sched__warn {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: rgba(164, 52, 31, 0.08);
+  color: var(--danger);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.sched__empty,
+.sched__note {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* ------------------------------- Items table ----------------------------- */
+
+/* The same three columns, in the same order, as the table on the quotation and
+   the invoice — so what you check here is what the customer receives. The one
+   row they never see is the last one. */
+/* One grid for the whole table, not one per row: the three columns have to
+   share their tracks or they are not columns. Each row owning its own grid let
+   the 42px Qty track slide left and right with the width of that row's price,
+   so the quantities landed at a different x on every line. The rows are
+   display:contents and the cells are the grid items. */
+/* Cells stretch rather than sitting on a shared baseline: the rule between
+   rows is drawn by each cell's own border-top, so the cells have to share a top
+   edge or the rule arrives in three pieces at three different heights. Rows
+   keep one font-size throughout for the same reason — it is what makes the
+   baselines agree without baseline alignment doing it for them. */
+.table {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px minmax(0, max-content);
+  font-size: 13.5px;
+}
+
+.table__row { display: contents; }
+
+.table__row > * {
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+/* No column gap — a gap would break the row rules into three separate dashes.
+   The columns are held apart by the cells' own padding instead. */
+.table__qty { padding-left: 10px; padding-right: 10px; }
+
+.table__item { min-width: 0; overflow-wrap: anywhere; }
+
+/* Centred, as on both documents (.q-c-qty) — right-aligned it read as part of
+   the price rather than as a column of its own. */
+.table__qty { text-align: center; }
+.table__price { text-align: right; }
+
+.table__qty,
+.table__price {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Column headings, in the document's own wording. */
+.table__row--head > * {
+  padding-top: 0;
+  border-top: none;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--label);
+}
+
+/* Total and Nett profit have no quantity, so their label takes that column and
+   both figures land on the same right edge as the prices above. */
+.table__row--total .table__item,
+.table__row--profit .table__item { grid-column: 1 / 3; }
+
+.table__row--total > * {
+  border-top-color: var(--line-2);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+/* What the profit figure above is not counting. A direct child of the grid, so
+   it has to be told to span it — the rows either side use `display: contents`
+   and put their own cells in the tracks. */
+.table__note {
+  grid-column: 1 / -1;
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--label);
+}
+
+/* The one figure on this page the customer must never see. Marked, not
+   quarantined in a card of its own. The tint bleeds 10px past the table on
+   both sides and pads the same 10px back in, so the band reads as a highlight
+   while its figure stays on the exact rule as every price above it. */
+.table__row--profit > * {
+  margin-top: 6px;
+  padding: 11px 0;
+  background: var(--surface);
+  border-top: none;
+  font-weight: 700;
+}
+
+.table__row--profit > *:first-child {
+  margin-left: -10px;
+  padding-left: 10px;
+  border-radius: 9px 0 0 9px;
+}
+
+.table__row--profit > *:last-child {
+  margin-right: -10px;
+  padding-right: 10px;
+  border-radius: 0 9px 9px 0;
+}
+
+/* The label carries the INTERNAL tag, which is taller than the text and so
+   centres itself in the cell. The figure has to centre too, or the two sit on
+   different baselines despite sharing a row. */
+.table__row--profit .table__item,
+.table__row--profit .table__price {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.table__row--profit .table__price { justify-content: flex-end; }
+
+/* ------------------------------ Payment chooser --------------------------- */
+
+/* Revealed by "Log a payment", so it needs the same hidden-wins rule as .card. */
+.paychooser {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.paychooser[hidden] { display: none; }
+
+.empty {
+  margin: 0;
+  padding: 18px 4px;
+  font-size: 13.5px;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* The way out of a search that found nothing. It is an <a>, not a <button>,
+   because it goes to a page — so it needs the centring and the underline reset
+   that .btn assumes a button already has.
+
+   The "+" is part of the label rather than a flex sibling of it: a long name
+   wraps this button to two lines, and as a sibling the "+" then sat alone
+   against the left edge with the text centred away from it. */
+.btn.btn--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  margin-top: -6px;
+  font-size: 14px;
+  line-height: 1.4;
+  text-align: center;
+  text-decoration: none;
+}
+
+/* Status badge. Draft is deliberately the quietest and Delivered the only
+   filled one, so a glance down the list finds what is actually finished. */
+.badge {
+  flex: none;
+  padding: 4px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+.badge--quoted        { border-color: rgba(23, 21, 15, 0.4); color: var(--ink); }
+.badge--confirmed     { border-color: #8C6E28; color: #6B5320; background: rgba(140, 110, 40, 0.10); }
+.badge--in-production { border-color: #8C6E28; color: #4A3A14; background: rgba(140, 110, 40, 0.20); }
+.badge--delivered     { border-color: var(--ink); background: var(--ink); color: #fff; }
+
+/* Customer statuses. They gain weight as the commitment does: a conversation
+   is the lightest thing on the page, money in is the heaviest. Completed and
+   Cancelled both read as endings, but only one of them is a good one. */
+.badge--in-consultation { border-color: rgba(23, 21, 15, 0.25); color: var(--muted); }
+.badge--ordering        { border-color: #8C6E28; color: #6B5320; background: rgba(140, 110, 40, 0.10); }
+.badge--active          { border-color: #8C6E28; color: #4A3A14; background: rgba(140, 110, 40, 0.20); }
+.badge--completed       { border-color: var(--ink); background: var(--ink); color: #fff; }
+.badge--cancelled       { border-color: rgba(23, 21, 15, 0.2); color: var(--muted);
+                          background: rgba(23, 21, 15, 0.04); text-decoration: line-through; }
+
+/* ------------------------------- Segmented ------------------------------- */
+
+/* Two mutually exclusive modes for one field. A checkbox would have been
+   smaller, but "month only" is not the negation of anything you would name. */
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.segmented__btn {
+  border: 0;
+  background: transparent;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.segmented__btn + .segmented__btn { border-left: 1px solid var(--line); }
+.segmented__btn.is-on { background: var(--ink); color: #fff; }
+
+/* ------------------------------ Download log ----------------------------- */
+
+.loglist {
+  display: flex;
+  flex-direction: column;
+}
+
+.logrow {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 9px 2px;
+  font-size: 13px;
+  border-top: 1px solid var(--line);
+}
+
+.logrow:first-child { border-top: none; }
+
+.logrow__kind { font-weight: 600; }
+
+/* The date and the amount are short and atomic — wrapping "21 Mar 2026" onto
+   two lines to save the label a character helps nobody. Let the label wrap. */
+.logrow__when {
+  flex: 1 1 auto;
+  color: var(--muted);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.logrow__total {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* History rows: the label and its amount stack on the left, the date is pinned
+   to the right edge so the dates read as a column. */
+.logrow--stacked { align-items: flex-start; }
+
+.logrow--stacked .logrow__what {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.logrow--stacked .logrow__when {
+  flex: 0 0 auto;
+  margin-left: auto;
+  text-align: right;
+}
+
+.logrow--stacked .logrow__total { color: var(--muted); }
+
+/* -------------------------------- Fields -------------------------------- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Same reason as .infolist > div[hidden]: flex outranks the browser's own rule.
+   Used by the "why it did not proceed" field, which only applies at Lost. */
+.field[hidden] { display: none; }
+
+.field__label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* Guidance under a field, not an error: the target a value should land under,
+   and what it costs when it does not. */
+.field__hint {
+  margin-top: -1px;
+  font-size: 12.5px;
+  color: var(--label);
+  font-variant-numeric: tabular-nums;
+}
+
+.field__hint:empty { display: none; }
+.field__hint--over { color: var(--danger); font-weight: 600; }
+
+.input {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  font-family: inherit;
+  font-size: 16px;            /* >= 16px: prevents iOS focus zoom */
+  font-weight: 500;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  appearance: none;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.input::placeholder { color: var(--faint); font-weight: 400; }
+
+.input:focus {
+  outline: none;
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px rgba(23, 21, 15, 0.10);
+}
+
+.input { scroll-margin: 88px 0 calc(var(--bottombar-h) + 24px); }
+
+.input.is-invalid {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(164, 52, 31, 0.10);
+}
+
+input[type="date"].input { min-height: 48px; }
+
+.err {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--danger);
+}
+
+.err[hidden] { display: none; }
+
+.input--area {
+  min-height: 0;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+select.input {
+  padding-right: 38px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2317150F' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
+}
+
+/* Two fields to a row where both are short.
+
+   `1fr` is `minmax(auto, 1fr)`, so a track never shrinks below its content's
+   min-content width. A date input's is its full dd/mm/yyyy + picker glyph —
+   about 179px in this type — so at 375px the pair demanded 368px inside a
+   301px card and the second field was simply drawn past the edge. minmax(0,1fr)
+   lets the tracks shrink; the date pair still stacks, because two 145px date
+   inputs would only clip the picker instead. */
+.grid2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+.grid2 > .field { min-width: 0; }
+
+@media (max-width: 439px) {
+  .grid2 { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Date inputs cannot compress; below this they get a row each. */
+@media (max-width: 439px) {
+  .grid2--dates { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ------------------------------- Item rows ------------------------------ */
+
+.items {
+  counter-reset: item;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.item__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 28px;
+  margin: -4px 0 -2px;
+}
+
+.item__idx {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--label);
+}
+
+.item__idx::before {
+  counter-increment: item;
+  content: "Item " counter(item);
+}
+
+/* Qty × price, resolved live, so nobody has to do it in their head. */
+.item__sum {
+  padding-top: 2px;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  text-align: right;
+}
+
+.item__sum:empty { display: none; }
+
+.item__remove {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: rgba(164, 52, 31, 0.07);
+  border: 1px solid rgba(164, 52, 31, 0.28);
+  border-radius: 50%;
+  color: var(--danger);
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+
+.item__remove:hover:not(:disabled) {
+  background: rgba(164, 52, 31, 0.16);
+  border-color: rgba(164, 52, 31, 0.55);
+}
+
+.item__remove:disabled { opacity: 0.28; cursor: not-allowed; }
+.item__remove svg { width: 17px; height: 17px; }
+
+.item__row2 { display: flex; gap: 10px; }
+.item__row2 .field--qty   { width: 88px; flex: none; }
+.item__row2 .field--price { flex: 1 1 auto; min-width: 0; }
+
+.prefixed { position: relative; display: flex; align-items: center; }
+
+.prefixed .prefix {
+  position: absolute;
+  left: 14px;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--faint);
+  pointer-events: none;
+}
+
+.prefixed .input { padding-left: 40px; }
+
+/* The unit trails the number for a percentage, and leads it for a currency. */
+.prefixed--suffix .suffix {
+  position: absolute;
+  right: 14px;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--faint);
+  pointer-events: none;
+}
+
+.prefixed--suffix .input { padding-left: 14px; padding-right: 34px; }
+
+/* ----------------------------- Payment terms ----------------------------- */
+
+/* Revealed by the scheme select, so it needs the same hidden-wins rule as
+   .card — its own `display: flex` would otherwise beat the UA's `hidden`. */
+.terms {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.terms[hidden] { display: none; }
+
+.termlist {
+  counter-reset: term;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.term {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.term__idx {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--label);
+}
+
+.term__idx::before {
+  counter-increment: term;
+  content: "Term " counter(term);
+}
+
+.term__row { display: flex; gap: 10px; }
+.term__namefield { flex: 1 1 auto; min-width: 0; }
+.term__pctfield  { width: 104px; flex: none; }
+
+@media (max-width: 359px) {
+  .term__row { flex-direction: column; }
+  .term__pctfield { width: 100%; }
+}
+
+/* The running total is the whole point of the block: terms that sum to 90%
+   invoice for less than the order is worth, and nothing else on the page would
+   ever say so. */
+.termsum {
+  margin: -2px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.termsum--off { color: var(--danger); }
+
+/* --------------------------------- Chips -------------------------------- */
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 16px 10px 12px;
+  background: #fff;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+
+.chip input { position: absolute; opacity: 0; pointer-events: none; }
+
+.chip__box {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--line-2);
+  border-radius: 6px;
+  transition: inherit;
+}
+
+.chip__box svg { width: 11px; height: 11px; opacity: 0; }
+
+/* Checked used to fill the whole chip black. With all six ticked by default —
+   which is the normal case — the card became a slab of black that outweighed
+   the item prices above it. The tick carries the state; the chip only has to
+   agree with it. */
+.chip.is-checked {
+  background: rgba(23, 21, 15, 0.05);
+  border-color: var(--ink);
+}
+
+.chip.is-checked .chip__box { background: var(--ink); border-color: var(--ink); }
+.chip.is-checked .chip__box svg { opacity: 1; color: #fff; }
+.chip:focus-within { box-shadow: 0 0 0 3px rgba(23, 21, 15, 0.18); }
+
+/* User-added chip: the toggle is a nested label so the remove button beside it
+   doesn't also flip the checkbox. */
+.chip--custom { padding-right: 6px; }
+
+.chip__main {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.chip__remove {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  margin-left: 2px;
+  padding: 0;
+  background: rgba(164, 52, 31, 0.10);
+  border: 1px solid rgba(164, 52, 31, 0.30);
+  border-radius: 50%;
+  color: var(--danger);
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+
+.chip__remove:hover {
+  background: rgba(164, 52, 31, 0.22);
+  border-color: rgba(164, 52, 31, 0.6);
+}
+
+.chip__remove svg { width: 11px; height: 11px; }
+
+
+/* ------------------------------ Inline add row --------------------------- */
+
+.addrow { display: flex; gap: 8px; }
+.addrow .input { flex: 1 1 auto; min-width: 0; }
+
+.btn--add {
+  flex: none;
+  min-height: 48px;
+  padding: 0 20px;
+}
+
+/* -------------------------------- Buttons ------------------------------- */
+
+.btn {
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, opacity .15s ease;
+}
+
+.btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* Solid: a real, present thing to act on. */
+.btn--outline {
+  min-height: 48px;
+  background: transparent;
+  border: 1px solid var(--line-2);
+  color: var(--ink);
+}
+
+.btn--outline:hover { background: rgba(23, 21, 15, 0.04); border-color: var(--ink); }
+
+/* Dashed is reserved for the "+" buttons, where it reads as an empty slot
+   waiting to be filled rather than as a control that is somehow provisional. */
+.btn--new { border-style: dashed; }
+
+.btn--block { width: 100%; }
+
+.btn--danger {
+  min-height: 48px;
+  background: transparent;
+  border-color: rgba(164, 52, 31, 0.35);
+  color: var(--danger);
+}
+
+.btn--danger:hover { background: rgba(164, 52, 31, 0.08); border-color: var(--danger); }
+
+.btn--danger[hidden] { display: none; }
+
+/* Quieter than outline, and deliberately so. Marking a customer as not
+   proceeding is reversible and loses nothing, so it does not warrant the red of
+   a delete — but it is also not something to reach for by accident on the way
+   past, so it does not get a border either. */
+.btn--quiet {
+  min-height: 44px;
+  margin-top: 4px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.btn--quiet:hover { background: rgba(23, 21, 15, 0.05); color: var(--ink); }
+.btn--quiet[hidden] { display: none; }
+
+.btn--primary {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: var(--ink);
+  color: #fff;
+}
+
+.btn--primary:hover:not(:disabled) { background: #2C281C; }
+.btn--primary:disabled { opacity: 0.55; cursor: progress; }
+
+/* The second download. Same footprint as .btn--primary so the two sit level,
+   outlined rather than solid so the bar isn't a black slab. */
+.btn--secondary {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: #fff;
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.btn--secondary:hover:not(:disabled) { background: rgba(23, 21, 15, 0.06); }
+.btn--secondary:disabled { opacity: 0.55; cursor: progress; }
+
+.spinner {
+  display: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+
+.btn--secondary .spinner {
+  border-color: rgba(23, 21, 15, 0.25);
+  border-top-color: var(--ink);
+}
+
+.btn--primary.is-busy .spinner,
+.btn--secondary.is-busy .spinner { display: block; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* --------------------------- Fixed bottom bars --------------------------- */
+
+.actionbar[hidden],
+.savebar[hidden] { display: none; }
+
+.actionbar,
+.savebar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--keyboard-offset);
+  z-index: 20;
+  background: rgba(228, 226, 221, 0.94);
+  backdrop-filter: saturate(150%) blur(12px);
+  border-top: 1px solid var(--line);
+}
+
+.actionbar__inner,
+.savebar__inner {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 10px max(var(--page-pad, var(--space-5)), env(safe-area-inset-right, 0px));
+  padding-left: max(var(--page-pad, var(--space-5)), env(safe-area-inset-left, 0px));
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Save used to sit in the app bar's top-right corner: the hardest point on a
+   phone to reach one-handed, and pressed against sign-out. */
+.savebar__inner { padding-top: 12px; }
+
+.savebar .btn--primary:disabled {
+  background: transparent;
+  border-color: var(--line-2);
+  color: var(--muted);
+  opacity: 1;
+  cursor: default;
+}
+
+.actionbar__note {
+  margin: 0;
+  padding: 0 2px;
+  font-size: 12.5px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.actionbar__note[hidden] { display: none; }
+
+.actionbar__total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 2px;
+}
+
+.actionbar__label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.actionbar__amount {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.actionbar__buttons { display: flex; gap: 8px; }
+
+/* Two words on one line, always: a wrapping label makes the fixed bar taller,
+   which eats the page it is fixed over. The label shrinks instead. */
+.actionbar__buttons .btn {
+  flex: 1 1 0;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+@media (max-width: 359px) {
+  .actionbar__buttons .btn { font-size: 14px; padding-left: 8px; padding-right: 8px; }
+}
+
+/* ------------------------------ Cost sheet ------------------------------- */
+
+/* A full-screen panel over the order editor, not a route: items are edited
+   in memory and only committed on Save, so navigating away to cost one item
+   risks losing edits to the others. 50 clears the menu's 40 and the toast's
+   30 — both can still appear over a plain page, neither should ever appear
+   over this. */
+.calcsheet[hidden] { display: none; }
+
+.calcsheet {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  overscroll-behavior: contain;
+}
+
+.calcsheet__panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  max-width: 560px;
+  width: 100%;
+  margin: 0 auto;
+  padding: calc(16px + env(safe-area-inset-top, 0px)) 20px calc(96px + env(safe-area-inset-bottom, 0px));
+}
+
+.calcsheet__head {
+  margin-bottom: 18px;
+}
+
+.calcsheet__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.calcsheet__sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.calcsheet__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Same shape as .term / .item — a bordered card per row. Category and amount
+   stack instead of sitting side by side: two labelled fields sharing a row's
+   width left the amount field too narrow to read its own digits on a phone. */
+.calcrows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.calcrow {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 56px 14px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.calcrow__label { width: 100%; }
+.calcrow__amount { width: 100%; }
+
+/* A corner dismiss, not a full delete button — the trash-can treatment on
+   item/term rows reads as a heavier, more deliberate action than removing
+   one scratch line here deserves. */
+.calcrow__remove {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 1px solid var(--line-2);
+  border-radius: 50%;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+
+.calcrow__remove:hover:not(:disabled) {
+  background: rgba(23, 21, 15, 0.06);
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.calcrow__remove:disabled { opacity: 0.28; cursor: not-allowed; }
+.calcrow__remove svg { width: 13px; height: 13px; }
+
+/* -------------------------- Cost calc trigger ---------------------------- */
+
+/* Sits beside the cost input rather than in the label row, so it can be a
+   full touch target instead of competing for space with the "Internal" tag. */
+.costfield-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.costfield-row .prefixed { flex: 1 1 auto; min-width: 0; }
+
+.calc-trigger {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 1px solid var(--line-2);
+  border-radius: 50%;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+
+.calc-trigger:hover {
+  background: rgba(23, 21, 15, 0.06);
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.calc-trigger svg { width: 20px; height: 20px; }
+
+/* --------------------------------- Toast -------------------------------- */
+
+/* --bottombar-h is the measured height of whichever bar is up. The old fixed
+   96px sat below the 162px action bar, so every toast appeared behind the
+   download buttons it was reporting on. */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--bottombar-h) + 16px);
+  transform: translate(-50%, 12px);
+  z-index: 300;
+  max-width: calc(100vw - 40px);
+  padding: 11px 18px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 999px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s ease, transform .2s ease;
+}
+
+.toast.is-visible { opacity: 1; transform: translate(-50%, 0); }
+
+/* With no bar up, --bottombar-h is 0 and the toast still needs to clear the
+   home indicator on its own. */
+body:not(.has-savebar):not(.has-fitting-journal-bar) .toast {
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}

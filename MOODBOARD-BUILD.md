@@ -64,7 +64,7 @@ non-identity image shuffle and selects a different layout variation.
 The document stage is fixed at 1920×1080. Its content grid is 1856×960 with a
 12px gap and begins at y=88 below the branded header.
 
-### Presentation (`app.js`, `styles.css`)
+### Presentation (`app.js`, `styles/moodboard.css`)
 
 The source stage stays off-screen. The preview route clones it, strips IDs, and
 scales it with `contain` geometry into a fixed portrait-friendly viewport.
