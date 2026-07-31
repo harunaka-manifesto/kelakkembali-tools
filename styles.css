@@ -39,6 +39,7 @@
   --space-3: 12px;
   --space-4: 16px;
   --space-5: 20px;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 * { box-sizing: border-box; }
@@ -190,7 +191,7 @@ body.is-homepage .view { gap: 0; }
   display: grid;
   grid-template-rows: 86px 12px;
   cursor: pointer;
-  transition: grid-template-rows 180ms ease-out;
+  transition: grid-template-rows 180ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
 }
 .home-action__face {
   min-width: 0;
@@ -238,7 +239,7 @@ body.is-homepage .view { gap: 0; }
   grid-template-rows: 56px 7px;
   text-align: left;
   cursor: pointer;
-  transition: grid-template-rows 120ms ease-out;
+  transition: grid-template-rows 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
 }
 .home-alert[hidden] { display: none; }
 .home-alert__face {
@@ -361,7 +362,7 @@ body.is-homepage .view { gap: 0; }
   background: var(--home-white);
   border-left: 1px solid var(--home-grid);
   border-right: 1px solid var(--home-grid);
-  transition: padding-bottom 120ms ease-out;
+  transition: padding 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
 }
 .home-customer-card__top {
   display: flex;
@@ -416,17 +417,18 @@ body.is-homepage .view { gap: 0; }
   background: var(--home-white-dark);
   border-left: 1px solid var(--home-grid);
   border-right: 1px solid var(--home-grid);
-  transition: height 120ms ease-out;
+  transition: height 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
 }
-/* Pressing takes 10px off the rail and gives it to the face, so the record's
-   total height and every rule around it stay put. */
+/* Pressing takes 8px off the rail and gives it to the face (4px top, 4px bottom),
+   so the customer card face becomes taller while the record's total height stays put. */
 .home-customer-card:active .home-customer-card__face,
 .home-customer-card.is-pressed .home-customer-card__face {
-  padding-bottom: 22px;
+  padding-top: 16px;
+  padding-bottom: 16px;
   background: linear-gradient(180deg, transparent, rgba(0,0,0,.06)), var(--home-white);
 }
 .home-customer-card:active .home-customer-card__rail,
-.home-customer-card.is-pressed .home-customer-card__rail { height: 2px; }
+.home-customer-card.is-pressed .home-customer-card__rail { height: 4px; }
 
 /* The no-match and empty states live inside the black ledger. */
 body.is-homepage .empty {

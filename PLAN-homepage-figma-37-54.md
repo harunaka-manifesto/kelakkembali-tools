@@ -541,8 +541,8 @@ Normal:
 
 Pressed:
 
-- Add 10px bottom padding/height to the face.
-- Reduce the rail from 12px to 2px.
+- Increase face padding to 16px top and 16px bottom (making the customer card content area 8px taller).
+- Reduce the rail from 12px to 4px (matching Figma node 44:557).
 - Add a subtle bottom-darkening overlay equivalent to `linear-gradient(180deg, transparent, rgba(0,0,0,.06))` over the cream face.
 - Total face-plus-rail height remains unchanged.
 - Do not translate, scale, or change surrounding margins/rules.
