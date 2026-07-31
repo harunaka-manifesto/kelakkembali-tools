@@ -203,7 +203,7 @@ function homepageOverview(e,t){const o={},n={},a={};e.forEach(e=>{(o[e.customer_
 const reducedMotion=()=>!!(window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 let homePopTimers=[];
 function clearHomepagePops(){homePopTimers.forEach(clearTimeout),homePopTimers=[]}
-function clearHomepagePresses(){p.homeReady.querySelectorAll(".is-pressed").forEach(e=>e.classList.remove("is-pressed"))}
+function clearHomepagePresses(){document.querySelectorAll(".is-pressed").forEach(e=>e.classList.remove("is-pressed"))}
 function isCurrentHomepageLoad(e){return e===w.homepage.loadToken&&"customers"===w.route.view}
 
 function beginHomepageLoad(){const e=++w.homepage.loadToken;return w.homepage.phase="loading",
