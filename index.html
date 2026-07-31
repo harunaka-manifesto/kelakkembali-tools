@@ -161,29 +161,111 @@
   </section>
 
   <!-- -------------------------- Customer detail -------------------------- -->
-  <section class="view" id="viewCustomer" hidden>
-    <!-- The name is the page title now, so it is not repeated here; the wedding
-         date leads instead, since every other date works backwards from it. -->
-    <!-- No status control anywhere on this page. Where a customer is follows
-         from what already exists — no orders, an order, a payment, a wedding
-         in the past — so it is read off those and shown in the page head, the
-         same as an order's status. The only thing you can set is the one thing
-         nothing else implies: that they decided not to go ahead. -->
-    <section class="card" id="customerViewCard">
-      <p class="card__hint" id="followUpLine"></p>
-      <dl class="infolist">
-        <div><dt>Wedding</dt><dd id="dWedding"></dd></div>
-        <div><dt>Phone / WhatsApp</dt><dd id="dPhone"></dd></div>
-        <div><dt>Instagram</dt><dd id="dInstagram"></dd></div>
-        <div><dt>Source</dt><dd id="dSource"></dd></div>
-        <div id="dMoodboardRow"><dt>Moodboard sent</dt><dd id="dMoodboard"></dd></div>
-        <div class="infolist__stack" id="dCancelledRow"><dt>Not proceeding</dt><dd id="dCancelled"></dd></div>
-        <div class="infolist__stack"><dt>Notes</dt><dd id="dNotes"></dd></div>
-        <div><dt>Customer since</dt><dd id="dCreated"></dd></div>
-      </dl>
+  <!-- Figma node 65:399. Read-only by design: the name leads, the dates that
+       every other date works backwards from sit under it as coloured banners,
+       and the orders sit in the same black ledger the homepage list uses, so
+       moving between the two pages never changes what a row is. Everything you
+       can set — the contact details, the notes, and the one status nothing else
+       implies — lives one tap away in the edit view below. -->
+  <section class="view cust" id="viewCustomer" hidden>
+    <nav class="cust-nav" aria-label="Customer navigation">
+      <a class="cust-nav-btn" id="custBackBtn" href="#/customers">
+        <span class="cust-nav-btn__face">
+          <img src="assets/cust-back-icon.svg" alt="" width="24" height="24">
+          <span>Customers</span>
+        </span>
+        <span class="cust-nav-btn__rail" aria-hidden="true"></span>
+      </a>
+      <a class="cust-nav-btn cust-nav-btn--icon" id="custEditBtn" href="#/customers" aria-label="Edit customer">
+        <span class="cust-nav-btn__face">
+          <img src="assets/cust-edit-icon.svg" alt="" width="24" height="24">
+        </span>
+        <span class="cust-nav-btn__rail" aria-hidden="true"></span>
+      </a>
+    </nav>
+
+    <header class="cust-hero">
+      <h1 class="cust-hero__name" id="custHeroName"></h1>
+    </header>
+
+    <!-- The banners are the customer's calendar in one glance. They carry press
+         feedback because they are the same object as the homepage shortcuts;
+         what they open is not built yet, so they do not navigate. -->
+    <div class="cust-banners">
+      <div class="cust-banner cust-banner--wedding" id="custWeddingBanner" aria-disabled="true">
+        <span class="cust-banner__face">
+          <span class="cust-banner__left">
+            <img class="cust-banner__icon" src="assets/cust-wedding-icon.svg" alt="">
+            <span class="cust-banner__title">Wedding date</span>
+          </span>
+          <span class="cust-banner__value" id="custWeddingText">Not set</span>
+        </span>
+        <span class="cust-banner__rail" aria-hidden="true"></span>
+      </div>
+
+      <div class="cust-banner cust-banner--next" id="custNextBanner" aria-disabled="true">
+        <span class="cust-banner__face">
+          <span class="cust-banner__left">
+            <img class="cust-banner__icon" src="assets/home-schedule-icon.svg" alt="">
+            <span class="cust-banner__title" id="custNextLabel">Next event</span>
+          </span>
+          <span class="cust-banner__value" id="custNextDate">Nothing scheduled</span>
+        </span>
+        <span class="cust-banner__rail" aria-hidden="true"></span>
+      </div>
+
+      <div class="cust-banner cust-banner--fittings" id="custFittingBanner" aria-disabled="true">
+        <span class="cust-banner__face">
+          <span class="cust-banner__left">
+            <img class="cust-banner__icon" src="assets/home-fitting-icon.svg" alt="">
+            <span class="cust-banner__title">Fitting logs</span>
+          </span>
+        </span>
+        <span class="cust-banner__rail" aria-hidden="true"></span>
+      </div>
+
+      <div class="cust-banner-split">
+        <div class="cust-banner cust-banner--quotation" id="custQuotationBanner" aria-disabled="true">
+          <span class="cust-banner__face">
+            <span class="cust-banner__left">
+              <img class="cust-banner__icon" src="assets/home-quote-icon.svg" alt="">
+              <span class="cust-banner__title">Quotations</span>
+            </span>
+          </span>
+          <span class="cust-banner__rail" aria-hidden="true"></span>
+        </div>
+
+        <div class="cust-banner cust-banner--invoice" id="custInvoiceBanner" aria-disabled="true">
+          <span class="cust-banner__face">
+            <span class="cust-banner__left">
+              <img class="cust-banner__icon" src="assets/home-invoice-icon.svg" alt="">
+              <span class="cust-banner__title">Invoices</span>
+            </span>
+          </span>
+          <span class="cust-banner__rail" aria-hidden="true"></span>
+        </div>
+      </div>
+    </div>
+
+    <section class="cust-orders" aria-label="Orders">
+      <div class="cust-grid-spacer" aria-hidden="true"></div>
+      <div class="cust-summary">
+        <span id="custOrdersCount">0 orders</span>
+        <span id="custOrdersSum"></span>
+      </div>
+      <div class="cust-order-list" id="custOrderList"></div>
     </section>
 
-    <section class="card" id="customerEditCard" hidden>
+    <footer class="cust-footer">Made with love for Ichaku</footer>
+  </section>
+
+  <!-- --------------------------- Customer editor -------------------------- -->
+  <!-- Everything writable about a customer, on its own route so the detail page
+       stays a thing you read. Also where a customer is created, and where the
+       one status nothing else implies is set. -->
+  <section class="view" id="viewCustomerEdit" hidden>
+    <section class="card" id="customerEditCard">
+      <p class="card__hint" id="followUpLine"></p>
       <label class="field" for="cName">
         <span class="field__label">Name</span>
         <input class="input js-cfield" id="cName" type="text" placeholder="e.g. Jane Doe"

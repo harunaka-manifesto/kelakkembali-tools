@@ -9,9 +9,10 @@ menuBtn:a("#menuBtn"),menuList:a("#menuList"),menuDelete:a("#menuDelete"),menuCa
 viewCustomers:a("#viewCustomers"),homeStage:a("#homeStage"),homeLoading:a("#homeLoading"),homeError:a("#homeError"),homeReady:a("#homeReady"),homeHero:a("#homeHero"),homeActions:a("#homeActions"),
 homeNav:a("#homeNav"),homeNavHome:a("#homeNavHome"),homeNavMenu:a("#homeNavMenu"),homeNavMenuWrapper:a("#homeNavMenuWrapper"),
 homeCustomers:a("#homeCustomers"),homeFooter:a("#homeFooter"),homeSummary:a("#homeSummary"),heroGreeting:a("#heroGreeting"),heroDeadline:a("#heroDeadline"),customerSearch:a("#customerSearch"),customerList:a("#customerList"),viewCustomer:a("#viewCustomer"),
-customerViewCard:a("#customerViewCard"),dPhone:a("#dPhone"),dInstagram:a("#dInstagram"),dSource:a("#dSource"),dWedding:a("#dWedding"),
-dNotes:a("#dNotes"),dCreated:a("#dCreated"),dMoodboard:a("#dMoodboard"),dMoodboardRow:a("#dMoodboardRow"),dCancelled:a("#dCancelled"),
-dCancelledRow:a("#dCancelledRow"),followUpLine:a("#followUpLine"),cancelCustomer:a("#cancelCustomer"),reopenCustomer:a("#reopenCustomer"),
+custBackBtn:a("#custBackBtn"),custEditBtn:a("#custEditBtn"),custHeroName:a("#custHeroName"),custWeddingText:a("#custWeddingText"),
+custNextLabel:a("#custNextLabel"),custNextDate:a("#custNextDate"),custOrdersCount:a("#custOrdersCount"),custOrdersSum:a("#custOrdersSum"),
+custOrderList:a("#custOrderList"),viewCustomerEdit:a("#viewCustomerEdit"),
+followUpLine:a("#followUpLine"),cancelCustomer:a("#cancelCustomer"),reopenCustomer:a("#reopenCustomer"),
 customerEditCard:a("#customerEditCard"),cName:a("#cName"),errCName:a("#errCName"),cPhone:a("#cPhone"),cInstagram:a("#cInstagram"),
 cSource:a("#cSource"),cWedding:a("#cWedding"),cWeddingMonth:a("#cWeddingMonth"),cWeddingPrecision:a("#cWeddingPrecision"),
 cMoodboardDate:a("#cMoodboardDate"),cFollowUpDate:a("#cFollowUpDate"),cFollowUpLabel:a("#cFollowUpLabel"),cCancelledReason:a("#cCancelledReason"),
@@ -56,7 +57,10 @@ const e=window.visualViewport,t=e?Math.max(0,window.innerHeight-e.height-e.offse
 a.focus()):e.shiftKey||document.activeElement!==a||(e.preventDefault(),n.focus())}function setSaveBar(e){p.savebar.hidden=!e,
 document.body.classList.toggle("has-savebar",!!e),syncBottomBar()}let D=null;function setPageAction(e){D=e?e.onClick:null,p.pageAction.hidden=!e,
 e&&(p.pageAction.textContent=e.label)}function setChrome(e){p.viewTitle.textContent=e.title,
-document.body.classList.toggle("is-homepage",!!e.homepage),p.viewSub.innerHTML=e.sub||"",p.viewSub.hidden=!e.sub
+document.body.classList.toggle("is-homepage",!!e.homepage),
+// The customer detail page owns its whole canvas the way the homepage does,
+// so the app bar and page header step aside for it too.
+document.body.classList.toggle("is-custpage",!!e.custpage),p.viewSub.innerHTML=e.sub||"",p.viewSub.hidden=!e.sub
 ;const t=e.up||null;p.upLink.hidden=!t,p.appbarBrand.hidden=!!t,t&&(p.upLink.href=t.hash,p.upLabel.textContent=t.label),
 p.homeLink.hidden=!t||"#/customers"===t.hash,setPageAction(e.action||null),p.actionbar.hidden=!e.actions,
 document.body.classList.toggle("has-actionbar",!!e.actions),setSaveBar(!!e.save),closeMenu(),
@@ -92,7 +96,8 @@ k!==e?location.hash!==e?(history.replaceState(null,"",location.pathname+location
 function confirmLeave(){return!w.dirty||window.confirm("You have unsaved changes. Leave without saving?")}let E="",k="";async function handleRoute(){
 const s=function(){
 const e=String(location.hash||"").replace(/^#\/?/,""),t=e.indexOf("?"),o=(-1===t?e:e.slice(0,t)).split("/").filter(Boolean),n=new URLSearchParams(-1===t?"":e.slice(t+1))
-;return"customer"===o[0]&&o[1]?{view:"customer",id:o[1],query:n}:"order"===o[0]&&o[1]&&"edit"===o[2]?{view:"orderEdit",id:o[1],query:n
+;return"customer"===o[0]&&o[1]&&"edit"===o[2]?{view:"customerEdit",id:o[1],query:n
+}:"customer"===o[0]&&o[1]?{view:"customer",id:o[1],query:n}:"order"===o[0]&&o[1]&&"edit"===o[2]?{view:"orderEdit",id:o[1],query:n
 }:"order"===o[0]&&o[1]&&"moodboard"===o[2]&&"preview"===o[3]?{view:"moodboardPreview",id:o[1],query:n}:"order"===o[0]&&o[1]&&"moodboard"===o[2]?{
 view:"moodboard",id:o[1],query:n}:"order"===o[0]&&o[1]&&"fitting"===o[2]&&"new"===o[3]?{view:"fittingNew",id:o[1],query:n
 }:"order"===o[0]&&o[1]&&"fitting"===o[2]&&o[3]?{view:"fittingJournal",id:o[1],sessionId:o[3],query:n
@@ -103,29 +108,13 @@ if(w.dirty&&E!==location.hash){
 if(!confirmLeave())return void(location.hash=E);setDirty(!1)}location.hash!==E&&(k=E),E=location.hash
 ;const d=i&&("moodboard"===i.view||"moodboardPreview"===i.view),c="moodboard"===s.view||"moodboardPreview"===s.view
 ;d&&!c&&(closeMoodboardPresentation(),R.cleanup(),j=null),w.route=s,p.viewCustomers.hidden="customers"!==s.view,
-p.viewCustomer.hidden="customer"!==s.view,p.viewOrder.hidden="order"!==s.view,p.viewOrderEdit.hidden="orderEdit"!==s.view,p.viewMoodboard.hidden=!c,
+p.viewCustomer.hidden="customer"!==s.view,p.viewCustomerEdit.hidden="customerEdit"!==s.view,p.viewOrder.hidden="order"!==s.view,p.viewOrderEdit.hidden="orderEdit"!==s.view,p.viewMoodboard.hidden=!c,
 p.viewFittingJournal.hidden="fittingNew"!==s.view&&"fittingJournal"!==s.view,
 p.fittingJournalBar.hidden="fittingJournal"!==s.view&&"fittingNew"!==s.view,
 document.body.classList.toggle("has-fitting-journal-bar",!p.fittingJournalBar.hidden),p.viewCalendar.hidden="calendar"!==s.view,
 p.viewEnquiry.hidden="enquiry"!==s.view,
 !i||"fittingNew"!==i.view&&"fittingJournal"!==i.view||s.view===i.view&&s.id===i.id&&s.sessionId===i.sessionId||KK.fittings.closeAll(),syncBottomBar(),
-window.scrollTo(0,0);const render=async()=>{"customers"===s.view?await showCustomers():"customer"===s.view?await async function(a,s){const r="new"===a
-;setChrome({title:r?"New customer":"Customer",up:{label:"Customers",hash:"#/customers"},save:!1,actions:!1,destroy:r?null:"customer"}),
-w.customerOrders=[];
-// Arrived from a search that found nothing: the name is already known.
-const i=r?String(s&&s.get("name")||"").trim():"";if(r)return w.customer=Object.assign({},M),i&&(w.customer.name=i),fillCustomerForm(w.customer),
-// A new customer has nothing to read, so it opens straight into the form.
-setCustomerMode(!0),setDirty(!0),p.viewSub.hidden=!0,void(i?p.cPhone:p.cName).focus();p.orderList.innerHTML='<p class="empty">Loading…</p>'
-;const[d,c]=await Promise.all([t.getCustomer(a),t.listOrders(a)]);w.customer=d,w.customerOrders=c,fillCustomerForm(d),setCustomerMode(!1),
-setDirty(!1),renderCustomerReadOnly(d),function(t){
-if(p.ordersTotal.textContent=t.length?e.formatRupiah(t.reduce((e,t)=>e+o.computeTotal(t.items),0)):"",
-!t.length)return void(p.orderList.innerHTML='<p class="empty">No orders yet.</p>');const a=w.customer&&w.customer.wedding_date
-;p.orderList.innerHTML=t.map(t=>{
-const s=n.computeProduction(productionAnchor(t),a).events.map(e=>e.event_date).filter(t=>t>=e.todayISO())[0],r=effectiveStatus(t)
-;return'<a class="row row--kanban" href="#/order/'+t.id+'"><span class="row__main"><span class="row__title">'+e.escapeHtml(orderLabel(t))+'</span><span class="row__meta">'+e.escapeHtml(function(e){
-const t=(e||[]).filter(e=>""!==String(e.name||"").trim()).map(e=>e.name);return t.length?t.join(", "):"No items yet"
-}(t.items))+'</span><span class="row__tags"><span class="'+badgeClass(r)+'">'+e.escapeHtml(r)+"</span>"+(s?'<span class="row__meta">Fitting '+e.escapeHtml(e.formatShortDate(s))+"</span>":"")+'</span></span><span class="row__amount">'+e.formatRupiah(o.computeTotal(t.items))+"</span></a>"
-}).join("")}(c)}(s.id,s.query):"orderEdit"===s.view?await async function(o){w.order=await t.getOrder(o),
+window.scrollTo(0,0);const render=async()=>{"customers"===s.view?await showCustomers():"customer"===s.view?await showCustomerDetail(s.id):"customerEdit"===s.view?await showCustomerEdit(s.id,s.query):"orderEdit"===s.view?await async function(o){w.order=await t.getOrder(o),
 w.customer=await t.getCustomer(w.order.customer_id),setChrome({title:"Edit order",up:{label:orderLabel(w.order),hash:"#/order/"+o},save:!0,actions:!1,
 destroy:"order"}),p.oTitle.value=w.order.title||"",p.oDocName.value=w.order.doc_name||"",p.oFirstPayment.value=w.order.first_payment_date||"",
 p.oSecondPayment.value=w.order.second_payment_date||"",p.oFinalPayment.value=w.order.final_payment_date||"",
@@ -269,7 +258,16 @@ window.addEventListener("scroll",()=>{"ready"===w.homepage.phase&&clearHomepageP
 p.viewCustomers.addEventListener("keydown",e=>{if(" "!==e.key&&"Enter"!==e.key)return;const t=e.target.closest(".home-action,.home-alert,.home-customer-card,.home-nav-btn")
 ;t&&(t.classList.add("is-pressed"),t.matches(".home-action,.home-alert,.home-nav-btn")&&e.preventDefault())}),
 window.addEventListener("keyup",clearHomepagePresses),
-p.homeReady.addEventListener("click",e=>{e.target.closest(".home-action,.home-alert")&&e.preventDefault()});function readableAnswer(e){const t=e&&e.value
+p.homeReady.addEventListener("click",e=>{e.target.closest(".home-action,.home-alert")&&e.preventDefault()}),
+// The customer detail page presses like the homepage — the same window-level
+// listeners above release it, so only the press itself is registered here.
+p.viewCustomer.addEventListener("pointerdown",e=>{const t=e.target.closest(".cust-banner,.cust-nav-btn,.cust-order-card")
+;t&&t.classList.add("is-pressed")}),
+p.viewCustomer.addEventListener("keydown",e=>{if(" "!==e.key&&"Enter"!==e.key)return
+;const t=e.target.closest(".cust-banner,.cust-nav-btn,.cust-order-card");t&&(t.classList.add("is-pressed"),t.matches(".cust-banner")&&e.preventDefault())}),
+window.addEventListener("scroll",()=>{document.body.classList.contains("is-custpage")&&clearHomepagePresses()},{passive:!0}),
+// The banners are tactile but do not lead anywhere yet.
+p.viewCustomer.addEventListener("click",e=>{e.target.closest(".cust-banner")&&e.preventDefault()});function readableAnswer(e){const t=e&&e.value
 ;if(null==t||""===t)return"";if(!Array.isArray(t))return"object"==typeof t?JSON.stringify(t):String(t);const o=e.options||[];return t.map(e=>{
 const t=o.filter(t=>t.id===e)[0];return t?t.text:String(e)}).filter(Boolean).join(", ")}async function acceptEnquiry(){const o=w.enquiry
 ;if(o&&"new"===o.status)try{const n=await t.createCustomer(Object.assign({name:o.name||"Unnamed enquiry",phone:o.phone,instagram:o.instagram,
@@ -282,7 +280,7 @@ await t.resolveIntake(e.id,"dismissed",null),showToast("Enquiry dismissed"),leav
 showToast(e.message||"Could not dismiss the enquiry")}}function renderCustomerList(){
 const t=p.customerSearch.value.trim().toLowerCase(),n=w.customers.filter(e=>!t||[e.name,e.phone,e.instagram].some(e=>String(e||"").toLowerCase().includes(t))).sort(compareHomepageCustomers)
 ;if(!n.length){const t=p.customerSearch.value.trim()
-;return void(p.customerList.innerHTML=w.customers.length?'<p class="empty">No match for “'+e.escapeHtml(t)+'”.</p><a class="btn btn--outline btn--new btn--block btn--empty" href="#/customer/new?name='+encodeURIComponent(t)+'">+ Add “'+e.escapeHtml(t)+"” as a new customer</a>":'<p class="empty">No customers yet.</p>')
+;return void(p.customerList.innerHTML=w.customers.length?'<p class="empty">No match for “'+e.escapeHtml(t)+'”.</p><a class="btn btn--outline btn--new btn--block btn--empty" href="#/customer/new/edit?name='+encodeURIComponent(t)+'">+ Add “'+e.escapeHtml(t)+"” as a new customer</a>":'<p class="empty">No customers yet.</p>')
 }p.customerList.innerHTML=n.map((t,n)=>{
 const a=w.overview.ordersByCustomer[t.id]||[],s=a.reduce((e,t)=>e+o.computeTotal(t.items),0),r=homepageStatus(t,a),i=a.length+" order"+(1===a.length?"":"s")
 ;return'<div class="home-customer-record"><div class="home-grid-rule"></div><div class="home-customer-record__inset"><a class="home-customer-card home-customer-card--'+r.tone+'" href="#/customer/'+encodeURIComponent(t.id)+'" aria-label="'+e.escapeHtml((t.name||"Unnamed customer")+", "+r.label)+'"><span class="home-customer-card__face"><span class="home-customer-card__top"><span class="home-customer-card__name">'+e.escapeHtml(t.name||"Unnamed customer")+'</span><span class="home-customer-card__badge">'+e.escapeHtml(r.label)+'</span></span>'+("Cancelled"===r.label?"":'<span class="home-customer-card__meta"><span>'+e.escapeHtml(i)+"</span><span>"+e.formatRupiah(s)+"</span></span>")+'</span><span class="home-customer-card__rail"></span></a></div><div class="home-grid-rule"></div><div class="home-grid-spacer" aria-hidden="true"></div></div>'
@@ -299,26 +297,70 @@ const o=e.todayISO(),n=[];return t.wedding_date&&n.push({date:t.wedding_date,wha
 what:t.follow_up_label||"Follow up"}),(w.overview.eventsByCustomer[t.id]||[]).filter(e=>!e.end_date).forEach(e=>n.push({date:e.event_date,what:e.stage
 })),n.filter(e=>e.date>=o).sort((e,t)=>e.date<t.date?-1:1)[0]||null}
 const relativeDays=e=>0===e?"today":1===e?"tomorrow":"in "+e+" days",firstName=e=>(e||"").trim().split(/\s+/)[0]||"";const M={id:null,name:"",
-phone:"",instagram:"",source:"",wedding_date:"",notes:""};function setCustomerMode(e){const t=!w.customer||!w.customer.id;p.customerViewCard.hidden=e,
-p.customerEditCard.hidden=!e,p.customerOrdersCard.hidden=e||t,(e||t)&&(p.cancelCustomer.hidden=!0,p.reopenCustomer.hidden=!0,p.viewSub.hidden=!0),
-setSaveBar(e),p.viewTitle.textContent=t?"New customer":e?"Edit customer":w.customer.name,setPageAction(t?null:e?{label:"Cancel",
-onClick:cancelCustomerEdit}:{label:"Edit",onClick:()=>setCustomerMode(!0)})}function cancelCustomerEdit(){
-confirmLeave()&&(fillCustomerForm(w.customer),setDirty(!1),setCustomerMode(!1))}
+phone:"",instagram:"",source:"",wedding_date:"",notes:""}
 const daysUntil=t=>Math.round((new Date(t)-new Date(e.todayISO()))/864e5),isApproximateWedding=e=>!(!e||!e.wedding_date||"month"!==e.wedding_date_precision)
 ;function weddingText(t){
 return t&&t.wedding_date?isApproximateWedding(t)?e.formatLongDate(t.wedding_date).replace(/^\d+\s/,"")+" (approximate)":e.formatShortDate(t.wedding_date):"Not set"
-}function renderCustomerReadOnly(t){const o=String(t.phone||"").replace(/\D/g,"").replace(/^0/,"62")
-;p.dPhone.innerHTML=t.phone&&o.length>=8?'<a class="contact-link" href="https://wa.me/'+encodeURIComponent(o)+'" target="_blank" rel="noopener" aria-label="Message on WhatsApp">'+e.escapeHtml(t.phone)+"</a>":e.escapeHtml(t.phone||"—")
-;const n=String(t.instagram||"").trim().replace(/^@/,"")
-;p.dInstagram.innerHTML=n?'<a class="contact-link" href="https://www.instagram.com/'+encodeURIComponent(n)+'/" target="_blank" rel="noopener">@'+e.escapeHtml(n)+"</a>":"—",
-p.dSource.textContent=t.source||"—",p.dNotes.textContent=t.notes||"—",p.dCreated.textContent=t.created_at?e.formatShortDate(t.created_at):"—",
-p.dWedding.textContent=t.wedding_date?weddingText(t)+" · "+relativeToToday(t.wedding_date):"Not set",
-p.dMoodboard.textContent=showDate(t.moodboard_date),p.dMoodboardRow.hidden=!t.moodboard_date,
-p.dCancelled.textContent=t.cancelled_reason||(t.cancelled_at?"No reason recorded":""),p.dCancelledRow.hidden=!t.cancelled_at,function(t){
-const o=openCustomerOrders(),n=customerStatus(t,o);p.viewSub.innerHTML='<span class="'+badgeClass(n)+'">'+e.escapeHtml(n)+"</span>",
-p.viewSub.hidden=!1,p.cancelCustomer.hidden=!canCancel(t,o),p.reopenCustomer.hidden=!t.cancelled_at,p.followUpLine.hidden=!!t.cancelled_at,
-p.followUpLine.textContent=t.follow_up_date?(t.follow_up_label||"Follow up")+" · "+e.formatShortDate(t.follow_up_date)+" · "+relativeToToday(t.follow_up_date)+(t.follow_up_synced_at?"":" · not in Google Calendar"):o.length?"":"Nothing to follow up."
-}(t)}function relativeToToday(e){const t=daysUntil(e);if(t>=0)return relativeDays(t);const o=Math.abs(t);return o+(1===o?" day":" days")+" ago"}
+}
+// Read-only customer page (#/customer/:id) — Figma 65:399.
+async function showCustomerDetail(o){
+// Nothing to read about a customer who does not exist yet, so creating one
+// goes straight to the form, keeping any name the search already found.
+if("new"===o){const e=String(location.hash||""),t=e.indexOf("?");return void go("#/customer/new/edit"+(-1===t?"":e.slice(t)))}
+setChrome({title:"Customer",up:{label:"Customers",hash:"#/customers"},save:!1,actions:!1,custpage:!0}),w.customerOrders=[],
+p.custEditBtn.href="#/customer/"+encodeURIComponent(o)+"/edit",p.custOrderList.innerHTML=""
+;const[n,a]=await Promise.all([t.getCustomer(o),t.listOrders(o)]);w.customer=n,w.customerOrders=a,fillCustomerForm(n),setDirty(!1),
+renderCustomerDetail(n,a),renderCustomerReadOnly(n)}
+// Editor (#/customer/:id/edit, and #/customer/new/edit for a new record).
+async function showCustomerEdit(o,n){const a="new"===o
+;setChrome({title:a?"New customer":"Edit customer",up:a?{label:"Customers",hash:"#/customers"}:{label:"Customer",
+hash:"#/customer/"+encodeURIComponent(o)},save:!0,actions:!1,destroy:a?null:"customer",
+action:a?null:{label:"Cancel",onClick:()=>confirmLeave()&&(setDirty(!1),go("#/customer/"+encodeURIComponent(o)))}}),w.customerOrders=[]
+;
+// Arrived from a search that found nothing: the name is already known.
+if(a){const e=String(n&&n.get("name")||"").trim();return w.customer=Object.assign({},M),e&&(w.customer.name=e),fillCustomerForm(w.customer),
+setDirty(!0),p.viewSub.hidden=!0,p.customerOrdersCard.hidden=!0,p.cancelCustomer.hidden=!0,p.reopenCustomer.hidden=!0,p.followUpLine.hidden=!0,
+void(e?p.cPhone:p.cName).focus()}p.orderList.innerHTML='<p class="empty">Loading…</p>',p.customerOrdersCard.hidden=!1
+;const[s,r]=await Promise.all([t.getCustomer(o),t.listOrders(o)]);w.customer=s,w.customerOrders=r,fillCustomerForm(s),setDirty(!1),
+renderCustomerReadOnly(s),renderCustomerOrderRows(r)}
+// The status badge, the follow-up line and the two status buttons — everything
+// about a customer that is read rather than typed, all of it in the editor.
+function renderCustomerReadOnly(t){const o=openCustomerOrders(),n=customerStatus(t,o)
+;p.viewSub.innerHTML='<span class="'+badgeClass(n)+'">'+e.escapeHtml(n)+"</span>",p.viewSub.hidden=!1,
+p.cancelCustomer.hidden=!canCancel(t,o),p.reopenCustomer.hidden=!t.cancelled_at,p.followUpLine.hidden=!!t.cancelled_at,
+p.followUpLine.textContent=t.follow_up_date?(t.follow_up_label||"Follow up")+" · "+e.formatShortDate(t.follow_up_date)+" · "+relativeToToday(t.follow_up_date)+(t.follow_up_synced_at?"":" · not in Google Calendar"):o.length?"":"Nothing to follow up."}
+// The classic order list inside the editor, kept for the New order button.
+function renderCustomerOrderRows(t){
+if(p.ordersTotal.textContent=t.length?e.formatRupiah(t.reduce((e,t)=>e+o.computeTotal(t.items),0)):"",
+!t.length)return void(p.orderList.innerHTML='<p class="empty">No orders yet.</p>');const a=w.customer&&w.customer.wedding_date
+;p.orderList.innerHTML=t.map(t=>{
+const s=n.computeProduction(productionAnchor(t),a).events.map(e=>e.event_date).filter(t=>t>=e.todayISO())[0],r=effectiveStatus(t)
+;return'<a class="row row--kanban" href="#/order/'+t.id+'"><span class="row__main"><span class="row__title">'+e.escapeHtml(orderLabel(t))+'</span><span class="row__meta">'+e.escapeHtml(function(e){
+const t=(e||[]).filter(e=>""!==String(e.name||"").trim()).map(e=>e.name);return t.length?t.join(", "):"No items yet"
+}(t.items))+'</span><span class="row__tags"><span class="'+badgeClass(r)+'">'+e.escapeHtml(r)+"</span>"+(s?'<span class="row__meta">Fitting '+e.escapeHtml(e.formatShortDate(s))+"</span>":"")+'</span></span><span class="row__amount">'+e.formatRupiah(o.computeTotal(t.items))+"</span></a>"
+}).join("")}
+// The next thing in the diary: a booked appointment, the follow-up, or, when
+// nothing else is left, the wedding. Computed from the orders on the page, so
+// it is right whether you arrived from the homepage or from a bookmark.
+function custNextEvent(t,o){const a=e.todayISO(),s=[]
+;return t.follow_up_date&&s.push({date:t.follow_up_date,what:t.follow_up_label||"Follow up"}),(o||[]).forEach(e=>{const o=productionAnchor(e)
+;o&&n.computeProduction(o,t.wedding_date).events.forEach(e=>s.push({date:e.event_date,what:e.stage}))}),
+t.wedding_date&&s.push({date:t.wedding_date,what:"Wedding"}),s.filter(e=>e.date>=a).sort((e,t)=>e.date<t.date?-1:1)[0]||null}
+// Order statuses share the homepage's vocabulary and colours, so the same order
+// never has two names depending on which page you opened it from.
+function custOrderStatus(e){const t=effectiveStatus(e);return"In production"===t?{label:"In production",tone:"production"
+}:"Confirmed"===t?{label:"Invoice sent",tone:"invoice"}:"Quoted"===t?{label:"Quote sent",tone:"invoice"}:{label:"Finished",tone:"quiet"}}
+function renderCustomerDetail(t,n){const a=n||[]
+;p.custHeroName.textContent=t.name||"Unnamed customer",
+p.custWeddingText.textContent=t.wedding_date?(isApproximateWedding(t)?weddingText(t):e.formatShortDate(t.wedding_date))+" ("+relativeToToday(t.wedding_date)+")":"Not set"
+;const s=custNextEvent(t,a);p.custNextLabel.textContent=s?"Next: "+s.what:"Next event",
+p.custNextDate.textContent=s?e.formatShortDate(s.date)+" ("+relativeToToday(s.date)+")":"Nothing scheduled",
+p.custOrdersCount.textContent=a.length+" order"+(1===a.length?"":"s"),
+p.custOrdersSum.textContent=e.formatRupiah(a.reduce((e,t)=>e+o.computeTotal(t.items),0)),
+p.custOrderList.innerHTML=a.length?a.map(t=>{const n=custOrderStatus(t),a=(t.items||[]).length
+;return'<div class="cust-grid-spacer" aria-hidden="true"></div><div class="cust-grid-rule"></div><div class="cust-order-record__inset"><a class="cust-order-card cust-order-card--'+n.tone+'" href="#/order/'+encodeURIComponent(t.id)+'" aria-label="'+e.escapeHtml(orderLabel(t)+", "+n.label)+'"><span class="cust-order-card__face"><span class="cust-order-card__top"><span class="cust-order-card__name">'+e.escapeHtml(orderLabel(t))+'</span><span class="cust-order-card__badge">'+e.escapeHtml(n.label)+'</span></span><span class="cust-order-card__meta"><span>'+a+" item"+(1===a?"":"s")+"</span><span>"+e.formatRupiah(o.computeTotal(t.items))+'</span></span></span><span class="cust-order-card__rail" aria-hidden="true"></span></a></div><div class="cust-grid-rule"></div>'
+}).join("")+'<div class="cust-grid-spacer" aria-hidden="true"></div>':'<div class="cust-grid-spacer" aria-hidden="true"></div><p class="empty">No orders for this customer yet.</p><div class="cust-grid-spacer" aria-hidden="true"></div>'}
+function relativeToToday(e){const t=daysUntil(e);if(t>=0)return relativeDays(t);const o=Math.abs(t);return o+(1===o?" day":" days")+" ago"}
 function fillCustomerForm(e){p.cName.value=e.name||"",p.cPhone.value=e.phone||"",p.cInstagram.value=e.instagram||"",p.cSource.value=e.source||"",
 p.cNotes.value=e.notes||"",p.cWedding.value=e.wedding_date||"",p.cWeddingMonth.value=(e.wedding_date||"").slice(0,7),
 setWeddingPrecision("month"===e.wedding_date_precision?"month":"day"),p.cMoodboardDate.value=e.moodboard_date||"",
@@ -338,7 +380,7 @@ try{const e=await t.listOrders(w.customer.id);for(const o of e){if(!productionAn
 ;e.changed&&await t.logOrderHistory(o.id,"scheduled",{count:e.rows.length,dropped:e.computed.dropped})}}catch(e){console.error(e),
 showToast("Saved, but the fitting schedules could not be rebuilt")}
 }(),e.moodboard_date!==w.customer.moodboard_date?await setFollowUp(consultNudgeFor(w.customer,openCustomerOrders())):e.follow_up_date===w.customer.follow_up_date&&e.follow_up_label===w.customer.follow_up_label||await pushFollowUp(),
-renderCustomerReadOnly(w.customer),setCustomerMode(!1),showToast("Customer saved")
+renderCustomerReadOnly(w.customer),showToast("Customer saved"),leaveFormFor("#/customer/"+w.customer.id)
 }else w.customer=await t.createCustomer(Object.assign(o,o.follow_up_date?{}:followUpPatch(c,e.todayISO()))),setDirty(!1),
 showToast("Customer created"),leaveFormFor("#/customer/"+w.customer.id);return!0}function historyLabel(e){
 if("created"===e.action)return"Order created";if("updated"===e.action)return"Order updated";if("payment_logged"===e.action){
