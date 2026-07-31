@@ -102,6 +102,22 @@
 
   <!-- --------------------------- Customer list --------------------------- -->
   <section class="view home" id="viewCustomers">
+    <nav class="home-nav" id="homeNav" aria-label="Homepage navigation">
+      <button type="button" class="home-nav-btn home-nav-btn--home" id="homeNavHome" aria-label="Home, scroll to top">
+        <span class="home-nav-btn__face">
+          <img src="assets/home-nav-home.svg" alt="" width="24" height="24">
+        </span>
+        <span class="home-nav-btn__rail" aria-hidden="true"></span>
+      </button>
+      <div class="home-nav-menu-wrapper" id="homeNavMenuWrapper">
+        <button type="button" class="home-nav-btn home-nav-btn--menu" id="homeNavMenu" aria-label="Open menu" aria-haspopup="menu" aria-expanded="false">
+          <span class="home-nav-btn__face">
+            <img src="assets/home-nav-menu.svg" alt="" width="24" height="24">
+          </span>
+          <span class="home-nav-btn__rail" aria-hidden="true"></span>
+        </button>
+      </div>
+    </nav>
     <div class="home-stage" id="homeStage" aria-busy="true">
       <!-- A structural stand-in for the real page: same section heights, same
            grid, same card faces. Only colour animates, so nothing here can

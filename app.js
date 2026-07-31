@@ -7,6 +7,7 @@ gateSubmit:a("#gateSubmit"),app:a("#app"),upLink:a("#upLink"),upLabel:a("#upLabe
 viewTitle:a("#viewTitle"),viewSub:a("#viewSub"),pageAction:a("#pageAction"),savebar:a("#savebar"),saveBtn:a("#saveBtn"),menu:a("#menu"),
 menuBtn:a("#menuBtn"),menuList:a("#menuList"),menuDelete:a("#menuDelete"),menuCalendar:a("#menuCalendar"),menuSignOut:a("#menuSignOut"),
 viewCustomers:a("#viewCustomers"),homeStage:a("#homeStage"),homeLoading:a("#homeLoading"),homeError:a("#homeError"),homeReady:a("#homeReady"),homeHero:a("#homeHero"),homeActions:a("#homeActions"),
+homeNav:a("#homeNav"),homeNavHome:a("#homeNavHome"),homeNavMenu:a("#homeNavMenu"),homeNavMenuWrapper:a("#homeNavMenuWrapper"),
 homeCustomers:a("#homeCustomers"),homeFooter:a("#homeFooter"),homeSummary:a("#homeSummary"),heroGreeting:a("#heroGreeting"),heroDeadline:a("#heroDeadline"),customerSearch:a("#customerSearch"),customerList:a("#customerList"),viewCustomer:a("#viewCustomer"),
 customerViewCard:a("#customerViewCard"),dPhone:a("#dPhone"),dInstagram:a("#dInstagram"),dSource:a("#dSource"),dWedding:a("#dWedding"),
 dNotes:a("#dNotes"),dCreated:a("#dCreated"),dMoodboard:a("#dMoodboard"),dMoodboardRow:a("#dMoodboardRow"),dCancelled:a("#dCancelled"),
@@ -62,7 +63,7 @@ document.body.classList.toggle("has-actionbar",!!e.actions),setSaveBar(!!e.save)
 // Delete belongs to a record, so the menu only offers it on a record page.
 p.menuDelete.hidden=!e.destroy,p.menuDelete.className="menu__item menu__item--danger",
 e.destroy&&(p.menuDelete.textContent="order"===e.destroy?"Delete order":"Delete customer",p.menuDelete.dataset.kind=e.destroy),syncBottomBar()}
-function closeMenu(){p.menuList.hidden=!0,p.menuBtn.setAttribute("aria-expanded","false")}const badgeClass=e=>"badge badge--"+(e=>String(e).toLowerCase().replace(/\s+/g,"-"))(e)
+function closeMenu(){p.menuList.hidden=!0,p.menuBtn.setAttribute("aria-expanded","false"),p.homeNavMenu&&p.homeNavMenu.setAttribute("aria-expanded","false")}const badgeClass=e=>"badge badge--"+(e=>String(e).toLowerCase().replace(/\s+/g,"-"))(e)
 ;function effectiveStatus(e){const t=i.includes(e.status)?e.status:i[0];return e.final_payment_date?"Delivered":t}async function bumpStatus(e){
 const o=function(e,t){const o=i.indexOf(e);return i.indexOf(t)>o?t:-1===o?i[0]:e}(w.order.status,e);if(o!==w.order.status)try{
 w.order=await t.updateOrder(w.order.id,{status:o}),renderOrderStatus()}catch(e){console.error(e)}}function renderOrderStatus(){
@@ -261,13 +262,13 @@ if(t.isStaleToken(e))throw e;console.error(e),renderHomepageError(e,n)}}
 
 // Pointer and keyboard press feedback. The shortcuts and the alert are
 // deliberately inert, so they get the visual state and nothing else.
-p.homeReady.addEventListener("pointerdown",e=>{const t=e.target.closest(".home-action,.home-alert,.home-customer-card");t&&t.classList.add("is-pressed")}),
-["pointerup","pointercancel","pointerleave","blur"].forEach(e=>p.homeReady.addEventListener(e,clearHomepagePresses,!0)),
+p.viewCustomers.addEventListener("pointerdown",e=>{const t=e.target.closest(".home-action,.home-alert,.home-customer-card,.home-nav-btn");t&&t.classList.add("is-pressed")}),
+["pointerup","pointercancel","pointerleave","blur"].forEach(e=>window.addEventListener(e,clearHomepagePresses,!0)),
 // Touch scrolling must not leave a card stuck in its pressed state.
 window.addEventListener("scroll",()=>{"ready"===w.homepage.phase&&clearHomepagePresses()},{passive:!0}),
-p.homeReady.addEventListener("keydown",e=>{if(" "!==e.key&&"Enter"!==e.key)return;const t=e.target.closest(".home-action,.home-alert,.home-customer-card")
-;t&&(t.classList.add("is-pressed"),t.matches(".home-action,.home-alert")&&e.preventDefault())}),
-p.homeReady.addEventListener("keyup",clearHomepagePresses),
+p.viewCustomers.addEventListener("keydown",e=>{if(" "!==e.key&&"Enter"!==e.key)return;const t=e.target.closest(".home-action,.home-alert,.home-customer-card,.home-nav-btn")
+;t&&(t.classList.add("is-pressed"),t.matches(".home-action,.home-alert,.home-nav-btn")&&e.preventDefault())}),
+window.addEventListener("keyup",clearHomepagePresses),
 p.homeReady.addEventListener("click",e=>{e.target.closest(".home-action,.home-alert")&&e.preventDefault()});function readableAnswer(e){const t=e&&e.value
 ;if(null==t||""===t)return"";if(!Array.isArray(t))return"object"==typeof t?JSON.stringify(t):String(t);const o=e.options||[];return t.map(e=>{
 const t=o.filter(t=>t.id===e)[0];return t?t.text:String(e)}).filter(Boolean).join(", ")}async function acceptEnquiry(){const o=w.enquiry
@@ -536,9 +537,10 @@ p.pageAction.addEventListener("click",()=>{D&&D()}),p.saveBtn.addEventListener("
 if("customer"===w.route.view)await saveCustomer();else if("orderEdit"===w.route.view){const e=w.order.id;
 // Refused by validation: stay on the form, where the error is.
 if(!await saveOrder())return;showToast("Order saved"),leaveFormFor("#/order/"+e)}}catch(e){console.error(e),showToast(e.message||"Could not save")
-}finally{w.saving=!1,setDirty(w.dirty)}}}),p.menuBtn.addEventListener("click",e=>{e.stopPropagation(),function(){const e=p.menuList.hidden
-;p.menuList.hidden=!e,p.menuBtn.setAttribute("aria-expanded",String(e))}()}),document.addEventListener("click",e=>{
-p.menuList.hidden||p.menu.contains(e.target)||closeMenu()}),document.addEventListener("keydown",e=>{if("Escape"!==e.key||p.menuList.hidden)return
+}finally{w.saving=!1,setDirty(w.dirty)}}}),p.homeNavHome&&p.homeNavHome.addEventListener("click",()=>{window.scrollTo({top:0,behavior:"smooth"})}),
+p.homeNavMenu&&p.homeNavMenu.addEventListener("click",e=>{e.stopPropagation();const t=p.menuList.hidden;t?(p.menuList.parentNode!==p.homeNavMenuWrapper&&p.homeNavMenuWrapper.appendChild(p.menuList),p.menuList.hidden=!1,p.homeNavMenu.setAttribute("aria-expanded","true")):closeMenu()}),
+p.menuBtn.addEventListener("click",e=>{e.stopPropagation();const t=p.menuList.hidden;p.menuList.parentNode!==p.menu&&p.menu.appendChild(p.menuList),p.menuList.hidden=!t,p.menuBtn.setAttribute("aria-expanded",String(t))}),document.addEventListener("click",e=>{
+p.menuList.hidden||p.menu.contains(e.target)||(p.homeNavMenuWrapper&&p.homeNavMenuWrapper.contains(e.target))||closeMenu()}),document.addEventListener("keydown",e=>{if("Escape"!==e.key||p.menuList.hidden)return
 ;closeMenu(),p.menuBtn.focus()}),p.menuSignOut.addEventListener("click",signOutFromMenu),p.menuDelete.addEventListener("click",()=>{closeMenu(),
 "order"===p.menuDelete.dataset.kind?async function(){
 if(window.confirm("Delete this order and its payment and download record? This cannot be undone."))try{const e=w.order.customer_id
