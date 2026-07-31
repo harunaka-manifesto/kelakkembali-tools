@@ -8,6 +8,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#E4E2DD">
 <title>Kelak Kembali — Quotation &amp; Invoice Generator</title>
+<!-- First-paint contract. This runs before any external stylesheet, keeping the
+     PDF canvases and application markup out of the initial paint while the ink
+     curtain is already covering the viewport. -->
+<style>
+  #boot{position:fixed;inset:0;z-index:400;background:#0d0d0d}
+  .stage{position:fixed;left:-20000px}
+</style>
 <link rel="stylesheet" href="fonts.css">
 <link rel="stylesheet" href="styles/pages.css">
 <link rel="stylesheet" href="styles/shared.css">
@@ -21,7 +28,7 @@
 <!-- Held up until db.js has decided whether there is a live session, so the
      gate never flashes for someone who is already signed in. -->
 <div class="boot" id="boot">
-  <div class="boot__spin" aria-hidden="true"></div>
+  <span class="sr-only" role="status">Loading</span>
 </div>
 
 <!-- ============================== GATE ============================== -->
@@ -982,6 +989,20 @@
 </div>
 
 </div><!-- /.app -->
+
+<!-- Shared fallback for routes that do not own a bespoke loading stage. It
+     covers the application while the destination is built underneath. -->
+<div class="route-loader" id="routeLoader" hidden aria-live="polite">
+  <div class="route-loader__canvas" aria-hidden="true">
+    <div class="route-loader__nav"><i></i><i></i></div>
+    <div class="route-loader__hero"><i></i><i></i></div>
+    <div class="route-loader__card"><i></i><i></i><i></i></div>
+    <div class="route-loader__card"><i></i><i></i><i></i></div>
+    <div class="route-loader__card route-loader__card--short"><i></i><i></i></div>
+  </div>
+  <div class="route-loader__error" id="routeLoaderError" role="alert" hidden></div>
+  <span class="sr-only" id="routeLoaderStatus" role="status"></span>
+</div>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 

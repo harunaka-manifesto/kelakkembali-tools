@@ -9,13 +9,21 @@
 .boot {
   position: fixed;
   inset: 0;
+  z-index: 400;
   display: grid;
   place-items: center;
   padding: 24px;
-  background: var(--bg);
+  background: var(--home-black, #0d0d0d);
+  transform: translateY(0);
+  will-change: transform;
 }
 
 .boot[hidden] { display: none; }
+.boot.is-animating {
+  transition: transform 240ms cubic-bezier(.87, 0, .13, 1);
+}
+.boot.is-below { transform: translateY(100%); }
+body.is-page-transitioning { overflow: hidden; pointer-events: none; }
 
 .boot__spin {
   width: 26px;
@@ -38,6 +46,117 @@
   font-size: 14px;
   line-height: 1.5;
   text-align: center;
+}
+
+/* ------------------------- Shared route loading ------------------------- */
+
+.route-loader {
+  position: fixed;
+  z-index: 300;
+  inset: 0;
+  overflow: hidden auto;
+  background: var(--bg);
+  opacity: 1;
+}
+
+.route-loader[hidden] { display: none; }
+.route-loader.is-leaving {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+
+.route-loader__canvas {
+  width: min(560px, 100%);
+  min-height: 100%;
+  margin: 0 auto;
+  padding: calc(14px + env(safe-area-inset-top, 0px)) 20px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.route-loader__canvas[hidden],
+.route-loader__error[hidden] { display: none; }
+
+.route-loader[data-kind="ledger"] {
+  background: var(--home-black-light);
+}
+.route-loader[data-kind="ledger"] .route-loader__canvas {
+  width: min(390px, 100%);
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 48px;
+  background: var(--home-black);
+}
+
+.route-loader__nav {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.route-loader__nav i { width: 92px; height: 40px; border-radius: 7px; }
+.route-loader__nav i:last-child { width: 44px; }
+.route-loader__hero {
+  min-height: 116px;
+  padding: 24px 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.route-loader__hero i:first-child { width: 68%; height: 25px; }
+.route-loader__hero i:last-child { width: 42%; height: 14px; }
+.route-loader__card {
+  min-height: 132px;
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.route-loader__card--short { min-height: 92px; }
+.route-loader__card i,
+.route-loader__hero i,
+.route-loader__nav i {
+  display: block;
+  background: linear-gradient(100deg, rgba(23,21,15,.07) 20%, rgba(23,21,15,.14) 42%, rgba(23,21,15,.07) 64%);
+  background-size: 220% 100%;
+  border-radius: 4px;
+  animation: route-loader-shimmer 1.2s ease-in-out infinite;
+}
+.route-loader__card i { width: 100%; height: 14px; }
+.route-loader__card i:first-child { width: 38%; height: 12px; }
+.route-loader__card i:last-child { width: 72%; }
+
+.route-loader[data-kind="ledger"] .route-loader__hero,
+.route-loader[data-kind="ledger"] .route-loader__card {
+  border-color: var(--home-grid);
+  border-radius: 0;
+}
+.route-loader[data-kind="ledger"] .route-loader__nav i {
+  background: rgba(255,255,255,.14);
+}
+
+.route-loader__error {
+  width: min(420px, calc(100% - 40px));
+  margin: max(96px, 18vh) auto 40px;
+  padding: 22px 20px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--ink);
+  text-align: center;
+}
+.route-loader__error-title { margin: 0 0 7px; font-size: 17px; }
+.route-loader__error-copy { margin: 0 0 18px; color: var(--muted); font-size: 14px; }
+.route-loader__error-actions { display: flex; justify-content: center; gap: 8px; }
+
+@keyframes route-loader-shimmer {
+  to { background-position: -220% 0; }
 }
 
 .boot__msg code {
@@ -1966,5 +2085,10 @@ body:not(.has-savebar):not(.has-fitting-journal-bar) .toast {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .boot.is-animating,
+  .route-loader.is-leaving { transition: none !important; }
+  .route-loader__card i,
+  .route-loader__hero i,
+  .route-loader__nav i { animation: none !important; }
   * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }

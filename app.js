@@ -19,6 +19,7 @@ label:"Check in",days:3},l={label:"Follow up moodboard",days:3
 },u='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',m='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',h='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',p={
 boot:a("#boot"),gate:a("#gate"),gateForm:a("#gateForm"),gatePassword:a("#gatePassword"),gateRemember:a("#gateRemember"),gateErr:a("#gateErr"),
 gateSubmit:a("#gateSubmit"),app:a("#app"),upLink:a("#upLink"),upLabel:a("#upLabel"),appbarBrand:a("#appbarBrand"),homeLink:a("#homeLink"),
+routeLoader:a("#routeLoader"),routeLoaderError:a("#routeLoaderError"),routeLoaderStatus:a("#routeLoaderStatus"),
 viewTitle:a("#viewTitle"),viewSub:a("#viewSub"),pageAction:a("#pageAction"),savebar:a("#savebar"),saveBtn:a("#saveBtn"),menu:a("#menu"),
 menuBtn:a("#menuBtn"),menuList:a("#menuList"),menuDelete:a("#menuDelete"),menuCalendar:a("#menuCalendar"),menuSignOut:a("#menuSignOut"),
 viewCustomers:a("#viewCustomers"),homeStage:a("#homeStage"),homeLoading:a("#homeLoading"),homeError:a("#homeError"),homeReady:a("#homeReady"),homeHero:a("#homeHero"),homeActions:a("#homeActions"),
@@ -59,7 +60,7 @@ schedule:null,// computed programme + stored rows for the open order
 customerOrders:[],// the open customer's orders — what their status is read from
 enquiry:null,// the intake submission being reviewed
 googleConnected:null,// null until asked; cached for the session
-dirty:!1,saving:!1,homepage:{phase:"idle",visit:0,loadToken:0,popPlayedForVisit:0},orderDetail:{phase:"idle",// idle | loading | ready | error
+dirty:!1,saving:!1,navigation:{token:0},homepage:{phase:"idle",visit:0,loadToken:0,popPlayedForVisit:0},orderDetail:{phase:"idle",// idle | loading | ready | error
 loadToken:0,orderId:null,vm:null,sectionErrors:{},paymentBusy:!1,documentBusy:null}};let f;function showToast(e){
 p.toast.textContent=e,p.toast.classList.add("is-visible"),clearTimeout(f),f=setTimeout(()=>p.toast.classList.remove("is-visible"),2600)}
 function setDirty(e){w.dirty=e,p.saveBtn.disabled=!e||w.saving,a(".btn__label",p.saveBtn).textContent=w.saving?"Saving…":e?"Save changes":"Saved"}
@@ -85,7 +86,36 @@ p.homeLink.hidden=!t||"#/customers"===t.hash,setPageAction(e.action||null),setSa
 // Delete belongs to a record, so the menu only offers it on a record page.
 p.menuDelete.hidden=!e.destroy,p.menuDelete.className="menu__item menu__item--danger",
 e.destroy&&(p.menuDelete.textContent="order"===e.destroy?"Delete order":"Delete customer",p.menuDelete.dataset.kind=e.destroy),syncBottomBar()}
-function closeMenu(){p.menuList.hidden=!0,p.menuBtn.setAttribute("aria-expanded","false"),p.homeNavMenu&&p.homeNavMenu.setAttribute("aria-expanded","false")}const badgeClass=e=>"badge badge--"+(e=>String(e).toLowerCase().replace(/\s+/g,"-"))(e)
+function closeMenu(){p.menuList.hidden=!0,p.menuBtn.setAttribute("aria-expanded","false"),p.homeNavMenu&&p.homeNavMenu.setAttribute("aria-expanded","false")}
+
+// One ink surface owns both the very first paint and every route handoff. It
+// rises from below, the destination is committed while covered, then it drops
+// away. Keeping this controller here means feature renderers never coordinate
+// motion or know whether their data won the short covered loading budget.
+let curtainCovered=!p.boot.hidden,curtainCoverPromise=null,routeLoaderShownAt=0;const wait=e=>new Promise(t=>setTimeout(t,e));
+async function coverCurtain(){if(curtainCovered)return;if(curtainCoverPromise)return curtainCoverPromise;curtainCoverPromise=(async()=>{
+document.body.classList.add("is-page-transitioning"),p.boot.hidden=!1,p.boot.classList.remove("is-animating"),p.boot.classList.add("is-below"),p.boot.offsetHeight;
+if(!reducedMotion()){p.boot.classList.add("is-animating"),p.boot.classList.remove("is-below"),await wait(240)}
+else p.boot.classList.remove("is-below");curtainCovered=!0})(),await curtainCoverPromise,curtainCoverPromise=null}
+async function revealCurtain(){if(!curtainCovered)return;if(!reducedMotion()){p.boot.classList.add("is-animating","is-below"),await wait(240)}
+p.boot.hidden=!0,p.boot.classList.remove("is-animating","is-below"),curtainCovered=!1,document.body.classList.remove("is-page-transitioning")}
+const routeHasOwnLoader=e=>"customers"===e.view||"order"===e.view;
+const routeLoaderKind=e=>"customer"===e.view||"customerEdit"===e.view?"ledger":"form";
+function beginRouteLoader(e){if(routeHasOwnLoader(e))return hideRouteLoader(!0);routeLoaderShownAt=Date.now(),p.routeLoader.dataset.kind=routeLoaderKind(e),
+p.routeLoader.setAttribute("aria-busy","true"),p.routeLoader.classList.remove("is-leaving"),a(".route-loader__canvas",p.routeLoader).hidden=!1,p.routeLoaderError.hidden=!0,
+p.routeLoaderStatus.textContent="Loading "+({customer:"customer",customerEdit:"customer editor",orderEdit:"order editor",moodboard:"moodboard",fittingNew:"fitting journal",fittingJournal:"fitting journal",calendar:"calendar settings",enquiry:"enquiry"}[e.view]||"page")+".",p.routeLoader.hidden=!1}
+async function hideRouteLoader(e){if(p.routeLoader.hidden)return;if(e||curtainCovered)return p.routeLoader.hidden=!0,p.routeLoader.setAttribute("aria-busy","false"),p.routeLoader.classList.remove("is-leaving"),void(p.routeLoaderStatus.textContent="")
+;await wait(Math.max(0,180-(Date.now()-routeLoaderShownAt))),p.routeLoader.classList.add("is-leaving"),await wait(reducedMotion()?0:180),
+p.routeLoader.hidden=!0,p.routeLoader.setAttribute("aria-busy","false"),p.routeLoader.classList.remove("is-leaving"),p.routeLoaderStatus.textContent=""}
+function showRouteError(t,e){console.error(t),p.routeLoader.dataset.kind=routeLoaderKind(e),p.routeLoader.hidden=!1,p.routeLoader.classList.remove("is-leaving"),
+a(".route-loader__canvas",p.routeLoader).hidden=!0,p.routeLoaderError.hidden=!1,p.routeLoader.setAttribute("aria-busy","false"),p.routeLoaderStatus.textContent="",
+p.routeLoaderError.innerHTML='<h2 class="route-loader__error-title">Could not open this page.</h2><p class="route-loader__error-copy">'+
+KK.util.escapeHtml(t&&t.message||"Check your connection and try again.")+'</p><div class="route-loader__error-actions"><button type="button" class="btn btn--primary js-route-retry">Try again</button><a class="btn btn--outline" href="#/customers">Customers</a></div>'
+;const o=a(".js-route-retry",p.routeLoaderError);o.addEventListener("click",()=>handleRoute(!0),{once:!0}),requestAnimationFrame(()=>o.focus({preventScroll:!0}))}
+function focusRoute(e){const t="customers"===e.view?p.heroGreeting:"customer"===e.view?p.custHeroName:"customerEdit"===e.view?p.custEditTitle:"order"===e.view?p.orderTitle:p.viewTitle;t&&(t.setAttribute("tabindex","-1"),
+t.focus({preventScroll:!0}),t.addEventListener("blur",()=>t.removeAttribute("tabindex"),{once:!0}))}
+
+const badgeClass=e=>"badge badge--"+(e=>String(e).toLowerCase().replace(/\s+/g,"-"))(e)
 ;function effectiveStatus(e){const t=i.includes(e.status)?e.status:i[0];return e.final_payment_date?"Delivered":t}async function bumpStatus(e){
 const o=function(e,t){const o=i.indexOf(e);return i.indexOf(t)>o?t:-1===o?i[0]:e}(w.order.status,e);if(o!==w.order.status)try{
 w.order=await t.updateOrder(w.order.id,{status:o}),renderOrderStatus()}catch(e){console.error(e)}}function renderOrderStatus(){
@@ -116,7 +146,7 @@ w.customer=await t.updateCustomer(e.id,Object.assign({cancelled_at:null,cancelle
 }),openCustomerOrders()))),await pushFollowUp(),renderCustomerReadOnly(w.customer),showToast("Reopened")}catch(e){console.error(e),
 showToast(e.message||"Could not reopen the customer")}}function go(e){location.hash===e?handleRoute():location.hash=e}function leaveFormFor(e){
 k!==e?location.hash!==e?(history.replaceState(null,"",location.pathname+location.search+e),E=e,handleRoute()):handleRoute():history.back()}
-function confirmLeave(){return!w.dirty||window.confirm("You have unsaved changes. Leave without saving?")}let E="",k="";async function handleRoute(){
+function confirmLeave(){return!w.dirty||window.confirm("You have unsaved changes. Leave without saving?")}let E="",k="";async function handleRoute(x){const skipMotion=!0===x;
 const s=function(){
 const e=String(location.hash||"").replace(/^#\/?/,""),t=e.indexOf("?"),o=(-1===t?e:e.slice(0,t)).split("/").filter(Boolean),n=new URLSearchParams(-1===t?"":e.slice(t+1))
 ;return"customer"===o[0]&&o[1]&&"edit"===o[2]?{view:"customerEdit",id:o[1],query:n
@@ -129,6 +159,7 @@ view:"moodboard",id:o[1],query:n}:"order"===o[0]&&o[1]&&"fitting"===o[2]&&"new"=
 // Guard the transition, and put the URL back if it is refused.
 if(w.dirty&&E!==location.hash){
 if(!confirmLeave())return void(location.hash=E);setDirty(!1)}location.hash!==E&&(k=E),E=location.hash
+;const routeToken=++w.navigation.token;skipMotion||await coverCurtain();if(routeToken!==w.navigation.token)return
 ;const d=i&&("moodboard"===i.view||"moodboardPreview"===i.view),c="moodboard"===s.view||"moodboardPreview"===s.view
 ;d&&!c&&(closeMoodboardPresentation(),R.cleanup(),j=null),w.route=s,p.viewCustomers.hidden="customers"!==s.view,
 p.viewCustomer.hidden="customer"!==s.view,p.viewCustomerEdit.hidden="customerEdit"!==s.view,p.viewOrder.hidden="order"!==s.view,p.viewOrderEdit.hidden="orderEdit"!==s.view,p.viewMoodboard.hidden=!c,
@@ -137,7 +168,7 @@ p.fittingJournalBar.hidden="fittingJournal"!==s.view&&"fittingNew"!==s.view,
 document.body.classList.toggle("has-fitting-journal-bar",!p.fittingJournalBar.hidden),p.viewCalendar.hidden="calendar"!==s.view,
 p.viewEnquiry.hidden="enquiry"!==s.view,
 !i||"fittingNew"!==i.view&&"fittingJournal"!==i.view||s.view===i.view&&s.id===i.id&&s.sessionId===i.sessionId||KK.fittings.closeAll(),syncBottomBar(),
-window.scrollTo(0,0);const render=async()=>{"customers"===s.view?await showCustomers():"customer"===s.view?await showCustomerDetail(s.id):"customerEdit"===s.view?await showCustomerEdit(s.id,s.query):"orderEdit"===s.view?await async function(o){w.order=await t.getOrder(o),
+window.scrollTo(0,0),beginRouteLoader(s);const render=async()=>{"customers"===s.view?await showCustomers():"customer"===s.view?await showCustomerDetail(s.id):"customerEdit"===s.view?await showCustomerEdit(s.id,s.query):"orderEdit"===s.view?await async function(o){w.order=await t.getOrder(o),
 w.customer=await t.getCustomer(w.order.customer_id),setChrome({title:"Edit order",up:{label:orderLabel(w.order),hash:"#/order/"+o},save:!0,
 destroy:"order"}),p.oTitle.value=w.order.title||"",p.oDocName.value=w.order.doc_name||"",p.oFirstPayment.value=w.order.first_payment_date||"",
 p.oSecondPayment.value=w.order.second_payment_date||"",p.oFinalPayment.value=w.order.final_payment_date||"",
@@ -182,10 +213,12 @@ const t=e.payload&&e.payload.data&&e.payload.data.fields||[],o=t.map(e=>({label:
 }(n).map(t=>'<div class="infolist__stack"><dt>'+e.escapeHtml(t.label)+"</dt><dd>"+e.escapeHtml(t.value)+"</dd></div>").join("")||'<div class="infolist__stack"><dt>Answers</dt><dd>Nothing readable in this submission.</dd></div>'
 ;const a="new"!==n.status
 ;p.enquiryNote.textContent=a?"accepted"===n.status?"Already accepted.":"Dismissed.":"Creating the customer files them at Enquiry, with a reminder to book the consultation in two days. Dismissing keeps the submission but creates nothing.",
-p.enquiryAccept.hidden=a,p.enquiryDismiss.hidden=a}(s.id):await showOrderDetail(s.id)};try{
-await render()}catch(e){if(!t.isStaleToken(e))return console.error(e),void showToast(e.message||"Could not load that")
-;console.warn("Stale token, refreshing and retrying:",e.message);try{await t.refreshSession(),await render()}catch(e){console.error(e),
-showToast(t.isStaleToken(e)?"Your session expired — please unlock again":e.message||"Could not load that")}}}
+p.enquiryAccept.hidden=a,p.enquiryDismiss.hidden=a}(s.id):await showOrderDetail(s.id)};const load=(async()=>{try{
+await render()}catch(e){if(!t.isStaleToken(e))throw e;console.warn("Stale token, refreshing and retrying:",e.message),await t.refreshSession(),await render()}})(),
+settled=load.then(()=>({ok:!0}),e=>({ok:!1,error:e}));let early=null;if(!skipMotion){early=await Promise.race([settled,wait(80).then(()=>null)])
+;if(routeToken!==w.navigation.token)return;if(early&&early.ok)await hideRouteLoader(!0);else early&&!early.ok&&!routeHasOwnLoader(s)&&showRouteError(early.error,s)
+;await revealCurtain()}const result=early||await settled;if(routeToken!==w.navigation.token)return;if(result.ok)await hideRouteLoader(!1),focusRoute(s)
+;else routeHasOwnLoader(s)?showToast(result.error&&result.error.message||"Could not load that"):showRouteError(result.error,s)}
 const orNull=e=>""===String(e||"").trim()?null:String(e).trim();function orderLabel(e){if(e.title)return e.title;const t=e.items||[]
 ;return t.length&&t[0].name?t[0].name+(t.length>1?" + "+(t.length-1)+" more":""):"Empty order"}
 const isCosted=e=>(Number(e.cost)||0)>0,isNamed=e=>""!==String(e.name||"").trim();function greetingForClock(e){
@@ -255,14 +288,17 @@ o||w.homepage.visit++;const n=beginHomepageLoad();try{const[o,a,s,r]=await Promi
 renderHomepageReady({customers:o,submissions:r}),prepareShortcutAppearState(),await revealHomepage(n)}catch(e){
 if(t.isStaleToken(e))throw e;console.error(e),renderHomepageError(e,n)}}
 
+// A short vibration on shortcut press, best-effort since most desktop
+// browsers and iOS Safari have no navigator.vibrate.
+function hapticTap(){try{navigator.vibrate&&navigator.vibrate(10)}catch(e){}}
 // Pointer and keyboard press feedback. The shortcuts and the alert are
 // deliberately inert, so they get the visual state and nothing else.
-p.viewCustomers.addEventListener("pointerdown",e=>{const t=e.target.closest(".home-action,.home-alert,.home-customer-card,.home-nav-btn");t&&t.classList.add("is-pressed")}),
+p.viewCustomers.addEventListener("pointerdown",e=>{const t=e.target.closest(".home-action,.home-alert,.home-customer-card,.home-nav-btn");t&&(t.classList.add("is-pressed"),t.matches(".home-action")&&hapticTap())}),
 ["pointerup","pointercancel","pointerleave","blur"].forEach(e=>window.addEventListener(e,clearHomepagePresses,!0)),
 // Touch scrolling must not leave a card stuck in its pressed state.
 window.addEventListener("scroll",()=>{"ready"===w.homepage.phase&&clearHomepagePresses()},{passive:!0}),
 p.viewCustomers.addEventListener("keydown",e=>{if(" "!==e.key&&"Enter"!==e.key)return;const t=e.target.closest(".home-action,.home-alert,.home-customer-card,.home-nav-btn")
-;t&&(t.classList.add("is-pressed"),t.matches(".home-action,.home-alert,.home-nav-btn")&&e.preventDefault())}),
+;t&&(t.classList.add("is-pressed"),t.matches(".home-action")&&hapticTap(),t.matches(".home-action,.home-alert,.home-nav-btn")&&e.preventDefault())}),
 window.addEventListener("keyup",clearHomepagePresses),
 p.homeReady.addEventListener("click",e=>{e.target.closest(".home-action,.home-alert")&&e.preventDefault()}),
 // The customer detail page presses like the homepage — the same window-level
@@ -709,7 +745,7 @@ showToast("Payment logged, but the schedule could not be built")}
 }(),d.final_payment_date?await bumpStatus("Delivered"):d.second_payment_date?await bumpStatus("In production"):d.first_payment_date&&await bumpStatus("Confirmed"),
 await refreshOrderPayments(),renderOrderStatus()}catch(e){console.error(e),showToast(e.message||"Could not log payment"),
 p.paymentError.textContent=e.message||"Could not log that payment. Try again.",p.paymentError.hidden=!1}}async function signOutFromMenu(){
-closeMenu(),confirmLeave()&&(await t.signOut(),location.hash="",showGate())}function bindEvents(){window.addEventListener("hashchange",handleRoute),
+if(closeMenu(),confirmLeave()){await coverCurtain();try{await t.signOut(),location.hash="",await showGate()}catch(e){await revealCurtain(),showToast(e.message||"Could not sign out")}}}function bindEvents(){window.addEventListener("hashchange",handleRoute),
 p.pageAction.addEventListener("click",()=>{D&&D()}),p.saveBtn.addEventListener("click",async()=>{if(!w.saving){w.saving=!0,setDirty(w.dirty);try{
 if("customer"===w.route.view)await saveCustomer();else if("orderEdit"===w.route.view){const e=w.order.id;
 // Refused by validation: stay on the form, where the error is.
@@ -773,18 +809,18 @@ block:"center",inline:"nearest",behavior:window.matchMedia("(prefers-reduced-mot
 document.addEventListener("keydown",e=>{trapModalFocus(e,p.calcSheet),trapModalFocus(e,p.mbPresentation),
 "Escape"===e.key&&(p.calcSheet.hidden?!p.mbPresentation.hidden&&w.order&&(e.preventDefault(),
 go("#/order/"+w.order.id+"/moodboard")):(e.preventDefault(),closeCostCalc()))}),window.addEventListener("beforeunload",e=>{
-w.dirty&&(e.preventDefault(),e.returnValue="")})}function showGate(){p.boot.hidden=!0,p.app.hidden=!0,p.gate.hidden=!1,
+w.dirty&&(e.preventDefault(),e.returnValue="")})}async function showGate(){await coverCurtain(),p.app.hidden=!0,p.gate.hidden=!1,
 p.gateRemember.checked=t.rememberPreference(),p.gatePassword.value=p.gateRemember.checked?t.savedPassword():"",p.gateErr.hidden=!0,
-p.gatePassword.value?p.gateSubmit.focus():p.gatePassword.focus()}function showApp(){p.boot.hidden=!0,p.gate.hidden=!0,p.app.hidden=!1,handleRoute(),
+await revealCurtain(),p.gatePassword.value?p.gateSubmit.focus():p.gatePassword.focus()}async function showApp(){await coverCurtain(),p.gate.hidden=!0,p.app.hidden=!1,await handleRoute(),
 async function(){const e=new URLSearchParams(location.search),o=e.get("code"),n=e.get("error");if(!o&&!n)return
 ;const clean=()=>history.replaceState(null,"",location.pathname+location.hash);if(n)return clean(),
 void showToast("access_denied"===n?"Google Calendar was not connected":"Google sign-in failed");clean();try{
 await t.googleExchange(o,googleRedirectUri()),w.googleConnected=!0,showToast("Google Calendar connected")}catch(e){console.error(e),
 showToast(e.message||"Could not connect Google Calendar")}}()}return async function(){if(p.gateForm.addEventListener("submit",async e=>{
 if(e.preventDefault(),!p.gateSubmit.disabled){p.gateErr.hidden=!0,p.gateSubmit.disabled=!0,p.gateSubmit.classList.add("is-busy"),
-a(".btn__label",p.gateSubmit).textContent="Unlocking…";try{await t.signIn(p.gatePassword.value,p.gateRemember.checked),showApp()}catch(e){
+a(".btn__label",p.gateSubmit).textContent="Unlocking…";try{await t.signIn(p.gatePassword.value,p.gateRemember.checked),await showApp()}catch(e){
 p.gateErr.textContent=e.message||"Could not sign in",p.gateErr.hidden=!1,p.gatePassword.select()}finally{p.gateSubmit.disabled=!1,
 p.gateSubmit.classList.remove("is-busy"),a(".btn__label",p.gateSubmit).textContent="Unlock"}}}),bindEvents(),t.isConfigured())try{
-await t.currentSession()?showApp():showGate()}catch(e){console.error(e),showGate()
+await t.currentSession()?await showApp():await showGate()}catch(e){console.error(e),await showGate()
 }else p.boot.innerHTML='<div class="boot__msg"><strong>Not connected.</strong><span>Fill in <code>config.js</code> with your Supabase URL and anon key — see “Setting up the database” in the README.</span></div>'
 }(),{state:w}}();

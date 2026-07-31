@@ -147,10 +147,10 @@ body.is-homepage .view { gap: 0; }
 .home-hero__greeting {
   margin: 0;
   color: var(--home-black);
-  font-size: 24px;
+  font-size: 32px;
   font-weight: 700;
-  line-height: 32px;
-  letter-spacing: -.72px;
+  line-height: 40px;
+  letter-spacing: -.96px;
 }
 .home-hero__deadline {
   margin: 0;
@@ -1641,8 +1641,6 @@ body.is-orderpage .view { gap: 0; }
 /* Each record is boxed by the card's own rules, 16px in from its edges. */
 .order-schedule__record {
   padding: 0 16px;
-  border-top: 1px solid var(--home-grid);
-  border-bottom: 1px solid var(--home-grid);
 }
 .order-schedule__spacer { height: 24px; position: relative; }
 .order-schedule__spacer::before,
