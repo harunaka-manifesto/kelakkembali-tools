@@ -91,13 +91,14 @@ The detailed lifecycle, payment, scheduling, and rendering rules remain in
 2. For a feature, update structure, behavior, persistence, and styling only in
    the owning layers. For a bug, trace from the UI handler in `app.js` toward a
    pure module or `db.js`; do not bypass the data layer.
-3. There is no automated test suite, build, linter, or CI job. Before and after
-   a change, run:
+3. There is no build, linter, or CI job. Native Node regression tests cover the
+   pure utility and scheduling modules. Before and after a change, run:
 
    ```sh
    for file in app.js calendar.js config.js db.js docs.js fittings.js moodboard.js util.js; do
      node --check "$file" || exit 1
    done
+   node --test tests/*.test.cjs
    git diff --check
    ```
 
