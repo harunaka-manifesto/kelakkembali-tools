@@ -28,7 +28,7 @@ function captureFromVideo(){const e=document.querySelector("#fittingCameraVideo"
 async function flipCamera(){r="environment"===r?"user":"environment",await openCamera()}function chooseFromGallery(){
 document.querySelector("#fittingFileInput").click()}async function galleryChanged(e){const t=e.target.files&&e.target.files[0];if(e.target.value="",
 t)try{openConfirmation(await compressImage(await usableBlob(t),1600,.85))}catch(e){notify(e.message||"Could not prepare that photo.")}}
-function clearPending(e){e&&o&&URL.revokeObjectURL(o.url),o=null}function openConfirmation(e){closeCamera(),clearPending(!0),o={blob:e,
+function clearPending(e){e&&o&&o.blob&&URL.revokeObjectURL(o.url),o=null}function openConfirmation(e){closeCamera(),clearPending(!0),o={blob:e,
 url:URL.createObjectURL(e),replacePhoto:s},s=null,document.querySelector("#fittingConfirmPreview").src=o.url,
 showOverlay("fittingConfirm","#fittingUsePhoto")}function retake(){hideOverlay("fittingConfirm"),clearPending(!0),openCamera()}function usePhoto(){
 hideOverlay("fittingConfirm"),openCaptionStep(o&&o.replacePhoto&&o.replacePhoto.caption)}function resizeCaption(){
@@ -55,8 +55,8 @@ function renderJournal(t,o){i=t,n=o;const a=photosForSession();i.innerHTML=a.len
 }).join(""):'<p class="fitting-empty">No photos in this fitting yet.</p>',
 i.querySelectorAll(".js-fitting-open").forEach(e=>e.addEventListener("click",()=>{const t=findPhoto(e.dataset.id),i=t&&imageURL(t,1600)
 ;i?window.open(i,"_blank","noopener"):notify("This photo is still awaiting a Drive backup.")})),
-i.querySelectorAll(".js-fitting-edit").forEach(e=>e.addEventListener("click",()=>{return t=findPhoto(e.dataset.id),c=t,
-void showOverlay("fittingEditSheet","#fittingEditCaption");var t
+i.querySelectorAll(".js-fitting-edit").forEach(e=>e.addEventListener("click",()=>{const photo=findPhoto(e.dataset.id);c=photo,
+showOverlay("fittingEditSheet","#fittingEditCaption")
 })),i.querySelectorAll(".js-fitting-share").forEach(e=>e.addEventListener("click",()=>async function(e){if(!e)return
 ;const t=(e.caption||"")+(e.caption&&e.drive_link?"\n":"")+(e.drive_link||"");if(!t)return notify("This photo is still being backed up to Drive.")
 ;if(navigator.share)try{return void await navigator.share({text:t})}catch(e){if(e&&"AbortError"===e.name)return}

@@ -92,12 +92,12 @@ function closeMenu(){p.menuList.hidden=!0,p.menuBtn.setAttribute("aria-expanded"
 // rises from below, the destination is committed while covered, then it drops
 // away. Keeping this controller here means feature renderers never coordinate
 // motion or know whether their data won the short covered loading budget.
-let curtainCovered=!p.boot.hidden,curtainCoverPromise=null,routeLoaderShownAt=0;const wait=e=>new Promise(t=>setTimeout(t,e));
+const CURTAIN_TRANSITION_MS=520;let curtainCovered=!p.boot.hidden,curtainCoverPromise=null,routeLoaderShownAt=0;const wait=e=>new Promise(t=>setTimeout(t,e));
 async function coverCurtain(){if(curtainCovered)return;if(curtainCoverPromise)return curtainCoverPromise;curtainCoverPromise=(async()=>{
 document.body.classList.add("is-page-transitioning"),p.boot.hidden=!1,p.boot.classList.remove("is-animating"),p.boot.classList.add("is-below"),p.boot.offsetHeight;
-if(!reducedMotion()){p.boot.classList.add("is-animating"),p.boot.classList.remove("is-below"),await wait(240)}
+if(!reducedMotion()){p.boot.classList.add("is-animating"),p.boot.classList.remove("is-below"),await wait(CURTAIN_TRANSITION_MS)}
 else p.boot.classList.remove("is-below");curtainCovered=!0})(),await curtainCoverPromise,curtainCoverPromise=null}
-async function revealCurtain(){if(!curtainCovered)return;if(!reducedMotion()){p.boot.classList.add("is-animating","is-below"),await wait(240)}
+async function revealCurtain(){if(!curtainCovered)return;if(!reducedMotion()){p.boot.classList.add("is-animating","is-below"),await wait(CURTAIN_TRANSITION_MS)}
 p.boot.hidden=!0,p.boot.classList.remove("is-animating","is-below"),curtainCovered=!1,document.body.classList.remove("is-page-transitioning")}
 const routeHasOwnLoader=e=>"customers"===e.view||"order"===e.view;
 const routeLoaderKind=e=>"customer"===e.view||"customerEdit"===e.view?"ledger":"form";
@@ -161,7 +161,7 @@ if(w.dirty&&E!==location.hash){
 if(!confirmLeave())return void(location.hash=E);setDirty(!1)}location.hash!==E&&(k=E),E=location.hash
 ;const routeToken=++w.navigation.token;skipMotion||await coverCurtain();if(routeToken!==w.navigation.token)return
 ;const d=i&&("moodboard"===i.view||"moodboardPreview"===i.view),c="moodboard"===s.view||"moodboardPreview"===s.view
-;d&&!c&&(closeMoodboardPresentation(),R.cleanup(),j=null),w.route=s,p.viewCustomers.hidden="customers"!==s.view,
+;i&&"moodboardPreview"===i.view&&"moodboardPreview"!==s.view&&closeMoodboardPresentation(),d&&!c&&(R.cleanup(),j=null),w.route=s,p.viewCustomers.hidden="customers"!==s.view,
 p.viewCustomer.hidden="customer"!==s.view,p.viewCustomerEdit.hidden="customerEdit"!==s.view,p.viewOrder.hidden="order"!==s.view,p.viewOrderEdit.hidden="orderEdit"!==s.view,p.viewMoodboard.hidden=!c,
 p.viewFittingJournal.hidden="fittingNew"!==s.view&&"fittingJournal"!==s.view,
 p.fittingJournalBar.hidden="fittingJournal"!==s.view&&"fittingNew"!==s.view,
@@ -366,7 +366,7 @@ async function showCustomerDetail(o){
 // Nothing to read about a customer who does not exist yet, so creating one
 // goes straight to the form, keeping any name the search already found.
 if("new"===o){const e=String(location.hash||""),t=e.indexOf("?");return void go("#/customer/new/edit"+(-1===t?"":e.slice(t)))}
-setChrome({title:"Customer",up:{label:"Customers",hash:"#/customers"},save:!1,custpage:!0}),w.customerOrders=[],
+setChrome({title:"Customer",up:{label:"Customers",hash:"#/customers"},save:!1,custpage:!0}),w.order=null,w.schedule=null,w.loggedDeposits={},w.customerOrders=[],
 p.custEditBtn.href="#/customer/"+encodeURIComponent(o)+"/edit",p.custOrderList.innerHTML=""
 ;const[n,a]=await Promise.all([t.getCustomer(o),t.listOrders(o)]);w.customer=n,w.customerOrders=a,fillCustomerForm(n),setDirty(!1),
 renderCustomerDetail(n,a),renderCustomerReadOnly(n)}
@@ -375,11 +375,11 @@ renderCustomerDetail(n,a),renderCustomerReadOnly(n)}
 // needs the app bar the retro canvas hides.
 async function showCustomerEdit(o,n){const a="new"===o,s=a?"#/customers":"#/customer/"+encodeURIComponent(o)
 ;setChrome({title:a?"New customer":"Edit customer",up:{label:a?"Customers":"Customer",hash:s},save:!0,custedit:!0}),
-w.customerOrders=[],p.custEditCancel.href=s,p.custEditTitle.textContent=a?"New customer":"Edit customer"
+w.order=null,w.schedule=null,w.loggedDeposits={},w.customerOrders=[],p.custEditCancel.href=s,p.custEditTitle.textContent=a?"New customer":"Edit customer"
 ;
 // Arrived from a search that found nothing: the name is already known.
 if(a){const e=String(n&&n.get("name")||"").trim();return w.customer=Object.assign({},M),e&&(w.customer.name=e),fillCustomerForm(w.customer),
-setDirty(!0),p.viewSub.hidden=!0,p.cancelCustomer.hidden=!0,p.reopenCustomer.hidden=!0,p.deleteCustomerRow.hidden=!0,
+setDirty(!!e),p.viewSub.hidden=!0,p.cancelCustomer.hidden=!0,p.reopenCustomer.hidden=!0,p.deleteCustomerRow.hidden=!0,
 void(e?p.cPhone:p.cName).focus()}
 const[r,i]=await Promise.all([t.getCustomer(o),t.listOrders(o)]);w.customer=r,w.customerOrders=i,fillCustomerForm(r),setDirty(!1),
 renderCustomerReadOnly(r)}
@@ -610,7 +610,7 @@ showToast("Disconnected"),await showCalendarSettings()}catch(e){console.error(e)
 async function saveOrder(){if(!function(){if(p.errTerms.hidden=!0,"other"!==p.oScheme.value)return!0;const e=readTerms()
 ;if(!e.length)return showTermsError("Add at least one payment term.");if(e.some(e=>!e.label))return showTermsError("Every term needs a label.")
 ;if(e.some(e=>null==e.percent||e.percent<=0))return showTermsError("Every term needs a share above 0%.");const t=roundPct(termsTotal(e))
-;if(100!==t)return showTermsError("The shares add up to "+t+"%. They have to add up to 100%.");return!0}())return!1;const e=readItems().map(e=>({
+;if(100!==t)return showTermsError("The shares add up to "+t+"%. They have to add up to 100%.");return!0}())return!1;const e=readItems().filter(isNamed).map(e=>({
 name:e.name,qty:e.qty,price:e.price,cost:e.cost})),o="other"===p.oScheme.value?"other":"standard";w.order=await t.updateOrder(w.order.id,{
 title:orNull(p.oTitle.value),doc_name:orNull(p.oDocName.value),items:e,includes:checkedIncludes(),payment_scheme:o,
 payment_terms:"other"===o?readTerms():[],first_payment_date:orNull(p.oFirstPayment.value),second_payment_date:orNull(p.oSecondPayment.value),
@@ -807,19 +807,20 @@ window.addEventListener("online",()=>showToast("Back online")),document.addEvent
 ;(t=e.target).matches("input, select, textarea, button")&&requestAnimationFrame(()=>setTimeout(()=>{document.activeElement===t&&t.scrollIntoView({
 block:"center",inline:"nearest",behavior:window.matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"})},80))}),
 document.addEventListener("keydown",e=>{trapModalFocus(e,p.calcSheet),trapModalFocus(e,p.mbPresentation),
+["fittingCamera","fittingConfirm","fittingCaptionStep","fittingPicker","fittingEditSheet"].forEach(e=>trapModalFocus(e,a("#"+e))),
 "Escape"===e.key&&(p.calcSheet.hidden?!p.mbPresentation.hidden&&w.order&&(e.preventDefault(),
 go("#/order/"+w.order.id+"/moodboard")):(e.preventDefault(),closeCostCalc()))}),window.addEventListener("beforeunload",e=>{
 w.dirty&&(e.preventDefault(),e.returnValue="")})}async function showGate(){await coverCurtain(),p.app.hidden=!0,p.gate.hidden=!1,
-p.gateRemember.checked=t.rememberPreference(),p.gatePassword.value=p.gateRemember.checked?t.savedPassword():"",p.gateErr.hidden=!0,
+p.gateRemember.checked=t.rememberPreference(),p.gatePassword.value=p.gateRemember.checked?t.savedPassword():"",p.gateErr.hidden=!0,p.gatePassword.removeAttribute("aria-invalid"),
 await revealCurtain(),p.gatePassword.value?p.gateSubmit.focus():p.gatePassword.focus()}async function showApp(){await coverCurtain(),p.gate.hidden=!0,p.app.hidden=!1,await handleRoute(),
 async function(){const e=new URLSearchParams(location.search),o=e.get("code"),n=e.get("error");if(!o&&!n)return
 ;const clean=()=>history.replaceState(null,"",location.pathname+location.hash);if(n)return clean(),
 void showToast("access_denied"===n?"Google Calendar was not connected":"Google sign-in failed");clean();try{
 await t.googleExchange(o,googleRedirectUri()),w.googleConnected=!0,showToast("Google Calendar connected")}catch(e){console.error(e),
 showToast(e.message||"Could not connect Google Calendar")}}()}return async function(){if(p.gateForm.addEventListener("submit",async e=>{
-if(e.preventDefault(),!p.gateSubmit.disabled){p.gateErr.hidden=!0,p.gateSubmit.disabled=!0,p.gateSubmit.classList.add("is-busy"),
+if(e.preventDefault(),!p.gateSubmit.disabled){p.gateErr.hidden=!0,p.gatePassword.removeAttribute("aria-invalid"),p.gateSubmit.disabled=!0,p.gateSubmit.classList.add("is-busy"),
 a(".btn__label",p.gateSubmit).textContent="Unlocking…";try{await t.signIn(p.gatePassword.value,p.gateRemember.checked),await showApp()}catch(e){
-p.gateErr.textContent=e.message||"Could not sign in",p.gateErr.hidden=!1,p.gatePassword.select()}finally{p.gateSubmit.disabled=!1,
+p.gateErr.textContent=e.message||"Could not sign in",p.gateErr.hidden=!1,p.gatePassword.setAttribute("aria-invalid","true"),p.gatePassword.select()}finally{p.gateSubmit.disabled=!1,
 p.gateSubmit.classList.remove("is-busy"),a(".btn__label",p.gateSubmit).textContent="Unlock"}}}),bindEvents(),t.isConfigured())try{
 await t.currentSession()?await showApp():await showGate()}catch(e){console.error(e),await showGate()
 }else p.boot.innerHTML='<div class="boot__msg"><strong>Not connected.</strong><span>Fill in <code>config.js</code> with your Supabase URL and anon key — see “Setting up the database” in the README.</span></div>'
