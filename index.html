@@ -103,7 +103,30 @@
   <!-- --------------------------- Customer list --------------------------- -->
   <section class="view home" id="viewCustomers">
     <div class="home-stage" id="homeStage" aria-busy="true">
-      <div class="home-state home-state--loading" id="homeLoading" role="status" aria-live="polite"><span class="sr-only">Loading homepage</span><div class="home-loading-art" aria-hidden="true"></div></div>
+      <!-- A structural stand-in for the real page: same section heights, same
+           grid, same card faces. Only colour animates, so nothing here can
+           shift the layout when the real content takes its place. -->
+      <div class="home-state home-state--loading" id="homeLoading" role="status" aria-live="polite"><span class="sr-only">Loading homepage</span>
+        <div class="home-skel" aria-hidden="true">
+          <div class="home-skel__hero">
+            <div class="home-skel__line"><span class="home-skel__block" style="width:220px;height:24px"></span></div>
+            <div class="home-skel__lines"><span class="home-skel__block" style="width:100%;height:14px"></span><span class="home-skel__block" style="width:172px;height:14px"></span></div>
+          </div>
+          <div class="home-skel__actions"><i></i><i></i><i></i><i></i></div>
+          <div class="home-skel__search"></div>
+          <div class="home-skel__rail"></div>
+          <div class="home-skel__ledger">
+            <div class="home-skel__summary"><span class="home-skel__block" style="width:210px;height:14px"></span></div>
+            <div class="home-grid-spacer"></div>
+            <div class="home-grid-rule"></div><div class="home-customer-record__inset"><div class="home-skel__face"><div class="home-skel__name"><span><i class="home-skel__block" style="width:70%;height:18px"></i></span><span><i class="home-skel__block" style="width:44%;height:18px"></i></span></div><div class="home-skel__meta"><i class="home-skel__block" style="width:64px;height:14px"></i><i class="home-skel__block" style="width:104px;height:14px"></i></div></div><div class="home-skel__cardrail"></div></div><div class="home-grid-rule"></div><div class="home-grid-spacer"></div>
+            <div class="home-grid-rule"></div><div class="home-customer-record__inset"><div class="home-skel__face"><div class="home-skel__name"><span><i class="home-skel__block" style="width:52%;height:18px"></i></span></div><div class="home-skel__meta"><i class="home-skel__block" style="width:64px;height:14px"></i><i class="home-skel__block" style="width:104px;height:14px"></i></div></div><div class="home-skel__cardrail"></div></div><div class="home-grid-rule"></div><div class="home-grid-spacer"></div>
+            <div class="home-grid-rule"></div><div class="home-customer-record__inset"><div class="home-skel__face"><div class="home-skel__name"><span><i class="home-skel__block" style="width:60%;height:18px"></i></span></div><div class="home-skel__meta"><i class="home-skel__block" style="width:64px;height:14px"></i><i class="home-skel__block" style="width:104px;height:14px"></i></div></div><div class="home-skel__cardrail"></div></div><div class="home-grid-rule"></div><div class="home-grid-spacer"></div>
+            <div class="home-grid-rule"></div><div class="home-customer-record__inset"><div class="home-skel__face"><div class="home-skel__name"><span><i class="home-skel__block" style="width:78%;height:18px"></i></span><span><i class="home-skel__block" style="width:38%;height:18px"></i></span></div><div class="home-skel__meta"><i class="home-skel__block" style="width:64px;height:14px"></i><i class="home-skel__block" style="width:104px;height:14px"></i></div></div><div class="home-skel__cardrail"></div></div><div class="home-grid-rule"></div><div class="home-grid-spacer"></div>
+            <div class="home-grid-rule"></div><div class="home-customer-record__inset"><div class="home-skel__face"><div class="home-skel__name"><span><i class="home-skel__block" style="width:66%;height:18px"></i></span><span><i class="home-skel__block" style="width:40%;height:18px"></i></span></div></div><div class="home-skel__cardrail"></div></div><div class="home-grid-rule"></div><div class="home-grid-spacer"></div>
+          </div>
+          <div class="home-skel__footer"></div>
+        </div>
+      </div>
       <div class="home-state home-state--error" id="homeError" role="alert" hidden></div>
       <div class="home-state home-state--ready" id="homeReady" hidden>
         <section class="home-hero" id="homeHero" aria-label="Today"><div class="home-hero__content"><h1 class="home-hero__greeting" id="heroGreeting"></h1><p class="home-hero__deadline" id="heroDeadline"></p></div></section>

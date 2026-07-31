@@ -194,30 +194,81 @@ const orNull=e=>""===String(e||"").trim()?null:String(e).trim();function orderLa
 ;return t.length&&t[0].name?t[0].name+(t.length>1?" + "+(t.length-1)+" more":""):"Empty order"}
 const isCosted=e=>(Number(e.cost)||0)>0,isNamed=e=>""!==String(e.name||"").trim();function greetingForClock(e){
 return("dawn"===e.period||"morning"===e.period?"Good morning":"noon"===e.period||"afternoon"===e.period?"Good afternoon":"Good evening")+", Ichaku"}
-const T='<div class="home-customer-card home-customer-card--skeleton"><span class="home-customer-card__top"><span class="skeleton-block" style="width:60%;height:24px"></span><span class="skeleton-block" style="width:72px;height:16px"></span></span><span class="skeleton-block skeleton-block--divider"></span><span class="home-customer-card__meta"><span class="skeleton-block" style="width:64px;height:16px"></span><span class="skeleton-block" style="width:96px;height:16px"></span></span></div>'
-;async function showCustomers(){setChrome({title:"Customers",up:null,save:!1,actions:!1,homepage:!0}),w.customer=null,w.order=null,
-w.homepageEntrancePlayed||(y=!1,p.heroGreetingVisual.textContent="",p.heroGreetingVisual.classList.remove("is-typing"),
-p.heroEmoji.classList.remove("is-revealed"),p.heroGreeting.classList.remove("is-revealed"),p.heroDeadline.classList.remove("is-revealed"),
-p.heroEmoji.classList.add("is-awaiting-reveal"),p.heroGreeting.classList.add("is-awaiting-reveal")),
-v?v.setClock(new Date):applyHeroClock(KK.heroShader.resolveTime(new Date)),w.homepageEntrancePlayed&&showHeroImmediately(),
-[p.homeHero,p.homeActions,p.homeCustomers,p.homeFooter,p.enquiriesCard].forEach(e=>{e.classList.toggle("no-animate",!!w.homepageEntered)}),
-p.customerList.innerHTML=T.repeat(3);const optional=e=>o=>{if(t.isStaleToken(o))throw o;return console.warn("No "+e+" yet:",o.message),[]};let o,n,a,s
-;try{
-[o,n,a,s]=await Promise.all([t.listCustomers(),t.listAllOrders(),t.listAllOrderEvents().catch(optional("order_events")),t.listIntake("new").catch(optional("intake_submissions"))])
-}catch(e){if(t.isStaleToken(e))throw e;return console.error(e),function(e){
-p.customerList.innerHTML='<div class="home-error"><p class="home-error__message">'+(e?"No connection — check your network":"Could not load customers")+'</p><button type="button" class="home-error__retry btn btn--outline btn--sm">Try again</button></div>'
-;const t=p.customerList.querySelector(".home-error__retry");t&&t.addEventListener("click",()=>{showCustomers()}),p.enquiriesCard.hidden=!0
-}(e instanceof TypeError),showToast(e.message||"Could not load customers"),await runHomepageEntrance(),void(w.homepageEntered=!0)}w.customers=o,
-w.overview=function(e,t){const o={};e.forEach(e=>{(o[e.customer_id]=o[e.customer_id]||[]).push(e)});const n={};e.forEach(e=>{n[e.id]=e.customer_id})
-;const a={};return(t||[]).forEach(e=>{const t=n[e.order_id];t&&(a[t]=a[t]||[]).push(e)}),{ordersByCustomer:o,eventsByCustomer:a}}(n,a),function(e){
-if(p.enquiriesCard.hidden=!e.length,!e.length)return;p.enquiriesCount.textContent=e.length+" new order submission"+(1===e.length?"":"s")}
-// TODO: navigate to submissions page
-(s),function(){const t=w.customers.filter(isActive).map(e=>({customer:e,deadline:nextDeadline(e)
-})).filter(e=>e.deadline).sort((e,t)=>e.deadline.date.localeCompare(t.deadline.date))[0];if(p.heroDeadline.hidden=!t,!t)return
-;const o=Math.ceil((new Date(t.deadline.date)-new Date(e.todayISO()))/864e5),n=o<=0?"Today":1===o?"Tomorrow":"In "+o+" days"
-;p.heroDeadline.textContent=n+": "+firstName(t.customer.name)+" - "+t.deadline.what}(),renderCustomerList(),await runHomepageEntrance(),
-w.homepageEntered=!0}function onEnquiriesCardActivate(){}p.enquiriesCard.addEventListener("click",onEnquiriesCardActivate),
-p.enquiriesCard.addEventListener("keydown",e=>{"Enter"!==e.key&&" "!==e.key||e.preventDefault()});function homepageOverview(e,t){const o={},n={},a={};e.forEach(e=>{(o[e.customer_id]=o[e.customer_id]||[]).push(e),n[e.id]=e.customer_id}),t.forEach(e=>{const t=n[e.order_id];t&&(a[t]=a[t]||[]).push(e)});return{ordersByCustomer:o,eventsByCustomer:a}}function beginHomepageLoad(){const e=++w.homepage.loadToken;w.homepage.phase="loading",p.homeStage.setAttribute("aria-busy","true"),p.homeLoading.hidden=!1,p.homeError.hidden=!0,p.homeReady.hidden=!0,p.homeStage.style.height="";return e}function renderHomepageError(t,o){if(o!==w.homepage.loadToken)return;w.homepage.phase="error",p.homeLoading.hidden=!0,p.homeError.hidden=!1,p.homeStage.setAttribute("aria-busy","false"),p.homeError.innerHTML='<div class="home-error-panel"><strong>Could not load the homepage.</strong><span>'+e.escapeHtml(t instanceof TypeError?"Check your connection and try again.":t.message||"Try again in a moment.")+'</span><button type="button" class="home-error__retry">Try again</button></div>',p.homeError.querySelector("button").addEventListener("click",showCustomers),requestAnimationFrame(()=>p.homeError.querySelector("button").focus({preventScroll:!0}))}function renderHomepageReady(t){const o=t.customers.filter(isActive).map(e=>({customer:e,deadline:nextDeadline(e)})).filter(e=>e.deadline).sort((e,t)=>e.deadline.date.localeCompare(t.deadline.date))[0],n=o?Math.ceil((new Date(o.deadline.date)-new Date(e.todayISO()))/864e5):null;p.heroGreeting.textContent=greetingForClock({period:(new Date).getHours()<12?"morning":(new Date).getHours()<18?"afternoon":"evening"}),p.heroDeadline.innerHTML=o?'Nearest deadline is <strong>'+e.escapeHtml(firstName(o.customer.name)+" - "+o.deadline.what)+'</strong> '+(n<=0?"today.":1===n?"tomorrow.":"in "+n+" days.")+" Prep up!":"No upcoming deadline. All clear!",p.enquiriesCard.hidden=!t.submissions.length,p.enquiriesCount.textContent=t.submissions.length+" new order submission"+(1===t.submissions.length?"":"s");const a=t.customers.length,s=t.customers.filter(e=>"In production"===homepageStatus(e,w.overview.ordersByCustomer[e.id]||[]).label).length;p.homeSummary.innerHTML=a+" total customer"+(1===a?"":"s")+'<i></i>'+s+" in production",renderCustomerList(),p.homeReady.hidden=!1,p.homeReady.style.visibility="hidden"}async function revealHomepage(e){await(document.fonts&&document.fonts.ready||Promise.resolve()),await new Promise(e=>requestAnimationFrame(e));if(e!==w.homepage.loadToken)return;const t=Math.ceil(p.homeReady.scrollHeight);p.homeStage.style.height=t+"px",p.homeReady.style.visibility="",p.homeReady.classList.add("is-transitioning"),p.homeLoading.classList.add("is-transitioning"),requestAnimationFrame(()=>{p.homeReady.classList.add("is-visible"),p.homeLoading.classList.add("is-hidden"),p.homeActions.querySelectorAll(".home-action").forEach((e,t)=>setTimeout(()=>e.classList.remove("is-appear-pressed"),80*t))}),setTimeout(()=>{e===w.homepage.loadToken&&(p.homeLoading.hidden=!0,p.homeReady.classList.remove("is-transitioning"),p.homeStage.style.height="",p.homeStage.setAttribute("aria-busy","false"),w.homepage.phase="ready")},180)}async function showCustomers(){setChrome({title:"Customers",up:null,save:!1,actions:!1,homepage:!0}),w.customer=null,w.order=null;const o=beginHomepageLoad();try{const[n,a,s,r]=await Promise.all([t.listCustomers(),t.listAllOrders(),t.listAllOrderEvents(),t.listIntake("new")]);o===w.homepage.loadToken&&(w.customers=n,w.overview=homepageOverview(a,s),renderHomepageReady({customers:n,submissions:r}),p.homeActions.querySelectorAll(".home-action").forEach(e=>e.classList.add("is-appear-pressed")),revealHomepage(o))}catch(e){if(t.isStaleToken(e))throw e;console.error(e),renderHomepageError(e,o)}}function readableAnswer(e){const t=e&&e.value
+function homepageOverview(e,t){const o={},n={},a={};e.forEach(e=>{(o[e.customer_id]=o[e.customer_id]||[]).push(e),n[e.id]=e.customer_id}),t.forEach(e=>{const t=n[e.order_id];t&&(a[t]=a[t]||[]).push(e)});return{ordersByCustomer:o,eventsByCustomer:a}}
+
+// The homepage swaps between three fixed-geometry layers. Everything below is
+// written so the only thing that ever moves is opacity: the ready layer is
+// built and measured while it is still covered by the skeleton.
+const reducedMotion=()=>!!(window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+let homePopTimers=[];
+function clearHomepagePops(){homePopTimers.forEach(clearTimeout),homePopTimers=[]}
+function clearHomepagePresses(){p.homeReady.querySelectorAll(".is-pressed").forEach(e=>e.classList.remove("is-pressed"))}
+function isCurrentHomepageLoad(e){return e===w.homepage.loadToken&&"customers"===w.route.view}
+
+function beginHomepageLoad(){const e=++w.homepage.loadToken;return w.homepage.phase="loading",
+clearHomepagePops(),clearHomepagePresses(),p.homeStage.setAttribute("aria-busy","true"),p.homeStage.style.height="",
+p.homeLoading.hidden=!1,p.homeLoading.classList.remove("is-transitioning","is-hidden"),
+p.homeError.hidden=!0,
+p.homeReady.hidden=!0,p.homeReady.classList.remove("is-transitioning","is-visible"),p.homeReady.style.visibility="",e}
+
+function renderHomepageError(t,o){if(!isCurrentHomepageLoad(o))return;w.homepage.phase="error",
+p.homeLoading.hidden=!0,p.homeLoading.classList.remove("is-transitioning","is-hidden"),p.homeError.hidden=!1,
+p.homeStage.setAttribute("aria-busy","false"),
+p.homeError.innerHTML='<div class="home-error-panel"><p class="home-error-panel__title">Could not load the homepage.</p><p class="home-error-panel__hint">'+e.escapeHtml(t instanceof TypeError?"Check your connection and try again.":t&&t.message||"Try again in a moment.")+'</p><button type="button" class="home-error__retry">Try again</button></div>';
+const n=p.homeError.querySelector(".home-error__retry");n.addEventListener("click",()=>{showCustomers(!0)}),
+requestAnimationFrame(()=>n.focus({preventScroll:!0}))}
+
+function renderHomepageHero(){const t=(new Date).getHours(),o=w.customers.filter(isActive).map(e=>({customer:e,deadline:nextDeadline(e)})).filter(e=>e.deadline).sort((e,t)=>e.deadline.date.localeCompare(t.deadline.date))[0]
+;if(p.heroGreeting.textContent=greetingForClock({period:t<12?"morning":t<18?"afternoon":"evening"}),!o)return void(p.heroDeadline.textContent="No upcoming deadline. All clear!")
+;const n=Math.ceil((new Date(o.deadline.date)-new Date(e.todayISO()))/864e5),a=n<=0?"today":1===n?"tomorrow":"in "+n+" days"
+;p.heroDeadline.innerHTML="Nearest deadline is <strong>"+e.escapeHtml(firstName(o.customer.name)+" - "+o.deadline.what)+"</strong> "+a+". Prep up!"}
+
+// The bar only exists when the query came back with rows, so an empty result
+// removes its 63px from the layout entirely rather than reserving a gap.
+function renderHomepageAlert(e){p.enquiriesCard.hidden=!e.length,e.length&&(p.enquiriesCount.textContent=e.length+" new order submission"+(1===e.length?"":"s"))}
+
+function renderHomepageSummary(){const e=w.customers.length,t=w.customers.filter(e=>"In production"===homepageStatus(e,w.overview.ordersByCustomer[e.id]||[]).label).length
+;p.homeSummary.innerHTML='<span>'+e+" total customer"+(1===e?"":"s")+'</span><i></i><span>'+t+" in production</span>"}
+
+function renderHomepageReady(e){renderHomepageHero(),renderHomepageAlert(e.submissions),renderHomepageSummary(),renderCustomerList(),
+p.homeReady.hidden=!1,p.homeReady.classList.add("is-measuring")}
+
+// Pressed-to-normal, left to right, once per navigation into the homepage.
+function prepareShortcutAppearState(){if(w.homepage.popPlayedForVisit>=w.homepage.visit||reducedMotion())return;
+p.homeActions.querySelectorAll(".home-action").forEach(e=>e.classList.add("is-appear-pressed"))}
+function playShortcutAppear(){if(w.homepage.popPlayedForVisit>=w.homepage.visit)return;w.homepage.popPlayedForVisit=w.homepage.visit;
+p.homeActions.querySelectorAll(".home-action").forEach((e,t)=>{homePopTimers.push(setTimeout(()=>e.classList.remove("is-appear-pressed"),80*t))})}
+
+async function revealHomepage(e){await(document.fonts&&document.fonts.ready||Promise.resolve()),
+await new Promise(e=>requestAnimationFrame(e));if(!isCurrentHomepageLoad(e))return
+// Pin the stage to the measured ready height first, so the crossfade happens
+// inside a box that already matches what is about to be shown.
+;p.homeStage.style.height=Math.ceil(p.homeReady.getBoundingClientRect().height||p.homeReady.scrollHeight)+"px",
+p.homeReady.classList.remove("is-measuring"),p.homeReady.classList.add("is-transitioning"),p.homeLoading.classList.add("is-transitioning"),
+requestAnimationFrame(()=>{isCurrentHomepageLoad(e)&&(p.homeReady.classList.add("is-visible"),p.homeLoading.classList.add("is-hidden"),playShortcutAppear())}),
+setTimeout(()=>{isCurrentHomepageLoad(e)&&(p.homeLoading.hidden=!0,p.homeLoading.classList.remove("is-transitioning","is-hidden"),
+p.homeReady.classList.remove("is-transitioning","is-visible"),p.homeStage.style.height="",
+p.homeStage.setAttribute("aria-busy","false"),w.homepage.phase="ready")},reducedMotion()?0:180)}
+
+// All four reads are one required batch: a missing events or intake result
+// would silently change the deadline, the ordering, or whether the
+// submissions bar belongs on the page, so a partial result is not shown.
+async function showCustomers(o){setChrome({title:"Customers",up:null,save:!1,actions:!1,homepage:!0}),w.customer=null,w.order=null,
+o||w.homepage.visit++;const n=beginHomepageLoad();try{const[o,a,s,r]=await Promise.all([t.listCustomers(),t.listAllOrders(),t.listAllOrderEvents(),t.listIntake("new")])
+;if(!isCurrentHomepageLoad(n))return;w.customers=o,w.overview=homepageOverview(a,s),
+renderHomepageReady({customers:o,submissions:r}),prepareShortcutAppearState(),await revealHomepage(n)}catch(e){
+if(t.isStaleToken(e))throw e;console.error(e),renderHomepageError(e,n)}}
+
+// Pointer and keyboard press feedback. The shortcuts and the alert are
+// deliberately inert, so they get the visual state and nothing else.
+p.homeReady.addEventListener("pointerdown",e=>{const t=e.target.closest(".home-action,.home-alert,.home-customer-card");t&&t.classList.add("is-pressed")}),
+["pointerup","pointercancel","pointerleave","blur"].forEach(e=>p.homeReady.addEventListener(e,clearHomepagePresses,!0)),
+// Touch scrolling must not leave a card stuck in its pressed state.
+window.addEventListener("scroll",()=>{"ready"===w.homepage.phase&&clearHomepagePresses()},{passive:!0}),
+p.homeReady.addEventListener("keydown",e=>{if(" "!==e.key&&"Enter"!==e.key)return;const t=e.target.closest(".home-action,.home-alert,.home-customer-card")
+;t&&(t.classList.add("is-pressed"),t.matches(".home-action,.home-alert")&&e.preventDefault())}),
+p.homeReady.addEventListener("keyup",clearHomepagePresses),
+p.homeReady.addEventListener("click",e=>{e.target.closest(".home-action,.home-alert")&&e.preventDefault()});function readableAnswer(e){const t=e&&e.value
 ;if(null==t||""===t)return"";if(!Array.isArray(t))return"object"==typeof t?JSON.stringify(t):String(t);const o=e.options||[];return t.map(e=>{
 const t=o.filter(t=>t.id===e)[0];return t?t.text:String(e)}).filter(Boolean).join(", ")}async function acceptEnquiry(){const o=w.enquiry
 ;if(o&&"new"===o.status)try{const n=await t.createCustomer(Object.assign({name:o.name||"Unnamed enquiry",phone:o.phone,instagram:o.instagram,
