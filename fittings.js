@@ -8,9 +8,7 @@ const e=u.some(e=>!document.querySelector("#"+e).hidden);document.body.classList
 e||(d=null)}function showOverlay(e,t){d||(d=document.activeElement),document.querySelector("#"+e).hidden=!1,syncOverlayState(),
 t&&requestAnimationFrame(()=>document.querySelector(t).focus())}function hideOverlay(e){document.querySelector("#"+e).hidden=!0,syncOverlayState()}
 const thumbURL=(e,t)=>e?"https://drive.google.com/thumbnail?id="+encodeURIComponent(e)+"&sz=w"+(t||200):"",imageURL=(e,i)=>t.get(e.id)||thumbURL(e.drive_file_id,i),notify=e=>n&&n.onToast&&n.onToast(e)
-;function isHeic(e){return/(?:heic|heif)$/i.test(e.type||"")||/\.(?:heic|heif)$/i.test(e.name||"")}async function usableBlob(e){if(!isHeic(e))return e
-;if("function"!=typeof window.heic2any)throw new Error("This HEIC photo cannot be read on this browser.");let t=await window.heic2any({blob:e,
-toType:"image/jpeg",quality:.92});if(Array.isArray(t)&&(t=t[0]),!t)throw new Error("Could not convert that HEIC photo.");return t}
+;async function usableBlob(i){return e.isHeic(i)?e.convertHeicToJpeg(i):i}
 function compressImage(e,t,i){return new Promise((n,o)=>{const a=URL.createObjectURL(e),r=new Image;r.onload=()=>{
 const e=Math.min(1,t/r.naturalWidth),c=Math.max(1,Math.round(r.naturalWidth*e)),s=Math.max(1,Math.round(r.naturalHeight*e)),l=document.createElement("canvas")
 ;l.width=c,l.height=s,l.getContext("2d").drawImage(r,0,0,c,s),URL.revokeObjectURL(a),
@@ -67,7 +65,7 @@ hideOverlay("fittingEditSheet")}function editCaption(){c&&(closeEditSheet(),o={u
 function retakePhoto(){c&&(s=c,closeEditSheet(),openCamera())}async function deletePhoto(){
 if(c&&confirm("Delete this fitting photo from the journal? The Drive copy will remain available."))try{await KK.db.deleteFittingPhoto(c.id)
 ;const e=t.get(c.id);e&&URL.revokeObjectURL(e),t.delete(c.id),n.photos=n.photos.filter(e=>e.id!==c.id),closeEditSheet(),c=null,renderJournal(i,n),
-notify("Photo deleted")}catch(e){notify(e.message||"Could not delete photo.")}}return{isHeic:isHeic,usableBlob:usableBlob,compressImage:compressImage,
+notify("Photo deleted")}catch(e){notify(e.message||"Could not delete photo.")}}return{isHeic:e.isHeic,usableBlob:usableBlob,compressImage:compressImage,
 base64:base64,thumbURL:thumbURL,imageURL:imageURL,localURLs:t,archivePhoto:archivePhoto,detectStage:function(e){
 const t=(e||[]).filter(e=>KK.calendar.isProductionStage(e.stage)&&e.event_date);if(!t.length)return null;const i=new Date;i.setHours(0,0,0,0)
 ;const n=t.map(e=>({event:e,distance:Math.abs(new Date(e.event_date+"T00:00:00").getTime()-i.getTime())})).sort((e,t)=>e.distance-t.distance)

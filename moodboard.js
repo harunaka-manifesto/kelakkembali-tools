@@ -219,22 +219,16 @@ KK.moodboard = (function () {
     });
   }
 
-  function isHeic(file) {
-    return /(?:heic|heif)$/i.test(file.type || '') || /\.(?:heic|heif)$/i.test(file.name || '');
-  }
-
   /* Google Photos and iCloud sometimes hand a browser a valid photo with an
      empty MIME type. Try every selected blob instead of rejecting it by its
      metadata. HEIC/HEIF is converted locally only when the browser cannot
      decode the original itself. */
   async function cacheImage(file) {
     const native = await probeImage(file);
-    if (native || !isHeic(file) || typeof window.heic2any !== 'function') return native;
+    if (native || !U.isHeic(file) || typeof window.heic2any !== 'function') return native;
 
     try {
-      let converted = await window.heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 });
-      if (Array.isArray(converted)) converted = converted[0];
-      if (!converted) return null;
+      const converted = await U.convertHeicToJpeg(file);
       const jpeg = new File(
         [converted],
         (file.name || 'photo').replace(/\.(?:heic|heif)$/i, '') + '.jpg',
