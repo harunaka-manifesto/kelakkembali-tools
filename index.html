@@ -288,10 +288,11 @@
         <div class="cust-grid-rule" aria-hidden="true"></div>
         <div class="cust-inset">
           <div class="custedit-card">
-            <label class="custedit-card__label" for="cName">Name</label>
+            <label class="custedit-card__label" for="cName">Name<span class="custedit-card__req" aria-hidden="true">*</span></label>
             <input class="custedit-input js-cfield" id="cName" type="text" placeholder="e.g. Jane Doe"
-                   autocomplete="name" autocapitalize="words" spellcheck="false">
-            <span class="err" id="errCName" hidden>Please enter the customer name.</span>
+                   autocomplete="name" autocapitalize="words" spellcheck="false"
+                   required aria-required="true" aria-describedby="errCName">
+            <span class="custedit-err" id="errCName" role="alert" hidden>Please enter the customer name.</span>
           </div>
           <div class="custedit-card__rail" aria-hidden="true"></div>
         </div>
@@ -459,15 +460,22 @@
         </span>
         <span class="cust-banner__rail" aria-hidden="true"></span>
       </button>
-      <button type="button" class="cust-banner cust-banner--danger" id="deleteCustomer" hidden>
-        <span class="cust-banner__face">
-          <span class="cust-banner__left"><span class="cust-banner__title">Delete customer</span></span>
-        </span>
-        <span class="cust-banner__rail" aria-hidden="true"></span>
-      </button>
+      <!-- Inset to the form's own margin rather than full bleed: the one
+           irreversible thing on the page should not read as wide as the rows
+           that only change a status. -->
+      <div class="custedit-danger" id="deleteCustomerRow" hidden>
+        <div class="cust-grid-rule" aria-hidden="true"></div>
+        <div class="cust-inset">
+          <button type="button" class="custedit-danger__btn" id="deleteCustomer">
+            <span class="custedit-danger__face">Delete customer</span>
+            <span class="custedit-danger__rail" aria-hidden="true"></span>
+          </button>
+        </div>
+        <div class="cust-grid-rule" aria-hidden="true"></div>
+      </div>
     </div>
-
-    <footer class="cust-footer">Made with love for Ichaku</footer>
+    <!-- No footer here. The editor ends on the last thing you can do to the
+         record, so a full scroll puts delete directly above save. -->
   </section>
 
   <!-- ---------------------------- Order editor --------------------------- -->
@@ -565,67 +573,207 @@
     </section>
   </section>
 
-  <!-- ---------------------------- Order detail ---------------------------- -->
-  <section class="view" id="viewOrder" hidden>
+  <!-- ---------------------------- Order detail ----------------------------
+       Figma 81:726. The order is a ledger: a dark canvas with 24px grid ticks,
+       and every readable thing inset in it as a white card with its own rail.
+       Three fixed-geometry layers swap by opacity alone, so the page never
+       reflows between loading and ready. -->
+  <section class="view order" id="viewOrder" hidden>
+    <div class="order-stage" id="orderStage">
 
-    <!-- Items lead: they are what the page is about, and the same table the
-         customer sees on the document — plus the one row they never do. -->
-    <section class="card">
-      <h2 class="card__title">Items</h2>
-      <div class="table" id="oItemsDisplay"></div>
-      <p class="meta" id="oIncludesDisplay"></p>
-    </section>
+      <!-- A structural stand-in for the real page, not a spinner: every block
+           below reserves the exact height its content will take. -->
+      <div class="order-state order-state--loading" id="orderLoading" aria-hidden="true">
+        <div class="order-skel__nav">
+          <i class="order-skel__navbtn order-skel__navbtn--back"></i>
+          <span class="order-skel__navgroup">
+            <i class="order-skel__navbtn"></i>
+            <i class="order-skel__navbtn"></i>
+          </span>
+        </div>
+        <div class="order-skel__ledger">
+          <div class="order-grid-spacer" aria-hidden="true"></div>
+          <div class="order-skel__title">
+            <span class="order-skel__block"></span>
+            <span class="order-skel__block order-skel__block--short"></span>
+          </div>
+          <div class="order-grid-spacer" aria-hidden="true"></div>
 
-    <section class="card">
-      <h2 class="card__title">Payments</h2>
-      <div class="loglist" id="paymentSummary"></div>
-      <div class="paychooser" id="paymentChooserOptions" hidden></div>
-      <button type="button" class="btn btn--outline btn--block" id="logPaymentBtn">
-        Log a payment
-      </button>
-    </section>
+          <div class="order-grid-rule"></div>
+          <div class="order-inset">
+            <div class="order-skel__card">
+              <span class="order-skel__block order-skel__block--head"></span>
+              <span class="order-skel__block"></span>
+              <span class="order-skel__block"></span>
+              <span class="order-skel__block"></span>
+              <span class="order-skel__block order-skel__block--short"></span>
+            </div>
+            <i class="order-skel__action"></i>
+            <div class="order-skel__split"><i class="order-skel__action"></i><i class="order-skel__action"></i></div>
+          </div>
+          <div class="order-grid-rule"></div>
+          <div class="order-grid-spacer" aria-hidden="true"></div>
 
-    <section class="card">
-      <h2 class="card__title">Details</h2>
-      <dl class="infolist">
-        <div><dt>Name on documents</dt><dd id="oDocNameDisplay"></dd></div>
-        <div><dt>First payment</dt><dd id="oFirstPaymentDisplay"></dd></div>
-        <div><dt>Second payment</dt><dd id="oSecondPaymentDisplay"></dd></div>
-        <div><dt>Final payment</dt><dd id="oFinalPaymentDisplay"></dd></div>
-        <div><dt>Wedding</dt><dd id="oWeddingDisplay"></dd></div>
-      </dl>
-    </section>
+          <div class="order-grid-rule"></div>
+          <div class="order-inset">
+            <div class="order-skel__card">
+              <span class="order-skel__block order-skel__block--head"></span>
+              <span class="order-skel__block"></span>
+              <span class="order-skel__block"></span>
+              <span class="order-skel__block"></span>
+            </div>
+            <i class="order-skel__action"></i>
+          </div>
+          <div class="order-grid-rule"></div>
+          <div class="order-grid-spacer" aria-hidden="true"></div>
 
-    <!-- Read-only on purpose. Every date here is a consequence of the payments
-         and the wedding, so the way to change one is to change those — or to
-         move the appointment in Google Calendar, which pins it. -->
-    <section class="card" id="scheduleCard">
-      <div class="card__head">
-        <h2 class="card__title">Schedule</h2>
-        <span class="card__count" id="scheduleCount"></span>
+          <div class="order-grid-rule"></div>
+          <div class="order-inset">
+            <div class="order-skel__card order-skel__card--grey">
+              <span class="order-skel__block order-skel__block--head"></span>
+              <i class="order-skel__record"></i>
+              <i class="order-skel__record"></i>
+              <i class="order-skel__record"></i>
+            </div>
+            <i class="order-skel__action"></i>
+          </div>
+          <div class="order-grid-rule"></div>
+          <div class="order-grid-spacer" aria-hidden="true"></div>
+        </div>
+        <div class="order-skel__footer"></div>
       </div>
-      <div id="scheduleList"></div>
-      <button type="button" class="btn btn--outline btn--block" id="syncCalendarBtn" hidden>
-        Sync to Google Calendar
-      </button>
-      <p class="card__hint" id="scheduleSyncNote"></p>
-    </section>
+      <p class="sr-only" id="orderLoadingStatus" role="status"></p>
 
-    <button type="button" class="btn btn--outline btn--block" id="createMoodboardBtn">
-      Create Moodboard
-    </button>
-    <section class="card" id="fittingHistoryCard" hidden>
-      <div class="card__head"><h2 class="card__title">Fitting History</h2></div>
-      <div id="fittingHistoryList"></div>
-    </section>
-    <button type="button" class="btn btn--outline btn--block" id="logNewFittingBtn">
-      Log New Fitting
-    </button>
+      <div class="order-state order-state--error" id="orderError" role="alert" hidden></div>
 
-    <details class="card card--fold">
-      <summary class="card__title card__title--summary">History</summary>
-      <div class="loglist" id="historyLog"></div>
-    </details>
+      <div class="order-state order-state--ready" id="orderReady" hidden>
+        <nav class="order-nav" aria-label="Order navigation">
+          <a class="order-nav-btn" id="orderBackBtn" href="#/customers">
+            <span class="order-nav-btn__face">
+              <img src="assets/cust-back-icon.svg" alt="" width="24" height="24">
+              <span id="orderBackLabel">Back</span>
+            </span>
+            <span class="order-nav-btn__rail" aria-hidden="true"></span>
+          </a>
+          <div class="order-nav__actions">
+            <!-- The history page is not built yet. The control is real, focusable
+                 and tactile; it simply does not go anywhere. -->
+            <button type="button" class="order-nav-btn order-nav-btn--icon" id="orderHistoryBtn"
+                    aria-disabled="true" aria-label="Order history — coming soon">
+              <span class="order-nav-btn__face">
+                <img src="assets/order-history-icon.svg" alt="" width="24" height="24">
+              </span>
+              <span class="order-nav-btn__rail" aria-hidden="true"></span>
+            </button>
+            <a class="order-nav-btn order-nav-btn--icon" id="orderEditBtn" href="#/customers" aria-label="Edit order">
+              <span class="order-nav-btn__face">
+                <img src="assets/cust-edit-icon.svg" alt="" width="24" height="24">
+              </span>
+              <span class="order-nav-btn__rail" aria-hidden="true"></span>
+            </a>
+          </div>
+        </nav>
+
+        <main class="order-ledger">
+          <div class="order-grid-spacer" aria-hidden="true"></div>
+          <header class="order-title-band"><h1 class="order-title" id="orderTitle"></h1></header>
+          <div class="order-grid-spacer" aria-hidden="true"></div>
+
+          <!-- Items lead: they are what the page is about, and the same table the
+               customer sees on the document — plus the one row they never do. -->
+          <section class="order-section" aria-labelledby="orderItemsTitle">
+            <div class="order-grid-rule" aria-hidden="true"></div>
+            <div class="order-inset">
+              <div class="order-card">
+                <h2 class="order-card__title" id="orderItemsTitle">Items</h2>
+                <div class="order-items" id="oItemsDisplay"></div>
+              </div>
+              <button type="button" class="order-action order-action--moodboard" id="createMoodboardBtn">
+                <span class="order-action__face">
+                  <img class="order-action__icon" src="assets/order-moodboard-icon.svg" alt="" width="20" height="20">
+                  <span class="order-action__label">Create moodboard</span>
+                </span>
+                <span class="order-action__rail" aria-hidden="true"></span>
+              </button>
+              <div class="order-action-split">
+                <button type="button" class="order-action order-action--quote" id="downloadQuote"
+                        aria-describedby="downloadNote">
+                  <span class="order-action__face">
+                    <img class="order-action__icon" src="assets/order-quote-icon.svg" alt="" width="20" height="20">
+                    <span class="order-action__label">Get quotation</span>
+                  </span>
+                  <span class="order-action__rail" aria-hidden="true"></span>
+                </button>
+                <button type="button" class="order-action order-action--invoice" id="downloadInvoice"
+                        aria-describedby="downloadNote">
+                  <span class="order-action__face">
+                    <img class="order-action__icon" src="assets/order-invoice-icon.svg" alt="" width="20" height="20">
+                    <span class="order-action__label">Get invoice</span>
+                  </span>
+                  <span class="order-action__rail" aria-hidden="true"></span>
+                </button>
+              </div>
+              <p class="sr-only" id="downloadNote"></p>
+            </div>
+            <div class="order-grid-rule" aria-hidden="true"></div>
+          </section>
+          <div class="order-grid-spacer" aria-hidden="true"></div>
+
+          <section class="order-section" aria-labelledby="orderPaymentsTitle">
+            <div class="order-grid-rule" aria-hidden="true"></div>
+            <div class="order-inset">
+              <div class="order-card">
+                <h2 class="order-card__title" id="orderPaymentsTitle">Payments</h2>
+                <div class="order-payments" id="paymentSummary"></div>
+                <p class="order-card__error" id="paymentError" role="alert" hidden></p>
+              </div>
+              <!-- Which term is being logged is a choice, so it opens inside the
+                   card rather than replacing it. -->
+              <div class="order-chooser" id="paymentChooser" hidden>
+                <div class="order-chooser__inner">
+                  <div class="order-chooser__list" id="paymentChooserOptions" role="group"
+                       aria-label="Choose which payment to log"></div>
+                </div>
+              </div>
+              <button type="button" class="order-action order-action--payment" id="logPaymentBtn"
+                      aria-expanded="false" aria-controls="paymentChooser">
+                <span class="order-action__face">
+                  <img class="order-action__icon" src="assets/order-invoice-icon.svg" alt="" width="20" height="20">
+                  <span class="order-action__label">Log a payment</span>
+                </span>
+                <span class="order-action__rail" aria-hidden="true"></span>
+              </button>
+            </div>
+            <div class="order-grid-rule" aria-hidden="true"></div>
+          </section>
+          <div class="order-grid-spacer" aria-hidden="true"></div>
+
+          <!-- Read-only on purpose. Every date here is a consequence of the
+               payments and the wedding, so the way to change one is to change
+               those. The records are tactile but lead nowhere yet. -->
+          <section class="order-section" aria-labelledby="orderSchedulesTitle">
+            <div class="order-grid-rule" aria-hidden="true"></div>
+            <div class="order-inset">
+              <div class="order-card order-card--schedules">
+                <h2 class="order-card__title order-card__title--inset" id="orderSchedulesTitle">Schedules</h2>
+                <div class="order-schedule" id="scheduleList"></div>
+              </div>
+              <button type="button" class="order-action order-action--fitting" id="logNewFittingBtn">
+                <span class="order-action__face">
+                  <img class="order-action__icon" src="assets/order-fitting-icon.svg" alt="" width="20" height="20">
+                  <span class="order-action__label">Log a fitting note</span>
+                </span>
+                <span class="order-action__rail" aria-hidden="true"></span>
+              </button>
+            </div>
+            <div class="order-grid-rule" aria-hidden="true"></div>
+          </section>
+          <div class="order-grid-spacer" aria-hidden="true"></div>
+        </main>
+
+        <footer class="order-footer">Made with love for Ichaku</footer>
+      </div>
+    </div>
   </section>
 
   <!-- --------------------------- Google Calendar -------------------------- -->
@@ -748,28 +896,6 @@
 
 </main>
 
-<!-- Order detail: the two documents are the page's whole point, so they are the
-     only things in the fixed bar. Logging a payment moved into the page. -->
-<div class="actionbar" id="actionbar" hidden>
-  <div class="actionbar__inner">
-    <div class="actionbar__total">
-      <span class="actionbar__label">Total</span>
-      <strong class="actionbar__amount" id="totalDisplay">Rp0</strong>
-    </div>
-    <div class="actionbar__buttons">
-      <button type="button" class="btn btn--primary" id="downloadQuote">
-        <span class="btn__label">Quotation PDF</span>
-        <span class="spinner" aria-hidden="true"></span>
-      </button>
-      <button type="button" class="btn btn--secondary" id="downloadInvoice">
-        <span class="btn__label">Invoice PDF</span>
-        <span class="spinner" aria-hidden="true"></span>
-      </button>
-    </div>
-    <p class="actionbar__note" id="downloadNote" hidden>Add an item to enable downloads.</p>
-  </div>
-</div>
-
 <!-- Fitting journal overlays stay outside the page flow. -->
 <section class="fitting-camera" id="fittingCamera" hidden aria-label="Take fitting photo" role="dialog" aria-modal="true">
   <video id="fittingCameraVideo" autoplay playsinline muted></video>
@@ -805,6 +931,8 @@
   <div class="savebar__inner">
     <button type="button" class="btn btn--primary" id="saveBtn">
       <span class="btn__label">Save changes</span>
+      <!-- The shadow rail the retro pages press into. Hidden everywhere else. -->
+      <span class="btn__rail" aria-hidden="true"></span>
     </button>
   </div>
 </div>

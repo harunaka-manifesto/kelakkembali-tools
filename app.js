@@ -12,18 +12,17 @@ homeCustomers:a("#homeCustomers"),homeFooter:a("#homeFooter"),homeSummary:a("#ho
 custBackBtn:a("#custBackBtn"),custEditBtn:a("#custEditBtn"),custHeroName:a("#custHeroName"),custWeddingText:a("#custWeddingText"),
 custNextLabel:a("#custNextLabel"),custNextDate:a("#custNextDate"),custOrdersCount:a("#custOrdersCount"),custOrdersSum:a("#custOrdersSum"),
 custOrderList:a("#custOrderList"),viewCustomerEdit:a("#viewCustomerEdit"),custEditCancel:a("#custEditCancel"),custEditTitle:a("#custEditTitle"),
-cancelCustomer:a("#cancelCustomer"),reopenCustomer:a("#reopenCustomer"),deleteCustomer:a("#deleteCustomer"),
+cancelCustomer:a("#cancelCustomer"),reopenCustomer:a("#reopenCustomer"),deleteCustomer:a("#deleteCustomer"),deleteCustomerRow:a("#deleteCustomerRow"),
 cName:a("#cName"),errCName:a("#errCName"),cPhone:a("#cPhone"),cInstagram:a("#cInstagram"),
 cSource:a("#cSource"),cWedding:a("#cWedding"),cWeddingMonth:a("#cWeddingMonth"),cWeddingPrecision:a("#cWeddingPrecision"),
 cMoodboardDate:a("#cMoodboardDate"),cFollowUpDate:a("#cFollowUpDate"),cFollowUpLabel:a("#cFollowUpLabel"),cCancelledReason:a("#cCancelledReason"),
 cCancelledField:a("#cCancelledField"),cNotes:a("#cNotes"),
-viewOrder:a("#viewOrder"),oDocNameDisplay:a("#oDocNameDisplay"),
-oFirstPaymentDisplay:a("#oFirstPaymentDisplay"),oSecondPaymentDisplay:a("#oSecondPaymentDisplay"),oFinalPaymentDisplay:a("#oFinalPaymentDisplay"),
-oWeddingDisplay:a("#oWeddingDisplay"),oItemsDisplay:a("#oItemsDisplay"),oIncludesDisplay:a("#oIncludesDisplay"),historyLog:a("#historyLog"),
-paymentSummary:a("#paymentSummary"),logPaymentBtn:a("#logPaymentBtn"),paymentChooserOptions:a("#paymentChooserOptions"),
-scheduleCard:a("#scheduleCard"),scheduleCount:a("#scheduleCount"),scheduleList:a("#scheduleList"),syncCalendarBtn:a("#syncCalendarBtn"),
-scheduleSyncNote:a("#scheduleSyncNote"),fittingHistoryCard:a("#fittingHistoryCard"),fittingHistoryList:a("#fittingHistoryList"),
-logNewFittingBtn:a("#logNewFittingBtn"),viewCalendar:a("#viewCalendar"),gcalState:a("#gcalState"),gcalConnect:a("#gcalConnect"),
+viewOrder:a("#viewOrder"),orderStage:a("#orderStage"),orderLoading:a("#orderLoading"),orderLoadingStatus:a("#orderLoadingStatus"),
+orderError:a("#orderError"),orderReady:a("#orderReady"),orderBackBtn:a("#orderBackBtn"),orderBackLabel:a("#orderBackLabel"),
+orderHistoryBtn:a("#orderHistoryBtn"),orderEditBtn:a("#orderEditBtn"),orderTitle:a("#orderTitle"),oItemsDisplay:a("#oItemsDisplay"),
+paymentSummary:a("#paymentSummary"),paymentError:a("#paymentError"),logPaymentBtn:a("#logPaymentBtn"),
+paymentChooser:a("#paymentChooser"),paymentChooserOptions:a("#paymentChooserOptions"),scheduleList:a("#scheduleList"),
+createMoodboardBtn:a("#createMoodboardBtn"),logNewFittingBtn:a("#logNewFittingBtn"),viewCalendar:a("#viewCalendar"),gcalState:a("#gcalState"),gcalConnect:a("#gcalConnect"),
 gcalDisconnect:a("#gcalDisconnect"),gcalErr:a("#gcalErr"),enquiriesCard:a("#enquiriesCard"),enquiriesCount:a("#enquiriesCount"),
 viewEnquiry:a("#viewEnquiry"),enquiryWhen:a("#enquiryWhen"),enquiryAnswers:a("#enquiryAnswers"),enquiryNote:a("#enquiryNote"),
 enquiryAccept:a("#enquiryAccept"),enquiryDismiss:a("#enquiryDismiss"),viewMoodboard:a("#viewMoodboard"),viewFittingJournal:a("#viewFittingJournal"),
@@ -31,8 +30,8 @@ fittingJournal:a("#fittingJournal"),fittingJournalBar:a("#fittingJournalBar"),fi
 viewOrderEdit:a("#viewOrderEdit"),oTitle:a("#oTitle"),oDocName:a("#oDocName"),oFirstPayment:a("#oFirstPayment"),oSecondPayment:a("#oSecondPayment"),
 oFinalPayment:a("#oFinalPayment"),oScheduleHint:a("#oScheduleHint"),oScheme:a("#oScheme"),termsCard:a("#termsCard"),termList:a("#termList"),
 addTerm:a("#addTerm"),termsSum:a("#termsSum"),errTerms:a("#errTerms"),itemList:a("#itemList"),itemsTotal:a("#itemsTotal"),addItem:a("#addItem"),
-includesList:a("#includesList"),customInclude:a("#customInclude"),addInclude:a("#addInclude"),actionbar:a("#actionbar"),
-totalDisplay:a("#totalDisplay"),downloadNote:a("#downloadNote"),downloadQuote:a("#downloadQuote"),downloadInvoice:a("#downloadInvoice"),
+includesList:a("#includesList"),customInclude:a("#customInclude"),addInclude:a("#addInclude"),
+downloadNote:a("#downloadNote"),downloadQuote:a("#downloadQuote"),downloadInvoice:a("#downloadInvoice"),
 toast:a("#toast"),calcSheet:a("#calcSheet"),calcItemLabel:a("#calcItemLabel"),calcRowList:a("#calcRowList"),calcAddRow:a("#calcAddRow"),
 calcTotal:a("#calcTotal"),calcApply:a("#calcApply"),calcBack:a("#calcBack"),mbPresentation:a("#mbPresentation"),
 mbPresentationClose:a("#mbPresentationClose")},g={quotation:p.downloadQuote,invoice:p.downloadInvoice},w={route:null,// { view, id }
@@ -45,10 +44,11 @@ schedule:null,// computed programme + stored rows for the open order
 customerOrders:[],// the open customer's orders — what their status is read from
 enquiry:null,// the intake submission being reviewed
 googleConnected:null,// null until asked; cached for the session
-dirty:!1,saving:!1,homepage:{phase:"idle",visit:0,loadToken:0,popPlayedForVisit:0}};let f;function showToast(e){
+dirty:!1,saving:!1,homepage:{phase:"idle",visit:0,loadToken:0,popPlayedForVisit:0},orderDetail:{phase:"idle",// idle | loading | ready | error
+loadToken:0,orderId:null,vm:null,sectionErrors:{},paymentBusy:!1,documentBusy:null}};let f;function showToast(e){
 p.toast.textContent=e,p.toast.classList.add("is-visible"),clearTimeout(f),f=setTimeout(()=>p.toast.classList.remove("is-visible"),2600)}
 function setDirty(e){w.dirty=e,p.saveBtn.disabled=!e||w.saving,a(".btn__label",p.saveBtn).textContent=w.saving?"Saving…":e?"Save changes":"Saved"}
-function syncBottomBar(){const e=p.actionbar.hidden?p.savebar.hidden?p.fittingJournalBar.hidden?null:p.fittingJournalBar:p.savebar:p.actionbar
+function syncBottomBar(){const e=p.savebar.hidden?p.fittingJournalBar.hidden?null:p.fittingJournalBar:p.savebar
 ;document.documentElement.style.setProperty("--bottombar-h",e?Math.round(e.getBoundingClientRect().height)+"px":"0px")}function syncVisualViewport(){
 const e=window.visualViewport,t=e?Math.max(0,window.innerHeight-e.height-e.offsetTop):0
 ;document.documentElement.style.setProperty("--keyboard-offset",Math.round(t)+"px"),syncBottomBar()}function trapModalFocus(e,t){if("Tab"!==e.key||!t||t.hidden)return
@@ -61,10 +61,12 @@ document.body.classList.toggle("is-homepage",!!e.homepage),
 // The customer pages own their whole canvas the way the homepage does, so the
 // app bar and page header step aside for them too.
 document.body.classList.toggle("is-custpage",!!e.custpage),
-document.body.classList.toggle("is-custeditpage",!!e.custedit),p.viewSub.innerHTML=e.sub||"",p.viewSub.hidden=!e.sub
+document.body.classList.toggle("is-custeditpage",!!e.custedit),
+// The order page owns its whole canvas too, and has no fixed document bar
+// left to make room for.
+document.body.classList.toggle("is-orderpage",!!e.orderpage),p.viewSub.innerHTML=e.sub||"",p.viewSub.hidden=!e.sub
 ;const t=e.up||null;p.upLink.hidden=!t,p.appbarBrand.hidden=!!t,t&&(p.upLink.href=t.hash,p.upLabel.textContent=t.label),
-p.homeLink.hidden=!t||"#/customers"===t.hash,setPageAction(e.action||null),p.actionbar.hidden=!e.actions,
-document.body.classList.toggle("has-actionbar",!!e.actions),setSaveBar(!!e.save),closeMenu(),
+p.homeLink.hidden=!t||"#/customers"===t.hash,setPageAction(e.action||null),setSaveBar(!!e.save),closeMenu(),
 // Delete belongs to a record, so the menu only offers it on a record page.
 p.menuDelete.hidden=!e.destroy,p.menuDelete.className="menu__item menu__item--danger",
 e.destroy&&(p.menuDelete.textContent="order"===e.destroy?"Delete order":"Delete customer",p.menuDelete.dataset.kind=e.destroy),syncBottomBar()}
@@ -121,7 +123,7 @@ document.body.classList.toggle("has-fitting-journal-bar",!p.fittingJournalBar.hi
 p.viewEnquiry.hidden="enquiry"!==s.view,
 !i||"fittingNew"!==i.view&&"fittingJournal"!==i.view||s.view===i.view&&s.id===i.id&&s.sessionId===i.sessionId||KK.fittings.closeAll(),syncBottomBar(),
 window.scrollTo(0,0);const render=async()=>{"customers"===s.view?await showCustomers():"customer"===s.view?await showCustomerDetail(s.id):"customerEdit"===s.view?await showCustomerEdit(s.id,s.query):"orderEdit"===s.view?await async function(o){w.order=await t.getOrder(o),
-w.customer=await t.getCustomer(w.order.customer_id),setChrome({title:"Edit order",up:{label:orderLabel(w.order),hash:"#/order/"+o},save:!0,actions:!1,
+w.customer=await t.getCustomer(w.order.customer_id),setChrome({title:"Edit order",up:{label:orderLabel(w.order),hash:"#/order/"+o},save:!0,
 destroy:"order"}),p.oTitle.value=w.order.title||"",p.oDocName.value=w.order.doc_name||"",p.oFirstPayment.value=w.order.first_payment_date||"",
 p.oSecondPayment.value=w.order.second_payment_date||"",p.oFinalPayment.value=w.order.final_payment_date||"",
 p.oScheme.value="other"===w.order.payment_scheme?"other":"standard",buildTerms(w.order),syncSchemeCard(),renderScheduleHint(),p.itemList.innerHTML=""
@@ -132,20 +134,20 @@ return'<label class="chip'+(o?" is-checked":"")+'" data-label="'+e.escapeHtml(t)
 }(t,isTicked(t))).join("")+n.map(e=>customChip(e,!0)).join("")}(w.order.includes||[]),p.customInclude.value="",refreshItemTotals(),setDirty(!1)
 }(s.id):"moodboard"===s.view?await async function(e){w.order=await t.getOrder(e),
 [w.customer,w.customerOrders]=await Promise.all([t.getCustomer(w.order.customer_id),t.listOrders(w.order.customer_id)]),setChrome({title:"Moodboard",
-up:{label:orderLabel(w.order),hash:"#/order/"+e},save:!1,actions:!1}),p.actionbar.hidden=!0,setSaveBar(!1),closeMoodboardPresentation(),
+up:{label:orderLabel(w.order),hash:"#/order/"+e},save:!1}),setSaveBar(!1),closeMoodboardPresentation(),
 j===e&&R.images.length||(R.init({orderId:w.order.id,customerId:w.customer.id,customerName:w.customer.name,docName:w.order.doc_name||w.customer.name,
 orderRef:w.order.title||""}),j=e);a("#mbEditor").hidden=!1,a("#mbGenerate").hidden=!1}(s.id):"moodboardPreview"===s.view?await async function(e){
 if(!R.images.length||j!==e)return void go("#/order/"+e+"/moodboard");setChrome({title:"Moodboard preview",up:{label:"Images",
-hash:"#/order/"+e+"/moodboard"},save:!1,actions:!1}),p.actionbar.hidden=!0,setSaveBar(!1),a("#mbEditor").hidden=!0,a("#mbGenerate").hidden=!0,
+hash:"#/order/"+e+"/moodboard"},save:!1}),setSaveBar(!1),a("#mbEditor").hidden=!0,a("#mbGenerate").hidden=!0,
 q=document.activeElement,p.mbPresentation.hidden=!1,document.body.classList.add("moodboard-presenting"),document.body.classList.add("has-app-modal"),
 resetMoodboardView(),requestAnimationFrame(()=>{renderMoodboardPresentation(!0),p.mbPresentationClose.focus()})
 }(s.id):"fittingNew"===s.view?await async function(e){w.order=await t.getOrder(e),w.customer=await t.getCustomer(w.order.customer_id),setChrome({
-title:"New fitting",up:{label:orderLabel(w.order),hash:"#/order/"+e},save:!1,actions:!1}),p.fittingJournalBar.hidden=!0,
+title:"New fitting",up:{label:orderLabel(w.order),hash:"#/order/"+e},save:!1}),p.fittingJournalBar.hidden=!0,
 document.body.classList.remove("has-fitting-journal-bar"),syncBottomBar()
 ;const o=await Promise.all([t.listOrderEvents(e),t.listFittingSessions(e)]),a=o[1].find(e=>"active"===e.status)
 ;if(a)return void go("#/order/"+e+"/fitting/"+a.id);const s=o[0].filter(e=>n.isProductionStage(e.stage)),r=s.length?s:n.PRODUCTION_STAGES.map(e=>({
 stage:e})),begin=async o=>{try{const n=await t.createFittingSession({order_id:e,stage:o,status:"active"});setChrome({title:o,up:{
-label:orderLabel(w.order),hash:"#/order/"+e},action:{label:"Done",onClick:()=>KK.fittings.endSession(n,()=>go("#/order/"+e))},save:!1,actions:!1}),
+label:orderLabel(w.order),hash:"#/order/"+e},action:{label:"Done",onClick:()=>KK.fittings.endSession(n,()=>go("#/order/"+e))},save:!1}),
 p.fittingJournalBar.hidden=!1,document.body.classList.add("has-fitting-journal-bar"),syncBottomBar(),KK.fittings.renderJournal(p.fittingJournal,{
 order:w.order,customer:w.customer,session:n,photos:[],onToast:showToast}),KK.fittings.startSession(n,{order:w.order,customer:w.customer,photos:[]
 },showToast)}catch(e){showToast(e.message||"Could not start fitting session")}},i=KK.fittings.detectStage(s)
@@ -153,11 +155,11 @@ order:w.order,customer:w.customer,session:n,photos:[],onToast:showToast}),KK.fit
 w.order=await t.getOrder(e),w.customer=await t.getCustomer(w.order.customer_id)
 ;const n=await Promise.all([t.getFittingSession(o),t.listFittingPhotos(e)]),a=n[0],s=n[1].filter(e=>e.session_id===a.id);setChrome({title:a.stage,up:{
 label:orderLabel(w.order),hash:"#/order/"+e},action:"active"===a.status?{label:"Done",onClick:()=>KK.fittings.endSession(a,()=>go("#/order/"+e))
-}:null,save:!1,actions:!1
+}:null,save:!1
 }),p.fittingJournalBar.hidden="active"!==a.status,document.body.classList.toggle("has-fitting-journal-bar",!p.fittingJournalBar.hidden),
 syncBottomBar(),KK.fittings.renderJournal(p.fittingJournal,{order:w.order,customer:w.customer,session:a,photos:s,onToast:showToast})
 }(s.id,s.sessionId):"calendar"===s.view?await showCalendarSettings():"enquiry"===s.view?await async function(o){setChrome({title:"Enquiry",up:{
-label:"Customers",hash:"#/customers"},save:!1,actions:!1}),w.enquiry=await t.getIntake(o);const n=w.enquiry
+label:"Customers",hash:"#/customers"},save:!1}),w.enquiry=await t.getIntake(o);const n=w.enquiry
 ;p.enquiryWhen.textContent=e.formatShortDate(n.created_at),p.enquiryAnswers.innerHTML=function(e){
 const t=e.payload&&e.payload.data&&e.payload.data.fields||[],o=t.map(e=>({label:String(e.label||"Answer"),value:readableAnswer(e)
 })).filter(e=>e.value);return o.length?o:[{label:"Name",value:e.name||""},{label:"Phone",value:e.phone||""},{label:"Instagram",value:e.instagram||""
@@ -165,24 +167,7 @@ const t=e.payload&&e.payload.data&&e.payload.data.fields||[],o=t.map(e=>({label:
 }(n).map(t=>'<div class="infolist__stack"><dt>'+e.escapeHtml(t.label)+"</dt><dd>"+e.escapeHtml(t.value)+"</dd></div>").join("")||'<div class="infolist__stack"><dt>Answers</dt><dd>Nothing readable in this submission.</dd></div>'
 ;const a="new"!==n.status
 ;p.enquiryNote.textContent=a?"accepted"===n.status?"Already accepted.":"Dismissed.":"Creating the customer files them at Enquiry, with a reminder to book the consultation in two days. Dismissing keeps the submission but creates nothing.",
-p.enquiryAccept.hidden=a,p.enquiryDismiss.hidden=a}(s.id):await async function(n){w.order=await t.getOrder(n),
-w.customer=await t.getCustomer(w.order.customer_id),setChrome({title:orderLabel(w.order),up:{label:w.customer.name,hash:"#/customer/"+w.customer.id},
-save:!1,actions:!0,destroy:"order",action:{label:"Edit",onClick:()=>go("#/order/"+w.order.id+"/edit")}}),renderOrderStatus(),
-p.oDocNameDisplay.textContent=w.order.doc_name||"Not set",p.oFirstPaymentDisplay.textContent=showDate(w.order.first_payment_date),
-p.oSecondPaymentDisplay.textContent=showDate(w.order.second_payment_date),p.oFinalPaymentDisplay.textContent=showDate(w.order.final_payment_date),
-p.oWeddingDisplay.textContent=weddingText(w.customer);const a=w.order.items||[],s=o.computeTotal(a),r=a.filter(isNamed);!function(t){
-const n=t.filter(isNamed),a=o.computeTotal(t)
-;if(!n.length)return void(p.oItemsDisplay.innerHTML='<p class="empty">No items yet. Tap Edit to add one.</p>')
-;const s=n.filter(e=>!isCosted(e)).length,r=s?s===n.length?"No production costs filled in yet.":"Excludes "+s+" of "+n.length+" items with no production cost.":""
-;p.oItemsDisplay.innerHTML='<div class="table__row table__row--head"><span class="table__item">Item</span><span class="table__qty">Qty</span><span class="table__price">Price</span></div>'+n.map(t=>'<div class="table__row"><span class="table__item">'+e.escapeHtml(t.name)+'</span><span class="table__qty">'+(Number(t.qty)||0)+'</span><span class="table__price">'+e.formatRupiah(t.price)+"</span></div>").join("")+'<div class="table__row table__row--total"><span class="table__item">Total</span><span class="table__price">'+e.formatRupiah(a)+'</span></div><div class="table__row table__row--profit"><span class="table__item">Nett profit <span class="tag">Internal</span></span><span class="table__price">'+(s===n.length?"—":e.formatRupiah(function(e){
-return(e||[]).filter(isCosted).reduce((e,t)=>e+((Number(t.price)||0)-(Number(t.cost)||0))*(Number(t.qty)||0),0)
-}(t)))+"</span></div>"+(r?'<p class="table__note">'+e.escapeHtml(r)+"</p>":"")}(a);const i=w.order.includes||[]
-;p.oIncludesDisplay.textContent=i.length?"Includes: "+i.join(" · "):"",p.totalDisplay.textContent=e.formatRupiah(s),p.paymentChooserOptions.hidden=!0
-;const d=r.length>0&&s>0,c=""!==String(w.order.doc_name||w.customer.name||"").trim(),l=d&&c;p.downloadQuote.disabled=!l,p.downloadInvoice.disabled=!l,
-p.downloadNote.hidden=l,p.downloadNote.textContent=d?"Add the name for documents to enable downloads.":"Add an item to enable downloads.",
-setDirty(!1),await refreshSchedule(),await refreshHistory(),await async function(){
-const e=await Promise.all([t.listFittingSessions(w.order.id),t.listFittingPhotos(w.order.id)]),o=e[0].length||e[1].length
-;p.fittingHistoryCard.hidden=!o,o&&KK.fittings.renderHistoryList(p.fittingHistoryList,e[0],e[1],w.order.id)}(),syncBottomBar()}(s.id)};try{
+p.enquiryAccept.hidden=a,p.enquiryDismiss.hidden=a}(s.id):await showOrderDetail(s.id)};try{
 await render()}catch(e){if(!t.isStaleToken(e))return console.error(e),void showToast(e.message||"Could not load that")
 ;console.warn("Stale token, refreshing and retrying:",e.message);try{await t.refreshSession(),await render()}catch(e){console.error(e),
 showToast(t.isStaleToken(e)?"Your session expired — please unlock again":e.message||"Could not load that")}}}
@@ -249,7 +234,7 @@ p.homeStage.setAttribute("aria-busy","false"),w.homepage.phase="ready")},reduced
 // All four reads are one required batch: a missing events or intake result
 // would silently change the deadline, the ordering, or whether the
 // submissions bar belongs on the page, so a partial result is not shown.
-async function showCustomers(o){setChrome({title:"Customers",up:null,save:!1,actions:!1,homepage:!0}),w.customer=null,w.order=null,
+async function showCustomers(o){setChrome({title:"Customers",up:null,save:!1,homepage:!0}),w.customer=null,w.order=null,
 o||w.homepage.visit++;const n=beginHomepageLoad();try{const[o,a,s,r]=await Promise.all([t.listCustomers(),t.listAllOrders(),t.listAllOrderEvents(),t.listIntake("new")])
 ;if(!isCurrentHomepageLoad(n))return;w.customers=o,w.overview=homepageOverview(a,s),
 renderHomepageReady({customers:o,submissions:r}),prepareShortcutAppearState(),await revealHomepage(n)}catch(e){
@@ -271,15 +256,25 @@ p.viewCustomer.addEventListener("pointerdown",e=>{const t=e.target.closest(".cus
 ;t&&t.classList.add("is-pressed")}),
 p.viewCustomer.addEventListener("keydown",e=>{if(" "!==e.key&&"Enter"!==e.key)return
 ;const t=e.target.closest(".cust-banner,.cust-nav-btn,.cust-order-card");t&&(t.classList.add("is-pressed"),t.matches(".cust-banner")&&e.preventDefault())}),
-window.addEventListener("scroll",()=>{document.body.classList.contains("is-custpage")&&clearHomepagePresses()},{passive:!0}),
+window.addEventListener("scroll",()=>{(document.body.classList.contains("is-custpage")||document.body.classList.contains("is-custeditpage")||document.body.classList.contains("is-orderpage"))&&clearHomepagePresses()},{passive:!0}),
 // The banners are tactile but do not lead anywhere yet.
 p.viewCustomer.addEventListener("click",e=>{e.target.closest(".cust-banner")&&e.preventDefault()}),
+// The order page presses like the rest of the app: pointer and keyboard add
+// the state, the window listeners above take it away. History and the schedule
+// records are tactile but inert, so Space must not scroll the page under them.
+p.viewOrder.addEventListener("pointerdown",e=>{const t=e.target.closest(".order-nav-btn,.order-action,.order-schedule-record,.order-choice")
+;t&&!t.disabled&&t.classList.add("is-pressed")}),
+p.viewOrder.addEventListener("keydown",e=>{if(" "!==e.key&&"Enter"!==e.key)return
+;const t=e.target.closest(".order-nav-btn,.order-action,.order-schedule-record,.order-choice")
+;t&&!t.disabled&&(t.classList.add("is-pressed")," "===e.key&&t.matches("#orderHistoryBtn,.order-schedule-record")&&e.preventDefault())}),
+p.viewOrder.addEventListener("click",e=>{e.target.closest("#orderHistoryBtn,.order-schedule-record")&&e.preventDefault(),
+e.target.closest(".js-order-schedule-retry")&&retryOrderSchedule()}),
 // The editor presses the same way. Fields press on focus rather than on touch,
 // so only the nav, the status rows and the segmented cells are wired here.
 p.viewCustomerEdit.addEventListener("pointerdown",e=>{
-const t=e.target.closest(".cust-banner,.cust-nav-btn,.custedit-segmented__btn");t&&t.classList.add("is-pressed")}),
+const t=e.target.closest(".cust-banner,.cust-nav-btn,.custedit-segmented__btn,.custedit-danger__btn");t&&t.classList.add("is-pressed")}),
 p.viewCustomerEdit.addEventListener("keydown",e=>{if(" "!==e.key&&"Enter"!==e.key)return
-;const t=e.target.closest(".cust-banner,.cust-nav-btn,.custedit-segmented__btn");t&&t.classList.add("is-pressed")}),
+;const t=e.target.closest(".cust-banner,.cust-nav-btn,.custedit-segmented__btn,.custedit-danger__btn");t&&t.classList.add("is-pressed")}),
 p.saveBtn.addEventListener("pointerdown",()=>{document.body.classList.contains("is-custeditpage")&&p.saveBtn.classList.add("is-pressed")});function readableAnswer(e){const t=e&&e.value
 ;if(null==t||""===t)return"";if(!Array.isArray(t))return"object"==typeof t?JSON.stringify(t):String(t);const o=e.options||[];return t.map(e=>{
 const t=o.filter(t=>t.id===e)[0];return t?t.text:String(e)}).filter(Boolean).join(", ")}async function acceptEnquiry(){const o=w.enquiry
@@ -320,7 +315,7 @@ async function showCustomerDetail(o){
 // Nothing to read about a customer who does not exist yet, so creating one
 // goes straight to the form, keeping any name the search already found.
 if("new"===o){const e=String(location.hash||""),t=e.indexOf("?");return void go("#/customer/new/edit"+(-1===t?"":e.slice(t)))}
-setChrome({title:"Customer",up:{label:"Customers",hash:"#/customers"},save:!1,actions:!1,custpage:!0}),w.customerOrders=[],
+setChrome({title:"Customer",up:{label:"Customers",hash:"#/customers"},save:!1,custpage:!0}),w.customerOrders=[],
 p.custEditBtn.href="#/customer/"+encodeURIComponent(o)+"/edit",p.custOrderList.innerHTML=""
 ;const[n,a]=await Promise.all([t.getCustomer(o),t.listOrders(o)]);w.customer=n,w.customerOrders=a,fillCustomerForm(n),setDirty(!1),
 renderCustomerDetail(n,a),renderCustomerReadOnly(n)}
@@ -328,12 +323,12 @@ renderCustomerDetail(n,a),renderCustomerReadOnly(n)}
 // Cancel lives in the nav row and delete at the foot of the page, so neither
 // needs the app bar the retro canvas hides.
 async function showCustomerEdit(o,n){const a="new"===o,s=a?"#/customers":"#/customer/"+encodeURIComponent(o)
-;setChrome({title:a?"New customer":"Edit customer",up:{label:a?"Customers":"Customer",hash:s},save:!0,actions:!1,custedit:!0}),
+;setChrome({title:a?"New customer":"Edit customer",up:{label:a?"Customers":"Customer",hash:s},save:!0,custedit:!0}),
 w.customerOrders=[],p.custEditCancel.href=s,p.custEditTitle.textContent=a?"New customer":"Edit customer"
 ;
 // Arrived from a search that found nothing: the name is already known.
 if(a){const e=String(n&&n.get("name")||"").trim();return w.customer=Object.assign({},M),e&&(w.customer.name=e),fillCustomerForm(w.customer),
-setDirty(!0),p.viewSub.hidden=!0,p.cancelCustomer.hidden=!0,p.reopenCustomer.hidden=!0,p.deleteCustomer.hidden=!0,
+setDirty(!0),p.viewSub.hidden=!0,p.cancelCustomer.hidden=!0,p.reopenCustomer.hidden=!0,p.deleteCustomerRow.hidden=!0,
 void(e?p.cPhone:p.cName).focus()}
 const[r,i]=await Promise.all([t.getCustomer(o),t.listOrders(o)]);w.customer=r,w.customerOrders=i,fillCustomerForm(r),setDirty(!1),
 renderCustomerReadOnly(r)}
@@ -341,7 +336,7 @@ renderCustomerReadOnly(r)}
 // are read off what already exists, so they can only ever be shown or hidden.
 function renderCustomerReadOnly(t){const o=openCustomerOrders(),n=customerStatus(t,o)
 ;p.viewSub.innerHTML='<span class="'+badgeClass(n)+'">'+e.escapeHtml(n)+"</span>",p.viewSub.hidden=!1,
-p.cancelCustomer.hidden=!canCancel(t,o),p.reopenCustomer.hidden=!t.cancelled_at,p.deleteCustomer.hidden=!t.id}
+p.cancelCustomer.hidden=!canCancel(t,o),p.reopenCustomer.hidden=!t.cancelled_at,p.deleteCustomerRow.hidden=!t.id}
 // The next thing in the diary: a booked appointment, the follow-up, or, when
 // nothing else is left, the wedding. Computed from the orders on the page, so
 // it is right whether you arrived from the homepage or from a bookmark.
@@ -368,12 +363,19 @@ function fillCustomerForm(e){p.cName.value=e.name||"",p.cPhone.value=e.phone||""
 p.cNotes.value=e.notes||"",p.cWedding.value=e.wedding_date||"",p.cWeddingMonth.value=(e.wedding_date||"").slice(0,7),
 setWeddingPrecision("month"===e.wedding_date_precision?"month":"day"),p.cMoodboardDate.value=e.moodboard_date||"",
 p.cFollowUpDate.value=e.follow_up_date||"",p.cFollowUpLabel.value=e.follow_up_label||"",p.cCancelledReason.value=e.cancelled_reason||"",
-p.cCancelledField.hidden=!e.cancelled_at,p.cName.classList.remove("is-invalid"),p.errCName.hidden=!0}function setWeddingPrecision(e){
+p.cCancelledField.hidden=!e.cancelled_at,setNameError(!1)}
+// The label, the value and the rail under the field all carry the error, so
+// it is legible both in the field and from a scroll past it.
+function setNameError(e){const t=p.cName.closest(".custedit-card")
+;p.cName.classList.toggle("is-invalid",e),t&&t.classList.toggle("is-invalid",e),p.cName.setAttribute("aria-invalid",String(!!e)),
+p.errCName.hidden=!e}function setWeddingPrecision(e){
 const t="month"===e;p.cWedding.hidden=t,p.cWeddingMonth.hidden=!t,s(".custedit-segmented__btn",p.cWeddingPrecision).forEach(e=>{
 const o="month"===e.dataset.precision===t;e.classList.toggle("is-on",o),e.setAttribute("aria-pressed",String(o))})}
 const weddingPrecision=()=>p.cWeddingMonth.hidden?"day":"month";function lastDayOfMonth(e){const t=/^(\d{4})-(\d{2})$/.exec(String(e||""))
 ;if(!t)return null;const o=new Date(Date.UTC(Number(t[1]),Number(t[2]),0));return n.fromDay(Math.round(o.getTime()/864e5))}
-async function saveCustomer(){if(""===p.cName.value.trim())return p.cName.classList.add("is-invalid"),p.errCName.hidden=!1,p.cName.focus(),!1
+async function saveCustomer(){if(""===p.cName.value.trim())return setNameError(!0),
+// Scrolled past it on a long form, the field has to come back into view.
+p.cName.scrollIntoView({block:"center",behavior:"smooth"}),p.cName.focus({preventScroll:!0}),showToast("Add the customer name to save"),!1
 ;const o=function(){const e="month"===weddingPrecision();return{name:p.cName.value.trim(),phone:orNull(p.cPhone.value),
 instagram:orNull(p.cInstagram.value),source:orNull(p.cSource.value),wedding_date:e?lastDayOfMonth(p.cWeddingMonth.value):orNull(p.cWedding.value),
 wedding_date_precision:e?"month":"day",moodboard_date:orNull(p.cMoodboardDate.value),follow_up_date:orNull(p.cFollowUpDate.value),
@@ -385,38 +387,151 @@ showToast("Saved, but the fitting schedules could not be rebuilt")}
 }(),e.moodboard_date!==w.customer.moodboard_date?await setFollowUp(consultNudgeFor(w.customer,openCustomerOrders())):e.follow_up_date===w.customer.follow_up_date&&e.follow_up_label===w.customer.follow_up_label||await pushFollowUp(),
 renderCustomerReadOnly(w.customer),showToast("Customer saved"),leaveFormFor("#/customer/"+w.customer.id)
 }else w.customer=await t.createCustomer(Object.assign(o,o.follow_up_date?{}:followUpPatch(c,e.todayISO()))),setDirty(!1),
-showToast("Customer created"),leaveFormFor("#/customer/"+w.customer.id);return!0}function historyLabel(e){
-if("created"===e.action)return"Order created";if("updated"===e.action)return"Order updated";if("payment_logged"===e.action){
-return(e.detail&&e.detail.deposit_label||"Payment").split(" - ")[0]+" logged"}if("scheduled"===e.action){
-const t=e.detail&&e.detail.count||0,o=e.detail&&e.detail.dropped||[]
-;return"Schedule set — "+t+(1===t?" date":" dates")+(o.length?", "+o.length+" left out":"")}if("calendar_synced"===e.action){
-const t=e.detail&&e.detail.count||0,o=e.detail&&e.detail.pinned||0
-;return"Synced "+t+(1===t?" date":" dates")+" to Google Calendar"+(o?", "+o+" kept as moved":"")}
-return"moodboard_generated"===e.action?"Moodboard generated":e.action}async function refreshHistory(){
-const[n,a]=await Promise.all([t.listOrderHistory(w.order.id),t.listDocumentLog(w.order.id)]);!function(t){
-const n=o.computeTotal(w.order.items),a=o.termsFor(w.order),s=o.termAmounts(n,a),r={};if(t.forEach(e=>{if("payment_logged"!==e.action)return
-;const t=e.detail&&e.detail.deposit_index;null!=t&&(r[t]=e.created_at)}),w.loggedDeposits=r,
-n<=0)return p.paymentSummary.innerHTML='<p class="empty">Price the items to work out the payment terms.</p>',p.logPaymentBtn.hidden=!0,
-void(p.paymentChooserOptions.hidden=!0)
-;p.paymentSummary.innerHTML=a.map((t,o)=>'<div class="logrow"><span class="logrow__kind">'+e.escapeHtml(t.label)+'</span><span class="logrow__when">'+(r[o]?"Paid "+e.escapeHtml(e.formatShortDate(r[o])):"Outstanding")+'</span><span class="logrow__total">'+e.formatRupiah(s[o])+"</span></div>").join("")
-;const i=a.some((e,t)=>!r[t]);p.logPaymentBtn.hidden=!i,i||(p.paymentChooserOptions.hidden=!0)}(n);const s=n.map(e=>({when:e.created_at,
-label:historyLabel(e),amount:"payment_logged"===e.action?e.detail&&e.detail.amount:null})).concat(a.map(e=>({when:e.created_at,
-label:"moodboard"===e.kind?"Moodboard saved":("invoice"===e.kind?"Invoice":"Quotation")+" downloaded",amount:e.total,link:e.drive_link||null
-}))).sort((e,t)=>new Date(t.when)-new Date(e.when))
-;p.historyLog.innerHTML=s.length?s.map(t=>'<div class="logrow logrow--stacked"><span class="logrow__what">'+(t.link?'<a class="logrow__kind logrow__link" href="'+e.escapeHtml(t.link)+'" target="_blank" rel="noopener">'+e.escapeHtml(t.label)+"</a>":'<span class="logrow__kind">'+e.escapeHtml(t.label)+"</span>")+(null!=t.amount?'<span class="logrow__total">'+e.formatRupiah(t.amount)+"</span>":"")+'</span><span class="logrow__when">'+e.escapeHtml(e.formatShortDate(t.when))+"</span></div>").join(""):'<p class="empty">No history yet.</p>'
-}const showDate=t=>t?e.formatShortDate(t):"—"
-;const scheduleFor=(e,t,o)=>n.computeSchedule(designAnchor(e),productionAnchor(e),t&&t.wedding_date,n.pinsFrom(o));async function refreshSchedule(){
-const e=w.order;let o=[];try{o=await t.listOrderEvents(e.id)}catch(e){
-// A schedule that will not load is not a reason to lose the whole page.
-console.error(e)}const a=scheduleFor(e,w.customer,o);w.schedule={computed:a,rows:o};const s=o.filter(e=>e.google_event_id),r=o.filter(e=>!e.synced_at)
-;n.renderSchedule(p.scheduleList,{events:o,warning:a.warning,reason:a.reason||"No schedule yet — save the order to build one."},{
-note:o.length&&!o.some(e=>n.isProductionStage(e.stage))?a.production.reason:""}),p.scheduleCount.textContent=o.length?o.length+" dates":""
-;const i=isApproximateWedding(w.customer),d=i&&o.some(e=>n.isProductionStage(e.stage)),c=i?o.filter(e=>n.isDesignStage(e.stage)):o
-;p.syncCalendarBtn.hidden=!c.length,
-p.syncCalendarBtn.disabled=!1,p.syncCalendarBtn.textContent=s.length&&!r.length?"Re-sync to Google Calendar":"Sync to Google Calendar"
-;const l=o.filter(e=>e.pinned).length,u=l?" "+l+(1===l?" date was":" dates were")+" moved in Google and will be kept as is.":""
-;p.scheduleSyncNote.textContent=o.length?(d?"The fittings are estimates until the exact wedding date is confirmed — only the design block will sync.":s.length?r.length?r.length+" of "+o.length+" dates changed since the last sync.":"All "+o.length+" dates are in Google Calendar.":"Not in Google Calendar yet.")+u:""
-}function renderScheduleHint(){const t={payment_scheme:p.oScheme.value,first_payment_date:p.oFirstPayment.value,
+showToast("Customer created"),leaveFormFor("#/customer/"+w.customer.id);return!0}const scheduleFor=(e,t,o)=>n.computeSchedule(designAnchor(e),productionAnchor(e),t&&t.wedding_date,n.pinsFrom(o));// --------------------------- Order detail -------------------------------
+// Figma 81:726. The page is three fixed-geometry layers — skeleton, error,
+// ready — that only ever swap opacity, one normalised view model built before
+// anything is written to the DOM, and a load token so a slow response for one
+// order can never paint over another.
+function isCurrentOrderLoad(t,o){return t===w.orderDetail.loadToken&&!!w.route&&"order"===w.route.view&&w.route.id===o}
+function clearOrderPresses(){p.viewOrder.querySelectorAll(".is-pressed").forEach(e=>e.classList.remove("is-pressed"))}
+function closeOrderPaymentChooser(){p.paymentChooser.classList.remove("is-open"),p.paymentChooser.hidden=!0,
+p.logPaymentBtn.setAttribute("aria-expanded","false")}
+function beginOrderLoad(e){const t=++w.orderDetail.loadToken;return w.orderDetail.phase="loading",w.orderDetail.orderId=e,w.orderDetail.vm=null,
+w.orderDetail.sectionErrors={},w.orderDetail.paymentBusy=!1,w.orderDetail.documentBusy=null,clearOrderPresses(),closeOrderPaymentChooser(),
+p.paymentError.hidden=!0,p.orderStage.setAttribute("aria-busy","true"),p.orderStage.style.height="",
+p.orderLoadingStatus.textContent="Loading order details.",p.orderLoading.hidden=!1,
+p.orderLoading.classList.remove("is-transitioning","is-hidden"),p.orderError.hidden=!0,p.orderError.innerHTML="",p.orderReady.hidden=!0,
+p.orderReady.classList.remove("is-transitioning","is-visible","is-measuring"),t}
+
+// The four failures worth their own sentence. Anything else keeps the server's
+// message behind a generic lead rather than inventing a cause.
+function orderErrorCopy(e){return e&&("PGRST116"===e.code||/0 rows/i.test(e.message||""))?"This order no longer exists.":e instanceof TypeError?"Could not load this order. Check your connection and try again.":t.isStaleToken(e)?"Your session expired. Unlock the app and try again.":e&&e.message?"Could not load this order. "+e.message:"Could not load this order. Try again in a moment."}
+function renderOrderError(t,o,n,a){if(!isCurrentOrderLoad(o,n))return;console.error(t),w.orderDetail.phase="error",p.orderLoading.hidden=!0,
+p.orderLoading.classList.remove("is-transitioning","is-hidden"),p.orderReady.hidden=!0,p.orderStage.style.height="",
+p.orderStage.setAttribute("aria-busy","false"),p.orderLoadingStatus.textContent="",p.orderError.hidden=!1,
+p.orderError.innerHTML='<div class="order-error-panel"><p class="order-error-panel__title">Could not open this order.</p><p class="order-error-panel__hint">'+e.escapeHtml(orderErrorCopy(t))+'</p><div class="order-error-panel__actions"><button type="button" class="order-error__btn js-order-retry">Try again</button><a class="order-error__btn order-error__btn--quiet" href="'+(a?"#/customer/"+encodeURIComponent(a):"#/customers")+'">'+(a?"Back to customer":"Back to customers")+"</a></div></div>"
+;const s=p.orderError.querySelector(".js-order-retry");s.addEventListener("click",()=>{showOrderDetail(n)}),
+requestAnimationFrame(()=>s.focus({preventScroll:!0}))}
+
+const orderFirstName=e=>{const t=String(e||"").trim().split(/\s+/)[0]||"";return t?"("+t+")":"Back"}
+// Date-only arithmetic, so a clock at either end of the day cannot move a
+// fitting a day either way.
+;function relativeDateLabel(e,t){const o=n.daysBetween(t,e)
+;return null===o?"":0===o?"today":1===o?"tomorrow":-1===o?"yesterday":o>0?"in "+o+" days":-o+" days ago"}
+// The year is noise on a date this year and information on any other.
+function orderDateLabel(t){const o=e.formatShortDate(t);return o?String(t).slice(0,4)===e.todayISO().slice(0,4)?o.replace(/\s\d{4}$/,""):o:""}
+function pushInto(e,t,o){const n=e.get(t)||[];n.push(o),e.set(t,n)}
+function deriveLoggedDeposits(e){const t={};return(e||[]).forEach(e=>{if("payment_logged"!==e.action)return
+;const o=e.detail&&e.detail.deposit_index;null!=o&&(t[o]=e.created_at)}),t}
+
+// Only the production stages are drawn here: they are the ones this card is
+// about. The design block still exists in the schedule underneath.
+function orderScheduleModel(t){const o=(t.events||[]).filter(e=>n.isProductionStage(e.stage)).slice().sort((e,t)=>n.stageOrder(e.stage)-n.stageOrder(t.stage)),a=new Map,s=new Map,r=new Map,i=e.todayISO()
+;(t.sessions||[]).forEach(e=>{a.set(e.id,e.stage),pushInto(s,e.stage,e)}),(t.photos||[]).forEach(e=>{
+const t=e.session_id&&a.get(e.session_id)||e.stage;t&&pushInto(r,t,e)});const d=o.map(e=>{const t=s.get(e.stage)||[],o=r.get(e.stage)||[]
+;return{stage:e.stage,dateLabel:orderDateLabel(e.event_date),relativeLabel:relativeDateLabel(e.event_date,i),
+completed:t.some(e=>"completed"===e.status),photoCount:o.length,
+thumbnails:o.slice(0,3).map(e=>KK.fittings.imageURL(e,100)).filter(Boolean)}}),c=scheduleFor(t.order,t.customer,t.events||[])
+;return{records:d,message:d.length?"":c.production.reason||c.reason||"No fittings scheduled yet.",
+warning:d.length&&isApproximateWedding(t.customer)?"These dates are estimates until the exact wedding date is confirmed.":""}}
+
+// Every calculation, every format and every escape decision happens here, so
+// the render below is a synchronous write of already-final strings.
+function buildOrderDetailViewModel(t){const n=t.order,a=t.customer,s=n.items||[],r=s.filter(isNamed),i=o.computeTotal(s),d=r.filter(isCosted),c=d.reduce((e,t)=>e+((Number(t.price)||0)-(Number(t.cost)||0))*(Number(t.qty)||0),0),l=String(n.doc_name||a&&a.name||"").trim(),u=r.length>0&&i>0,m=o.termsFor(n),h=o.termAmounts(i,m),g=t.loggedDeposits||{}
+;return{order:n,customer:a,title:orderLabel(n),backHref:"#/customer/"+encodeURIComponent(n.customer_id),backLabel:orderFirstName(a&&a.name),
+editHref:"#/order/"+encodeURIComponent(n.id)+"/edit",items:r.map(t=>({name:String(t.name),qtyLabel:String(Number(t.qty)||0),
+priceLabel:e.formatRupiah(t.price)})),total:i,totalLabel:e.formatRupiah(i),profit:{value:c,
+label:d.length?e.formatRupiah(c):"—",
+caveat:d.length?d.length<r.length?"Based on "+d.length+" of "+r.length+" costed items.":"":r.length?"No production costs filled in yet.":""},
+documents:{canDownload:u&&""!==l,
+disabledReason:u?""!==l?"":"Add the name for documents to enable downloads.":"Add a priced item to enable downloads."},
+paymentsPriced:i>0,paymentsUnknown:!!t.paymentsUnknown,payments:m.map((t,o)=>({index:o,label:t.label,amount:h[o],
+amountLabel:e.formatRupiah(h[o]),paidAt:g[o]||null,paidDateLabel:g[o]?"Paid "+orderDateLabel(g[o]):""})),schedule:orderScheduleModel(t)}}
+
+function renderOrderItems(t){
+const o=t.items.map(t=>'<div class="order-items__row"><span class="order-items__name" title="'+e.escapeHtml(t.name)+'">'+e.escapeHtml(t.name)+'</span><span class="order-items__qty">'+e.escapeHtml(t.qtyLabel)+'</span><span class="order-items__price">'+e.escapeHtml(t.priceLabel)+"</span></div>").join(""),n=t.profit.caveat
+;p.oItemsDisplay.innerHTML='<div class="order-items__row order-items__row--head"><span class="order-items__name">Name</span><span class="order-items__qty">Qty</span><span class="order-items__price">Price</span></div>'+(o||'<p class="order-items__empty">No items yet. Tap edit to add one.</p>')+'<div class="order-items__rule" aria-hidden="true"></div><div class="order-items__totals"><div class="order-items__row order-items__row--total"><span class="order-items__name">Total</span><span class="order-items__price">'+e.escapeHtml(t.totalLabel)+'</span></div><div class="order-items__row order-items__row--profit"><span class="order-items__name">Est. profit</span><span class="order-items__price"'+(n?' title="'+e.escapeHtml(n)+'"':"")+">"+e.escapeHtml(t.profit.label)+"</span></div>"+(n?'<p class="sr-only">'+e.escapeHtml(n)+"</p>":"")+"</div>"}
+
+// Downloads need a priced item and a name to address the document to. The
+// buttons stay where they are and say why instead of disappearing.
+function renderOrderDocumentState(e){const t=e.documents.canDownload&&!w.orderDetail.documentBusy
+;p.downloadQuote.disabled=!t,p.downloadInvoice.disabled=!t,p.downloadNote.textContent=e.documents.disabledReason,
+p.createMoodboardBtn.disabled=!w.order}
+
+function renderOrderPayments(t){if(p.paymentError.hidden=!p.paymentError.textContent,!t.paymentsPriced)return p.paymentSummary.innerHTML='<p class="order-items__empty">Price the items to work out the payment terms.</p>',
+p.logPaymentBtn.disabled=!0,a(".order-action__label",p.logPaymentBtn).textContent="Log a payment",void closeOrderPaymentChooser()
+;p.paymentSummary.innerHTML=t.payments.map((o,n)=>(n?'<div class="order-payments__rule" aria-hidden="true"></div>':"")+'<div class="order-payment"><span class="order-payment__main"><span class="order-payment__head"><span class="order-payment__label">'+e.escapeHtml(o.label)+"</span>"+(o.paidAt?'<img class="order-payment__tick" src="assets/order-tick-icon.svg" alt="" width="16" height="16">':"")+"</span>"+(o.paidAt?'<span class="order-payment__when">'+e.escapeHtml(o.paidDateLabel)+"</span>":'<span class="sr-only">'+(t.paymentsUnknown?"Payment status unavailable":"Outstanding")+"</span>")+'</span><span class="order-payment__amount">'+e.escapeHtml(o.amountLabel)+"</span></div>").join("")
+;const o=t.payments.filter(e=>!e.paidAt).length
+// A finished order keeps the button rather than losing a row's height when
+// the last payment lands.
+;p.logPaymentBtn.disabled=w.orderDetail.paymentBusy||!o||t.paymentsUnknown,
+a(".order-action__label",p.logPaymentBtn).textContent=w.orderDetail.paymentBusy?"Logging…":o?"Log a payment":"All payments logged",
+o&&!t.paymentsUnknown||closeOrderPaymentChooser(),p.paymentChooser.hidden||renderOrderPaymentChoices(t)}
+
+function renderOrderPaymentChoices(t){
+p.paymentChooserOptions.innerHTML=t.payments.filter(e=>!e.paidAt).map(t=>'<button type="button" class="order-choice js-log-deposit" data-i="'+t.index+'"'+(w.orderDetail.paymentBusy?" disabled":"")+'><span class="order-choice__face"><span>'+e.escapeHtml(t.label)+"</span><span>"+e.escapeHtml(t.amountLabel)+'</span></span><span class="order-choice__rail" aria-hidden="true"></span></button>').join("")}
+
+function renderOrderSchedule(t){if(w.orderDetail.sectionErrors.schedule)return void(p.scheduleList.innerHTML='<div class="order-schedule__record"><div class="order-schedule__message">Could not load the schedule.<br><button type="button" class="order-schedule__retry js-order-schedule-retry">Retry</button></div></div>')
+;const o=t.schedule||{records:[],message:"",warning:""}
+;if(!o.records.length)return void(p.scheduleList.innerHTML='<div class="order-schedule__record"><div class="order-schedule__message">'+e.escapeHtml(o.message||"No fittings scheduled yet.")+'</div></div><div class="order-schedule__spacer" aria-hidden="true"></div>')
+;p.scheduleList.innerHTML=(o.warning?'<p class="order-schedule__warning">'+e.escapeHtml(o.warning)+"</p>":"")+o.records.map(t=>{
+const o=t.dateLabel?t.dateLabel+(t.relativeLabel?" ("+t.relativeLabel+")":""):"",n=t.photoCount?t.photoCount+" photo"+(1===t.photoCount?"":"s")+" & notes logged":"",a=[t.stage,o,t.completed?"completed":"",n,"coming soon"].filter(Boolean).join(", ")
+;return'<div class="order-schedule__record"><button type="button" class="order-schedule-record'+(t.photoCount?" order-schedule-record--photos":"")+'" aria-disabled="true" aria-label="'+e.escapeHtml(a)+'"><span class="order-schedule-record__face"><span class="order-schedule-record__head"><span class="order-schedule-record__stage">'+e.escapeHtml(t.stage)+(t.completed?'<img class="order-schedule-record__tick" src="assets/order-tick-icon.svg" alt="" width="16" height="16">':"")+"</span>"+(o?'<span class="order-schedule-record__date">'+e.escapeHtml(o)+"</span>":"")+"</span>"+(t.photoCount?'<span class="order-schedule-record__rule" aria-hidden="true"></span><span class="order-schedule-record__photos"><span class="order-schedule-record__thumbs">'+t.thumbnails.map(t=>'<img class="order-schedule-record__thumb" src="'+e.escapeHtml(t)+'" alt="" width="32" height="32" loading="lazy" onerror="this.style.visibility=\'hidden\'">').join("")+'</span><span class="order-schedule-record__count">'+e.escapeHtml(n)+"</span></span>":"")+'</span><span class="order-schedule-record__rail" aria-hidden="true"></span></button></div>'
+}).join('<div class="order-schedule__spacer" aria-hidden="true"></div>')+'<div class="order-schedule__spacer" aria-hidden="true"></div>'}
+
+function renderOrderReady(e){w.orderDetail.vm=e,p.orderBackBtn.href=e.backHref,p.orderBackLabel.textContent=e.backLabel,
+p.orderBackBtn.setAttribute("aria-label","Back to "+(e.customer&&e.customer.name||"customer")),p.orderEditBtn.href=e.editHref,
+p.orderTitle.textContent=e.title,renderOrderItems(e),renderOrderDocumentState(e),renderOrderPayments(e),renderOrderSchedule(e),
+p.orderReady.hidden=!1,p.orderReady.classList.add("is-measuring")}
+
+// The ready layer is measured under the skeleton, the stage is pinned to that
+// height, and only then does the crossfade run — so nothing moves but opacity.
+async function revealOrder(e){if(await(document.fonts&&document.fonts.ready||Promise.resolve()),await new Promise(e=>requestAnimationFrame(e)),
+!isCurrentOrderLoad(e,w.orderDetail.orderId))return
+;p.orderStage.style.height=Math.ceil(p.orderReady.getBoundingClientRect().height||p.orderReady.scrollHeight)+"px",
+p.orderReady.classList.remove("is-measuring"),p.orderReady.classList.add("is-transitioning"),p.orderLoading.classList.add("is-transitioning"),
+requestAnimationFrame(()=>{isCurrentOrderLoad(e,w.orderDetail.orderId)&&(p.orderReady.classList.add("is-visible"),
+p.orderLoading.classList.add("is-hidden"))}),setTimeout(()=>{isCurrentOrderLoad(e,w.orderDetail.orderId)&&(p.orderLoading.hidden=!0,
+p.orderLoading.classList.remove("is-transitioning","is-hidden"),p.orderReady.classList.remove("is-transitioning","is-visible"),
+p.orderStage.style.height="",p.orderStage.setAttribute("aria-busy","false"),p.orderLoadingStatus.textContent="",w.orderDetail.phase="ready")
+},reducedMotion()?0:180)}
+
+// Order and customer are required — the title, both navigation targets and
+// every business action are wrong without them. The schedule reads are not:
+// losing them costs the Schedules card and nothing else.
+async function showOrderDetail(o){setChrome({title:"Order",up:{label:"Customers",hash:"#/customers"},save:!1,destroy:"order",orderpage:!0}),
+setDirty(!1);const n=beginOrderLoad(o);let a,s;try{if(a=await t.getOrder(o),!isCurrentOrderLoad(n,o))return
+;s=await t.getCustomer(a.customer_id)}catch(e){if(t.isStaleToken(e))throw e;return void renderOrderError(e,n,o,a&&a.customer_id)}
+if(!isCurrentOrderLoad(n,o))return;w.order=a,w.customer=s;let r=null,i=!1;try{r=await t.listOrderHistory(o)}catch(e){if(t.isStaleToken(e))throw e
+;console.error(e),i=!0}if(!isCurrentOrderLoad(n,o))return;let d=[],c=[],l=[],u=!1
+;try{const e=await Promise.all([t.listOrderEvents(o),t.listFittingSessions(o),t.listFittingPhotos(o)]);d=e[0],c=e[1],l=e[2]}catch(e){
+if(t.isStaleToken(e))throw e;console.error(e),u=!0}if(!isCurrentOrderLoad(n,o))return
+;w.loggedDeposits=deriveLoggedDeposits(r),w.schedule={computed:scheduleFor(a,s,d),rows:d},w.orderDetail.sectionErrors={schedule:u},
+p.paymentError.textContent="",renderOrderReady(buildOrderDetailViewModel({order:a,customer:s,loggedDeposits:w.loggedDeposits,paymentsUnknown:i,
+events:d,sessions:c,photos:l})),await revealOrder(n)}
+
+// Local refreshes after a mutation. Neither one re-runs the skeleton: the page
+// is already on screen and only one card's data has moved.
+async function refreshOrderPayments(){const e=w.orderDetail.orderId;if(!e||!w.order||w.order.id!==e)return;let o=null,n=!1
+;try{o=await t.listOrderHistory(e)}catch(e){console.error(e),n=!0}if(w.orderDetail.orderId!==e)return;w.loggedDeposits=deriveLoggedDeposits(o)
+;const a=w.orderDetail.vm,s=buildOrderDetailViewModel({order:w.order,customer:w.customer,loggedDeposits:w.loggedDeposits,paymentsUnknown:n,
+events:(w.schedule&&w.schedule.rows)||[],sessions:[],photos:[]});a&&(s.schedule=a.schedule),w.orderDetail.vm=s,renderOrderItems(s),
+renderOrderDocumentState(s),renderOrderPayments(s)}
+async function refreshOrderSchedule(){const e=w.orderDetail.orderId;if(!e||!w.order||w.order.id!==e)return
+;try{const o=await Promise.all([t.listOrderEvents(e),t.listFittingSessions(e),t.listFittingPhotos(e)]);if(w.orderDetail.orderId!==e)return
+;w.orderDetail.sectionErrors.schedule=!1,w.schedule={computed:scheduleFor(w.order,w.customer,o[0]),rows:o[0]}
+;const n=orderScheduleModel({order:w.order,customer:w.customer,events:o[0],sessions:o[1],photos:o[2]})
+;w.orderDetail.vm?(w.orderDetail.vm.schedule=n,renderOrderSchedule(w.orderDetail.vm)):renderOrderSchedule({schedule:n})}catch(e){console.error(e),
+w.orderDetail.sectionErrors.schedule=!0,renderOrderSchedule(w.orderDetail.vm||{})}}
+function retryOrderSchedule(){p.scheduleList.innerHTML='<div class="order-schedule__record"><div class="order-schedule__message">Loading the schedule…</div></div>',
+w.orderDetail.sectionErrors.schedule=!1,refreshOrderSchedule()}
+
+function toggleOrderPaymentChooser(){const e=w.orderDetail.vm;if(!e||p.logPaymentBtn.disabled)return
+;if(!p.paymentChooser.hidden)return void closeOrderPaymentChooser();renderOrderPaymentChoices(e),p.paymentChooser.hidden=!1,
+p.logPaymentBtn.setAttribute("aria-expanded","true"),requestAnimationFrame(()=>p.paymentChooser.classList.add("is-open"))}
+function setOrderPaymentBusy(e){w.orderDetail.paymentBusy=e,p.logPaymentBtn.setAttribute("aria-busy",e?"true":"false")
+;const t=w.orderDetail.vm;t&&(p.paymentChooser.hidden||renderOrderPaymentChoices(t),renderOrderPayments(t))}
+function renderScheduleHint(){const t={payment_scheme:p.oScheme.value,first_payment_date:p.oFirstPayment.value,
 second_payment_date:p.oSecondPayment.value
 },o=n.computeSchedule(designAnchor(t),productionAnchor(t),w.customer&&w.customer.wedding_date,n.pinsFrom(w.schedule&&w.schedule.rows)),a=[]
 ;a.push(o.design.events.length?"Design phase "+e.formatShortDate(o.design.events[0].event_date)+" – "+e.formatShortDate(o.design.events[0].end_date):o.design.reason),
@@ -428,18 +543,12 @@ stages:n.PRODUCTION_STAGES,result:s.production}];let i=a;const d=[];for(const o 
 ;if(o.result.missingAnchor&&n.length)continue;const s=await t.replaceOrderEvents(e.id,o.result.events,o.stages);d.push.apply(d,s.removed),i=s.events}
 const c=d.map(e=>e.google_event_id).filter(Boolean);if(c.length)try{await t.googleForget(c)}catch(e){
 console.error("Dropped events left in Google Calendar:",e)}const key=e=>e.stage+"@"+e.event_date+(e.end_date?"→"+e.end_date:"");return{computed:s,
-changed:a.map(key).sort().join("|")!==i.map(key).sort().join("|"),rows:i}}async function syncCalendar(){const e=p.syncCalendarBtn;e.disabled=!0
-;const o=e.textContent;e.textContent="Syncing…";try{const e=await t.syncOrderCalendar(w.order.id),o=e&&e.count||0,n=e&&e.pinned||0
-;showToast(n?n+(1===n?" date had":" dates had")+" been moved in Google — kept":o+(1===o?" date":" dates")+" in Google Calendar");try{
-await t.logOrderHistory(w.order.id,"calendar_synced",{count:o,pinned:n})}catch(e){console.error(e)}if(n)try{await rescheduleOrder(w.order,w.customer)
-}catch(e){console.error("Could not reflow around the moved date:",e)}await refreshSchedule(),await refreshHistory()}catch(t){console.error(t),
-showToast(t.message||"Could not sync to Google Calendar"),e.textContent=o,e.disabled=!1}syncBottomBar()}
-const x=["https://www.googleapis.com/auth/calendar.events","https://www.googleapis.com/auth/drive.file"].join(" "),googleRedirectUri=()=>location.origin+location.pathname
+changed:a.map(key).sort().join("|")!==i.map(key).sort().join("|"),rows:i}}const x=["https://www.googleapis.com/auth/calendar.events","https://www.googleapis.com/auth/drive.file"].join(" "),googleRedirectUri=()=>location.origin+location.pathname
 ;function connectGoogle(){const e=(window.KK_CONFIG||{}).GOOGLE_CLIENT_ID||"";if(!e)return p.gcalErr.hidden=!1,
 void(p.gcalErr.textContent="No GOOGLE_CLIENT_ID in config.js — see “Google Calendar” in the README.");const t=new URLSearchParams({client_id:e,
 redirect_uri:googleRedirectUri(),response_type:"code",scope:x,access_type:"offline",prompt:"consent",include_granted_scopes:"true"})
 ;location.href="https://accounts.google.com/o/oauth2/v2/auth?"+t.toString()}async function showCalendarSettings(){let o;setChrome({
-title:"Google Calendar",up:{label:"Customers",hash:"#/customers"},save:!1,actions:!1}),p.gcalErr.hidden=!0,p.gcalConnect.hidden=!0,
+title:"Google Calendar",up:{label:"Customers",hash:"#/customers"},save:!1}),p.gcalErr.hidden=!0,p.gcalConnect.hidden=!0,
 p.gcalDisconnect.hidden=!0,p.gcalState.textContent="Checking…";try{o=await t.googleStatus()}catch(e){return console.error(e),
 p.gcalState.textContent="Could not reach the calendar service.",p.gcalErr.hidden=!1,p.gcalErr.textContent=e.message||"",void(p.gcalConnect.hidden=!1)}
 w.googleConnected=!(!o||!o.connected),
@@ -551,8 +660,12 @@ w.customer=await t.updateCustomer(w.customer.id,{moodboard_date:e.todayISO()});c
 ;if(l){await t.updateCustomer(w.customer.id,l);try{await t.syncFollowUp(w.customer.id)}catch(e){}}R.cleanup(),closeMoodboardPresentation(),
 showToast("Moodboard downloaded and copied to Google Drive"),go("#/order/"+w.order.id)}catch(e){console.error(e),
 showToast(n?s?"PDF downloaded and copied, but its record could not be finished — "+(e.message||"please try again"):"PDF downloaded, but the Drive copy failed — "+(e.message||"please try again"):"Could not generate the moodboard — "+(e.message||"please try again"))
-}finally{o.disabled=!1,o.classList.remove("is-busy"),a(".btn__label",o).textContent="Download"}}function setBusy(e,t){Object.keys(g).forEach(e=>{
-g[e].disabled=t});const n=g[e];n.classList.toggle("is-busy",t),a(".btn__label",n).textContent=t?"Generating…":o.DOCS[e].name+" PDF"}
+}finally{o.disabled=!1,o.classList.remove("is-busy"),a(".btn__label",o).textContent="Download"}}// Both document buttons are disabled while either one is generating, and the
+// label region is the only thing that changes — the split keeps its geometry.
+function setBusy(e,t){w.orderDetail.documentBusy=t?e:null;const o=w.orderDetail.vm,n=!o||o.documents.canDownload
+;Object.keys(g).forEach(e=>{g[e].disabled=t||!n});const s=g[e];s.classList.toggle("is-busy",t),
+t?s.setAttribute("aria-busy","true"):s.removeAttribute("aria-busy"),
+a(".order-action__label",s).textContent=t?"Generating…":"quotation"===e?"Get quotation":"Get invoice"}
 async function download(n){let a;setBusy(n,!0);try{a=await o.download(n,{docName:w.order.doc_name||w.customer.name||"",date:e.todayISO(),
 items:w.order.items||[],includes:w.order.includes||[],terms:o.termsFor(w.order)})}catch(e){return console.error(e),
 showToast("Could not generate the PDF — please try again"),void setBusy(n,!1)}setBusy(n,!1),showToast(o.DOCS[n].name+" downloaded"),
@@ -561,22 +674,26 @@ showToast("Could not generate the PDF — please try again"),void setBusy(n,!1)}
 await bumpStatus("invoice"===n?"Confirmed":"Quoted");
 // The file is already on disk by now. A log failure is worth reporting but
 // must not read as a failed download.
-try{await t.logDocument(w.order.id,n,a),await refreshHistory()}catch(e){console.error(e),showToast("Downloaded, but could not record it")}}
-async function logDeposit(a){const s=o.computeTotal(w.order.items),r=o.termsFor(w.order),i=o.termAmounts(s,r)[a],d=function(t,o,n){const a={}
+try{await t.logDocument(w.order.id,n,a),await refreshOrderPayments()}catch(e){console.error(e),showToast("Downloaded, but could not record it")}}
+// One payment at a time, and never marked paid before the write succeeds.
+async function logDeposit(e){if(!w.orderDetail.paymentBusy){p.paymentError.textContent="",p.paymentError.hidden=!0,setOrderPaymentBusy(!0)
+;try{await logDepositRequest(e)}finally{setOrderPaymentBusy(!1)}}}
+async function logDepositRequest(a){const s=o.computeTotal(w.order.items),r=o.termsFor(w.order),i=o.termAmounts(s,r)[a],d=function(t,o,n){const a={}
 ;return 0!==o||t.first_payment_date||(a.first_payment_date=e.todayISO()),
 o!==(e=>e&&"other"===e.payment_scheme?0:1)(t)||t.second_payment_date||(a.second_payment_date=e.todayISO()),
 o!==n.length-1||t.final_payment_date||(a.final_payment_date=e.todayISO()),a}(w.order,a,r);if(d.first_payment_date&&d.final_payment_date){
 if(!window.confirm("This is the only payment term, so logging it starts the schedule and marks the order finished at the same time. Log it?"))return}
-try{await t.logOrderHistory(w.order.id,"payment_logged",{deposit_index:a,deposit_label:o.termLabel(r[a]),amount:i}),p.paymentChooserOptions.hidden=!0,
+try{await t.logOrderHistory(w.order.id,"payment_logged",{deposit_index:a,deposit_label:o.termLabel(r[a]),amount:i}),closeOrderPaymentChooser(),
 showToast(r[a].label+" logged"),Object.keys(d).length&&(w.order=await t.updateOrder(w.order.id,d)),
 (d.first_payment_date||d.second_payment_date)&&await async function(){try{
 const e=await rescheduleOrder(w.order,w.customer),o=e.rows.filter(e=>n.isProductionStage(e.stage)).length
 ;o?(await t.logOrderHistory(w.order.id,"scheduled",{count:e.rows.length,dropped:e.computed.dropped}),
 showToast(o+" fittings scheduled")):e.rows.length?(await t.logOrderHistory(w.order.id,"scheduled",{count:e.rows.length,dropped:e.computed.dropped}),
-showToast("Design phase scheduled")):e.computed.reason&&showToast(e.computed.reason),await refreshSchedule()}catch(e){console.error(e),
+showToast("Design phase scheduled")):e.computed.reason&&showToast(e.computed.reason),await refreshOrderSchedule()}catch(e){console.error(e),
 showToast("Payment logged, but the schedule could not be built")}
 }(),d.final_payment_date?await bumpStatus("Delivered"):d.second_payment_date?await bumpStatus("In production"):d.first_payment_date&&await bumpStatus("Confirmed"),
-await refreshHistory(),renderOrderStatus()}catch(e){console.error(e),showToast(e.message||"Could not log payment")}}async function signOutFromMenu(){
+await refreshOrderPayments(),renderOrderStatus()}catch(e){console.error(e),showToast(e.message||"Could not log payment"),
+p.paymentError.textContent=e.message||"Could not log that payment. Try again.",p.paymentError.hidden=!1}}async function signOutFromMenu(){
 closeMenu(),confirmLeave()&&(await t.signOut(),location.hash="",showGate())}function bindEvents(){window.addEventListener("hashchange",handleRoute),
 p.pageAction.addEventListener("click",()=>{D&&D()}),p.saveBtn.addEventListener("click",async()=>{if(!w.saving){w.saving=!0,setDirty(w.dirty);try{
 if("customer"===w.route.view)await saveCustomer();else if("orderEdit"===w.route.view){const e=w.order.id;
@@ -592,20 +709,18 @@ if(window.confirm("Delete this order and its payment and download record? This c
 ;await t.deleteOrder(w.order.id),setDirty(!1),showToast("Order deleted"),go("#/customer/"+e)}catch(e){console.error(e),
 showToast(e.message||"Could not delete")}}():deleteCustomerRecord()}),p.deleteCustomer.addEventListener("click",deleteCustomerRecord),
 p.customerSearch.addEventListener("input",renderCustomerList),s(".js-cfield").forEach(e=>{e.addEventListener("input",()=>{
-e===p.cName&&e.value.trim()&&(e.classList.remove("is-invalid"),p.errCName.hidden=!0),setDirty(!0)}),e.addEventListener("change",()=>setDirty(!0))}),
+e===p.cName&&e.value.trim()&&setNameError(!1),setDirty(!0)}),e.addEventListener("change",()=>setDirty(!0))}),
 p.cWeddingPrecision.addEventListener("click",e=>{const t=e.target.closest(".custedit-segmented__btn")
 ;t&&t.dataset.precision!==weddingPrecision()&&(setWeddingPrecision(t.dataset.precision),setDirty(!0))}),
 p.cancelCustomer.addEventListener("click",cancelCustomer),p.reopenCustomer.addEventListener("click",reopenCustomer),
-p.logPaymentBtn.addEventListener("click",()=>{p.paymentChooserOptions.hidden?function(){
-const t=o.computeTotal(w.order.items),n=o.termsFor(w.order),a=o.termAmounts(t,n),s=w.loggedDeposits||{}
-;p.paymentChooserOptions.innerHTML=n.map((t,o)=>s[o]?"":'<button type="button" class="btn btn--outline btn--block js-log-deposit" data-i="'+o+'">'+e.escapeHtml(t.label)+" — "+e.formatRupiah(a[o])+"</button>").join(""),
-p.paymentChooserOptions.hidden=!1}():p.paymentChooserOptions.hidden=!0}),p.paymentChooserOptions.addEventListener("click",e=>{
+p.logPaymentBtn.addEventListener("click",toggleOrderPaymentChooser),
+p.paymentChooserOptions.addEventListener("click",e=>{
 const t=e.target.closest(".js-log-deposit");t&&logDeposit(Number(t.dataset.i))}),p.downloadQuote.addEventListener("click",()=>download("quotation")),
-p.downloadInvoice.addEventListener("click",()=>download("invoice")),a("#createMoodboardBtn").addEventListener("click",function(){
+p.downloadInvoice.addEventListener("click",()=>download("invoice")),p.createMoodboardBtn.addEventListener("click",function(){
 w.order&&go("#/order/"+w.order.id+"/moodboard")}),p.mbPresentationClose.addEventListener("click",function(){
 w.order&&go("#/order/"+w.order.id+"/moodboard")}),p.logNewFittingBtn.addEventListener("click",function(){
 w.order&&go("#/order/"+w.order.id+"/fitting/new")}),p.fittingJournalAdd.addEventListener("click",()=>KK.fittings.openCamera()),
-KK.fittings.bindOverlays(),setupMoodboardListeners(),p.syncCalendarBtn.addEventListener("click",syncCalendar),
+KK.fittings.bindOverlays(),setupMoodboardListeners(),
 p.gcalConnect.addEventListener("click",connectGoogle),p.gcalDisconnect.addEventListener("click",disconnectGoogle),
 p.enquiryAccept.addEventListener("click",acceptEnquiry),p.enquiryDismiss.addEventListener("click",dismissEnquiry),
 p.menuCalendar.addEventListener("click",closeMenu),s(".js-ofield").forEach(e=>{
