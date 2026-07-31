@@ -215,7 +215,7 @@ const t=e.payload&&e.payload.data&&e.payload.data.fields||[],o=t.map(e=>({label:
 ;p.enquiryNote.textContent=a?"accepted"===n.status?"Already accepted.":"Dismissed.":"Creating the customer files them at Enquiry, with a reminder to book the consultation in two days. Dismissing keeps the submission but creates nothing.",
 p.enquiryAccept.hidden=a,p.enquiryDismiss.hidden=a}(s.id):await showOrderDetail(s.id)};const load=(async()=>{try{
 await render()}catch(e){if(!t.isStaleToken(e))throw e;console.warn("Stale token, refreshing and retrying:",e.message),await t.refreshSession(),await render()}})(),
-settled=load.then(()=>({ok:!0}),e=>({ok:!1,error:e}));let early=null;if(!skipMotion){early=await Promise.race([settled,wait(80).then(()=>null)])
+settled=load.then(()=>({ok:!0}),e=>({ok:!1,error:e}));let early=null;if(!skipMotion){early=await Promise.race([settled,wait(400).then(()=>null)])
 ;if(routeToken!==w.navigation.token)return;if(early&&early.ok)await hideRouteLoader(!0);else early&&!early.ok&&!routeHasOwnLoader(s)&&showRouteError(early.error,s)
 ;await revealCurtain()}const result=early||await settled;if(routeToken!==w.navigation.token)return;if(result.ok)await hideRouteLoader(!1),focusRoute(s)
 ;else routeHasOwnLoader(s)?showToast(result.error&&result.error.message||"Could not load that"):showRouteError(result.error,s)}

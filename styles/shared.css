@@ -24,6 +24,7 @@
 }
 .boot.is-below { transform: translateY(100%); }
 body.is-page-transitioning { overflow: hidden; pointer-events: none; }
+[tabindex="-1"]:focus { outline: none; }
 
 .boot__spin {
   width: 26px;

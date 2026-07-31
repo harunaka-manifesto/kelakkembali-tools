@@ -156,6 +156,10 @@ body.is-homepage .view { gap: 0; }
   font-weight: 700;
   line-height: 40px;
   letter-spacing: -.96px;
+  outline: none;
+}
+.home-hero__greeting:focus {
+  outline: none;
 }
 .home-hero__deadline {
   margin: 0;
@@ -550,7 +554,7 @@ body.is-homepage .btn--empty {
   gap: 8px;
   background: var(--home-white);
 }
-.home-skel__line { height: 32px; display: flex; align-items: center; }
+.home-skel__line { height: 40px; display: flex; align-items: center; }
 .home-skel__lines { height: 40px; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
 .home-skel__actions {
   height: 98px;
