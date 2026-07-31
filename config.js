@@ -1,3 +1,6 @@
+/* Public browser configuration only: Supabase project identifiers, the shared
+   account email, and Google OAuth client id. Never put passwords, service-role
+   keys, refresh tokens, or webhook secrets here. */
 window.KK_CONFIG={SUPABASE_URL:"https://lgockcjjfkvuihhofyxi.supabase.co",
 SUPABASE_ANON_KEY:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxnb2NrY2pqZmt2dWloaG9meXhpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNjc4NjQsImV4cCI6MjEwMDY0Mzg2NH0.FspFFmiNq0WBEto-TiQCQtU2A3TTkgHQxG3LcH5nSzA",
 SHARED_EMAIL:"harunakamanifesto@gmail.com",GOOGLE_CLIENT_ID:"71995350057-k6df6q68b1040ljs4rg5uf20simbht2n.apps.googleusercontent.com"};

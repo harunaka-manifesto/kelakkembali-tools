@@ -1,3 +1,6 @@
+/* Pure fitting-schedule policy and ISO-date arithmetic. Computes design and
+   production events from payment/wedding anchors and pinned dates; owns no DOM,
+   persistence, Google API calls, or route state. */
 window.KK=window.KK||{},KK.calendar=function(){"use strict"
 ;const e=KK.util,n=["Design phase","Design deadline","Body measurements","Fitting 1","Fitting 2","Fitting 3","Final fitting"],t=n.slice(0,2),s=n.slice(2),a=s[0],o=s[s.length-1],r=["Fitting 3","Fitting 2","Fitting 1"],spanNeededFor=(e,n)=>7*(n||3)*(e-1),i=864e5
 ;function toDay(e){const n=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(e||""));if(!n)return null

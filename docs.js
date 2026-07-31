@@ -1,3 +1,6 @@
+/* Quotation and invoice engine: normalizes payment terms, fills the off-screen
+   templates, waits for capture assets, and exports PDFs. It owns document
+   rendering only; app state, saving, and download logging stay in app.js. */
 window.KK=window.KK||{},KK.docs=function(){"use strict";const t=KK.util,e=t.$,n=[{label:"1st deposit",percent:35,
 desc:"To confirm order and start the design phase."},{label:"2nd deposit",percent:35,desc:"Upon design approval to start production phase."},{
 label:"3rd deposit",percent:30,desc:"After final fitting, 7 days before delivery."}]

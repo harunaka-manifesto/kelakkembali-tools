@@ -1,3 +1,6 @@
+/* Dependency-free helpers shared by window.KK browser modules: DOM lookup,
+   escaping, date/currency/input formatting, filenames, and seeded randomness.
+   Owns no page state, persistence, or feature workflow. */
 window.KK=window.KK||{},KK.util=function(){"use strict"
 ;const t=["January","February","March","April","May","June","July","August","September","October","November","December"],digitsOnly=t=>String(null==t?"":t).replace(/[^\d]/g,"")
 ;const groupDigits=t=>{const e=digitsOnly(t).replace(/^0+(?=\d)/,"");return e?e.replace(/\B(?=(\d{3})+(?!\d))/g,"."):""};function formatLongDate(e){

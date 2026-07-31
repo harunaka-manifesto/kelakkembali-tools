@@ -1,3 +1,6 @@
+/* Fitting-journal UI adapter: camera/gallery capture, image preparation,
+   overlays, captions, and photo records. Persistence and route state are
+   supplied through callbacks; this module does not own Supabase or routing. */
 window.KK=window.KK||{},KK.fittings=function(){"use strict";const e=KK.util,t=new Map
 ;let i=null,n=null,o=null,a=null,r="environment",c=null,s=null,l=null,d=null
 ;const u=["fittingCamera","fittingConfirm","fittingCaptionStep","fittingPicker","fittingEditSheet"];function syncOverlayState(){

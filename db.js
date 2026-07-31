@@ -1,3 +1,6 @@
+/* Sole browser data-access layer. Owns the Supabase client, auth/session
+   storage, table projections and CRUD, plus Calendar/Drive Edge Function calls.
+   It deliberately contains no DOM rendering or schedule/document policy. */
 window.KK=window.KK||{},KK.db=function(){"use strict";const e=window.KK_CONFIG||{};let t=null;function isConfigured(){
 return/^https:\/\/.+\.supabase\.co\/?$/.test(String(e.SUPABASE_URL||""))&&String(e.SUPABASE_ANON_KEY||"").length>40}
 const n="kk_remember_me",r="kk_saved_password";function rememberPreference(){const e=localStorage.getItem(n);return null===e||"1"===e}

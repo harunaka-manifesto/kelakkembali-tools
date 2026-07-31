@@ -1,9 +1,8 @@
-/* =========================================================================
-   Kelak Kembali — Quotation & Invoice Generator
-   Part 1: App UI (gate, lists, forms) — mobile-first
-   Part 2: Quotation document          — locked 1:1 spec from Figma
-   Part 3: Invoice document            — locked 1:1 spec from Figma
-   ========================================================================= */
+/* Presentation for every browser view, overlay, responsive state, and the
+   off-screen quotation, invoice, and moodboard canvases. It owns no content or
+   behavior. Cascade order is intentional: page-specific rules and final revamp
+   overrides follow shared legacy primitives. See ARCHITECTURE.md before moving
+   a section. */
 
 :root {
   /* Figma homepage 37:54 variables. */

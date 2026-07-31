@@ -1,3 +1,7 @@
+/* SPA composition root. Owns hash routing, page state, DOM rendering/events,
+   validation, and workflow orchestration across customers, orders, documents,
+   schedules, moodboards, fittings, and intake. Persistent access belongs in
+   db.js; pure document and schedule rules belong in their feature modules. */
 window.KK=window.KK||{},KK.app=function(){"use strict"
 ;const e=KK.util,t=KK.db,o=KK.docs,n=KK.calendar,a=e.$,s=e.$$,r=["Custom design & consultation","Production","Standard fabric","Plain veil","Fitting","Laundry"],i=["Quoted","Confirmed","In production","Delivered"],d=["Instagram","TikTok","Referral","Walk-in","Other"],c={
 label:"Check in",days:3},l={label:"Follow up moodboard",days:3
