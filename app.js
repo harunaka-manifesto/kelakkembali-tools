@@ -11,13 +11,13 @@ homeNav:a("#homeNav"),homeNavHome:a("#homeNavHome"),homeNavMenu:a("#homeNavMenu"
 homeCustomers:a("#homeCustomers"),homeFooter:a("#homeFooter"),homeSummary:a("#homeSummary"),heroGreeting:a("#heroGreeting"),heroDeadline:a("#heroDeadline"),customerSearch:a("#customerSearch"),customerList:a("#customerList"),viewCustomer:a("#viewCustomer"),
 custBackBtn:a("#custBackBtn"),custEditBtn:a("#custEditBtn"),custHeroName:a("#custHeroName"),custWeddingText:a("#custWeddingText"),
 custNextLabel:a("#custNextLabel"),custNextDate:a("#custNextDate"),custOrdersCount:a("#custOrdersCount"),custOrdersSum:a("#custOrdersSum"),
-custOrderList:a("#custOrderList"),viewCustomerEdit:a("#viewCustomerEdit"),
-followUpLine:a("#followUpLine"),cancelCustomer:a("#cancelCustomer"),reopenCustomer:a("#reopenCustomer"),
-customerEditCard:a("#customerEditCard"),cName:a("#cName"),errCName:a("#errCName"),cPhone:a("#cPhone"),cInstagram:a("#cInstagram"),
+custOrderList:a("#custOrderList"),viewCustomerEdit:a("#viewCustomerEdit"),custEditCancel:a("#custEditCancel"),custEditTitle:a("#custEditTitle"),
+cancelCustomer:a("#cancelCustomer"),reopenCustomer:a("#reopenCustomer"),deleteCustomer:a("#deleteCustomer"),
+cName:a("#cName"),errCName:a("#errCName"),cPhone:a("#cPhone"),cInstagram:a("#cInstagram"),
 cSource:a("#cSource"),cWedding:a("#cWedding"),cWeddingMonth:a("#cWeddingMonth"),cWeddingPrecision:a("#cWeddingPrecision"),
 cMoodboardDate:a("#cMoodboardDate"),cFollowUpDate:a("#cFollowUpDate"),cFollowUpLabel:a("#cFollowUpLabel"),cCancelledReason:a("#cCancelledReason"),
-cCancelledField:a("#cCancelledField"),cNotes:a("#cNotes"),customerOrdersCard:a("#customerOrdersCard"),ordersTotal:a("#ordersTotal"),
-orderList:a("#orderList"),newOrder:a("#newOrder"),viewOrder:a("#viewOrder"),oDocNameDisplay:a("#oDocNameDisplay"),
+cCancelledField:a("#cCancelledField"),cNotes:a("#cNotes"),
+viewOrder:a("#viewOrder"),oDocNameDisplay:a("#oDocNameDisplay"),
 oFirstPaymentDisplay:a("#oFirstPaymentDisplay"),oSecondPaymentDisplay:a("#oSecondPaymentDisplay"),oFinalPaymentDisplay:a("#oFinalPaymentDisplay"),
 oWeddingDisplay:a("#oWeddingDisplay"),oItemsDisplay:a("#oItemsDisplay"),oIncludesDisplay:a("#oIncludesDisplay"),historyLog:a("#historyLog"),
 paymentSummary:a("#paymentSummary"),logPaymentBtn:a("#logPaymentBtn"),paymentChooserOptions:a("#paymentChooserOptions"),
@@ -58,9 +58,10 @@ a.focus()):e.shiftKey||document.activeElement!==a||(e.preventDefault(),n.focus()
 document.body.classList.toggle("has-savebar",!!e),syncBottomBar()}let D=null;function setPageAction(e){D=e?e.onClick:null,p.pageAction.hidden=!e,
 e&&(p.pageAction.textContent=e.label)}function setChrome(e){p.viewTitle.textContent=e.title,
 document.body.classList.toggle("is-homepage",!!e.homepage),
-// The customer detail page owns its whole canvas the way the homepage does,
-// so the app bar and page header step aside for it too.
-document.body.classList.toggle("is-custpage",!!e.custpage),p.viewSub.innerHTML=e.sub||"",p.viewSub.hidden=!e.sub
+// The customer pages own their whole canvas the way the homepage does, so the
+// app bar and page header step aside for them too.
+document.body.classList.toggle("is-custpage",!!e.custpage),
+document.body.classList.toggle("is-custeditpage",!!e.custedit),p.viewSub.innerHTML=e.sub||"",p.viewSub.hidden=!e.sub
 ;const t=e.up||null;p.upLink.hidden=!t,p.appbarBrand.hidden=!!t,t&&(p.upLink.href=t.hash,p.upLabel.textContent=t.label),
 p.homeLink.hidden=!t||"#/customers"===t.hash,setPageAction(e.action||null),p.actionbar.hidden=!e.actions,
 document.body.classList.toggle("has-actionbar",!!e.actions),setSaveBar(!!e.save),closeMenu(),
@@ -88,7 +89,12 @@ const canCancel=(e,t)=>!(!e||!e.id||e.cancelled_at||(t||[]).some(e=>e.first_paym
 ;if(canCancel(e,openCustomerOrders())&&window.confirm("Mark "+e.name+" as not proceeding?\n\nEverything is kept — they just stop appearing as live work."))try{
 w.customer=await t.updateCustomer(e.id,{cancelled_at:(new Date).toISOString(),follow_up_date:null,follow_up_label:null,follow_up_synced_at:null}),
 await pushFollowUp(),renderCustomerReadOnly(w.customer),showToast("Marked as not proceeding")}catch(e){console.error(e),
-showToast(e.message||"Could not update the customer")}}async function reopenCustomer(){const e=w.customer;if(e&&e.id&&e.cancelled_at)try{
+showToast(e.message||"Could not update the customer")}}// Reachable from the editor's foot and, on the pages that still have an app
+// bar, from the overflow menu. Both land here.
+async function deleteCustomerRecord(){const o=w.customer;if(!o||!o.id)return;const n=o.name||"this customer"
+;if(window.confirm("Delete "+n+", along with every order and download record? This cannot be undone."))try{await t.deleteCustomer(o.id),
+setDirty(!1),showToast("Customer deleted"),go("#/customers")}catch(e){console.error(e),showToast(e.message||"Could not delete")}}
+async function reopenCustomer(){const e=w.customer;if(e&&e.id&&e.cancelled_at)try{
 w.customer=await t.updateCustomer(e.id,Object.assign({cancelled_at:null,cancelled_reason:null},consultNudgeFor(Object.assign({},e,{cancelled_at:null
 }),openCustomerOrders()))),await pushFollowUp(),renderCustomerReadOnly(w.customer),showToast("Reopened")}catch(e){console.error(e),
 showToast(e.message||"Could not reopen the customer")}}function go(e){location.hash===e?handleRoute():location.hash=e}function leaveFormFor(e){
@@ -267,7 +273,14 @@ p.viewCustomer.addEventListener("keydown",e=>{if(" "!==e.key&&"Enter"!==e.key)re
 ;const t=e.target.closest(".cust-banner,.cust-nav-btn,.cust-order-card");t&&(t.classList.add("is-pressed"),t.matches(".cust-banner")&&e.preventDefault())}),
 window.addEventListener("scroll",()=>{document.body.classList.contains("is-custpage")&&clearHomepagePresses()},{passive:!0}),
 // The banners are tactile but do not lead anywhere yet.
-p.viewCustomer.addEventListener("click",e=>{e.target.closest(".cust-banner")&&e.preventDefault()});function readableAnswer(e){const t=e&&e.value
+p.viewCustomer.addEventListener("click",e=>{e.target.closest(".cust-banner")&&e.preventDefault()}),
+// The editor presses the same way. Fields press on focus rather than on touch,
+// so only the nav, the status rows and the segmented cells are wired here.
+p.viewCustomerEdit.addEventListener("pointerdown",e=>{
+const t=e.target.closest(".cust-banner,.cust-nav-btn,.custedit-segmented__btn");t&&t.classList.add("is-pressed")}),
+p.viewCustomerEdit.addEventListener("keydown",e=>{if(" "!==e.key&&"Enter"!==e.key)return
+;const t=e.target.closest(".cust-banner,.cust-nav-btn,.custedit-segmented__btn");t&&t.classList.add("is-pressed")}),
+p.saveBtn.addEventListener("pointerdown",()=>{document.body.classList.contains("is-custeditpage")&&p.saveBtn.classList.add("is-pressed")});function readableAnswer(e){const t=e&&e.value
 ;if(null==t||""===t)return"";if(!Array.isArray(t))return"object"==typeof t?JSON.stringify(t):String(t);const o=e.options||[];return t.map(e=>{
 const t=o.filter(t=>t.id===e)[0];return t?t.text:String(e)}).filter(Boolean).join(", ")}async function acceptEnquiry(){const o=w.enquiry
 ;if(o&&"new"===o.status)try{const n=await t.createCustomer(Object.assign({name:o.name||"Unnamed enquiry",phone:o.phone,instagram:o.instagram,
@@ -312,33 +325,23 @@ p.custEditBtn.href="#/customer/"+encodeURIComponent(o)+"/edit",p.custOrderList.i
 ;const[n,a]=await Promise.all([t.getCustomer(o),t.listOrders(o)]);w.customer=n,w.customerOrders=a,fillCustomerForm(n),setDirty(!1),
 renderCustomerDetail(n,a),renderCustomerReadOnly(n)}
 // Editor (#/customer/:id/edit, and #/customer/new/edit for a new record).
-async function showCustomerEdit(o,n){const a="new"===o
-;setChrome({title:a?"New customer":"Edit customer",up:a?{label:"Customers",hash:"#/customers"}:{label:"Customer",
-hash:"#/customer/"+encodeURIComponent(o)},save:!0,actions:!1,destroy:a?null:"customer",
-action:a?null:{label:"Cancel",onClick:()=>confirmLeave()&&(setDirty(!1),go("#/customer/"+encodeURIComponent(o)))}}),w.customerOrders=[]
+// Cancel lives in the nav row and delete at the foot of the page, so neither
+// needs the app bar the retro canvas hides.
+async function showCustomerEdit(o,n){const a="new"===o,s=a?"#/customers":"#/customer/"+encodeURIComponent(o)
+;setChrome({title:a?"New customer":"Edit customer",up:{label:a?"Customers":"Customer",hash:s},save:!0,actions:!1,custedit:!0}),
+w.customerOrders=[],p.custEditCancel.href=s,p.custEditTitle.textContent=a?"New customer":"Edit customer"
 ;
 // Arrived from a search that found nothing: the name is already known.
 if(a){const e=String(n&&n.get("name")||"").trim();return w.customer=Object.assign({},M),e&&(w.customer.name=e),fillCustomerForm(w.customer),
-setDirty(!0),p.viewSub.hidden=!0,p.customerOrdersCard.hidden=!0,p.cancelCustomer.hidden=!0,p.reopenCustomer.hidden=!0,p.followUpLine.hidden=!0,
-void(e?p.cPhone:p.cName).focus()}p.orderList.innerHTML='<p class="empty">Loading…</p>',p.customerOrdersCard.hidden=!1
-;const[s,r]=await Promise.all([t.getCustomer(o),t.listOrders(o)]);w.customer=s,w.customerOrders=r,fillCustomerForm(s),setDirty(!1),
-renderCustomerReadOnly(s),renderCustomerOrderRows(r)}
-// The status badge, the follow-up line and the two status buttons — everything
-// about a customer that is read rather than typed, all of it in the editor.
+setDirty(!0),p.viewSub.hidden=!0,p.cancelCustomer.hidden=!0,p.reopenCustomer.hidden=!0,p.deleteCustomer.hidden=!0,
+void(e?p.cPhone:p.cName).focus()}
+const[r,i]=await Promise.all([t.getCustomer(o),t.listOrders(o)]);w.customer=r,w.customerOrders=i,fillCustomerForm(r),setDirty(!1),
+renderCustomerReadOnly(r)}
+// The three things about a customer that are decided rather than typed. They
+// are read off what already exists, so they can only ever be shown or hidden.
 function renderCustomerReadOnly(t){const o=openCustomerOrders(),n=customerStatus(t,o)
 ;p.viewSub.innerHTML='<span class="'+badgeClass(n)+'">'+e.escapeHtml(n)+"</span>",p.viewSub.hidden=!1,
-p.cancelCustomer.hidden=!canCancel(t,o),p.reopenCustomer.hidden=!t.cancelled_at,p.followUpLine.hidden=!!t.cancelled_at,
-p.followUpLine.textContent=t.follow_up_date?(t.follow_up_label||"Follow up")+" · "+e.formatShortDate(t.follow_up_date)+" · "+relativeToToday(t.follow_up_date)+(t.follow_up_synced_at?"":" · not in Google Calendar"):o.length?"":"Nothing to follow up."}
-// The classic order list inside the editor, kept for the New order button.
-function renderCustomerOrderRows(t){
-if(p.ordersTotal.textContent=t.length?e.formatRupiah(t.reduce((e,t)=>e+o.computeTotal(t.items),0)):"",
-!t.length)return void(p.orderList.innerHTML='<p class="empty">No orders yet.</p>');const a=w.customer&&w.customer.wedding_date
-;p.orderList.innerHTML=t.map(t=>{
-const s=n.computeProduction(productionAnchor(t),a).events.map(e=>e.event_date).filter(t=>t>=e.todayISO())[0],r=effectiveStatus(t)
-;return'<a class="row row--kanban" href="#/order/'+t.id+'"><span class="row__main"><span class="row__title">'+e.escapeHtml(orderLabel(t))+'</span><span class="row__meta">'+e.escapeHtml(function(e){
-const t=(e||[]).filter(e=>""!==String(e.name||"").trim()).map(e=>e.name);return t.length?t.join(", "):"No items yet"
-}(t.items))+'</span><span class="row__tags"><span class="'+badgeClass(r)+'">'+e.escapeHtml(r)+"</span>"+(s?'<span class="row__meta">Fitting '+e.escapeHtml(e.formatShortDate(s))+"</span>":"")+'</span></span><span class="row__amount">'+e.formatRupiah(o.computeTotal(t.items))+"</span></a>"
-}).join("")}
+p.cancelCustomer.hidden=!canCancel(t,o),p.reopenCustomer.hidden=!t.cancelled_at,p.deleteCustomer.hidden=!t.id}
 // The next thing in the diary: a booked appointment, the follow-up, or, when
 // nothing else is left, the wedding. Computed from the orders on the page, so
 // it is right whether you arrived from the homepage or from a bookmark.
@@ -366,7 +369,7 @@ p.cNotes.value=e.notes||"",p.cWedding.value=e.wedding_date||"",p.cWeddingMonth.v
 setWeddingPrecision("month"===e.wedding_date_precision?"month":"day"),p.cMoodboardDate.value=e.moodboard_date||"",
 p.cFollowUpDate.value=e.follow_up_date||"",p.cFollowUpLabel.value=e.follow_up_label||"",p.cCancelledReason.value=e.cancelled_reason||"",
 p.cCancelledField.hidden=!e.cancelled_at,p.cName.classList.remove("is-invalid"),p.errCName.hidden=!0}function setWeddingPrecision(e){
-const t="month"===e;p.cWedding.hidden=t,p.cWeddingMonth.hidden=!t,s(".segmented__btn",p.cWeddingPrecision).forEach(e=>{
+const t="month"===e;p.cWedding.hidden=t,p.cWeddingMonth.hidden=!t,s(".custedit-segmented__btn",p.cWeddingPrecision).forEach(e=>{
 const o="month"===e.dataset.precision===t;e.classList.toggle("is-on",o),e.setAttribute("aria-pressed",String(o))})}
 const weddingPrecision=()=>p.cWeddingMonth.hidden?"day":"month";function lastDayOfMonth(e){const t=/^(\d{4})-(\d{2})$/.exec(String(e||""))
 ;if(!t)return null;const o=new Date(Date.UTC(Number(t[1]),Number(t[2]),0));return n.fromDay(Math.round(o.getTime()/864e5))}
@@ -587,18 +590,12 @@ p.menuList.hidden||p.menu.contains(e.target)||(p.homeNavMenuWrapper&&p.homeNavMe
 "order"===p.menuDelete.dataset.kind?async function(){
 if(window.confirm("Delete this order and its payment and download record? This cannot be undone."))try{const e=w.order.customer_id
 ;await t.deleteOrder(w.order.id),setDirty(!1),showToast("Order deleted"),go("#/customer/"+e)}catch(e){console.error(e),
-showToast(e.message||"Could not delete")}}():async function(){const e=w.customer.name||"this customer"
-;if(window.confirm("Delete "+e+", along with every order and download record? This cannot be undone."))try{await t.deleteCustomer(w.customer.id),
-setDirty(!1),showToast("Customer deleted"),go("#/customers")}catch(e){console.error(e),showToast(e.message||"Could not delete")}}()}),
+showToast(e.message||"Could not delete")}}():deleteCustomerRecord()}),p.deleteCustomer.addEventListener("click",deleteCustomerRecord),
 p.customerSearch.addEventListener("input",renderCustomerList),s(".js-cfield").forEach(e=>{e.addEventListener("input",()=>{
 e===p.cName&&e.value.trim()&&(e.classList.remove("is-invalid"),p.errCName.hidden=!0),setDirty(!0)}),e.addEventListener("change",()=>setDirty(!0))}),
-p.cWeddingPrecision.addEventListener("click",e=>{const t=e.target.closest(".segmented__btn")
+p.cWeddingPrecision.addEventListener("click",e=>{const t=e.target.closest(".custedit-segmented__btn")
 ;t&&t.dataset.precision!==weddingPrecision()&&(setWeddingPrecision(t.dataset.precision),setDirty(!0))}),
 p.cancelCustomer.addEventListener("click",cancelCustomer),p.reopenCustomer.addEventListener("click",reopenCustomer),
-p.newOrder.addEventListener("click",async()=>{if(confirmLeave()){setDirty(!1);try{const o=await t.createOrder({customer_id:w.customer.id,
-document_date:e.todayISO(),status:"Quoted",items:[],includes:r.slice()});await t.logOrderHistory(o.id,"created",{}),
-w.customerOrders=(w.customerOrders||[]).concat(o);try{await setFollowUp(consultNudgeFor(w.customer,w.customerOrders))}catch(e){console.error(e)}
-go("#/order/"+o.id+"/edit")}catch(e){console.error(e),showToast(e.message||"Could not create the order")}}}),
 p.logPaymentBtn.addEventListener("click",()=>{p.paymentChooserOptions.hidden?function(){
 const t=o.computeTotal(w.order.items),n=o.termsFor(w.order),a=o.termAmounts(t,n),s=w.loggedDeposits||{}
 ;p.paymentChooserOptions.innerHTML=n.map((t,o)=>s[o]?"":'<button type="button" class="btn btn--outline btn--block js-log-deposit" data-i="'+o+'">'+e.escapeHtml(t.label)+" — "+e.formatRupiah(a[o])+"</button>").join(""),

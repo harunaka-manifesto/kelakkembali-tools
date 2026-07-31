@@ -262,113 +262,212 @@
   <!-- --------------------------- Customer editor -------------------------- -->
   <!-- Everything writable about a customer, on its own route so the detail page
        stays a thing you read. Also where a customer is created, and where the
-       one status nothing else implies is set. -->
-  <section class="view" id="viewCustomerEdit" hidden>
-    <section class="card" id="customerEditCard">
-      <p class="card__hint" id="followUpLine"></p>
-      <label class="field" for="cName">
-        <span class="field__label">Name</span>
-        <input class="input js-cfield" id="cName" type="text" placeholder="e.g. Jane Doe"
-               autocomplete="name" autocapitalize="words" spellcheck="false">
-        <span class="err" id="errCName" hidden>Please enter the customer name.</span>
-      </label>
+       two statuses nothing else implies are set.
 
-      <div class="grid2">
-        <label class="field" for="cPhone">
-          <span class="field__label">Phone / WhatsApp</span>
-          <input class="input js-cfield" id="cPhone" type="tel" placeholder="+62…"
-                 autocomplete="tel" spellcheck="false">
-        </label>
-        <label class="field" for="cInstagram">
-          <span class="field__label">Instagram</span>
-          <input class="input js-cfield" id="cInstagram" type="text" placeholder="@handle"
-                 autocapitalize="none" spellcheck="false">
-        </label>
+       Same ledger as the detail page: every field is a white card inset in the
+       black grid, so a thing you type into and a thing you tap through are
+       recognisably the same object. Focusing a field presses it, exactly as
+       tapping an order card presses that. -->
+  <section class="view custedit" id="viewCustomerEdit" hidden>
+    <nav class="cust-nav" aria-label="Editor navigation">
+      <a class="cust-nav-btn" id="custEditCancel" href="#/customers">
+        <span class="cust-nav-btn__face">
+          <img src="assets/cust-back-icon.svg" alt="" width="24" height="24">
+          <span>Cancel</span>
+        </span>
+        <span class="cust-nav-btn__rail" aria-hidden="true"></span>
+      </a>
+    </nav>
+
+    <div class="custedit-ledger">
+      <div class="cust-grid-spacer" aria-hidden="true"></div>
+      <div class="custedit-title"><h1 id="custEditTitle">Edit customer</h1></div>
+      <div class="cust-grid-spacer" aria-hidden="true"></div>
+
+      <div class="custedit-field">
+        <div class="cust-grid-rule" aria-hidden="true"></div>
+        <div class="cust-inset">
+          <div class="custedit-card">
+            <label class="custedit-card__label" for="cName">Name</label>
+            <input class="custedit-input js-cfield" id="cName" type="text" placeholder="e.g. Jane Doe"
+                   autocomplete="name" autocapitalize="words" spellcheck="false">
+            <span class="err" id="errCName" hidden>Please enter the customer name.</span>
+          </div>
+          <div class="custedit-card__rail" aria-hidden="true"></div>
+        </div>
+        <div class="cust-grid-rule" aria-hidden="true"></div>
       </div>
+      <div class="cust-grid-spacer" aria-hidden="true"></div>
 
-      <label class="field" for="cSource">
-        <span class="field__label">Source</span>
-        <select class="input js-cfield" id="cSource">
-          <option value="">—</option>
-          <option>Instagram</option>
-          <option>TikTok</option>
-          <option>Referral</option>
-          <option>Walk-in</option>
-          <option>Other</option>
-        </select>
-      </label>
+      <div class="custedit-field">
+        <div class="cust-grid-rule" aria-hidden="true"></div>
+        <div class="cust-inset">
+          <div class="custedit-card">
+            <label class="custedit-card__label" for="cPhone">Phone / WhatsApp</label>
+            <input class="custedit-input js-cfield" id="cPhone" type="tel" placeholder="+62…"
+                   autocomplete="tel" spellcheck="false">
+          </div>
+          <div class="custedit-card__rail" aria-hidden="true"></div>
+        </div>
+        <div class="cust-grid-rule" aria-hidden="true"></div>
+      </div>
+      <div class="cust-grid-spacer" aria-hidden="true"></div>
+
+      <div class="custedit-field">
+        <div class="cust-grid-rule" aria-hidden="true"></div>
+        <div class="cust-inset">
+          <div class="custedit-card">
+            <label class="custedit-card__label" for="cInstagram">Instagram</label>
+            <input class="custedit-input js-cfield" id="cInstagram" type="text" placeholder="@handle"
+                   autocapitalize="none" spellcheck="false">
+          </div>
+          <div class="custedit-card__rail" aria-hidden="true"></div>
+        </div>
+        <div class="cust-grid-rule" aria-hidden="true"></div>
+      </div>
+      <div class="cust-grid-spacer" aria-hidden="true"></div>
+
+      <div class="custedit-field">
+        <div class="cust-grid-rule" aria-hidden="true"></div>
+        <div class="cust-inset">
+          <div class="custedit-card">
+            <label class="custedit-card__label" for="cSource">Source</label>
+            <div class="custedit-select">
+              <select class="custedit-input js-cfield" id="cSource">
+                <option value="">—</option>
+                <option>Instagram</option>
+                <option>TikTok</option>
+                <option>Referral</option>
+                <option>Walk-in</option>
+                <option>Other</option>
+              </select>
+              <img class="custedit-select__chevron" src="assets/home-chevron-icon.svg" alt="" width="24" height="24">
+            </div>
+          </div>
+          <div class="custedit-card__rail" aria-hidden="true"></div>
+        </div>
+        <div class="cust-grid-rule" aria-hidden="true"></div>
+      </div>
+      <div class="cust-grid-spacer" aria-hidden="true"></div>
 
       <!-- Couples book before they have set a day, and "sometime in June" is
            real information a date input cannot hold. The month is stored as
            that month's last day — the safe direction to be wrong in — and the
            precision flag is what stops an estimate reaching Google Calendar. -->
-      <div class="field">
-        <span class="field__label">Wedding date</span>
-        <div class="segmented" id="cWeddingPrecision">
-          <button type="button" class="segmented__btn" data-precision="day">Exact date</button>
-          <button type="button" class="segmented__btn" data-precision="month">Month only</button>
+      <div class="custedit-field">
+        <div class="cust-grid-rule" aria-hidden="true"></div>
+        <div class="cust-inset">
+          <div class="custedit-card">
+            <span class="custedit-card__label">Wedding date</span>
+            <div class="custedit-segmented" id="cWeddingPrecision">
+              <button type="button" class="custedit-segmented__btn" data-precision="day">
+                <span class="custedit-segmented__face">Exact date</span>
+                <span class="custedit-segmented__rail" aria-hidden="true"></span>
+              </button>
+              <button type="button" class="custedit-segmented__btn" data-precision="month">
+                <span class="custedit-segmented__face">Month only</span>
+                <span class="custedit-segmented__rail" aria-hidden="true"></span>
+              </button>
+            </div>
+            <input class="custedit-input js-cfield" id="cWedding" type="date" aria-label="Wedding date">
+            <input class="custedit-input js-cfield" id="cWeddingMonth" type="month" aria-label="Wedding month" hidden>
+          </div>
+          <div class="custedit-card__rail" aria-hidden="true"></div>
         </div>
-        <input class="input js-cfield" id="cWedding" type="date" aria-label="Wedding date">
-        <input class="input js-cfield" id="cWeddingMonth" type="month" aria-label="Wedding month" hidden>
+        <div class="cust-grid-rule" aria-hidden="true"></div>
       </div>
+      <div class="cust-grid-spacer" aria-hidden="true"></div>
 
       <!-- The one date in the early conversation with a promise attached, so
            it is also what the follow-up below counts from. Filling it in moves
            the chase to a week after the moodboard went out. -->
-      <label class="field" for="cMoodboardDate">
-        <span class="field__label">Moodboard sent</span>
-        <input class="input js-cfield" id="cMoodboardDate" type="date">
-      </label>
+      <div class="custedit-field">
+        <div class="cust-grid-rule" aria-hidden="true"></div>
+        <div class="cust-inset">
+          <div class="custedit-card">
+            <label class="custedit-card__label" for="cMoodboardDate">Moodboard sent</label>
+            <input class="custedit-input js-cfield" id="cMoodboardDate" type="date">
+          </div>
+          <div class="custedit-card__rail" aria-hidden="true"></div>
+        </div>
+        <div class="cust-grid-rule" aria-hidden="true"></div>
+      </div>
+      <div class="cust-grid-spacer" aria-hidden="true"></div>
 
       <!-- Editable, because a nudge you cannot push back is a nudge you start
            dismissing. The app sets one while there is no order yet; this is
            the override. -->
-      <div class="grid2">
-        <label class="field" for="cFollowUpDate">
-          <span class="field__label">Follow up on</span>
-          <input class="input js-cfield" id="cFollowUpDate" type="date">
-        </label>
-        <label class="field" for="cFollowUpLabel">
-          <span class="field__label">Follow up about</span>
-          <input class="input js-cfield" id="cFollowUpLabel" type="text"
-                 placeholder="e.g. Moodboard due" autocapitalize="sentences">
-        </label>
+      <div class="custedit-field">
+        <div class="cust-grid-rule" aria-hidden="true"></div>
+        <div class="cust-inset">
+          <div class="custedit-card">
+            <label class="custedit-card__label" for="cFollowUpDate">Follow up on</label>
+            <input class="custedit-input js-cfield" id="cFollowUpDate" type="date">
+            <label class="custedit-card__label custedit-card__label--split" for="cFollowUpLabel">Follow up about</label>
+            <input class="custedit-input js-cfield" id="cFollowUpLabel" type="text"
+                   placeholder="e.g. Moodboard due" autocapitalize="sentences">
+          </div>
+          <div class="custedit-card__rail" aria-hidden="true"></div>
+        </div>
+        <div class="cust-grid-rule" aria-hidden="true"></div>
+      </div>
+      <div class="cust-grid-spacer" aria-hidden="true"></div>
+
+      <div class="custedit-field" id="cCancelledField" hidden>
+        <div class="cust-grid-rule" aria-hidden="true"></div>
+        <div class="cust-inset">
+          <div class="custedit-card">
+            <label class="custedit-card__label" for="cCancelledReason">Why it did not proceed</label>
+            <input class="custedit-input js-cfield" id="cCancelledReason" type="text"
+                   placeholder="e.g. Went with another studio" autocapitalize="sentences">
+          </div>
+          <div class="custedit-card__rail" aria-hidden="true"></div>
+        </div>
+        <div class="cust-grid-rule" aria-hidden="true"></div>
+        <div class="cust-grid-spacer" aria-hidden="true"></div>
       </div>
 
-      <label class="field" for="cCancelledReason" id="cCancelledField" hidden>
-        <span class="field__label">Why it did not proceed</span>
-        <input class="input js-cfield" id="cCancelledReason" type="text"
-               placeholder="e.g. Went with another studio" autocapitalize="sentences">
-      </label>
-
-      <label class="field" for="cNotes">
-        <span class="field__label">Notes</span>
-        <textarea class="input input--area js-cfield" id="cNotes" rows="3"
-                  placeholder="Measurements, preferences, anything else…"></textarea>
-      </label>
-    </section>
-
-    <section class="card" id="customerOrdersCard">
-      <div class="card__head">
-        <h2 class="card__title">Orders</h2>
-        <span class="card__count" id="ordersTotal"></span>
+      <div class="custedit-field">
+        <div class="cust-grid-rule" aria-hidden="true"></div>
+        <div class="cust-inset">
+          <div class="custedit-card">
+            <label class="custedit-card__label" for="cNotes">Notes</label>
+            <textarea class="custedit-input custedit-input--area js-cfield" id="cNotes" rows="4"
+                      placeholder="Measurements, preferences, anything else…"></textarea>
+          </div>
+          <div class="custedit-card__rail" aria-hidden="true"></div>
+        </div>
+        <div class="cust-grid-rule" aria-hidden="true"></div>
       </div>
-      <div class="list" id="orderList"></div>
-      <button type="button" class="btn btn--outline btn--new btn--block" id="newOrder">
-        <span aria-hidden="true">+</span> New order
-      </button>
-    </section>
+      <div class="cust-grid-spacer" aria-hidden="true"></div>
+    </div>
 
     <!-- The foot of the page, after everything you would do with a customer who
-         is still going. Not a delete: the record stays, the name stays, and the
-         enquiry stops counting as live work. Deleting lives in the app bar
-         menu, where the other irreversible things are. -->
-    <button type="button" class="btn btn--quiet btn--block" id="cancelCustomer" hidden>
-      Mark as not proceeding
-    </button>
-    <button type="button" class="btn btn--outline btn--block" id="reopenCustomer" hidden>
-      Reopen this customer
-    </button>
+         is still going. Not proceeding is not a delete: the record stays, the
+         name stays, and the enquiry stops counting as live work. Delete is, and
+         it sits last and alone, in the only red on the page. -->
+    <div class="custedit-actions">
+      <button type="button" class="cust-banner cust-banner--stop" id="cancelCustomer" hidden>
+        <span class="cust-banner__face">
+          <span class="cust-banner__left"><span class="cust-banner__title">Mark as not proceeding</span></span>
+        </span>
+        <span class="cust-banner__rail" aria-hidden="true"></span>
+      </button>
+      <button type="button" class="cust-banner cust-banner--reopen" id="reopenCustomer" hidden>
+        <span class="cust-banner__face">
+          <span class="cust-banner__left"><span class="cust-banner__title">Reopen this customer</span></span>
+        </span>
+        <span class="cust-banner__rail" aria-hidden="true"></span>
+      </button>
+      <button type="button" class="cust-banner cust-banner--danger" id="deleteCustomer" hidden>
+        <span class="cust-banner__face">
+          <span class="cust-banner__left"><span class="cust-banner__title">Delete customer</span></span>
+        </span>
+        <span class="cust-banner__rail" aria-hidden="true"></span>
+      </button>
+    </div>
+
+    <footer class="cust-footer">Made with love for Ichaku</footer>
   </section>
 
   <!-- ---------------------------- Order editor --------------------------- -->

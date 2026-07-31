@@ -864,7 +864,8 @@ body.is-custpage .view { gap: 0; }
 .cust-grid-spacer::before { left: 24px; }
 .cust-grid-spacer::after  { right: 24px; }
 
-.cust-order-record__inset { padding: 0 24px; }
+.cust-order-record__inset,
+.cust-inset { padding: 0 24px; }
 .cust-order-card {
   display: block;
   color: var(--home-black);
@@ -967,12 +968,270 @@ body.is-custpage .view { gap: 0; }
   letter-spacing: -.42px;
 }
 
+/* --------------------------- Customer editor ---------------------------- */
+
+/* The editor is the detail page's ledger with the cards opened up: same 24px
+   inset, same side rules, same shadow rail. A field you type into and an order
+   you tap through are the same object, so focusing one presses it. */
+body.is-custeditpage { background: #292929; overflow-x: hidden; }
+body.is-custeditpage .appbar,
+body.is-custeditpage .pagehead { display: none; }
+body.is-custeditpage .page {
+  width: min(390px, 100%);
+  max-width: 390px;
+  min-height: 100svh;
+  margin: 0 auto;
+  padding: 0;
+  background: var(--home-black);
+}
+body.is-custeditpage .view { gap: 0; }
+
+.custedit {
+  display: flex;
+  flex-direction: column;
+  background: var(--home-black);
+  /* Room for the fixed save bar, so the last field always clears it. */
+  padding-bottom: var(--bottombar-h, 0px);
+}
+.custedit .cust-nav { background: var(--home-white); }
+
+.custedit-ledger { background: var(--home-black); }
+
+/* The page title sits inside the ledger rather than above it, the way an order
+   title does — the white hero belongs to the page you read, not the one you
+   fill in. */
+.custedit-title { padding: 12px 24px; }
+.custedit-title h1 {
+  margin: 0;
+  color: var(--home-white);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 40px;
+  letter-spacing: -.96px;
+  overflow-wrap: anywhere;
+}
+
+.custedit-field[hidden] { display: none; }
+.custedit-card {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--home-white);
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
+  transition: padding 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.custedit-card__label {
+  color: var(--home-grid);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+}
+/* A second label inside one card — the follow-up pair reads as one thing. */
+.custedit-card__label--split { margin-top: 6px; }
+.custedit-card__rail {
+  height: 12px;
+  display: block;
+  background: var(--home-white-dark);
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
+  transition: height 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+/* Focus presses the card exactly as tapping presses an order card: 8px moves
+   off the rail into the face, so the field's total height never changes and
+   the fields below it hold still while you tab through the form. */
+.custedit-card:focus-within {
+  padding-top: 16px;
+  padding-bottom: 16px;
+  background: linear-gradient(180deg, transparent, rgba(0,0,0,.06)), var(--home-white);
+}
+.custedit-card:focus-within + .custedit-card__rail { height: 4px; }
+
+.custedit-input {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--home-black);
+  font: 500 16px/24px 'Plus Jakarta Sans', sans-serif;
+  letter-spacing: -.48px;
+}
+.custedit-input::placeholder { color: rgba(13, 13, 13, .38); }
+.custedit-input[hidden] { display: none; }
+.custedit-input--area { resize: vertical; min-height: 96px; }
+/* Native date fields keep their own picker but not their own metrics. */
+.custedit-input[type="date"],
+.custedit-input[type="month"] { -webkit-appearance: none; appearance: none; height: 24px; }
+.custedit-input.is-invalid { color: var(--danger); }
+
+.custedit-select { position: relative; display: flex; align-items: center; }
+.custedit-select select {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 28px;
+  cursor: pointer;
+}
+/* The shared chevron is drawn white for the dark bars it normally sits on, so
+   on a white card it is inverted rather than redrawn. */
+.custedit-select__chevron {
+  position: absolute;
+  right: 0;
+  width: 20px;
+  height: 20px;
+  pointer-events: none;
+  transform: rotate(180deg);
+  filter: invert(1);
+}
+
+/* Two flat cells, each with the same face-and-rail body as everything else. */
+.custedit-segmented { display: flex; gap: 8px; margin: 2px 0 4px; }
+.custedit-segmented__btn {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid var(--home-white-dark);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--home-black);
+  display: grid;
+  grid-template-rows: 32px 5px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: grid-template-rows 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.custedit-segmented__face {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--home-white);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 16px;
+  letter-spacing: -.39px;
+}
+.custedit-segmented__rail { display: block; background: var(--home-white-dark); }
+.custedit-segmented__btn.is-on { border-color: var(--home-black); }
+.custedit-segmented__btn.is-on .custedit-segmented__face {
+  background: var(--home-black);
+  color: var(--home-white);
+}
+.custedit-segmented__btn.is-on .custedit-segmented__rail { background: var(--home-grid); }
+.custedit-segmented__btn:active,
+.custedit-segmented__btn.is-pressed { grid-template-rows: 35px 2px; }
+
+.custedit-card .err {
+  margin: 0;
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  letter-spacing: -.36px;
+}
+.custedit-card .err[hidden] { display: none; }
+
+/* ---------------------------- Status actions ----------------------------- */
+
+/* Full-bleed rows in the banner shape, so the two things that change what a
+   customer *is* look like decisions rather than form controls. */
+.custedit-actions { display: flex; flex-direction: column; }
+.custedit-actions .cust-banner {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+}
+.custedit-actions .cust-banner[hidden] { display: none; }
+.cust-banner--stop   .cust-banner__face { background: var(--home-black-light); }
+.cust-banner--stop   .cust-banner__rail { background: var(--home-grid); }
+.cust-banner--reopen .cust-banner__face { background: linear-gradient(180deg, rgba(0,0,0,.04), transparent), var(--home-green); }
+.cust-banner--reopen .cust-banner__rail { background: #19aa16; }
+.cust-banner--danger .cust-banner__face { background: var(--danger); }
+.cust-banner--danger .cust-banner__rail { background: #7f2817; }
+
+/* ------------------------------- Save bar -------------------------------- */
+
+/* The app's own save bar, re-skinned rather than replaced, so the dirty and
+   saving states keep driving it. */
+body.is-custeditpage .savebar {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  width: min(390px, 100%);
+  max-width: 390px;
+  padding: 0;
+  border: 0;
+  background: none;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+body.is-custeditpage .savebar__inner {
+  max-width: none;
+  padding: 0 0 env(safe-area-inset-bottom, 0px);
+  gap: 0;
+}
+body.is-custeditpage #saveBtn {
+  width: 100%;
+  height: 64px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--home-white);
+  display: grid;
+  grid-template-rows: 56px 8px;
+  /* The base button centres its contents; the face and rail must fill instead. */
+  align-items: stretch;
+  justify-items: stretch;
+  justify-content: stretch;
+  overflow: hidden;
+  transition: grid-template-rows 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+body.is-custeditpage #saveBtn .btn__label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, rgba(0,0,0,.04), transparent), var(--home-green);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+  letter-spacing: -.48px;
+}
+body.is-custeditpage #saveBtn::after {
+  content: '';
+  display: block;
+  background: #19aa16;
+}
+body.is-custeditpage #saveBtn:disabled { cursor: default; }
+body.is-custeditpage #saveBtn:disabled .btn__label {
+  background: var(--home-black-light);
+  color: var(--home-grid);
+}
+body.is-custeditpage #saveBtn:disabled::after { background: var(--home-black); }
+body.is-custeditpage #saveBtn:not(:disabled):active,
+body.is-custeditpage #saveBtn.is-pressed { grid-template-rows: 62px 2px; }
+body.is-custeditpage #saveBtn:not(:disabled):active .btn__label,
+body.is-custeditpage #saveBtn.is-pressed .btn__label {
+  background-image: linear-gradient(180deg, transparent, rgba(0,0,0,.14));
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cust-nav-btn,
   .cust-banner__face,
   .cust-banner__rail,
   .cust-order-card__face,
-  .cust-order-card__rail { transition: none; }
+  .cust-order-card__rail,
+  .custedit-card,
+  .custedit-card__rail,
+  .custedit-segmented__btn,
+  body.is-custeditpage #saveBtn { transition: none; }
 }
 
 /* -------------------------------- Boot ---------------------------------- */
