@@ -1,11 +1,11 @@
 # Kelak Kembali — Wedding Quotation & Invoice Generator
 
-A single-page, mobile-first tool that turns a short form into a downloadable PDF
-— either a **quotation** or an **invoice** — matching the Kelak Kembali designs
-1:1. One form fills both documents; the action bar offers a button for each.
+A single-page, mobile-first studio workflow for enquiries, customers, orders,
+fittings, schedules, moodboards, quotations, and invoices. The generated
+documents match the Kelak Kembali designs 1:1.
 
 Customers and their orders are kept in **Supabase**, behind a shared password.
-There is still no build step: the whole thing is static files plus three CDN
+There is still no build step: the whole thing is static files plus four CDN
 scripts, deployed exactly as-is.
 
 ```
@@ -69,9 +69,13 @@ npx vercel deploy --prod
 
 ## How it works
 
+For module boundaries, dependency order, and a task-to-file entry map, start
+with [`ARCHITECTURE.md`](ARCHITECTURE.md). This README retains the detailed
+business, rendering, and design contracts.
+
 | File | Role |
 |---|---|
-| `index.html` | The gate, the six views, and the two off-screen document templates |
+| `index.html` | The gate, SPA views/overlays, and three off-screen document templates |
 | `styles.css` | Part 1: app UI. Part 2: the quotation. Part 3: the invoice |
 | `fonts.css` | Plus Jakarta Sans, self-hosted and inlined (see below) |
 | `config.js` | Supabase URL, anon key, the shared account's email, Google client ID |
@@ -87,7 +91,7 @@ npx vercel deploy --prod
 | `supabase/functions/google-drive/` | Server-side: archives moodboard PDFs and fitting photos in Google Drive |
 | `supabase/functions/intake/` | Server-side: the public Tally webhook, HMAC-verified |
 | `serve.ps1` | Local static server, so testing needs nothing installed |
-| `assets/` | The two logo marks, exported from Figma at 4x |
+| `assets/` | Logo marks, page icons, and the self-hosted UI font |
 
 They are plain `<script>` files sharing a `window.KK` namespace, not ES
 modules — modules would need `http://` even to open the file locally, and the

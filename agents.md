@@ -3,6 +3,10 @@
 ## 🗺️ Architectural Topology
 Vanilla JS Single Page Application (SPA) with a Supabase backend. Logic is heavily modularized into client-side JS files controlling DOM events, with a unified data access layer connected to PostgREST.
 
+Read `ARCHITECTURE.md` for the dependency graph, module boundaries, and the
+task-to-file entry map. Treat `PLAN-*.md` as historical implementation records,
+not the current architecture source of truth.
+
 ## 🔍 Directory Blueprint & Intent
 - `/`: Root directory. Contains all core HTML, CSS, and modular Vanilla JS logic files serving the single-page application.
 - `/assets`: Static media, icons, and branding assets used across the interface.
