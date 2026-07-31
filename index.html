@@ -44,24 +44,6 @@
 <!-- ============================ APP UI ============================ -->
 <div class="app" id="app" hidden>
 
-<nav class="homepage-nav" id="homepageNav" aria-label="Homepage" hidden>
-  <div class="homepage-nav__inner">
-    <a class="homepage-nav__target" id="homepageHome" href="#/customers" aria-label="Home">
-      <span class="homepage-nav__control"><img src="assets/home-nav-home.svg" alt=""></span>
-    </a>
-    <div class="homepage-nav__menu" id="homepageMenu">
-      <button type="button" class="homepage-nav__target" id="homepageMenuBtn"
-              aria-label="Menu" aria-haspopup="menu" aria-expanded="false">
-        <span class="homepage-nav__control"><img src="assets/home-nav-menu.svg" alt=""></span>
-      </button>
-      <div class="menu__list homepage-nav__menu-list" id="homepageMenuList" role="menu" hidden>
-        <a class="menu__item" role="menuitem" id="homepageMenuCalendar" href="#/calendar">Google Calendar</a>
-        <button type="button" class="menu__item" role="menuitem" id="homepageMenuSignOut">Sign out</button>
-      </div>
-    </div>
-  </div>
-</nav>
-
 <header class="appbar">
   <div class="appbar__inner">
     <!-- Up, not Back. history.back() replayed pages you had already left — save
@@ -119,49 +101,24 @@
   </div>
 
   <!-- --------------------------- Customer list --------------------------- -->
-  <section class="view" id="viewCustomers">
-    <section class="home-hero" id="homeHero" aria-label="Today">
-      <canvas class="home-hero__canvas" id="heroCanvas" aria-hidden="true"></canvas>
-      <div class="home-hero__nav-spacer" aria-hidden="true"></div>
-      <div class="home-hero__content">
-        <div class="home-hero__emoji" id="heroEmoji" aria-hidden="true"></div>
-        <h2 class="home-hero__greeting" id="heroGreeting">
-          <span class="sr-only" id="heroGreetingAccessible"></span>
-          <span class="home-hero__greeting-visual" id="heroGreetingVisual" aria-hidden="true"></span>
-        </h2>
-        <p class="home-hero__deadline" id="heroDeadline" hidden></p>
+  <section class="view home" id="viewCustomers">
+    <div class="home-stage" id="homeStage" aria-busy="true">
+      <div class="home-state home-state--loading" id="homeLoading" role="status" aria-live="polite"><span class="sr-only">Loading homepage</span><div class="home-loading-art" aria-hidden="true"></div></div>
+      <div class="home-state home-state--error" id="homeError" role="alert" hidden></div>
+      <div class="home-state home-state--ready" id="homeReady" hidden>
+        <section class="home-hero" id="homeHero" aria-label="Today"><div class="home-hero__content"><h1 class="home-hero__greeting" id="heroGreeting"></h1><p class="home-hero__deadline" id="heroDeadline"></p></div></section>
+        <section class="home-actions" id="homeActions" aria-label="Shortcuts">
+          <button type="button" class="home-action home-action--schedule" aria-disabled="true"><span class="home-action__face"><img src="assets/home-schedule-icon.svg" alt="">Schedule</span><span class="home-action__rail"></span></button>
+          <button type="button" class="home-action home-action--quotation" aria-disabled="true"><span class="home-action__face"><img src="assets/home-quote-icon.svg" alt="">Quotation</span><span class="home-action__rail"></span></button>
+          <button type="button" class="home-action home-action--invoice" aria-disabled="true"><span class="home-action__face"><img src="assets/home-invoice-icon.svg" alt="">Invoice</span><span class="home-action__rail"></span></button>
+          <button type="button" class="home-action home-action--fitting" aria-disabled="true"><span class="home-action__face"><img src="assets/home-fitting-icon.svg" alt="">Fitting</span><span class="home-action__rail"></span></button>
+        </section>
+        <button type="button" class="home-alert" id="enquiriesCard" aria-disabled="true" hidden><span class="home-alert__face"><img class="home-alert__icon" src="assets/home-alert-icon.svg" alt=""><span id="enquiriesCount"></span><img class="home-alert__chevron" src="assets/home-chevron-icon.svg" alt=""></span><span class="home-alert__rail"></span></button>
+        <section class="home-search-section" aria-label="Customer search"><label class="home-search" for="customerSearch"><img class="home-search__icon" src="assets/home-search-icon.svg" alt=""><input id="customerSearch" type="search" enterkeyhint="search" placeholder="Search customer name" autocapitalize="none" spellcheck="false"></label><div class="home-search__rail" aria-hidden="true"></div></section>
+        <section class="home-customers" id="homeCustomers" aria-label="Customers"><div class="home-summary" id="homeSummary"></div><div class="home-grid-spacer" aria-hidden="true"></div><div class="home-customer-list" id="customerList"></div></section>
+        <footer class="home-footer" id="homeFooter">Made with love for Ichaku</footer>
       </div>
-    </section>
-
-    <section class="home-actions" id="homeActions" aria-label="Shortcuts">
-      <div class="home-actions__grid" aria-disabled="true">
-        <span class="home-actions__cell home-actions__cell--schedule"><span class="home-actions__icon"><img src="assets/home-schedule-icon.svg" alt=""></span>Schedule</span>
-        <span class="home-actions__cell home-actions__cell--quote"><span class="home-actions__icon"><img src="assets/home-quote-icon.svg" alt=""></span>Quote</span>
-        <span class="home-actions__cell home-actions__cell--invoice"><span class="home-actions__icon"><img src="assets/home-invoice-icon.svg" alt=""></span>Invoice</span>
-        <span class="home-actions__cell home-actions__cell--fitting"><span class="home-actions__icon"><img src="assets/home-fitting-icon.svg" alt=""></span>Fitting</span>
-      </div>
-    </section>
-
-    <section class="home-alert" id="enquiriesCard" role="button" tabindex="0" hidden>
-      <img class="home-alert__icon" src="assets/home-alert-icon.svg" alt="">
-      <span id="enquiriesCount"></span>
-      <img class="home-alert__chevron" src="assets/home-chevron-icon.svg" alt="">
-    </section>
-
-    <section class="home-customers" id="homeCustomers" aria-label="Customers">
-      <!-- Search remains intentionally unchanged from the established product UI. -->
-      <div class="home-search searchrow">
-        <span class="searchrow__icon" aria-hidden="true">⌕</span>
-        <input id="customerSearch" type="search" enterkeyhint="search"
-               placeholder="Search customer name" aria-label="Search customer name"
-               autocapitalize="none" spellcheck="false">
-      </div>
-
-      <div class="home-customer-list" id="customerList"></div>
-      <div class="home-customers__end" aria-hidden="true"></div>
-    </section>
-
-    <footer class="home-footer" id="homeFooter">Made with <span aria-label="love">♥</span> for Ichaku</footer>
+    </div>
   </section>
 
   <!-- -------------------------- Customer detail -------------------------- -->
@@ -571,21 +528,6 @@
 
 </main>
 
-<!-- Kept outside the homepage canvas so it can cover the visual viewport. -->
-<div class="homepage-search-overlay" id="homepageSearchOverlay" role="dialog"
-     aria-modal="true" aria-label="Search customers" aria-hidden="true" hidden>
-  <div class="homepage-search-overlay__backdrop" id="homepageSearchBackdrop"></div>
-  <form class="homepage-search-composer" id="homepageSearchForm" role="search">
-    <div class="homepage-search-composer__drag" id="homepageSearchDrag" aria-hidden="true"><span></span></div>
-    <label class="sr-only" for="homepageSearchInput">Search customers</label>
-    <div class="home-search searchrow homepage-search-composer__field">
-      <span class="searchrow__icon" aria-hidden="true">⌕</span>
-      <input id="homepageSearchInput" type="search" enterkeyhint="search"
-             placeholder="Search customer name" autocapitalize="none" spellcheck="false">
-    </div>
-  </form>
-</div>
-
 <!-- Order detail: the two documents are the page's whole point, so they are the
      only things in the fixed bar. Logging a payment moved into the page. -->
 <div class="actionbar" id="actionbar" hidden>
@@ -883,7 +825,6 @@
 <script src="fittings.js"></script>
 <script src="db.js"></script>
 <script src="calendar.js"></script>
-<script src="hero-shader.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

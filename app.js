@@ -3,16 +3,11 @@ window.KK=window.KK||{},KK.app=function(){"use strict"
 label:"Check in",days:3},l={label:"Follow up moodboard",days:3
 },u='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',m='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',h='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',p={
 boot:a("#boot"),gate:a("#gate"),gateForm:a("#gateForm"),gatePassword:a("#gatePassword"),gateRemember:a("#gateRemember"),gateErr:a("#gateErr"),
-gateSubmit:a("#gateSubmit"),app:a("#app"),homepageNav:a("#homepageNav"),homepageHome:a("#homepageHome"),homepageMenu:a("#homepageMenu"),
-homepageMenuBtn:a("#homepageMenuBtn"),homepageMenuList:a("#homepageMenuList"),homepageMenuCalendar:a("#homepageMenuCalendar"),
-homepageMenuSignOut:a("#homepageMenuSignOut"),upLink:a("#upLink"),upLabel:a("#upLabel"),appbarBrand:a("#appbarBrand"),homeLink:a("#homeLink"),
+gateSubmit:a("#gateSubmit"),app:a("#app"),upLink:a("#upLink"),upLabel:a("#upLabel"),appbarBrand:a("#appbarBrand"),homeLink:a("#homeLink"),
 viewTitle:a("#viewTitle"),viewSub:a("#viewSub"),pageAction:a("#pageAction"),savebar:a("#savebar"),saveBtn:a("#saveBtn"),menu:a("#menu"),
 menuBtn:a("#menuBtn"),menuList:a("#menuList"),menuDelete:a("#menuDelete"),menuCalendar:a("#menuCalendar"),menuSignOut:a("#menuSignOut"),
-viewCustomers:a("#viewCustomers"),homeHero:a("#homeHero"),heroCanvas:a("#heroCanvas"),heroEmoji:a("#heroEmoji"),homeActions:a("#homeActions"),
-homeCustomers:a("#homeCustomers"),homeFooter:a("#homeFooter"),heroGreeting:a("#heroGreeting"),heroGreetingAccessible:a("#heroGreetingAccessible"),
-heroGreetingVisual:a("#heroGreetingVisual"),heroDeadline:a("#heroDeadline"),customerSearch:a("#customerSearch"),customerList:a("#customerList"),
-homepageSearchOverlay:a("#homepageSearchOverlay"),homepageSearchBackdrop:a("#homepageSearchBackdrop"),homepageSearchForm:a("#homepageSearchForm"),
-homepageSearchInput:a("#homepageSearchInput"),homepageSearchDrag:a("#homepageSearchDrag"),viewCustomer:a("#viewCustomer"),
+viewCustomers:a("#viewCustomers"),homeStage:a("#homeStage"),homeLoading:a("#homeLoading"),homeError:a("#homeError"),homeReady:a("#homeReady"),homeHero:a("#homeHero"),homeActions:a("#homeActions"),
+homeCustomers:a("#homeCustomers"),homeFooter:a("#homeFooter"),homeSummary:a("#homeSummary"),heroGreeting:a("#heroGreeting"),heroDeadline:a("#heroDeadline"),customerSearch:a("#customerSearch"),customerList:a("#customerList"),viewCustomer:a("#viewCustomer"),
 customerViewCard:a("#customerViewCard"),dPhone:a("#dPhone"),dInstagram:a("#dInstagram"),dSource:a("#dSource"),dWedding:a("#dWedding"),
 dNotes:a("#dNotes"),dCreated:a("#dCreated"),dMoodboard:a("#dMoodboard"),dMoodboardRow:a("#dMoodboardRow"),dCancelled:a("#dCancelled"),
 dCancelledRow:a("#dCancelledRow"),followUpLine:a("#followUpLine"),cancelCustomer:a("#cancelCustomer"),reopenCustomer:a("#reopenCustomer"),
@@ -48,41 +43,26 @@ schedule:null,// computed programme + stored rows for the open order
 customerOrders:[],// the open customer's orders — what their status is read from
 enquiry:null,// the intake submission being reviewed
 googleConnected:null,// null until asked; cached for the session
-dirty:!1,saving:!1,homepageEntered:!1,homepageEntrancePlayed:!1};let f,v=null,y=!1,b=!1,_=!1,C=0,L=null,S=null;function showToast(e){
+dirty:!1,saving:!1,homepage:{phase:"idle",visit:0,loadToken:0,popPlayedForVisit:0}};let f;function showToast(e){
 p.toast.textContent=e,p.toast.classList.add("is-visible"),clearTimeout(f),f=setTimeout(()=>p.toast.classList.remove("is-visible"),2600)}
 function setDirty(e){w.dirty=e,p.saveBtn.disabled=!e||w.saving,a(".btn__label",p.saveBtn).textContent=w.saving?"Saving…":e?"Save changes":"Saved"}
 function syncBottomBar(){const e=p.actionbar.hidden?p.savebar.hidden?p.fittingJournalBar.hidden?null:p.fittingJournalBar:p.savebar:p.actionbar
 ;document.documentElement.style.setProperty("--bottombar-h",e?Math.round(e.getBoundingClientRect().height)+"px":"0px")}function syncVisualViewport(){
 const e=window.visualViewport,t=e?Math.max(0,window.innerHeight-e.height-e.offsetTop):0
-;document.documentElement.style.setProperty("--keyboard-offset",Math.round(t)+"px"),syncBottomBar()}function openHomepageSearch(){
-!b&&w.route&&"customers"===w.route.view&&(b=!0,C=window.scrollY,p.homepageSearchInput.value=p.customerSearch.value,p.homepageSearchOverlay.hidden=!1,
-p.homepageSearchOverlay.setAttribute("aria-hidden","false"),p.homepageSearchOverlay.classList.remove("is-closing"),
-p.homepageSearchOverlay.classList.add("is-open"),document.body.classList.add("has-homepage-search"),history.pushState(Object.assign({},history.state,{
-kkHomepageSearch:!0}),"",location.href),_=!0,requestAnimationFrame(()=>{p.homepageSearchInput.focus({preventScroll:!0})
-;const e=p.homepageSearchInput.value.length;p.homepageSearchInput.setSelectionRange(e,e)}))}function closeHomepageSearch(e){const t=Object.assign({
-restoreFocus:!0,restoreScroll:!0,fromHistory:!1,immediate:!1,discardHistory:!1},e);if(b)if(clearTimeout(L),p.homepageSearchInput.blur(),
-p.homepageSearchOverlay.classList.remove("is-open"),p.homepageSearchOverlay.classList.add("is-closing"),L=setTimeout(()=>{return e=t.restoreFocus,
-o=t.restoreScroll,clearTimeout(L),b=!1,S=null,p.homepageSearchOverlay.hidden=!0,p.homepageSearchOverlay.setAttribute("aria-hidden","true"),
-p.homepageSearchOverlay.classList.remove("is-open","is-closing"),p.homepageSearchOverlay.style.removeProperty("--search-drag-offset"),
-document.body.classList.remove("has-homepage-search"),o&&window.scrollTo(0,C),void(e&&w.route&&"customers"===w.route.view&&p.customerSearch.focus({
-preventScroll:!0}));var e,o},t.immediate||window.matchMedia("(prefers-reduced-motion: reduce)").matches?0:260),_&&t.discardHistory){_=!1
-;const e=Object.assign({},history.state);delete e.kkHomepageSearch,history.replaceState(e,"",location.href)}else _&&!t.fromHistory?(_=!1,
-history.back()):t.fromHistory&&(_=!1)}function submitHomepageSearch(e){e.preventDefault(),p.customerSearch.value=p.homepageSearchInput.value.trim(),
-renderCustomerList(),closeHomepageSearch({restoreFocus:!1,restoreScroll:!1})}function trapModalFocus(e,t){if("Tab"!==e.key||!t||t.hidden)return
+;document.documentElement.style.setProperty("--keyboard-offset",Math.round(t)+"px"),syncBottomBar()}function trapModalFocus(e,t){if("Tab"!==e.key||!t||t.hidden)return
 ;const o=Array.from(t.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')).filter(e=>!e.hidden&&e.getClientRects().length)
 ;if(!o.length)return;const n=o[0],a=o[o.length-1];e.shiftKey&&document.activeElement===n?(e.preventDefault(),
 a.focus()):e.shiftKey||document.activeElement!==a||(e.preventDefault(),n.focus())}function setSaveBar(e){p.savebar.hidden=!e,
 document.body.classList.toggle("has-savebar",!!e),syncBottomBar()}let D=null;function setPageAction(e){D=e?e.onClick:null,p.pageAction.hidden=!e,
 e&&(p.pageAction.textContent=e.label)}function setChrome(e){p.viewTitle.textContent=e.title,
-document.body.classList.toggle("is-homepage",!!e.homepage),p.homepageNav.hidden=!e.homepage,p.viewSub.innerHTML=e.sub||"",p.viewSub.hidden=!e.sub
+document.body.classList.toggle("is-homepage",!!e.homepage),p.viewSub.innerHTML=e.sub||"",p.viewSub.hidden=!e.sub
 ;const t=e.up||null;p.upLink.hidden=!t,p.appbarBrand.hidden=!!t,t&&(p.upLink.href=t.hash,p.upLabel.textContent=t.label),
 p.homeLink.hidden=!t||"#/customers"===t.hash,setPageAction(e.action||null),p.actionbar.hidden=!e.actions,
 document.body.classList.toggle("has-actionbar",!!e.actions),setSaveBar(!!e.save),closeMenu(),
 // Delete belongs to a record, so the menu only offers it on a record page.
 p.menuDelete.hidden=!e.destroy,p.menuDelete.className="menu__item menu__item--danger",
 e.destroy&&(p.menuDelete.textContent="order"===e.destroy?"Delete order":"Delete customer",p.menuDelete.dataset.kind=e.destroy),syncBottomBar()}
-function closeMenu(){p.menuList.hidden=!0,p.menuBtn.setAttribute("aria-expanded","false"),p.homepageMenuList.hidden=!0,
-p.homepageMenuBtn.setAttribute("aria-expanded","false")}const badgeClass=e=>"badge badge--"+(e=>String(e).toLowerCase().replace(/\s+/g,"-"))(e)
+function closeMenu(){p.menuList.hidden=!0,p.menuBtn.setAttribute("aria-expanded","false")}const badgeClass=e=>"badge badge--"+(e=>String(e).toLowerCase().replace(/\s+/g,"-"))(e)
 ;function effectiveStatus(e){const t=i.includes(e.status)?e.status:i[0];return e.final_payment_date?"Delivered":t}async function bumpStatus(e){
 const o=function(e,t){const o=i.indexOf(e);return i.indexOf(t)>o?t:-1===o?i[0]:e}(w.order.status,e);if(o!==w.order.status)try{
 w.order=await t.updateOrder(w.order.id,{status:o}),renderOrderStatus()}catch(e){console.error(e)}}function renderOrderStatus(){
@@ -118,7 +98,7 @@ view:"moodboard",id:o[1],query:n}:"order"===o[0]&&o[1]&&"fitting"===o[2]&&"new"=
 }:"order"===o[0]&&o[1]&&"fittings"===o[2]||"order"===o[0]&&o[1]?{view:"order",id:o[1],query:n}:"calendar"===o[0]?{view:"calendar",query:n
 }:"enquiry"===o[0]&&o[1]?{view:"enquiry",id:o[1],query:n}:{view:"customers",query:n}}(),i=w.route;
 // Guard the transition, and put the URL back if it is refused.
-if(b&&"customers"!==s.view&&closeHomepageSearch({restoreFocus:!1,restoreScroll:!1,immediate:!0,discardHistory:!0}),w.dirty&&E!==location.hash){
+if(w.dirty&&E!==location.hash){
 if(!confirmLeave())return void(location.hash=E);setDirty(!1)}location.hash!==E&&(k=E),E=location.hash
 ;const d=i&&("moodboard"===i.view||"moodboardPreview"===i.view),c="moodboard"===s.view||"moodboardPreview"===s.view
 ;d&&!c&&(closeMoodboardPresentation(),R.cleanup(),j=null),w.route=s,p.viewCustomers.hidden="customers"!==s.view,
@@ -214,29 +194,6 @@ const orNull=e=>""===String(e||"").trim()?null:String(e).trim();function orderLa
 ;return t.length&&t[0].name?t[0].name+(t.length>1?" + "+(t.length-1)+" more":""):"Empty order"}
 const isCosted=e=>(Number(e.cost)||0)>0,isNamed=e=>""!==String(e.name||"").trim();function greetingForClock(e){
 return("dawn"===e.period||"morning"===e.period?"Good morning":"noon"===e.period||"afternoon"===e.period?"Good afternoon":"Good evening")+", Ichaku"}
-function syncHeroHeight(){const e=document.createRange();e.selectNodeContents(p.heroGreetingVisual)
-;const t=Array.from(e.getClientRects()).map(e=>Math.round(e.top)),o=new Set(t).size||1
-;p.homeHero.style.setProperty("--hero-greeting-extra",40*Math.max(0,o-1)+"px")}function applyHeroClock(e){const t=greetingForClock(e)
-;p.homeHero.dataset.period=e.period,p.heroEmoji.textContent=e.emoji,p.heroGreetingAccessible.textContent=t,
-w.homepageEntrancePlayed&&!y&&(p.heroGreetingVisual.textContent=t,requestAnimationFrame(syncHeroHeight))}function sleep(e){
-return new Promise(t=>setTimeout(t,e))}function showHeroImmediately(){
-const e=greetingForClock(v?v.setClock(new Date):KK.heroShader.resolveTime(new Date));y=!1,p.heroGreetingAccessible.textContent=e,
-p.heroGreetingVisual.textContent=e,p.heroGreetingVisual.classList.remove("is-typing"),p.heroEmoji.classList.remove("is-awaiting-reveal"),
-p.heroGreeting.classList.remove("is-awaiting-reveal"),p.heroDeadline.classList.remove("is-awaiting-reveal"),p.heroEmoji.classList.add("is-revealed"),
-p.heroGreeting.classList.add("is-revealed"),p.heroDeadline.hidden||p.heroDeadline.classList.add("is-revealed"),v&&(v.reveal(),
-v.setMotionEnabled(!window.matchMedia("(prefers-reduced-motion: reduce)").matches)),requestAnimationFrame(syncHeroHeight)}
-async function runHomepageEntrance(){if(w.homepageEntrancePlayed)return void showHeroImmediately();w.homepageEntrancePlayed=!0
-;if(window.matchMedia("(prefers-reduced-motion: reduce)").matches)return showHeroImmediately(),void(v&&v.setMotionEnabled(!1))
-;const e=greetingForClock(v?v.setClock(new Date):KK.heroShader.resolveTime(new Date)),t=(o=e,
-window.Intl&&Intl.Segmenter?Array.from(new Intl.Segmenter(void 0,{granularity:"grapheme"}).segment(o),e=>e.segment):Array.from(o));var o;y=!0,
-p.heroGreetingAccessible.textContent=e,p.heroGreetingVisual.textContent="",p.heroGreetingVisual.classList.add("is-typing"),
-p.heroEmoji.classList.add("is-awaiting-reveal"),p.heroGreeting.classList.add("is-awaiting-reveal"),
-p.heroDeadline.classList.toggle("is-awaiting-reveal",!p.heroDeadline.hidden),p.heroDeadline.classList.remove("is-revealed")
-;for(let e=0;e<t.length;e+=1)0===e&&(p.heroEmoji.classList.remove("is-awaiting-reveal"),p.heroGreeting.classList.remove("is-awaiting-reveal"),
-p.heroEmoji.classList.add("is-revealed"),p.heroGreeting.classList.add("is-revealed")),p.heroGreetingVisual.textContent+=t[e],syncHeroHeight(),
-await sleep(25);y=!1,p.heroGreetingVisual.classList.remove("is-typing"),p.heroDeadline.hidden||(await sleep(120),
-p.heroDeadline.classList.remove("is-awaiting-reveal"),p.heroDeadline.classList.add("is-revealed"),await sleep(280),await sleep(120)),v&&(v.reveal(),
-v.setMotionEnabled(!0))}
 const T='<div class="home-customer-card home-customer-card--skeleton"><span class="home-customer-card__top"><span class="skeleton-block" style="width:60%;height:24px"></span><span class="skeleton-block" style="width:72px;height:16px"></span></span><span class="skeleton-block skeleton-block--divider"></span><span class="home-customer-card__meta"><span class="skeleton-block" style="width:64px;height:16px"></span><span class="skeleton-block" style="width:96px;height:16px"></span></span></div>'
 ;async function showCustomers(){setChrome({title:"Customers",up:null,save:!1,actions:!1,homepage:!0}),w.customer=null,w.order=null,
 w.homepageEntrancePlayed||(y=!1,p.heroGreetingVisual.textContent="",p.heroGreetingVisual.classList.remove("is-typing"),
@@ -260,7 +217,7 @@ if(p.enquiriesCard.hidden=!e.length,!e.length)return;p.enquiriesCount.textConten
 ;const o=Math.ceil((new Date(t.deadline.date)-new Date(e.todayISO()))/864e5),n=o<=0?"Today":1===o?"Tomorrow":"In "+o+" days"
 ;p.heroDeadline.textContent=n+": "+firstName(t.customer.name)+" - "+t.deadline.what}(),renderCustomerList(),await runHomepageEntrance(),
 w.homepageEntered=!0}function onEnquiriesCardActivate(){}p.enquiriesCard.addEventListener("click",onEnquiriesCardActivate),
-p.enquiriesCard.addEventListener("keydown",e=>{"Enter"!==e.key&&" "!==e.key||e.preventDefault()});function readableAnswer(e){const t=e&&e.value
+p.enquiriesCard.addEventListener("keydown",e=>{"Enter"!==e.key&&" "!==e.key||e.preventDefault()});function homepageOverview(e,t){const o={},n={},a={};e.forEach(e=>{(o[e.customer_id]=o[e.customer_id]||[]).push(e),n[e.id]=e.customer_id}),t.forEach(e=>{const t=n[e.order_id];t&&(a[t]=a[t]||[]).push(e)});return{ordersByCustomer:o,eventsByCustomer:a}}function beginHomepageLoad(){const e=++w.homepage.loadToken;w.homepage.phase="loading",p.homeStage.setAttribute("aria-busy","true"),p.homeLoading.hidden=!1,p.homeError.hidden=!0,p.homeReady.hidden=!0,p.homeStage.style.height="";return e}function renderHomepageError(t,o){if(o!==w.homepage.loadToken)return;w.homepage.phase="error",p.homeLoading.hidden=!0,p.homeError.hidden=!1,p.homeStage.setAttribute("aria-busy","false"),p.homeError.innerHTML='<div class="home-error-panel"><strong>Could not load the homepage.</strong><span>'+e.escapeHtml(t instanceof TypeError?"Check your connection and try again.":t.message||"Try again in a moment.")+'</span><button type="button" class="home-error__retry">Try again</button></div>',p.homeError.querySelector("button").addEventListener("click",showCustomers),requestAnimationFrame(()=>p.homeError.querySelector("button").focus({preventScroll:!0}))}function renderHomepageReady(t){const o=t.customers.filter(isActive).map(e=>({customer:e,deadline:nextDeadline(e)})).filter(e=>e.deadline).sort((e,t)=>e.deadline.date.localeCompare(t.deadline.date))[0],n=o?Math.ceil((new Date(o.deadline.date)-new Date(e.todayISO()))/864e5):null;p.heroGreeting.textContent=greetingForClock({period:(new Date).getHours()<12?"morning":(new Date).getHours()<18?"afternoon":"evening"}),p.heroDeadline.innerHTML=o?'Nearest deadline is <strong>'+e.escapeHtml(firstName(o.customer.name)+" - "+o.deadline.what)+'</strong> '+(n<=0?"today.":1===n?"tomorrow.":"in "+n+" days.")+" Prep up!":"No upcoming deadline. All clear!",p.enquiriesCard.hidden=!t.submissions.length,p.enquiriesCount.textContent=t.submissions.length+" new order submission"+(1===t.submissions.length?"":"s");const a=t.customers.length,s=t.customers.filter(e=>"In production"===homepageStatus(e,w.overview.ordersByCustomer[e.id]||[]).label).length;p.homeSummary.innerHTML=a+" total customer"+(1===a?"":"s")+'<i></i>'+s+" in production",renderCustomerList(),p.homeReady.hidden=!1,p.homeReady.style.visibility="hidden"}async function revealHomepage(e){await(document.fonts&&document.fonts.ready||Promise.resolve()),await new Promise(e=>requestAnimationFrame(e));if(e!==w.homepage.loadToken)return;const t=Math.ceil(p.homeReady.scrollHeight);p.homeStage.style.height=t+"px",p.homeReady.style.visibility="",p.homeReady.classList.add("is-transitioning"),p.homeLoading.classList.add("is-transitioning"),requestAnimationFrame(()=>{p.homeReady.classList.add("is-visible"),p.homeLoading.classList.add("is-hidden"),p.homeActions.querySelectorAll(".home-action").forEach((e,t)=>setTimeout(()=>e.classList.remove("is-appear-pressed"),80*t))}),setTimeout(()=>{e===w.homepage.loadToken&&(p.homeLoading.hidden=!0,p.homeReady.classList.remove("is-transitioning"),p.homeStage.style.height="",p.homeStage.setAttribute("aria-busy","false"),w.homepage.phase="ready")},180)}async function showCustomers(){setChrome({title:"Customers",up:null,save:!1,actions:!1,homepage:!0}),w.customer=null,w.order=null;const o=beginHomepageLoad();try{const[n,a,s,r]=await Promise.all([t.listCustomers(),t.listAllOrders(),t.listAllOrderEvents(),t.listIntake("new")]);o===w.homepage.loadToken&&(w.customers=n,w.overview=homepageOverview(a,s),renderHomepageReady({customers:n,submissions:r}),p.homeActions.querySelectorAll(".home-action").forEach(e=>e.classList.add("is-appear-pressed")),revealHomepage(o))}catch(e){if(t.isStaleToken(e))throw e;console.error(e),renderHomepageError(e,o)}}function readableAnswer(e){const t=e&&e.value
 ;if(null==t||""===t)return"";if(!Array.isArray(t))return"object"==typeof t?JSON.stringify(t):String(t);const o=e.options||[];return t.map(e=>{
 const t=o.filter(t=>t.id===e)[0];return t?t.text:String(e)}).filter(Boolean).join(", ")}async function acceptEnquiry(){const o=w.enquiry
 ;if(o&&"new"===o.status)try{const n=await t.createCustomer(Object.assign({name:o.name||"Unnamed enquiry",phone:o.phone,instagram:o.instagram,
@@ -276,7 +233,7 @@ const t=p.customerSearch.value.trim().toLowerCase(),n=w.customers.filter(e=>!t||
 ;return void(p.customerList.innerHTML=w.customers.length?'<p class="empty">No match for “'+e.escapeHtml(t)+'”.</p><a class="btn btn--outline btn--new btn--block btn--empty" href="#/customer/new?name='+encodeURIComponent(t)+'">+ Add “'+e.escapeHtml(t)+"” as a new customer</a>":'<p class="empty">No customers yet.</p>')
 }p.customerList.innerHTML=n.map((t,n)=>{
 const a=w.overview.ordersByCustomer[t.id]||[],s=a.reduce((e,t)=>e+o.computeTotal(t.items),0),r=homepageStatus(t,a),i=a.length+" order"+(1===a.length?"":"s")
-;return'<a class="home-customer-card home-customer-card--'+r.tone+'" style="--card-index:'+Math.min(n,8)+";--stack-index:"+n+'" href="#/customer/'+encodeURIComponent(t.id)+'"><span class="home-customer-card__top"><span class="home-customer-card__name">'+e.escapeHtml(t.name||"Unnamed customer")+'</span><span class="home-customer-card__badge">'+e.escapeHtml(r.label)+'</span></span><img class="home-customer-card__divider" src="assets/home-vector-1.svg" alt=""><span class="home-customer-card__meta"><span>'+e.escapeHtml(i)+"</span><span>"+e.formatRupiah(s)+"</span></span></a>"
+;return'<div class="home-customer-record"><div class="home-grid-rule"></div><div class="home-customer-record__inset"><a class="home-customer-card home-customer-card--'+r.tone+'" href="#/customer/'+encodeURIComponent(t.id)+'" aria-label="'+e.escapeHtml((t.name||"Unnamed customer")+", "+r.label)+'"><span class="home-customer-card__face"><span class="home-customer-card__top"><span class="home-customer-card__name">'+e.escapeHtml(t.name||"Unnamed customer")+'</span><span class="home-customer-card__badge">'+e.escapeHtml(r.label)+'</span></span>'+("Cancelled"===r.label?"":'<span class="home-customer-card__meta"><span>'+e.escapeHtml(i)+"</span><span>"+e.formatRupiah(s)+"</span></span>")+'</span><span class="home-customer-card__rail"></span></a></div><div class="home-grid-rule"></div><div class="home-grid-spacer" aria-hidden="true"></div></div>'
 }).join("")}function homepageStatus(e,t){const o=t||[];return e.cancelled_at?{label:"Cancelled",tone:"quiet",rank:5
 }:o.some(e=>"In production"===e.status)?{label:"In production",tone:"production",rank:0}:o.some(e=>"Confirmed"===e.status)?{label:"Invoice sent",
 tone:"invoice",rank:1}:o.some(e=>"Quoted"===e.status)?{label:"Quote sent",tone:"invoice",rank:2}:o.length?(o.some(e=>"Delivered"===e.status),{
@@ -529,31 +486,16 @@ if("customer"===w.route.view)await saveCustomer();else if("orderEdit"===w.route.
 // Refused by validation: stay on the form, where the error is.
 if(!await saveOrder())return;showToast("Order saved"),leaveFormFor("#/order/"+e)}}catch(e){console.error(e),showToast(e.message||"Could not save")
 }finally{w.saving=!1,setDirty(w.dirty)}}}),p.menuBtn.addEventListener("click",e=>{e.stopPropagation(),function(){const e=p.menuList.hidden
-;p.menuList.hidden=!e,p.menuBtn.setAttribute("aria-expanded",String(e))}()}),p.homepageMenuBtn.addEventListener("click",e=>{e.stopPropagation(),
-function(){const e=p.homepageMenuList.hidden;closeMenu(),p.homepageMenuList.hidden=!e,p.homepageMenuBtn.setAttribute("aria-expanded",String(e))}()}),
-p.homepageHome.addEventListener("click",e=>{w.route&&"customers"===w.route.view&&(e.preventDefault(),window.scrollTo({top:0,
-behavior:window.matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"}),closeMenu())}),document.addEventListener("click",e=>{
-(p.menuList.hidden||p.menu.contains(e.target))&&(p.homepageMenuList.hidden||p.homepageMenu.contains(e.target))||closeMenu()}),
-document.addEventListener("keydown",e=>{if("Escape"!==e.key||p.menuList.hidden&&p.homepageMenuList.hidden)return;const t=!p.homepageMenuList.hidden
-;closeMenu(),(t?p.homepageMenuBtn:p.menuBtn).focus()}),p.menuSignOut.addEventListener("click",signOutFromMenu),
-p.homepageMenuSignOut.addEventListener("click",signOutFromMenu),p.menuDelete.addEventListener("click",()=>{closeMenu(),
+;p.menuList.hidden=!e,p.menuBtn.setAttribute("aria-expanded",String(e))}()}),document.addEventListener("click",e=>{
+p.menuList.hidden||p.menu.contains(e.target)||closeMenu()}),document.addEventListener("keydown",e=>{if("Escape"!==e.key||p.menuList.hidden)return
+;closeMenu(),p.menuBtn.focus()}),p.menuSignOut.addEventListener("click",signOutFromMenu),p.menuDelete.addEventListener("click",()=>{closeMenu(),
 "order"===p.menuDelete.dataset.kind?async function(){
 if(window.confirm("Delete this order and its payment and download record? This cannot be undone."))try{const e=w.order.customer_id
 ;await t.deleteOrder(w.order.id),setDirty(!1),showToast("Order deleted"),go("#/customer/"+e)}catch(e){console.error(e),
 showToast(e.message||"Could not delete")}}():async function(){const e=w.customer.name||"this customer"
 ;if(window.confirm("Delete "+e+", along with every order and download record? This cannot be undone."))try{await t.deleteCustomer(w.customer.id),
 setDirty(!1),showToast("Customer deleted"),go("#/customers")}catch(e){console.error(e),showToast(e.message||"Could not delete")}}()}),
-p.customerSearch.addEventListener("pointerdown",e=>{e.preventDefault(),openHomepageSearch()}),
-p.customerSearch.addEventListener("focus",openHomepageSearch),p.homepageSearchForm.addEventListener("submit",submitHomepageSearch),
-p.homepageSearchBackdrop.addEventListener("click",()=>closeHomepageSearch()),window.addEventListener("popstate",()=>{b&&closeHomepageSearch({
-fromHistory:!0})}),p.homepageSearchDrag.addEventListener("pointerdown",e=>{!1!==e.isPrimary&&(S={id:e.pointerId,y:e.clientY,at:performance.now()},
-p.homepageSearchDrag.setPointerCapture(e.pointerId))}),p.homepageSearchDrag.addEventListener("pointermove",e=>{if(!S||e.pointerId!==S.id)return
-;const t=Math.max(0,e.clientY-S.y);p.homepageSearchOverlay.style.setProperty("--search-drag-offset",t+"px")}),
-p.homepageSearchDrag.addEventListener("pointerup",e=>{if(!S||e.pointerId!==S.id)return
-;const t=Math.max(0,e.clientY-S.y),o=t/Math.max(1,performance.now()-S.at);S=null,
-t>=48||o>.55?closeHomepageSearch():p.homepageSearchOverlay.style.removeProperty("--search-drag-offset")}),
-p.homepageSearchDrag.addEventListener("pointercancel",()=>{S=null,p.homepageSearchOverlay.style.removeProperty("--search-drag-offset")}),
-window.addEventListener("resize",()=>requestAnimationFrame(syncHeroHeight)),s(".js-cfield").forEach(e=>{e.addEventListener("input",()=>{
+p.customerSearch.addEventListener("input",renderCustomerList),s(".js-cfield").forEach(e=>{e.addEventListener("input",()=>{
 e===p.cName&&e.value.trim()&&(e.classList.remove("is-invalid"),p.errCName.hidden=!0),setDirty(!0)}),e.addEventListener("change",()=>setDirty(!0))}),
 p.cWeddingPrecision.addEventListener("click",e=>{const t=e.target.closest(".segmented__btn")
 ;t&&t.dataset.precision!==weddingPrecision()&&(setWeddingPrecision(t.dataset.precision),setDirty(!0))}),
@@ -574,7 +516,7 @@ w.order&&go("#/order/"+w.order.id+"/fitting/new")}),p.fittingJournalAdd.addEvent
 KK.fittings.bindOverlays(),setupMoodboardListeners(),p.syncCalendarBtn.addEventListener("click",syncCalendar),
 p.gcalConnect.addEventListener("click",connectGoogle),p.gcalDisconnect.addEventListener("click",disconnectGoogle),
 p.enquiryAccept.addEventListener("click",acceptEnquiry),p.enquiryDismiss.addEventListener("click",dismissEnquiry),
-p.menuCalendar.addEventListener("click",closeMenu),p.homepageMenuCalendar.addEventListener("click",closeMenu),s(".js-ofield").forEach(e=>{
+p.menuCalendar.addEventListener("click",closeMenu),s(".js-ofield").forEach(e=>{
 e.addEventListener("input",()=>setDirty(!0)),e.addEventListener("change",()=>setDirty(!0))}),[p.oFirstPayment,p.oSecondPayment,p.oScheme].forEach(e=>{
 e.addEventListener("input",renderScheduleHint),e.addEventListener("change",renderScheduleHint)}),p.addItem.addEventListener("click",()=>{addItemRow({
 name:"",qty:1,price:"",cost:""},!0),setDirty(!0)}),p.itemList.addEventListener("click",e=>{const t=e.target.closest(".js-remove")
@@ -606,8 +548,7 @@ window.addEventListener("offline",()=>showToast("You're offline — changes won'
 window.addEventListener("online",()=>showToast("Back online")),document.addEventListener("focusin",e=>{var t
 ;(t=e.target).matches("input, select, textarea, button")&&requestAnimationFrame(()=>setTimeout(()=>{document.activeElement===t&&t.scrollIntoView({
 block:"center",inline:"nearest",behavior:window.matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"})},80))}),
-document.addEventListener("keydown",e=>{if(trapModalFocus(e,p.homepageSearchOverlay),"Escape"===e.key&&b)return e.preventDefault(),
-void closeHomepageSearch();trapModalFocus(e,p.calcSheet),trapModalFocus(e,p.mbPresentation),
+document.addEventListener("keydown",e=>{trapModalFocus(e,p.calcSheet),trapModalFocus(e,p.mbPresentation),
 "Escape"===e.key&&(p.calcSheet.hidden?!p.mbPresentation.hidden&&w.order&&(e.preventDefault(),
 go("#/order/"+w.order.id+"/moodboard")):(e.preventDefault(),closeCostCalc()))}),window.addEventListener("beforeunload",e=>{
 w.dirty&&(e.preventDefault(),e.returnValue="")})}function showGate(){p.boot.hidden=!0,p.app.hidden=!0,p.gate.hidden=!1,
@@ -621,8 +562,7 @@ showToast(e.message||"Could not connect Google Calendar")}}()}return async funct
 if(e.preventDefault(),!p.gateSubmit.disabled){p.gateErr.hidden=!0,p.gateSubmit.disabled=!0,p.gateSubmit.classList.add("is-busy"),
 a(".btn__label",p.gateSubmit).textContent="Unlocking…";try{await t.signIn(p.gatePassword.value,p.gateRemember.checked),showApp()}catch(e){
 p.gateErr.textContent=e.message||"Could not sign in",p.gateErr.hidden=!1,p.gatePassword.select()}finally{p.gateSubmit.disabled=!1,
-p.gateSubmit.classList.remove("is-busy"),a(".btn__label",p.gateSubmit).textContent="Unlock"}}}),bindEvents(),v=KK.heroShader.mount(p.heroCanvas,{
-fps:30,maxDpr:1.5,periods:KK.heroShader.periods,palettes:KK.heroShader.palettes,onClock:applyHeroClock}),t.isConfigured())try{
+p.gateSubmit.classList.remove("is-busy"),a(".btn__label",p.gateSubmit).textContent="Unlock"}}}),bindEvents(),t.isConfigured())try{
 await t.currentSession()?showApp():showGate()}catch(e){console.error(e),showGate()
 }else p.boot.innerHTML='<div class="boot__msg"><strong>Not connected.</strong><span>Fill in <code>config.js</code> with your Supabase URL and anon key — see “Setting up the database” in the README.</span></div>'
 }(),{state:w}}();
