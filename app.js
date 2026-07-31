@@ -2,6 +2,17 @@
    validation, and workflow orchestration across customers, orders, documents,
    schedules, moodboards, fittings, and intake. Persistent access belongs in
    db.js; pure document and schedule rules belong in their feature modules. */
+/* Feature anchors (search these names instead of reading the whole closure):
+   handleRoute                         routing and route-to-view dispatch
+   showCustomers / renderCustomerList homepage loading and customer ledger
+   acceptEnquiry / dismissEnquiry     Tally intake review
+   showCustomerDetail / saveCustomer customer read/edit flows
+   showOrderDetail / buildOrderDetailViewModel  order read flow
+   saveOrder / addItemRow / addTermRow          order editor
+   rescheduleOrder / logDeposit       payments and calendar scheduling
+   setupMoodboardListeners            moodboard interaction
+   download / downloadMoodboard       document generation and logging
+   bindEvents / showGate / showApp    application boot and global events */
 window.KK=window.KK||{},KK.app=function(){"use strict"
 ;const e=KK.util,t=KK.db,o=KK.docs,n=KK.calendar,a=e.$,s=e.$$,r=["Custom design & consultation","Production","Standard fabric","Plain veil","Fitting","Laundry"],i=["Quoted","Confirmed","In production","Delivered"],d=["Instagram","TikTok","Referral","Walk-in","Other"],c={
 label:"Check in",days:3},l={label:"Follow up moodboard",days:3

@@ -5,6 +5,17 @@
 -- Safe to re-run: every statement is idempotent.
 -- =========================================================================
 
+-- Navigation (search the quoted migration title; applied blocks stay intact):
+--   Base schema                         customers, orders, document log, RLS
+--   "dashboard UX overhaul"            order titles/fitting dates/history
+--   "document name + payment schemes"  per-order document/payment terms
+--   "fitting schedule + Google"        events, credentials, calendar history
+--   "the real lifecycle"               customer pipeline, payments, intake
+--   "status stops being"               derived status and cancellation
+--   "schedule gets a second anchor"    design/production/final payment dates
+--   "moodboard generator"              moodboard document/history support
+--   "fitting revisions log"            fitting sessions and journal photos
+
 create extension if not exists pgcrypto;
 
 -- ------------------------------- Customers -------------------------------
