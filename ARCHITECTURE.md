@@ -1,108 +1,69 @@
-# Architecture
+# Architecture & Codebase Map
 
-Kelak Kembali is a build-free browser SPA backed by Supabase. `index.html`
-loads global `window.KK` modules in dependency order; there is no bundler,
-framework, package manifest, or generated application code.
+Kelak Kembali is a zero-build, native Vanilla JS Single Page Application (SPA) backed by Supabase PostgREST and Deno Edge Functions. `index.html` loads global `window.KK` modules in explicit dependency order.
 
-## Start here
+---
 
-| Task | Primary files | Supporting files |
-| --- | --- | --- |
-| Change a route, screen, form, or interaction | `app.js`, `index.html` | Relevant file under `styles/` |
-| Change customer/order persistence or auth | `db.js` | `schema.sql`, `config.js` |
-| Change quotation or invoice content/PDF output | `docs.js`, document templates in `index.html` | `styles/documents.css`, `fonts.css` |
-| Change moodboards | `moodboard.js` | Moodboard view in `index.html`, moodboard CSS, `google-drive` |
-| Change fitting photos/journal | `fittings.js` | Fitting markup/CSS, `db.js`, `google-drive` |
-| Change schedule rules | `calendar.js` | Schedule rendering in `app.js`, `google-calendar` |
-| Change Google Calendar or Drive behavior | Matching function under `supabase/functions/` | Browser call wrapper in `db.js` |
-| Change intake/Tally handling | `supabase/functions/intake/index.ts` | `intake_submissions` in `schema.sql`, enquiry UI in `app.js` |
-| Change database shape or policies | Append an idempotent block to `schema.sql` | Update projections and writes in `db.js` |
-| Change shared formatting/date/DOM helpers | `util.js` | Callers under `window.KK` |
+## Start Here: Feature Entry-Point Map
 
-Historical implementation plans (`PLAN-*.md`) explain past design decisions,
-but current code and this file are the navigation source of truth.
+To make a change safely without reading unnecessary files, use this map to target the exact minimum context:
 
-## Runtime map
+| Feature / Domain | Primary Entry File | Supporting Files & Layout | Data & Edge Functions |
+| :--- | :--- | :--- | :--- |
+| **Homepage & Customer Ledger** | [app.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/app.js) (`showCustomers`, `renderCustomerList`) | `#viewCustomers` in [index.html](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/index.html), [styles/pages.css](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/styles/pages.css) | [db.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/db.js) (`listCustomers`) |
+| **Customer Detail & Editor** | [app.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/app.js) (`showCustomerDetail`, `saveCustomer`) | `#viewCustomer`, `#viewCustomerEdit` in [index.html](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/index.html) | [db.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/db.js) (`updateCustomer`, `deleteCustomer`) |
+| **Order Detail & Item Costing** | [app.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/app.js) (`showOrderDetail`, `saveOrder`) | `#viewOrder`, `#viewOrderEdit` in [index.html](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/index.html) | [db.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/db.js) (`updateOrder`, `logOrderHistory`) |
+| **Fitting Schedule Rules** | [calendar.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/calendar.js) (`computeSchedule`) | `orderScheduleModel` in [app.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/app.js) | [db.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/db.js) (`replaceOrderEvents`) |
+| **Fitting Journal & Camera Overlay** | [fittings.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/fittings.js) | `#viewFittingJournal` & overlays in [index.html](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/index.html) | `google-drive` Edge Function via [db.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/db.js) |
+| **Moodboard Generator & Export** | [moodboard.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/moodboard.js) | `#viewMoodboard` in [index.html](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/index.html), [styles/moodboard.css](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/styles/moodboard.css) | `google-drive` Edge Function via [db.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/db.js) |
+| **PDF Quotations & Invoices** | [docs.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/docs.js) | `#quotation`, `#invoice` in [index.html](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/index.html), [styles/documents.css](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/styles/documents.css) | [db.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/db.js) (`logDocument`) |
+| **Intake / Tally Enquiries** | `supabase/functions/intake/index.ts` | `#viewEnquiry` in [index.html](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/index.html), [app.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/app.js) (`acceptEnquiry`) | `intake_submissions` in [schema.sql](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/schema.sql) |
+| **Google Calendar Integration** | `supabase/functions/google-calendar/index.ts` | `#viewCalendar` in [index.html](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/index.html), `showCalendarSettings` in [app.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/app.js) | `callGoogle` in [db.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/db.js) |
 
-The script order at the bottom of `index.html` is a dependency contract:
+---
 
-```text
-CDN libraries + config.js
-          │
-       util.js
-       ├── docs.js ───────── quotation/invoice templates
-       ├── moodboard.js ──── moodboard template
-       ├── fittings.js
-       ├── db.js ─────────── Supabase + Edge Functions
-       └── calendar.js
-               │
-             app.js ──────── routes, view state, DOM events
-```
+## Runtime Map & Dependency Hierarchy
 
-Modules publish APIs on `window.KK`; they are not ES modules. Preserve script
-order when adding a dependency. `app.js` is the composition root and may call
-every browser module. Lower-level modules must not call `app.js`.
-
-## Ownership and boundaries
-
-- `index.html` owns static structure only: SPA views, overlays, fixed action
-  bars, and three off-screen PDF canvases. It does not fetch data or decide
-  business state.
-- `styles/` owns layout and presentation. `pages.css`, `shared.css`,
-  `documents.css`, and `moodboard.css` load in that order; preserve it because
-  the existing cascade intentionally lets shared rules refine page rules.
-- `app.js` owns hash routing, in-memory page state, rendering, validation, and
-  workflow orchestration. It should obtain persistent data only through
-  `KK.db` and schedule calculations only through `KK.calendar`.
-- `db.js` is the only browser module that owns the Supabase client. It owns
-  queries and Edge Function calls, but not UI messages or business rendering.
-- `calendar.js` is pure date/schedule policy: no DOM, network, or storage.
-- `docs.js` owns quotation/invoice data-to-document rendering and capture. It
-  does not know about routes or persistence.
-- `moodboard.js` owns local image state, layout, preview, and PDF capture. Drive
-  archival is requested by `app.js` through `db.js` after generation.
-- `fittings.js` owns camera/gallery overlays and fitting-journal interaction.
-  Persistence callbacks are injected by `app.js`.
-- `util.js` contains dependency-free helpers used by multiple browser modules.
-- `schema.sql` is an append-only, re-runnable migration history. Do not rewrite
-  old applied blocks; append a new idempotent block.
-- Edge Functions own secrets and privileged third-party calls. Calendar and
-  Drive use authenticated Supabase sessions; intake instead authenticates the
-  raw Tally webhook signature.
-
-## Data flow
+The script loading sequence in [index.html](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/index.html) defines a strict lower-to-higher dependency graph:
 
 ```text
-User event → app.js → db.js → Supabase tables
-                         └── Edge Function → Google Calendar/Drive
-
-Order data → app.js → docs.js/moodboard.js → browser PDF
-Payment/wedding dates → calendar.js → app.js → db.js → calendar sync
-Tally → intake Edge Function → intake_submissions → app.js review → customer
+Third-party Libraries (Supabase, html2canvas, jsPDF) + config.js
+                     │
+                  util.js (Pure helper functions & shared icons)
+           ┌─────────┼─────────┬──────────────┐
+        docs.js  moodboard.js fittings.js  calendar.js (Pure schedule rules)
+           └─────────┼─────────┴──────────────┘
+                     │
+                  db.js (Supabase Client & Edge Function invocations)
+                     │
+                  app.js (Composition Root: Router, State, DOM Controllers)
 ```
 
-The detailed lifecycle, payment, scheduling, and rendering rules remain in
-`README.md`; those rules are product contracts, not incidental implementation.
+- Lower-level modules (`util.js`, `calendar.js`) MUST NEVER depend on `app.js` or DOM rendering.
+- `app.js` acts as the composition root and orchestrates DOM events, routes, and API calls.
 
-## How to work in this repo
+---
 
-1. Read the row for the task in **Start here**, then the ownership paragraph
-   for those files. Load `README.md` only for the relevant business-rule section.
-2. For a feature, update structure, behavior, persistence, and styling only in
-   the owning layers. For a bug, trace from the UI handler in `app.js` toward a
-   pure module or `db.js`; do not bypass the data layer.
-3. There is no build, linter, or CI job. Native Node regression tests cover the
-   pure utility and scheduling modules. Before and after a change, run:
+## Module Boundaries & Ownership Rules
 
-   ```sh
-   for file in app.js calendar.js config.js db.js docs.js fittings.js moodboard.js util.js; do
-     node --check "$file" || exit 1
-   done
-   node --test tests/*.test.cjs
-   git diff --check
+1. **`index.html`**: Owns static HTML structure, SPA route views, modal/drawer markup, and offscreen PDF canvas templates.
+2. **`styles/`**: Load order is fixed (`shared.css` → `pages.css` → `documents.css` → `moodboard.css`).
+3. **`util.js`**: Dependency-free pure formatting functions (`formatRupiah`, `formatLongDate`, `escapeHtml`), HEIC image decoder, and SVG icon constants.
+4. **`calendar.js`**: Pure date arithmetic and schedule generation algorithms for production and design phases.
+5. **`docs.js`**: Pure document layout rendering, watermark generation, and PDF export via html2canvas & jsPDF.
+6. **`moodboard.js`**: Canvas layout solver (16:9 / 9:16), mosaic grid engine, photo caching, and PDF snapshot generator.
+7. **`fittings.js`**: Fitting journal UI adapter, camera/gallery overlay handlers, and image compression.
+8. **`db.js`**: Sole browser module owning the Supabase PostgREST client and Deno Edge Function invocations.
+9. **`schema.sql`**: PostgreSQL database schema, tables, triggers, and RLS security policies.
+
+---
+
+## How to Work in This Codebase (For Future AI Agents & Developers)
+
+1. **Targeted Reading**: To fix or add a feature, consult the **Start Here: Feature Entry-Point Map** and load ONLY the 1-2 relevant files listed in the entry map.
+2. **Verification Gate**: After making structural modifications, ALWAYS run the syntax validation check and unit test suite before declaring completion:
+
+   ```bash
+   node --check app.js db.js util.js calendar.js config.js docs.js fittings.js moodboard.js tests/pure-modules.test.cjs
+   node --test tests/pure-modules.test.cjs
    ```
-
-4. Serve the repository over HTTP and manually verify the touched route. PDF,
-   authenticated Supabase, Edge Function, and visual flows require manual checks.
-5. Add database changes as new idempotent blocks at the end of `schema.sql` and
-   update the corresponding `db.js` projection/write in the same change.
