@@ -1730,10 +1730,22 @@ body.is-orderpage .view { gap: 0; }
 /* The full-width rules form the horizontal grid; the record itself sits 16px
    inside them, matching the vertical grid lines in each spacer. */
 .order-schedule__record {
+  position: relative;
   padding: 0 16px;
-  border-top: 1px solid var(--home-grid);
-  border-bottom: 1px solid var(--home-grid);
 }
+.order-schedule__record::before,
+.order-schedule__record::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  background: var(--home-grid);
+  pointer-events: none;
+}
+.order-schedule__record::before { top: 0; }
+.order-schedule__record::after  { bottom: 0; }
 .order-schedule__spacer { height: 24px; position: relative; }
 .order-schedule__spacer::before,
 .order-schedule__spacer::after {
