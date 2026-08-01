@@ -123,7 +123,7 @@ body.is-moodboardpage .view { gap: 0; }
 }
 .mb-upload-ticks--left,
 .mb-upload-ticks--right {
-  grid-row: 1 / 4;
+  grid-row: 2;
   display: grid;
   grid-template-rows: repeat(4, minmax(0, 1fr));
   border-top: 1px solid var(--home-grid);
@@ -206,13 +206,9 @@ body.is-moodboardpage .view { gap: 0; }
   width: 28px;
   height: 28px;
   border-radius: 0 0 999px 999px;
-  background: transparent;
-  transform: scale(.82);
-  transition: background-color 280ms var(--ease-standard), transform 360ms var(--ease-standard);
-}
-.mb-upload-cell.is-loaded .mb-upload-cell__control::before {
   background: var(--home-grid);
   transform: scale(1);
+  transition: background-color 280ms var(--ease-standard), transform 360ms var(--ease-standard);
 }
 .mb-upload-cell__control::after {
   content: "";

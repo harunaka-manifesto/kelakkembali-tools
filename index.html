@@ -896,9 +896,7 @@
                 <p class="moodboard-card__hint">You can upload up to 16 images.</p>
               </div>
 
-              <!-- Keep this MIME-only: Android is more likely to open its native
-                   photo picker (including Google Photos) than its generic Files UI. -->
-              <input type="file" id="mbFileInput" multiple accept="image/*" hidden>
+              <input type="file" id="mbFileInput" multiple accept="image/png, image/jpeg, image/webp, image/heic, image/heif" hidden>
               <div class="mb-upload-grid-wrap" id="mbDropzone">
                 <div class="mb-upload-ticks mb-upload-ticks--top" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
                 <div class="mb-upload-ticks mb-upload-ticks--left" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
@@ -1049,7 +1047,7 @@
     <button type="button" class="fitting-camera__shutter" id="fittingShutter" aria-label="Take photo" disabled></button>
     <button type="button" class="fitting-camera__button" id="fittingFlip" aria-label="Flip camera"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 8a8 8 0 1 0 1 7"></path><path d="M19 4v4h-4"></path></svg></button>
   </div>
-  <input id="fittingFileInput" type="file" accept="image/*" hidden>
+  <input id="fittingFileInput" type="file" accept="image/png, image/jpeg, image/webp, image/heic, image/heif" hidden>
 </section>
 
 <section class="fitting-confirm" id="fittingConfirm" hidden aria-label="Confirm fitting photo" role="dialog" aria-modal="true">
