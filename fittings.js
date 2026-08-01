@@ -1,107 +1,598 @@
-/* Fitting-journal UI adapter: camera/gallery capture, image preparation,
-   overlays, captions, and photo records. Persistence and route state are
-   supplied through callbacks; this module does not own Supabase or routing. */
-window.KK=window.KK||{},KK.fittings=function(){"use strict";const e=KK.util,t=new Map
-;let i=null,n=null,o=null,a=null,r="environment",c=null,s=null,l=null,d=null
-;const u=["fittingCamera","fittingConfirm","fittingCaptionStep","fittingPicker","fittingEditSheet"];function syncOverlayState(){
-const e=u.some(e=>!document.querySelector("#"+e).hidden);document.body.classList.toggle("has-modal",e),!e&&d&&document.contains(d)&&d.focus(),
-e||(d=null)}function showOverlay(e,t){d||(d=document.activeElement),document.querySelector("#"+e).hidden=!1,syncOverlayState(),
-t&&requestAnimationFrame(()=>document.querySelector(t).focus())}function hideOverlay(e){document.querySelector("#"+e).hidden=!0,syncOverlayState()}
-const thumbURL=(e,t)=>e?"https://drive.google.com/thumbnail?id="+encodeURIComponent(e)+"&sz=w"+(t||200):"",imageURL=(e,i)=>t.get(e.id)||thumbURL(e.drive_file_id,i),notify=e=>n&&n.onToast&&n.onToast(e)
-;async function usableBlob(i){return e.isHeic(i)?e.convertHeicToJpeg(i):i}
-function compressImage(e,t,i){return new Promise((n,o)=>{const a=URL.createObjectURL(e),r=new Image;r.onload=()=>{
-const e=Math.min(1,t/r.naturalWidth),c=Math.max(1,Math.round(r.naturalWidth*e)),s=Math.max(1,Math.round(r.naturalHeight*e)),l=document.createElement("canvas")
-;l.width=c,l.height=s,l.getContext("2d").drawImage(r,0,0,c,s),URL.revokeObjectURL(a),
-l.toBlob(e=>e?n(e):o(new Error("Could not prepare that photo.")),"image/jpeg",i)},r.onerror=()=>{URL.revokeObjectURL(a),
-o(new Error("Could not read that photo."))},r.src=a})}function base64(e){return new Promise((t,i)=>{const n=new FileReader
-;n.onload=()=>t(String(n.result).split(",")[1]||""),n.onerror=()=>i(new Error("Could not prepare photo upload.")),n.readAsDataURL(e)})}
-function cancelStagePicker(){hideOverlay("fittingPicker");const e=l;l=null,e&&e()}function stopStream(){a&&a.getTracks().forEach(e=>e.stop()),a=null}
-async function openCamera(){
-const e=document.querySelector("#fittingCameraVideo"),t=document.querySelector("#fittingCameraStatus"),i=document.querySelector("#fittingShutter")
-;t.hidden=!1,i.disabled=!0,stopStream(),showOverlay("fittingCamera","#fittingCameraClose");try{a=await navigator.mediaDevices.getUserMedia({video:{
-facingMode:{ideal:r}},audio:!1}),e.srcObject=a,e.onloadedmetadata=()=>{t.hidden=!0,i.disabled=!1,e.play().catch(()=>{})}
-;const n=await navigator.mediaDevices.enumerateDevices();document.querySelector("#fittingFlip").hidden=n.filter(e=>"videoinput"===e.kind).length<2
-}catch(e){hideOverlay("fittingCamera"),notify("Camera unavailable — choose a photo instead"),chooseFromGallery()}}function closeCamera(){
-const e=document.querySelector("#fittingCameraVideo");stopStream(),e.srcObject=null,e.onloadedmetadata=null,hideOverlay("fittingCamera")}
-function captureFromVideo(){const e=document.querySelector("#fittingCameraVideo");if(!e.videoWidth)return;const t=document.createElement("canvas")
-;t.width=e.videoWidth,t.height=e.videoHeight,t.getContext("2d").drawImage(e,0,0),t.toBlob(e=>{e&&openConfirmation(e)},"image/jpeg",.9)}
-async function flipCamera(){r="environment"===r?"user":"environment",await openCamera()}function chooseFromGallery(){
-document.querySelector("#fittingFileInput").click()}async function galleryChanged(e){const t=e.target.files&&e.target.files[0];if(e.target.value="",
-t)try{openConfirmation(await compressImage(await usableBlob(t),1600,.85))}catch(e){notify(e.message||"Could not prepare that photo.")}}
-function clearPending(e){e&&o&&o.blob&&URL.revokeObjectURL(o.url),o=null}function openConfirmation(e){closeCamera(),clearPending(!0),o={blob:e,
-url:URL.createObjectURL(e),replacePhoto:s},s=null,document.querySelector("#fittingConfirmPreview").src=o.url,
-showOverlay("fittingConfirm","#fittingUsePhoto")}function retake(){hideOverlay("fittingConfirm"),clearPending(!0),openCamera()}function usePhoto(){
-hideOverlay("fittingConfirm"),openCaptionStep(o&&o.replacePhoto&&o.replacePhoto.caption)}function resizeCaption(){
-const e=document.querySelector("#fittingCaption");e.style.height="auto",e.style.height=Math.min(e.scrollHeight,120)+"px"}function openCaptionStep(e){
-if(!o)return;const t=document.querySelector("#fittingCaption");document.querySelector("#fittingCaptionPreview").src=o.url,t.value=e||"",
-showOverlay("fittingCaptionStep","#fittingCaption"),resizeCaption()}function closeCaptionStep(e){hideOverlay("fittingCaptionStep"),e&&clearPending(!0)
-}function photosForSession(){
-return(n.photos||[]).slice().sort((e,t)=>Number(e.position)-Number(t.position)||String(e.created_at).localeCompare(String(t.created_at)))}
-function findPhoto(e){return(n.photos||[]).find(t=>t.id===e)}async function saveCaptionAndPhoto(){if(!o||!n||!n.session)return
-;const e=document.querySelector("#fittingCaptionSave"),a=document.querySelector("#fittingCaption").value.trim();e.disabled=!0;try{if(o.replacePhoto){
-const e=o.replacePhoto,r=o,s=await KK.db.updateFittingPhoto(e.id,{caption:a||null,drive_file_id:null,drive_link:null}),l=t.get(e.id)
-;return l&&URL.revokeObjectURL(l),t.set(e.id,r.url),n.photos[n.photos.findIndex(t=>t.id===e.id)]=s,clearPending(!1),c=null,closeCaptionStep(!1),
-renderJournal(i,n),notify("Photo replaced"),void archivePhoto(s,r,n).catch(e=>{console.error(e),notify("Photo saved locally; Drive backup failed")})}
-if(c){const e=await KK.db.updateFittingPhoto(c.id,{caption:a||null});return n.photos[n.photos.findIndex(t=>t.id===e.id)]=e,c=null,
-closeCaptionStep(!0),renderJournal(i,n),void notify("Caption updated")}const e=await KK.db.createFittingPhoto({order_id:n.order.id,
-session_id:n.session.id,stage:n.session.stage,caption:a||null,position:photosForSession().length}),r=o;t.set(e.id,r.url),n.photos.push(e),
-clearPending(!1),closeCaptionStep(!1),renderJournal(i,n),notify("Photo saved"),archivePhoto(e,r,n).catch(e=>{console.error(e),
-notify("Photo saved locally; Drive backup failed")})}catch(e){notify(e.message||"Could not save photo.")}finally{e.disabled=!1}}
-async function archivePhoto(e,t,i){
-const o=(new Date).toISOString().replace(/[:.]/g,"-"),a=i.order.title||i.order.doc_name||"Untitled order",r=await KK.db.driveSaveFittingPhoto(await base64(t.blob),"image/jpeg","Fitting-"+e.stage+"-"+o+".jpg",i.customer.name,a,e.stage),c=await KK.db.updateFittingPhoto(e.id,{
-drive_file_id:r.file_id,drive_link:r.drive_link});if(n===i){const t=n.photos.findIndex(t=>t.id===e.id);-1!==t&&(n.photos[t]=c)}}
-function renderJournal(t,o){i=t,n=o;const a=photosForSession();i.innerHTML=a.length?a.map(t=>{const i=imageURL(t,800)
-;return'<article class="fitting-card"><button type="button" class="fitting-card__image js-fitting-open" data-id="'+e.escapeHtml(t.id)+'">'+(i?'<img src="'+e.escapeHtml(i)+'" alt="'+e.escapeHtml(t.caption||"Fitting photo")+'">':"")+'</button><div class="fitting-card__body"><p class="fitting-card__caption'+(t.caption?"":" fitting-card__caption--empty")+'">'+e.escapeHtml(t.caption||"No revision note")+'</p><div class="fitting-card__actions">'+("active"===n.session.status?'<button type="button" class="fitting-card__icon js-fitting-edit" data-id="'+e.escapeHtml(t.id)+'" aria-label="Edit photo">⋯</button>':"")+'<button type="button" class="fitting-card__icon js-fitting-share" data-id="'+e.escapeHtml(t.id)+'" aria-label="Share photo">↗</button></div></div></article>'
-}).join(""):'<p class="fitting-empty">No photos in this fitting yet.</p>',
-i.querySelectorAll(".js-fitting-open").forEach(e=>e.addEventListener("click",()=>{const t=findPhoto(e.dataset.id),i=t&&imageURL(t,1600)
-;i?window.open(i,"_blank","noopener"):notify("This photo is still awaiting a Drive backup.")})),
-i.querySelectorAll(".js-fitting-edit").forEach(e=>e.addEventListener("click",()=>{const photo=findPhoto(e.dataset.id);c=photo,
-showOverlay("fittingEditSheet","#fittingEditCaption")
-})),i.querySelectorAll(".js-fitting-share").forEach(e=>e.addEventListener("click",()=>async function(e){if(!e)return
-;const t=(e.caption||"")+(e.caption&&e.drive_link?"\n":"")+(e.drive_link||"");if(!t)return notify("This photo is still being backed up to Drive.")
-;if(navigator.share)try{return void await navigator.share({text:t})}catch(e){if(e&&"AbortError"===e.name)return}
-window.open("https://wa.me/?text="+encodeURIComponent(t),"_blank","noopener")}(findPhoto(e.dataset.id))))}function closeEditSheet(){
-hideOverlay("fittingEditSheet")}function editCaption(){c&&(closeEditSheet(),o={url:imageURL(c,1600),blob:null},openCaptionStep(c.caption))}
-function retakePhoto(){c&&(s=c,closeEditSheet(),openCamera())}async function deletePhoto(){
-if(c&&confirm("Delete this fitting photo from the journal? The Drive copy will remain available."))try{await KK.db.deleteFittingPhoto(c.id)
-;const e=t.get(c.id);e&&URL.revokeObjectURL(e),t.delete(c.id),n.photos=n.photos.filter(e=>e.id!==c.id),closeEditSheet(),c=null,renderJournal(i,n),
-notify("Photo deleted")}catch(e){notify(e.message||"Could not delete photo.")}}return{isHeic:e.isHeic,usableBlob:usableBlob,compressImage:compressImage,
-base64:base64,thumbURL:thumbURL,imageURL:imageURL,localURLs:t,archivePhoto:archivePhoto,detectStage:function(e){
-const t=(e||[]).filter(e=>KK.calendar.isProductionStage(e.stage)&&e.event_date);if(!t.length)return null;const i=new Date;i.setHours(0,0,0,0)
-;const n=t.map(e=>({event:e,distance:Math.abs(new Date(e.event_date+"T00:00:00").getTime()-i.getTime())})).sort((e,t)=>e.distance-t.distance)
-;return n.length>1&&n[0].distance===n[1].distance?null:n[0].event.stage},showStagePicker:function(t,i,n){document.querySelector("#fittingPicker")
-;const o=document.querySelector("#fittingPickerOptions")
-;l=n||null,o.innerHTML=(t||[]).filter(e=>KK.calendar.isProductionStage(e.stage)).map(t=>'<button type="button" class="fitting-picker__option" data-stage="'+e.escapeHtml(t.stage)+'">'+e.escapeHtml(t.stage)+(t.event_date?" · "+e.escapeHtml(e.formatShortDate(t.event_date)):"")+"</button>").join(""),
-showOverlay("fittingPicker",".fitting-picker__option"),o.querySelectorAll("button").forEach(e=>e.addEventListener("click",()=>{
-hideOverlay("fittingPicker"),l=null,i(e.dataset.stage)}))},startSession:function(e,t,i){n=Object.assign({},t,{session:e,onToast:i}),openCamera()},
-endSession:async function(e,t){const i=(n&&n.photos||[]).length;if(confirm("End fitting session? "+i+" photo"+(1===i?"":"s")+" will be saved."))try{
-await KK.db.updateFittingSession(e.id,{status:"completed",completed_at:(new Date).toISOString()}),t()}catch(e){
-notify(e.message||"Could not end fitting session.")}},renderJournal:renderJournal,renderHistoryList:function(t,i,n,o){const a={}
-;(n||[]).filter(e=>!e.session_id).forEach(e=>{(a[e.stage]=a[e.stage]||[]).push(e)});const r=(i||[]).map(e=>({session:e,
-photos:(n||[]).filter(t=>t.session_id===e.id)})).concat(Object.keys(a).map(e=>({session:null,stage:e,photos:a[e]})));t.innerHTML=r.map(t=>{
-const i=t.session?t.session.stage:t.stage,n=t.session?t.session.created_at:t.photos[0].created_at,o=t.photos.slice(0,3).map(t=>{
-const i=imageURL(t,100);return'<span class="fitting-history-row__thumb">'+(i?'<img src="'+e.escapeHtml(i)+'" alt="">':"")+"</span>"}).join("")
-;return'<button type="button" class="fitting-history-row"'+(t.session?' data-session-id="'+e.escapeHtml(t.session.id)+'"':"")+'><span class="fitting-history-row__thumbs">'+o+'</span><span class="fitting-history-row__text"><span class="fitting-history-row__stage">'+e.escapeHtml(i)+'</span><span class="fitting-history-row__date">'+e.escapeHtml(e.formatShortDate(n))+(t.session?"":" · Earlier photos")+"</span></span></button>"
-}).join(""),t.querySelectorAll("[data-session-id]").forEach(e=>e.addEventListener("click",()=>{
-location.hash="#/order/"+o+"/fitting/"+e.dataset.sessionId}))},bindOverlays:function(){
-document.querySelector("#fittingCameraClose").addEventListener("click",closeCamera),
-document.querySelector("#fittingGallery").addEventListener("click",chooseFromGallery),
-document.querySelector("#fittingShutter").addEventListener("click",captureFromVideo),
-document.querySelector("#fittingFlip").addEventListener("click",flipCamera),
-document.querySelector("#fittingFileInput").addEventListener("change",galleryChanged),
-document.querySelector("#fittingRetake").addEventListener("click",retake),
-document.querySelector("#fittingUsePhoto").addEventListener("click",usePhoto),
-document.querySelector("#fittingCaptionCancel").addEventListener("click",()=>{c=null,closeCaptionStep(!0)}),
-document.querySelector("#fittingCaptionSave").addEventListener("click",saveCaptionAndPhoto),
-document.querySelector("#fittingCaption").addEventListener("input",resizeCaption),
-document.querySelector("#fittingPickerCancel").addEventListener("click",cancelStagePicker),
-document.querySelector("#fittingPicker .fitting-picker__backdrop").addEventListener("click",cancelStagePicker),
-document.querySelector("#fittingEditCancel").addEventListener("click",closeEditSheet),
-document.querySelector("#fittingEditSheet .fitting-edit-sheet__backdrop").addEventListener("click",closeEditSheet),
-document.querySelector("#fittingEditCaption").addEventListener("click",editCaption),
-document.querySelector("#fittingRetakePhoto").addEventListener("click",retakePhoto),
-document.querySelector("#fittingDeletePhoto").addEventListener("click",deletePhoto),document.addEventListener("keydown",e=>{
-"Escape"===e.key&&document.body.classList.contains("has-modal")&&(document.querySelector("#fittingEditSheet").hidden?document.querySelector("#fittingPicker").hidden?document.querySelector("#fittingCaptionStep").hidden?document.querySelector("#fittingConfirm").hidden?closeCamera():(hideOverlay("fittingConfirm"),
-clearPending(!0)):(c=null,closeCaptionStep(!0)):cancelStagePicker():closeEditSheet())})},openCamera:openCamera,closeCamera:closeCamera,
-closeAll:function(){stopStream(),document.querySelector("#fittingCameraVideo").srcObject=null,u.forEach(e=>{document.querySelector("#"+e).hidden=!0}),
-l=null,c=null,s=null,clearPending(!0),syncOverlayState()}}}();
+/* Fitting journal UI controller: camera/gallery photo capture, overlays, captions, and fitting records.
+   
+   - Owns: Fitting photo capture, preview overlays, image compression, thumbnail generation, and journal UI rendering.
+   - Does NOT own: Direct Supabase database client (uses KK.db), routing, or order state management.
+   - Used by: app.js
+*/
+window.KK = window.KK || {};
+
+KK.fittings = (function () {
+  'use strict';
+
+  const U = KK.util;
+  const localURLs = new Map();
+
+  let journalContainer = null;
+  let activeSessionState = null;
+  let pendingPhoto = null;
+  let editingPhoto = null;
+  let activeCameraFacing = 'environment';
+  let activeVideoStream = null;
+
+  let editingPhotoTarget = null;
+  let replaceTargetPhoto = null;
+  let pickerCancelCallback = null;
+
+  const OVERLAY_IDS = [
+    'fittingCamera',
+    'fittingConfirm',
+    'fittingCaptionStep',
+    'fittingPicker',
+    'fittingEditSheet'
+  ];
+
+  /* ------------------------------ Overlay Helpers -------------------------- */
+
+  function syncOverlayState() {
+    const isAnyVisible = OVERLAY_IDS.some((id) => !document.querySelector('#' + id).hidden);
+    document.body.classList.toggle('has-modal', isAnyVisible);
+    if (!isAnyVisible && editingPhotoTarget && document.contains(editingPhotoTarget)) {
+      editingPhotoTarget.focus();
+    }
+    if (!isAnyVisible) editingPhotoTarget = null;
+  }
+
+  function showOverlay(id, focusTargetSelector) {
+    if (!editingPhotoTarget) editingPhotoTarget = document.activeElement;
+    document.querySelector('#' + id).hidden = false;
+    syncOverlayState();
+    if (focusTargetSelector) {
+      requestAnimationFrame(() => document.querySelector(focusTargetSelector).focus());
+    }
+  }
+
+  function hideOverlay(id) {
+    document.querySelector('#' + id).hidden = true;
+    syncOverlayState();
+  }
+
+  const thumbURL = (driveFileId, size) => driveFileId ? 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(driveFileId) + '&sz=w' + (size || 200) : '';
+  const imageURL = (photo, size) => localURLs.get(photo.id) || thumbURL(photo.drive_file_id, size);
+  const notify = (msg) => activeSessionState && activeSessionState.onToast && activeSessionState.onToast(msg);
+
+  /* --------------------------- Image Compression --------------------------- */
+
+  async function usableBlob(file) {
+    return U.isHeic(file) ? U.convertHeicToJpeg(file) : file;
+  }
+
+  function compressImage(file, maxDimension, quality) {
+    return new Promise((resolve, reject) => {
+      const objectUrl = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxDimension / img.naturalWidth);
+        const targetW = Math.max(1, Math.round(img.naturalWidth * scale));
+        const targetH = Math.max(1, Math.round(img.naturalHeight * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = targetW;
+        canvas.height = targetH;
+        canvas.getContext('2d').drawImage(img, 0, 0, targetW, targetH);
+        URL.revokeObjectURL(objectUrl);
+        canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Could not prepare that photo.')), 'image/jpeg', quality);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error('Could not read that photo.'));
+      };
+      img.src = objectUrl;
+    });
+  }
+
+  function base64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+      reader.onerror = () => reject(new Error('Could not prepare photo upload.'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function cancelStagePicker() {
+    hideOverlay('fittingPicker');
+    const callback = pickerCancelCallback;
+    pickerCancelCallback = null;
+    if (callback) callback();
+  }
+
+  function stopStream() {
+    if (activeVideoStream) {
+      activeVideoStream.getTracks().forEach((track) => track.stop());
+      activeVideoStream = null;
+    }
+  }
+
+  /* ---------------------------- Camera & Gallery --------------------------- */
+
+  async function openCamera() {
+    const videoEl = document.querySelector('#fittingCameraVideo');
+    const statusEl = document.querySelector('#fittingCameraStatus');
+    const shutterBtn = document.querySelector('#fittingShutter');
+
+    statusEl.hidden = false;
+    shutterBtn.disabled = true;
+    stopStream();
+    showOverlay('fittingCamera', '#fittingCameraClose');
+
+    try {
+      activeVideoStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: activeCameraFacing } },
+        audio: false
+      });
+      videoEl.srcObject = activeVideoStream;
+      videoEl.onloadedmetadata = () => {
+        statusEl.hidden = true;
+        shutterBtn.disabled = false;
+        videoEl.play().catch(() => {});
+      };
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      document.querySelector('#fittingFlip').hidden = devices.filter((d) => d.kind === 'videoinput').length < 2;
+    } catch (_) {
+      hideOverlay('fittingCamera');
+      notify('Camera unavailable — choose a photo instead');
+      chooseFromGallery();
+    }
+  }
+
+  function closeCamera() {
+    const videoEl = document.querySelector('#fittingCameraVideo');
+    stopStream();
+    videoEl.srcObject = null;
+    videoEl.onloadedmetadata = null;
+    hideOverlay('fittingCamera');
+  }
+
+  function captureFromVideo() {
+    const videoEl = document.querySelector('#fittingCameraVideo');
+    if (!videoEl.videoWidth) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = videoEl.videoWidth;
+    canvas.height = videoEl.videoHeight;
+    canvas.getContext('2d').drawImage(videoEl, 0, 0);
+    canvas.toBlob((blob) => { if (blob) openConfirmation(blob); }, 'image/jpeg', 0.9);
+  }
+
+  async function flipCamera() {
+    activeCameraFacing = activeCameraFacing === 'environment' ? 'user' : 'environment';
+    await openCamera();
+  }
+
+  function chooseFromGallery() {
+    document.querySelector('#fittingFileInput').click();
+  }
+
+  async function galleryChanged(event) {
+    const file = event.target.files && event.target.files[0];
+    event.target.value = '';
+    if (file) {
+      try {
+        const prepared = await compressImage(await usableBlob(file), 1600, 0.85);
+        openConfirmation(prepared);
+      } catch (err) {
+        notify(err.message || 'Could not prepare that photo.');
+      }
+    }
+  }
+
+  function clearPending(revokeObjectUrl) {
+    if (revokeObjectUrl && pendingPhoto && pendingPhoto.blob) {
+      URL.revokeObjectURL(pendingPhoto.url);
+    }
+    pendingPhoto = null;
+  }
+
+  function openConfirmation(blob) {
+    closeCamera();
+    clearPending(true);
+    pendingPhoto = {
+      blob,
+      url: URL.createObjectURL(blob),
+      replacePhoto: replaceTargetPhoto
+    };
+    replaceTargetPhoto = null;
+    document.querySelector('#fittingConfirmPreview').src = pendingPhoto.url;
+    showOverlay('fittingConfirm', '#fittingUsePhoto');
+  }
+
+  function retake() {
+    hideOverlay('fittingConfirm');
+    clearPending(true);
+    openCamera();
+  }
+
+  function usePhoto() {
+    hideOverlay('fittingConfirm');
+    openCaptionStep(pendingPhoto && pendingPhoto.replacePhoto && pendingPhoto.replacePhoto.caption);
+  }
+
+  function resizeCaption() {
+    const textarea = document.querySelector('#fittingCaption');
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+  }
+
+  function openCaptionStep(initialCaption) {
+    if (!pendingPhoto) return;
+    const textarea = document.querySelector('#fittingCaption');
+    document.querySelector('#fittingCaptionPreview').src = pendingPhoto.url;
+    textarea.value = initialCaption || '';
+    showOverlay('fittingCaptionStep', '#fittingCaption');
+    resizeCaption();
+  }
+
+  function closeCaptionStep(clearPendingBlob) {
+    hideOverlay('fittingCaptionStep');
+    if (clearPendingBlob) clearPending(true);
+  }
+
+  function photosForSession() {
+    return (activeSessionState.photos || []).slice().sort((a, b) => Number(a.position) - Number(b.position) || String(a.created_at).localeCompare(String(b.created_at)));
+  }
+
+  function findPhoto(id) {
+    return (activeSessionState.photos || []).find((p) => p.id === id);
+  }
+
+  /* ----------------------------- Save & Archival --------------------------- */
+
+  async function saveCaptionAndPhoto() {
+    if (!pendingPhoto || !activeSessionState || !activeSessionState.session) return;
+    const saveBtn = document.querySelector('#fittingCaptionSave');
+    const captionVal = document.querySelector('#fittingCaption').value.trim();
+    saveBtn.disabled = true;
+
+    try {
+      if (pendingPhoto.replacePhoto) {
+        const replacePhoto = pendingPhoto.replacePhoto;
+        const currentPending = pendingPhoto;
+        const updated = await KK.db.updateFittingPhoto(replacePhoto.id, {
+          caption: captionVal || null,
+          drive_file_id: null,
+          drive_link: null
+        });
+
+        const oldLocalUrl = localURLs.get(replacePhoto.id);
+        if (oldLocalUrl) URL.revokeObjectURL(oldLocalUrl);
+        localURLs.set(replacePhoto.id, currentPending.url);
+
+        const photoIdx = activeSessionState.photos.findIndex((p) => p.id === replacePhoto.id);
+        if (photoIdx !== -1) activeSessionState.photos[photoIdx] = updated;
+
+        clearPending(false);
+        editingPhoto = null;
+        closeCaptionStep(false);
+        renderJournal(journalContainer, activeSessionState);
+        notify('Photo replaced');
+
+        archivePhoto(updated, currentPending, activeSessionState).catch((err) => {
+          console.error(err);
+          notify('Photo saved locally; Drive backup failed');
+        });
+        return;
+      }
+
+      if (editingPhoto) {
+        const updated = await KK.db.updateFittingPhoto(editingPhoto.id, { caption: captionVal || null });
+        const photoIdx = activeSessionState.photos.findIndex((p) => p.id === editingPhoto.id);
+        if (photoIdx !== -1) activeSessionState.photos[photoIdx] = updated;
+
+        editingPhoto = null;
+        closeCaptionStep(true);
+        renderJournal(journalContainer, activeSessionState);
+        notify('Caption updated');
+        return;
+      }
+
+      const created = await KK.db.createFittingPhoto({
+        order_id: activeSessionState.order.id,
+        session_id: activeSessionState.session.id,
+        stage: activeSessionState.session.stage,
+        caption: captionVal || null,
+        position: photosForSession().length
+      });
+
+      const currentPending = pendingPhoto;
+      localURLs.set(created.id, currentPending.url);
+      activeSessionState.photos.push(created);
+
+      clearPending(false);
+      closeCaptionStep(false);
+      renderJournal(journalContainer, activeSessionState);
+      notify('Photo saved');
+
+      archivePhoto(created, currentPending, activeSessionState).catch((err) => {
+        console.error(err);
+        notify('Photo saved locally; Drive backup failed');
+      });
+    } catch (err) {
+      notify(err.message || 'Could not save photo.');
+    } finally {
+      saveBtn.disabled = false;
+    }
+  }
+
+  async function archivePhoto(photoRecord, pendingRecord, sessionState) {
+    const timestampStr = new Date().toISOString().replace(/[:.]/g, '-');
+    const orderTitle = sessionState.order.title || sessionState.order.doc_name || 'Untitled order';
+    const base64Data = await base64(pendingRecord.blob);
+
+    const driveResult = await KK.db.driveSaveFittingPhoto(
+      base64Data,
+      'image/jpeg',
+      'Fitting-' + photoRecord.stage + '-' + timestampStr + '.jpg',
+      sessionState.customer.name,
+      orderTitle,
+      photoRecord.stage
+    );
+
+    const updated = await KK.db.updateFittingPhoto(photoRecord.id, {
+      drive_file_id: driveResult.file_id,
+      drive_link: driveResult.drive_link
+    });
+
+    if (activeSessionState === sessionState) {
+      const idx = activeSessionState.photos.findIndex((p) => p.id === photoRecord.id);
+      if (idx !== -1) activeSessionState.photos[idx] = updated;
+    }
+  }
+
+  /* ------------------------------ UI Rendering ----------------------------- */
+
+  function renderJournal(container, sessionState) {
+    journalContainer = container;
+    activeSessionState = sessionState;
+    const sortedPhotos = photosForSession();
+
+    container.innerHTML = sortedPhotos.length ? sortedPhotos.map((photo) => {
+      const srcUrl = imageURL(photo, 800);
+      return '<article class="fitting-card">' +
+        '<button type="button" class="fitting-card__image js-fitting-open" data-id="' + U.escapeHtml(photo.id) + '">' +
+        (srcUrl ? '<img src="' + U.escapeHtml(srcUrl) + '" alt="' + U.escapeHtml(photo.caption || 'Fitting photo') + '">' : '') +
+        '</button>' +
+        '<div class="fitting-card__body">' +
+        '<p class="fitting-card__caption' + (photo.caption ? '' : ' fitting-card__caption--empty') + '">' + U.escapeHtml(photo.caption || 'No revision note') + '</p>' +
+        '<div class="fitting-card__actions">' +
+        (activeSessionState.session.status === 'active' ? '<button type="button" class="fitting-card__icon js-fitting-edit" data-id="' + U.escapeHtml(photo.id) + '" aria-label="Edit photo">⋯</button>' : '') +
+        '<button type="button" class="fitting-card__icon js-fitting-share" data-id="' + U.escapeHtml(photo.id) + '" aria-label="Share photo">↗</button>' +
+        '</div>' +
+        '</div>' +
+        '</article>';
+    }).join('') : '<p class="fitting-empty">No photos in this fitting yet.</p>';
+
+    container.querySelectorAll('.js-fitting-open').forEach((btn) => btn.addEventListener('click', () => {
+      const photo = findPhoto(btn.dataset.id);
+      const url = photo && imageURL(photo, 1600);
+      if (url) window.open(url, '_blank', 'noopener');
+      else notify('This photo is still awaiting a Drive backup.');
+    }));
+
+    container.querySelectorAll('.js-fitting-edit').forEach((btn) => btn.addEventListener('click', () => {
+      editingPhoto = findPhoto(btn.dataset.id);
+      showOverlay('fittingEditSheet', '#fittingEditCaption');
+    }));
+
+    container.querySelectorAll('.js-fitting-share').forEach((btn) => btn.addEventListener('click', () => {
+      const photo = findPhoto(btn.dataset.id);
+      if (!photo) return;
+      const shareText = (photo.caption || '') + (photo.caption && photo.drive_link ? '\n' : '') + (photo.drive_link || '');
+      if (!shareText) return notify('This photo is still being backed up to Drive.');
+
+      if (navigator.share) {
+        navigator.share({ text: shareText }).catch((err) => {
+          if (err && err.name === 'AbortError') return;
+          window.open('https://wa.me/?text=' + encodeURIComponent(shareText), '_blank', 'noopener');
+        });
+        return;
+      }
+      window.open('https://wa.me/?text=' + encodeURIComponent(shareText), '_blank', 'noopener');
+    }));
+  }
+
+  function closeEditSheet() {
+    hideOverlay('fittingEditSheet');
+  }
+
+  function editCaption() {
+    if (!editingPhoto) return;
+    closeEditSheet();
+    pendingPhoto = { url: imageURL(editingPhoto, 1600), blob: null };
+    openCaptionStep(editingPhoto.caption);
+  }
+
+  function retakePhoto() {
+    if (!editingPhoto) return;
+    replaceTargetPhoto = editingPhoto;
+    closeEditSheet();
+    openCamera();
+  }
+
+  async function deletePhoto() {
+    if (!editingPhoto || !confirm('Delete this fitting photo from the journal? The Drive copy will remain available.')) return;
+    try {
+      await KK.db.deleteFittingPhoto(editingPhoto.id);
+      const url = localURLs.get(editingPhoto.id);
+      if (url) URL.revokeObjectURL(url);
+      localURLs.delete(editingPhoto.id);
+
+      activeSessionState.photos = activeSessionState.photos.filter((p) => p.id !== editingPhoto.id);
+      closeEditSheet();
+      editingPhoto = null;
+      renderJournal(journalContainer, activeSessionState);
+      notify('Photo deleted');
+    } catch (err) {
+      notify(err.message || 'Could not delete photo.');
+    }
+  }
+
+  /* ------------------------------- Public API ------------------------------ */
+
+  return {
+    isHeic: U.isHeic,
+    usableBlob,
+    compressImage,
+    base64,
+    thumbURL,
+    imageURL,
+    localURLs,
+    archivePhoto,
+
+    detectStage: function (scheduleEvents) {
+      const prodEvents = (scheduleEvents || []).filter((e) => KK.calendar.isProductionStage(e.stage) && e.event_date);
+      if (!prodEvents.length) return null;
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const sortedByDistance = prodEvents.map((e) => ({
+        event: e,
+        distance: Math.abs(new Date(e.event_date + 'T00:00:00').getTime() - today.getTime())
+      })).sort((a, b) => a.distance - b.distance);
+
+      if (sortedByDistance.length > 1 && sortedByDistance[0].distance === sortedByDistance[1].distance) {
+        return null;
+      }
+      return sortedByDistance[0].event.stage;
+    },
+
+    showStagePicker: function (events, onSelectStage, onCancel) {
+      const pickerEl = document.querySelector('#fittingPickerOptions');
+      pickerCancelCallback = onCancel || null;
+
+      pickerEl.innerHTML = (events || [])
+        .filter((e) => KK.calendar.isProductionStage(e.stage))
+        .map((e) =>
+          '<button type="button" class="fitting-picker__option" data-stage="' + U.escapeHtml(e.stage) + '">' +
+          U.escapeHtml(e.stage) + (e.event_date ? ' · ' + U.escapeHtml(U.formatShortDate(e.event_date)) : '') +
+          '</button>'
+        ).join('');
+
+      showOverlay('fittingPicker', '.fitting-picker__option');
+      pickerEl.querySelectorAll('button').forEach((btn) => btn.addEventListener('click', () => {
+        hideOverlay('fittingPicker');
+        pickerCancelCallback = null;
+        onSelectStage(btn.dataset.stage);
+      }));
+    },
+
+    startSession: function (sessionRecord, fullState, toastCallback) {
+      activeSessionState = Object.assign({}, fullState, { session: sessionRecord, onToast: toastCallback });
+      openCamera();
+    },
+
+    endSession: async function (sessionRecord, onSuccess) {
+      const count = (activeSessionState && activeSessionState.photos || []).length;
+      if (confirm('End fitting session? ' + count + ' photo' + (count === 1 ? '' : 's') + ' will be saved.')) {
+        try {
+          await KK.db.updateFittingSession(sessionRecord.id, {
+            status: 'completed',
+            completed_at: new Date().toISOString()
+          });
+          onSuccess();
+        } catch (err) {
+          notify(err.message || 'Could not end fitting session.');
+        }
+      }
+    },
+
+    renderJournal,
+
+    renderHistoryList: function (container, sessionList, photoList, orderId) {
+      const unassignedMap = {};
+      (photoList || []).filter((p) => !p.session_id).forEach((p) => {
+        (unassignedMap[p.stage] = unassignedMap[p.stage] || []).push(p);
+      });
+
+      const items = (sessionList || []).map((s) => ({
+        session: s,
+        photos: (photoList || []).filter((p) => p.session_id === s.id)
+      })).concat(Object.keys(unassignedMap).map((stage) => ({
+        session: null,
+        stage,
+        photos: unassignedMap[stage]
+      })));
+
+      container.innerHTML = items.map((item) => {
+        const stageName = item.session ? item.session.stage : item.stage;
+        const dateVal = item.session ? item.session.created_at : item.photos[0].created_at;
+        const thumbsHtml = item.photos.slice(0, 3).map((p) => {
+          const url = imageURL(p, 100);
+          return '<span class="fitting-history-row__thumb">' + (url ? '<img src="' + U.escapeHtml(url) + '" alt="">' : '') + '</span>';
+        }).join('');
+
+        return '<button type="button" class="fitting-history-row"' + (item.session ? ' data-session-id="' + U.escapeHtml(item.session.id) + '"' : '') + '>' +
+          '<span class="fitting-history-row__thumbs">' + thumbsHtml + '</span>' +
+          '<span class="fitting-history-row__text">' +
+          '<span class="fitting-history-row__stage">' + U.escapeHtml(stageName) + '</span>' +
+          '<span class="fitting-history-row__date">' + U.escapeHtml(U.formatShortDate(dateVal)) + (item.session ? '' : ' · Earlier photos') + '</span>' +
+          '</span>' +
+          '</button>';
+      }).join('');
+
+      container.querySelectorAll('[data-session-id]').forEach((btn) => btn.addEventListener('click', () => {
+        location.hash = '#/order/' + orderId + '/fitting/' + btn.dataset.sessionId;
+      }));
+    },
+
+    bindOverlays: function () {
+      document.querySelector('#fittingCameraClose').addEventListener('click', closeCamera);
+      document.querySelector('#fittingGallery').addEventListener('click', chooseFromGallery);
+      document.querySelector('#fittingShutter').addEventListener('click', captureFromVideo);
+      document.querySelector('#fittingFlip').addEventListener('click', flipCamera);
+      document.querySelector('#fittingFileInput').addEventListener('change', galleryChanged);
+      document.querySelector('#fittingRetake').addEventListener('click', retake);
+      document.querySelector('#fittingUsePhoto').addEventListener('click', usePhoto);
+      document.querySelector('#fittingCaptionCancel').addEventListener('click', () => { editingPhoto = null; closeCaptionStep(true); });
+      document.querySelector('#fittingCaptionSave').addEventListener('click', saveCaptionAndPhoto);
+      document.querySelector('#fittingCaption').addEventListener('input', resizeCaption);
+      document.querySelector('#fittingPickerCancel').addEventListener('click', cancelStagePicker);
+      document.querySelector('#fittingPicker .fitting-picker__backdrop').addEventListener('click', cancelStagePicker);
+      document.querySelector('#fittingEditCancel').addEventListener('click', closeEditSheet);
+      document.querySelector('#fittingEditSheet .fitting-edit-sheet__backdrop').addEventListener('click', closeEditSheet);
+      document.querySelector('#fittingEditCaption').addEventListener('click', editCaption);
+      document.querySelector('#fittingRetakePhoto').addEventListener('click', retakePhoto);
+      document.querySelector('#fittingDeletePhoto').addEventListener('click', deletePhoto);
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && document.body.classList.contains('has-modal')) {
+          if (!document.querySelector('#fittingEditSheet').hidden) {
+            closeEditSheet();
+          } else if (!document.querySelector('#fittingPicker').hidden) {
+            cancelStagePicker();
+          } else if (!document.querySelector('#fittingCaptionStep').hidden) {
+            editingPhoto = null;
+            closeCaptionStep(true);
+          } else if (!document.querySelector('#fittingConfirm').hidden) {
+            hideOverlay('fittingConfirm');
+            clearPending(true);
+          } else {
+            closeCamera();
+          }
+        }
+      });
+    },
+
+    openCamera,
+    closeCamera,
+
+    closeAll: function () {
+      stopStream();
+      document.querySelector('#fittingCameraVideo').srcObject = null;
+      OVERLAY_IDS.forEach((id) => { document.querySelector('#' + id).hidden = true; });
+      pickerCancelCallback = null;
+      editingPhoto = null;
+      replaceTargetPhoto = null;
+      clearPending(true);
+      syncOverlayState();
+    }
+  };
+})();

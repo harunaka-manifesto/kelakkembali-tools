@@ -1,88 +1,358 @@
-/* Sole browser data-access layer. Owns the Supabase client, auth/session
-   storage, table projections and CRUD, plus Calendar/Drive Edge Function calls.
-   It deliberately contains no DOM rendering or schedule/document policy. */
-window.KK=window.KK||{},KK.db=function(){"use strict";const e=window.KK_CONFIG||{};let t=null;function isConfigured(){
-return/^https:\/\/.+\.supabase\.co\/?$/.test(String(e.SUPABASE_URL||""))&&String(e.SUPABASE_ANON_KEY||"").length>40}
-const n="kk_remember_me",r="kk_saved_password";function rememberPreference(){const e=localStorage.getItem(n);return null===e||"1"===e}
-function clearSavedPassword(){localStorage.removeItem(r)}function init(){
-return t||(isConfigured()?(t=window.supabase.createClient(e.SUPABASE_URL,e.SUPABASE_ANON_KEY,{auth:{persistSession:!0,autoRefreshToken:!0,
-storage:rememberPreference()?window.localStorage:window.sessionStorage}}),t):null)}function unwrap(e){if(e.error){
-const t=new Error(e.error.message||"Request failed");throw t.code=e.error.code||"",t}return e.data}
-const i="id,name,phone,instagram,source,wedding_date,wedding_date_precision,notes,moodboard_date,cancelled_at,cancelled_reason,follow_up_date,follow_up_label,follow_up_google_event_id,follow_up_synced_at,created_at"
-;const a="id,customer_id,title,doc_name,document_date,status,items,includes,payment_scheme,payment_terms,first_payment_date,second_payment_date,final_payment_date,created_at"
-;async function listOrderEvents(e){
-return unwrap(await init().from("order_events").select("id,order_id,stage,event_date,end_date,pinned,google_event_id,synced_at").eq("order_id",e).order("event_date",{
-ascending:!0}))}
-const o="id,order_id,session_id,stage,caption,drive_file_id,drive_link,position,created_at",s="id,order_id,stage,status,created_at,completed_at"
-;async function callGoogle(e,t){const n=init();if(!n)throw new Error("Supabase is not configured — see config.js")
-;const{data:r,error:i}=await n.functions.invoke("google-calendar",{body:Object.assign({action:e},t||{})});if(i){let e="";try{
-e=(await i.context.json()).error||""}catch(e){}throw new Error(e||i.message||"Google Calendar request failed")}if(r&&r.error)throw new Error(r.error)
-;return r}async function callDrive(e,t){const n=init();if(!n)throw new Error("Supabase is not configured — see config.js")
-;const{data:r,error:i}=await n.functions.invoke("google-drive",{body:Object.assign({action:e},t||{})});if(i){let e="";try{
-e=(await i.context.json()).error||""}catch(e){}throw new Error(e||i.message||"Google Drive request failed")}if(r&&r.error)throw new Error(r.error)
-;return r}const d="id,payload,name,phone,instagram,source,wedding_date,wedding_date_precision,notes,status,customer_id,created_at,reviewed_at";return{
-isConfigured:isConfigured,init:init,currentSession:async function(){if(!init())return null;const{data:e}=await t.auth.getSession()
-;return e.session||null},signIn:async function(i,a){if(
-// The storage choice is baked into the client at construction, so a
-// change of heart on "remember me" means throwing the boot-time client
-// away and building a fresh one. Safe here: nothing has authenticated on
-// it yet, the only prior use was a currentSession() check at boot.
-function(e){localStorage.setItem(n,e?"1":"0")}(a),t=null,!init())throw new Error("Supabase is not configured — see config.js")
-;const{error:o}=await t.auth.signInWithPassword({email:e.SHARED_EMAIL,password:i});
-// Supabase says "Invalid login credentials" for a bad password, which reads
-// oddly when the email is fixed and invisible to the user.
-if(o)throw new Error(/credential/i.test(o.message)?"Wrong password":o.message);a?function(e){localStorage.setItem(r,e)}(i):clearSavedPassword()},
-signOut:async function(){init()&&(await t.auth.signOut(),clearSavedPassword())},refreshSession:async function(){if(!init())return null
-;const{data:e,error:n}=await t.auth.refreshSession();if(n)throw new Error(n.message||"Could not refresh the session");return e.session||null},
-isStaleToken:function(e){return!!e&&("PGRST301"===e.code||/\bJWT\b/i.test(e.message||""))},rememberPreference:rememberPreference,
-savedPassword:function(){return localStorage.getItem(r)||""},listCustomers:async function(){
-return unwrap(await init().from("customers").select(i).order("wedding_date",{ascending:!0,nullsFirst:!1}).order("name",{ascending:!0}))},
-getCustomer:async function(e){return unwrap(await init().from("customers").select(i).eq("id",e).single())},createCustomer:async function(e){
-return unwrap(await init().from("customers").insert(e).select(i).single())},updateCustomer:async function(e,t){
-return unwrap(await init().from("customers").update(t).eq("id",e).select(i).single())},deleteCustomer:async function(e){
-unwrap(await init().from("customers").delete().eq("id",e))},listOrders:async function(e){
-return unwrap(await init().from("orders").select(a).eq("customer_id",e).order("document_date",{ascending:!1}))},listAllOrders:async function(){
-return unwrap(await init().from("orders").select("id,customer_id,status,items,first_payment_date,second_payment_date,final_payment_date"))},
-getOrder:async function(e){return unwrap(await init().from("orders").select(a).eq("id",e).single())},createOrder:async function(e){
-return unwrap(await init().from("orders").insert(e).select(a).single())},updateOrder:async function(e,t){
-return unwrap(await init().from("orders").update(t).eq("id",e).select(a).single())},deleteOrder:async function(e){
-unwrap(await init().from("orders").delete().eq("id",e))},logDocument:async function(e,t,n){unwrap(await init().from("document_log").insert({
-order_id:e,kind:t,total:n}))},listDocumentLog:async function(e){
-const t=await init().from("document_log").select("id,kind,total,drive_link,created_at").eq("order_id",e).order("created_at",{ascending:!1})
-;return t.error&&/drive_link/.test(t.error.message)?unwrap(await init().from("document_log").select("id,kind,total,created_at").eq("order_id",e).order("created_at",{
-ascending:!1})):unwrap(t)},logOrderHistory:async function(e,t,n){unwrap(await init().from("order_history").insert({order_id:e,action:t,detail:n||{}}))
-},listOrderHistory:async function(e){
-return unwrap(await init().from("order_history").select("id,action,detail,created_at").eq("order_id",e).order("created_at",{ascending:!1}))},
-listOrderEvents:listOrderEvents,listAllOrderEvents:async function(){
-return unwrap(await init().from("order_events").select("order_id,stage,event_date,end_date"))},replaceOrderEvents:async function(e,t,n){
-const r=await listOrderEvents(e),i={};r.forEach(e=>{i[e.stage]=e});const a={};t.forEach(e=>{a[e.stage]=e});const o=r.filter(e=>{return!(t=e.stage,
-n&&-1===n.indexOf(t)||a[e.stage]);var t});o.length&&unwrap(await init().from("order_events").delete().in("id",o.map(e=>e.id)));for(const n of t){
-const t=i[n.stage],r=n.end_date||null;if(t){if(t.event_date!==n.event_date||(t.end_date||null)!==r){if(t.pinned)continue;
-// synced_at is cleared, not the event id: the event still exists in
-// Google, it is just no longer showing the right day.
-unwrap(await init().from("order_events").update({event_date:n.event_date,end_date:r,synced_at:null}).eq("id",t.id))}
-}else unwrap(await init().from("order_events").insert({order_id:e,stage:n.stage,event_date:n.event_date,end_date:r}))}return{removed:o,
-events:await listOrderEvents(e)}},listFittingSessions:async function(e){
-return unwrap(await init().from("fitting_sessions").select(s).eq("order_id",e).order("created_at",{ascending:!1}))},
-getFittingSession:async function(e){return unwrap(await init().from("fitting_sessions").select(s).eq("id",e).single())},
-createFittingSession:async function(e){return unwrap(await init().from("fitting_sessions").insert(e).select(s).single())},
-updateFittingSession:async function(e,t){return unwrap(await init().from("fitting_sessions").update(t).eq("id",e).select(s).single())},
-listFittingPhotos:async function(e){return unwrap(await init().from("fitting_photos").select(o).eq("order_id",e).order("position",{ascending:!0}))},
-createFittingPhoto:async function(e){return unwrap(await init().from("fitting_photos").insert(e).select(o).single())},
-updateFittingPhoto:async function(e,t){return unwrap(await init().from("fitting_photos").update(t).eq("id",e).select(o).single())},
-deleteFittingPhoto:async function(e){unwrap(await init().from("fitting_photos").delete().eq("id",e))},listIntake:async function(e){
-let t=init().from("intake_submissions").select(d);return e&&(t=t.eq("status",e)),unwrap(await t.order("created_at",{ascending:!1}))},
-getIntake:async function(e){return unwrap(await init().from("intake_submissions").select(d).eq("id",e).single())},resolveIntake:async function(e,t,n){
-return unwrap(await init().from("intake_submissions").update({status:t,customer_id:n||null,reviewed_at:(new Date).toISOString()
-}).eq("id",e).select(d).single())},googleStatus:()=>callGoogle("status"),googleExchange:(e,t)=>callGoogle("exchange",{code:e,redirect_uri:t}),
-googleDisconnect:()=>callGoogle("disconnect"),googleForget:e=>callGoogle("forget",{google_event_ids:e}),syncOrderCalendar:e=>callGoogle("sync",{
-order_id:e}),syncFollowUp:e=>callGoogle("sync_follow_up",{customer_id:e}),driveSaveMoodboardPdf:(e,t,n,r)=>callDrive("save_moodboard_pdf",{file_name:e,
-pdf_base64:t,customer_name:n,order_title:r}),driveSaveFittingPhoto:(e,t,n,r,i,a)=>callDrive("save_fitting_photo",{image_base64:e,mime_type:t,file_name:n,customer_name:r,
-order_title:i,stage:a}),
-// A local download logs with no link; only the Drive copy has one.
-logMoodboard:async function(e,t){unwrap(await init().from("document_log").insert({order_id:e,kind:"moodboard",total:null,
-drive_link:t||null}))},
-// Whether this order has ever produced a moodboard — the moodboard date is
-// set by the first export only.
-countMoodboards:async function(e){const{count:t,error:n}=await init().from("document_log").select("id",{count:"exact",head:!0}).eq("order_id",e).eq("kind","moodboard")
-;if(n)throw new Error(n.message||"Could not read the moodboard log");return t||0}}}();
+/* Sole browser data-access layer.
+   
+   - Owns: Supabase client initialization, authentication/session persistence, PostgREST table projections and CRUD operations, and Edge Function invocation (Google Calendar / Google Drive).
+   - Does NOT own: DOM rendering, schedule calculation, PDF rendering, or UI state.
+   - Used by: app.js, fittings.js, moodboard.js
+*/
+window.KK = window.KK || {};
+
+KK.db = (function () {
+  'use strict';
+
+  const config = window.KK_CONFIG || {};
+  let client = null;
+
+  function isConfigured() {
+    return /^https:\/\/.+\.supabase\.co\/?$/.test(String(config.SUPABASE_URL || '')) && String(config.SUPABASE_ANON_KEY || '').length > 40;
+  }
+
+  const STORAGE_KEY_REMEMBER = 'kk_remember_me';
+  const STORAGE_KEY_PASSWORD = 'kk_saved_password';
+
+  function rememberPreference() {
+    const val = localStorage.getItem(STORAGE_KEY_REMEMBER);
+    return val === null || val === '1';
+  }
+
+  function clearSavedPassword() {
+    localStorage.removeItem(STORAGE_KEY_PASSWORD);
+  }
+
+  function init() {
+    if (client) return client;
+    if (!isConfigured()) return null;
+    client = window.supabase.createClient(config.SUPABASE_URL, config.SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        storage: rememberPreference() ? window.localStorage : window.sessionStorage
+      }
+    });
+    return client;
+  }
+
+  function unwrap(res) {
+    if (res.error) {
+      const err = new Error(res.error.message || 'Request failed');
+      err.code = res.error.code || '';
+      throw err;
+    }
+    return res.data;
+  }
+
+  /* -------------------------- Table Column Projections -------------------- */
+
+  const PROJECTION_CUSTOMERS = 'id,name,phone,instagram,source,wedding_date,wedding_date_precision,notes,moodboard_date,cancelled_at,cancelled_reason,follow_up_date,follow_up_label,follow_up_google_event_id,follow_up_synced_at,created_at';
+  const PROJECTION_ORDERS = 'id,customer_id,title,doc_name,document_date,status,items,includes,payment_scheme,payment_terms,first_payment_date,second_payment_date,final_payment_date,created_at';
+  const PROJECTION_ORDER_EVENTS = 'id,order_id,stage,event_date,end_date,pinned,google_event_id,synced_at';
+  const PROJECTION_FITTING_PHOTOS = 'id,order_id,session_id,stage,caption,drive_file_id,drive_link,position,created_at';
+  const PROJECTION_FITTING_SESSIONS = 'id,order_id,stage,status,created_at,completed_at';
+  const PROJECTION_INTAKE = 'id,payload,name,phone,instagram,source,wedding_date,wedding_date_precision,notes,status,customer_id,created_at,reviewed_at';
+
+  /* --------------------------- Edge Function Helpers ---------------------- */
+
+  async function callGoogle(action, payload) {
+    const sb = init();
+    if (!sb) throw new Error('Supabase is not configured — see config.js');
+
+    const { data, error } = await sb.functions.invoke('google-calendar', {
+      body: Object.assign({ action }, payload || {})
+    });
+
+    if (error) {
+      let detail = '';
+      try { detail = (await error.context.json()).error || ''; } catch (_) {}
+      throw new Error(detail || error.message || 'Google Calendar request failed');
+    }
+    if (data && data.error) throw new Error(data.error);
+    return data;
+  }
+
+  async function callDrive(action, payload) {
+    const sb = init();
+    if (!sb) throw new Error('Supabase is not configured — see config.js');
+
+    const { data, error } = await sb.functions.invoke('google-drive', {
+      body: Object.assign({ action }, payload || {})
+    });
+
+    if (error) {
+      let detail = '';
+      try { detail = (await error.context.json()).error || ''; } catch (_) {}
+      throw new Error(detail || error.message || 'Google Drive request failed');
+    }
+    if (data && data.error) throw new Error(data.error);
+    return data;
+  }
+
+  /* ------------------------------- Public API ------------------------------ */
+
+  return {
+    isConfigured,
+    init,
+
+    currentSession: async function () {
+      if (!init()) return null;
+      const { data } = await client.auth.getSession();
+      return data.session || null;
+    },
+
+    signIn: async function (password, rememberMe) {
+      localStorage.setItem(STORAGE_KEY_REMEMBER, rememberMe ? '1' : '0');
+      client = null; // Reset client to use selected storage
+      if (!init()) throw new Error('Supabase is not configured — see config.js');
+
+      const { error } = await client.auth.signInWithPassword({
+        email: config.SHARED_EMAIL,
+        password
+      });
+
+      if (error) {
+        throw new Error(/credential/i.test(error.message) ? 'Wrong password' : error.message);
+      }
+
+      if (rememberMe) {
+        localStorage.setItem(STORAGE_KEY_PASSWORD, password);
+      } else {
+        clearSavedPassword();
+      }
+    },
+
+    signOut: async function () {
+      if (init()) {
+        await client.auth.signOut();
+        clearSavedPassword();
+      }
+    },
+
+    refreshSession: async function () {
+      if (!init()) return null;
+      const { data, error } = await client.auth.refreshSession();
+      if (error) throw new Error(error.message || 'Could not refresh the session');
+      return data.session || null;
+    },
+
+    isStaleToken: function (err) {
+      return !!err && (err.code === 'PGRST301' || /\bJWT\b/i.test(err.message || ''));
+    },
+
+    rememberPreference,
+
+    savedPassword: function () {
+      return localStorage.getItem(STORAGE_KEY_PASSWORD) || '';
+    },
+
+    /* ----------------------------- Customer CRUD --------------------------- */
+
+    listCustomers: async function () {
+      return unwrap(await init().from('customers').select(PROJECTION_CUSTOMERS).order('wedding_date', { ascending: true, nullsFirst: false }).order('name', { ascending: true }));
+    },
+
+    getCustomer: async function (id) {
+      return unwrap(await init().from('customers').select(PROJECTION_CUSTOMERS).eq('id', id).single());
+    },
+
+    createCustomer: async function (record) {
+      return unwrap(await init().from('customers').insert(record).select(PROJECTION_CUSTOMERS).single());
+    },
+
+    updateCustomer: async function (id, record) {
+      return unwrap(await init().from('customers').update(record).eq('id', id).select(PROJECTION_CUSTOMERS).single());
+    },
+
+    deleteCustomer: async function (id) {
+      unwrap(await init().from('customers').delete().eq('id', id));
+    },
+
+    /* ------------------------------ Order CRUD ----------------------------- */
+
+    listOrders: async function (customerId) {
+      return unwrap(await init().from('orders').select(PROJECTION_ORDERS).eq('customer_id', customerId).order('document_date', { ascending: false }));
+    },
+
+    listAllOrders: async function () {
+      return unwrap(await init().from('orders').select('id,customer_id,status,items,first_payment_date,second_payment_date,final_payment_date'));
+    },
+
+    getOrder: async function (id) {
+      return unwrap(await init().from('orders').select(PROJECTION_ORDERS).eq('id', id).single());
+    },
+
+    createOrder: async function (record) {
+      return unwrap(await init().from('orders').insert(record).select(PROJECTION_ORDERS).single());
+    },
+
+    updateOrder: async function (id, record) {
+      return unwrap(await init().from('orders').update(record).eq('id', id).select(PROJECTION_ORDERS).single());
+    },
+
+    deleteOrder: async function (id) {
+      unwrap(await init().from('orders').delete().eq('id', id));
+    },
+
+    /* --------------------------- Document & History ------------------------ */
+
+    logDocument: async function (orderId, kind, total) {
+      unwrap(await init().from('document_log').insert({ order_id: orderId, kind, total }));
+    },
+
+    listDocumentLog: async function (orderId) {
+      const res = await init().from('document_log').select('id,kind,total,drive_link,created_at').eq('order_id', orderId).order('created_at', { ascending: false });
+      if (res.error && /drive_link/.test(res.error.message)) {
+        return unwrap(await init().from('document_log').select('id,kind,total,created_at').eq('order_id', orderId).order('created_at', { ascending: false }));
+      }
+      return unwrap(res);
+    },
+
+    logOrderHistory: async function (orderId, action, detail) {
+      unwrap(await init().from('order_history').insert({ order_id: orderId, action, detail: detail || {} }));
+    },
+
+    listOrderHistory: async function (orderId) {
+      return unwrap(await init().from('order_history').select('id,action,detail,created_at').eq('order_id', orderId).order('created_at', { ascending: false }));
+    },
+
+    /* ----------------------------- Order Events ---------------------------- */
+
+    listOrderEvents: async function (orderId) {
+      return unwrap(await init().from('order_events').select(PROJECTION_ORDER_EVENTS).eq('order_id', orderId).order('event_date', { ascending: true }));
+    },
+
+    listAllOrderEvents: async function () {
+      return unwrap(await init().from('order_events').select('order_id,stage,event_date,end_date'));
+    },
+
+    replaceOrderEvents: async function (orderId, newEvents, allowedStages) {
+      const currentEvents = await this.listOrderEvents(orderId);
+      const currentByStage = {};
+      currentEvents.forEach((e) => { currentByStage[e.stage] = e; });
+
+      const newByStage = {};
+      newEvents.forEach((e) => { newByStage[e.stage] = e; });
+
+      const toRemove = currentEvents.filter((e) => {
+        if (allowedStages && allowedStages.indexOf(e.stage) === -1) return false;
+        return !newByStage[e.stage];
+      });
+
+      if (toRemove.length) {
+        unwrap(await init().from('order_events').delete().in('id', toRemove.map((e) => e.id)));
+      }
+
+      for (const item of newEvents) {
+        const existing = currentByStage[item.stage];
+        const endDateVal = item.end_date || null;
+        if (existing) {
+          if (existing.event_date !== item.event_date || (existing.end_date || null) !== endDateVal) {
+            if (existing.pinned) continue;
+            unwrap(await init().from('order_events').update({
+              event_date: item.event_date,
+              end_date: endDateVal,
+              synced_at: null
+            }).eq('id', existing.id));
+          }
+        } else {
+          unwrap(await init().from('order_events').insert({
+            order_id: orderId,
+            stage: item.stage,
+            event_date: item.event_date,
+            end_date: endDateVal
+          }));
+        }
+      }
+
+      return {
+        removed: toRemove,
+        events: await this.listOrderEvents(orderId)
+      };
+    },
+
+    /* --------------------------- Fitting Sessions -------------------------- */
+
+    listFittingSessions: async function (orderId) {
+      return unwrap(await init().from('fitting_sessions').select(PROJECTION_FITTING_SESSIONS).eq('order_id', orderId).order('created_at', { ascending: false }));
+    },
+
+    getFittingSession: async function (id) {
+      return unwrap(await init().from('fitting_sessions').select(PROJECTION_FITTING_SESSIONS).eq('id', id).single());
+    },
+
+    createFittingSession: async function (record) {
+      return unwrap(await init().from('fitting_sessions').insert(record).select(PROJECTION_FITTING_SESSIONS).single());
+    },
+
+    updateFittingSession: async function (id, record) {
+      return unwrap(await init().from('fitting_sessions').update(record).eq('id', id).select(PROJECTION_FITTING_SESSIONS).single());
+    },
+
+    listFittingPhotos: async function (orderId) {
+      return unwrap(await init().from('fitting_photos').select(PROJECTION_FITTING_PHOTOS).eq('order_id', orderId).order('position', { ascending: true }));
+    },
+
+    createFittingPhoto: async function (record) {
+      return unwrap(await init().from('fitting_photos').insert(record).select(PROJECTION_FITTING_PHOTOS).single());
+    },
+
+    updateFittingPhoto: async function (id, record) {
+      return unwrap(await init().from('fitting_photos').update(record).eq('id', id).select(PROJECTION_FITTING_PHOTOS).single());
+    },
+
+    deleteFittingPhoto: async function (id) {
+      unwrap(await init().from('fitting_photos').delete().eq('id', id));
+    },
+
+    /* ----------------------------- Intake Enquiries ------------------------- */
+
+    listIntake: async function (statusFilter) {
+      let query = init().from('intake_submissions').select(PROJECTION_INTAKE);
+      if (statusFilter) query = query.eq('status', statusFilter);
+      return unwrap(await query.order('created_at', { ascending: false }));
+    },
+
+    getIntake: async function (id) {
+      return unwrap(await init().from('intake_submissions').select(PROJECTION_INTAKE).eq('id', id).single());
+    },
+
+    resolveIntake: async function (id, status, customerId) {
+      return unwrap(await init().from('intake_submissions').update({
+        status,
+        customer_id: customerId || null,
+        reviewed_at: new Date().toISOString()
+      }).eq('id', id).select(PROJECTION_INTAKE).single());
+    },
+
+    /* ----------------------------- Google Integrations ---------------------- */
+
+    googleStatus: () => callGoogle('status'),
+    googleExchange: (code, redirectUri) => callGoogle('exchange', { code, redirect_uri: redirectUri }),
+    googleDisconnect: () => callGoogle('disconnect'),
+    googleForget: (eventIds) => callGoogle('forget', { google_event_ids: eventIds }),
+    syncOrderCalendar: (orderId) => callGoogle('sync', { order_id: orderId }),
+    syncFollowUp: (customerId) => callGoogle('sync_follow_up', { customer_id: customerId }),
+
+    driveSaveMoodboardPdf: (fileName, pdfBase64, customerName, orderTitle) =>
+      callDrive('save_moodboard_pdf', { file_name: fileName, pdf_base64: pdfBase64, customer_name: customerName, order_title: orderTitle }),
+    driveSaveFittingPhoto: (imageBase64, mimeType, fileName, customerName, orderTitle, stage) =>
+      callDrive('save_fitting_photo', { image_base64: imageBase64, mime_type: mimeType, file_name: fileName, customer_name: customerName, order_title: orderTitle, stage }),
+
+    logMoodboard: async function (orderId, driveLink) {
+      unwrap(await init().from('document_log').insert({ order_id: orderId, kind: 'moodboard', total: null, drive_link: driveLink || null }));
+    },
+
+    countMoodboards: async function (orderId) {
+      const { count, error } = await init().from('document_log').select('id', { count: 'exact', head: true }).eq('order_id', orderId).eq('kind', 'moodboard');
+      if (error) throw new Error(error.message || 'Could not read the moodboard log');
+      return count || 0;
+    }
+  };
+})();

@@ -1,919 +1,3795 @@
-/* SPA composition root. Owns hash routing, page state, DOM rendering/events,
-   validation, and workflow orchestration across customers, orders, documents,
-   schedules, moodboards, fittings, and intake. Persistent access belongs in
-   db.js; pure document and schedule rules belong in their feature modules. */
-/* Feature anchors (search these names instead of reading the whole closure):
-   handleRoute                         routing and route-to-view dispatch
-   showCustomers / renderCustomerList homepage loading and customer ledger
-   acceptEnquiry / dismissEnquiry     Tally intake review
-   showCustomerDetail / saveCustomer customer read/edit flows
-   showOrderDetail / buildOrderDetailViewModel  order read flow
-   saveOrder / addItemRow / addTermRow          order editor
-   rescheduleOrder / logDeposit       payments and calendar scheduling
-   setupMoodboardListeners            moodboard interaction
-   syncMoodboardCanvas / openMoodboardOverlay  generated moodboard canvas
-   download / exportMoodboard         document generation and logging
-   bindEvents / showGate / showApp    application boot and global events */
-window.KK=window.KK||{},KK.app=function(){"use strict"
-;const e=KK.util,t=KK.db,o=KK.docs,n=KK.calendar,a=e.$,s=e.$$,r=["Custom design & consultation","Production","Standard fabric","Plain veil","Fitting","Laundry"],i=["Quoted","Confirmed","In production","Delivered"],d=["Instagram","TikTok","Referral","Walk-in","Other"],c={
-label:"Check in",days:3},l={label:"Follow up moodboard",days:3
-},u='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',m='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',h='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',p={
-boot:a("#boot"),gate:a("#gate"),gateForm:a("#gateForm"),gatePassword:a("#gatePassword"),gateRemember:a("#gateRemember"),gateErr:a("#gateErr"),
-gateSubmit:a("#gateSubmit"),app:a("#app"),upLink:a("#upLink"),upLabel:a("#upLabel"),appbarBrand:a("#appbarBrand"),homeLink:a("#homeLink"),
-routeLoader:a("#routeLoader"),routeLoaderError:a("#routeLoaderError"),routeLoaderStatus:a("#routeLoaderStatus"),
-viewTitle:a("#viewTitle"),viewSub:a("#viewSub"),pageAction:a("#pageAction"),savebar:a("#savebar"),saveBtn:a("#saveBtn"),menu:a("#menu"),
-menuBtn:a("#menuBtn"),menuList:a("#menuList"),menuDelete:a("#menuDelete"),menuCalendar:a("#menuCalendar"),menuSignOut:a("#menuSignOut"),
-viewCustomers:a("#viewCustomers"),homeStage:a("#homeStage"),homeLoading:a("#homeLoading"),homeError:a("#homeError"),homeReady:a("#homeReady"),homeHero:a("#homeHero"),homeActions:a("#homeActions"),
-homeNav:a("#homeNav"),homeNavHome:a("#homeNavHome"),homeNavMenu:a("#homeNavMenu"),homeNavMenuWrapper:a("#homeNavMenuWrapper"),
-homeCustomers:a("#homeCustomers"),homeFooter:a("#homeFooter"),homeSummary:a("#homeSummary"),heroGreeting:a("#heroGreeting"),heroDeadline:a("#heroDeadline"),customerSearch:a("#customerSearch"),customerList:a("#customerList"),viewCustomer:a("#viewCustomer"),
-custBackBtn:a("#custBackBtn"),custEditBtn:a("#custEditBtn"),custHeroName:a("#custHeroName"),custWeddingText:a("#custWeddingText"),
-custNextLabel:a("#custNextLabel"),custNextDate:a("#custNextDate"),custOrdersCount:a("#custOrdersCount"),custOrdersSum:a("#custOrdersSum"),
-custOrderList:a("#custOrderList"),viewCustomerEdit:a("#viewCustomerEdit"),custEditCancel:a("#custEditCancel"),custEditTitle:a("#custEditTitle"),
-cancelCustomer:a("#cancelCustomer"),reopenCustomer:a("#reopenCustomer"),deleteCustomer:a("#deleteCustomer"),deleteCustomerRow:a("#deleteCustomerRow"),
-cName:a("#cName"),errCName:a("#errCName"),cPhone:a("#cPhone"),cInstagram:a("#cInstagram"),
-cSource:a("#cSource"),cWedding:a("#cWedding"),cWeddingMonth:a("#cWeddingMonth"),cWeddingPrecision:a("#cWeddingPrecision"),
-cMoodboardDate:a("#cMoodboardDate"),cFollowUpDate:a("#cFollowUpDate"),cFollowUpLabel:a("#cFollowUpLabel"),cCancelledReason:a("#cCancelledReason"),
-cCancelledField:a("#cCancelledField"),cNotes:a("#cNotes"),
-viewOrder:a("#viewOrder"),orderStage:a("#orderStage"),orderLoading:a("#orderLoading"),orderLoadingStatus:a("#orderLoadingStatus"),
-orderError:a("#orderError"),orderReady:a("#orderReady"),orderBackBtn:a("#orderBackBtn"),orderBackLabel:a("#orderBackLabel"),
-orderHistoryBtn:a("#orderHistoryBtn"),orderEditBtn:a("#orderEditBtn"),orderTitle:a("#orderTitle"),oItemsDisplay:a("#oItemsDisplay"),
-paymentSummary:a("#paymentSummary"),paymentError:a("#paymentError"),logPaymentBtn:a("#logPaymentBtn"),
-paymentChooser:a("#paymentChooser"),paymentChooserOptions:a("#paymentChooserOptions"),scheduleList:a("#scheduleList"),
-createMoodboardBtn:a("#createMoodboardBtn"),logNewFittingBtn:a("#logNewFittingBtn"),viewCalendar:a("#viewCalendar"),gcalState:a("#gcalState"),gcalConnect:a("#gcalConnect"),
-gcalDisconnect:a("#gcalDisconnect"),gcalErr:a("#gcalErr"),enquiriesCard:a("#enquiriesCard"),enquiriesCount:a("#enquiriesCount"),
-viewEnquiry:a("#viewEnquiry"),enquiryWhen:a("#enquiryWhen"),enquiryAnswers:a("#enquiryAnswers"),enquiryNote:a("#enquiryNote"),
-enquiryAccept:a("#enquiryAccept"),enquiryDismiss:a("#enquiryDismiss"),viewMoodboard:a("#viewMoodboard"),viewFittingJournal:a("#viewFittingJournal"),
-mbBackBtn:a("#mbBackBtn"),mbBackLabel:a("#mbBackLabel"),mbTitle:a("#mbTitle"),
-fittingJournal:a("#fittingJournal"),fittingJournalBar:a("#fittingJournalBar"),fittingJournalAdd:a("#fittingJournalAdd"),
-viewOrderEdit:a("#viewOrderEdit"),oTitle:a("#oTitle"),oDocName:a("#oDocName"),oFirstPayment:a("#oFirstPayment"),oSecondPayment:a("#oSecondPayment"),
-oFinalPayment:a("#oFinalPayment"),oScheduleHint:a("#oScheduleHint"),oScheme:a("#oScheme"),termsCard:a("#termsCard"),termList:a("#termList"),
-addTerm:a("#addTerm"),termsSum:a("#termsSum"),errTerms:a("#errTerms"),itemList:a("#itemList"),itemsTotal:a("#itemsTotal"),addItem:a("#addItem"),
-includesList:a("#includesList"),customInclude:a("#customInclude"),addInclude:a("#addInclude"),
-downloadNote:a("#downloadNote"),downloadQuote:a("#downloadQuote"),downloadInvoice:a("#downloadInvoice"),
-toast:a("#toast"),calcSheet:a("#calcSheet"),calcItemLabel:a("#calcItemLabel"),calcRowList:a("#calcRowList"),calcAddRow:a("#calcAddRow"),
-calcTotal:a("#calcTotal"),calcApply:a("#calcApply"),calcBack:a("#calcBack"),
-mbEditor:a("#mbEditor"),mbCanvas:a("#mbCanvas"),mbCanvasBack:a("#mbCanvasBack"),mbRotate:a("#mbRotate"),
-mbBoard:a("#mbBoard"),mbBoardScaler:a("#mbBoardScaler"),mbRandomize:a("#mbRandomize"),mbUpload:a("#mbUpload"),
-mbDownload:a("#mbDownload"),mbExportStatus:a("#mbExportStatus"),mbOverlay:a("#mbOverlay"),
-mbOverlayCanvas:a("#mbOverlayCanvas"),mbOverlayClose:a("#mbOverlayClose")},g={quotation:p.downloadQuote,invoice:p.downloadInvoice},w={route:null,// { view, id }
-customers:[],// the whole list, filtered client-side
-customer:null,// record backing the customer view
-order:null,// record backing the order views
-overview:null,// { ordersByCustomer } — every order, for the homepage
-loggedDeposits:{},// { depositIndex: loggedAt } for the open order
-schedule:null,// computed programme + stored rows for the open order
-customerOrders:[],// the open customer's orders — what their status is read from
-enquiry:null,// the intake submission being reviewed
-googleConnected:null,// null until asked; cached for the session
-dirty:!1,saving:!1,navigation:{token:0},homepage:{phase:"idle",visit:0,loadToken:0,popPlayedForVisit:0},orderDetail:{phase:"idle",// idle | loading | ready | error
-loadToken:0,orderId:null,vm:null,sectionErrors:{},paymentBusy:!1,documentBusy:null}};let f;function showToast(e){
-p.toast.textContent=e,p.toast.classList.add("is-visible"),clearTimeout(f),f=setTimeout(()=>p.toast.classList.remove("is-visible"),2600)}
-function setDirty(e){w.dirty=e,p.saveBtn.disabled=!e||w.saving,a(".btn__label",p.saveBtn).textContent=w.saving?"Saving…":e?"Save changes":"Saved"}
-function syncBottomBar(){const e=p.savebar.hidden?p.fittingJournalBar.hidden?null:p.fittingJournalBar:p.savebar
-;document.documentElement.style.setProperty("--bottombar-h",e?Math.round(e.getBoundingClientRect().height)+"px":"0px")}function syncVisualViewport(){
-const e=window.visualViewport,t=e?Math.max(0,window.innerHeight-e.height-e.offsetTop):0
-;document.documentElement.style.setProperty("--keyboard-offset",Math.round(t)+"px"),syncBottomBar()}function trapModalFocus(e,t){if("Tab"!==e.key||!t||t.hidden)return
-;const o=Array.from(t.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')).filter(e=>!e.hidden&&e.getClientRects().length)
-;if(!o.length)return;const n=o[0],a=o[o.length-1];e.shiftKey&&document.activeElement===n?(e.preventDefault(),
-a.focus()):e.shiftKey||document.activeElement!==a||(e.preventDefault(),n.focus())}function setSaveBar(e){p.savebar.hidden=!e,
-document.body.classList.toggle("has-savebar",!!e),syncBottomBar()}let D=null;function setPageAction(e){D=e?e.onClick:null,p.pageAction.hidden=!e,
-e&&(p.pageAction.textContent=e.label)}function setChrome(e){p.viewTitle.textContent=e.title,
-document.body.classList.toggle("is-homepage",!!e.homepage),
-// The customer pages own their whole canvas the way the homepage does, so the
-// app bar and page header step aside for them too.
-document.body.classList.toggle("is-custpage",!!e.custpage),
-document.body.classList.toggle("is-custeditpage",!!e.custedit),
-// The order page owns its whole canvas too, and has no fixed document bar
-// left to make room for.
-document.body.classList.toggle("is-orderpage",!!e.orderpage),document.body.classList.toggle("is-moodboardpage",!!e.moodboardpage),
-p.viewSub.innerHTML=e.sub||"",p.viewSub.hidden=!e.sub
-;const t=e.up||null;p.upLink.hidden=!t,p.appbarBrand.hidden=!!t,t&&(p.upLink.href=t.hash,p.upLabel.textContent=t.label),
-p.homeLink.hidden=!t||"#/customers"===t.hash,setPageAction(e.action||null),setSaveBar(!!e.save),closeMenu(),
-// Delete belongs to a record, so the menu only offers it on a record page.
-p.menuDelete.hidden=!e.destroy,p.menuDelete.className="menu__item menu__item--danger",
-e.destroy&&(p.menuDelete.textContent="order"===e.destroy?"Delete order":"Delete customer",p.menuDelete.dataset.kind=e.destroy),syncBottomBar()}
-function closeMenu(){p.menuList.hidden=!0,p.menuBtn.setAttribute("aria-expanded","false"),p.homeNavMenu&&p.homeNavMenu.setAttribute("aria-expanded","false")}
+/* SPA composition root.
+   
+   - Owns: Hash routing, page state management, DOM rendering and events, validation, and workflow orchestration across customers, orders, documents, schedules, moodboards, fittings, and intake.
+   - Does NOT own: Data persistence queries (delegates to db.js), document watermark layout (delegates to docs.js), or pure schedule policy (delegates to calendar.js).
+   - Entry points: window.KK.app
+*/
+window.KK = window.KK || {};
 
-// One ink surface owns both the very first paint and every route handoff. It
-// rises from below, the destination is committed while covered, then it drops
-// away. Keeping this controller here means feature renderers never coordinate
-// motion or know whether their data won the short covered loading budget.
-const CURTAIN_TRANSITION_MS=520;let curtainCovered=!p.boot.hidden,curtainCoverPromise=null,routeLoaderShownAt=0;const wait=e=>new Promise(t=>setTimeout(t,e));
-async function coverCurtain(){if(curtainCovered)return;if(curtainCoverPromise)return curtainCoverPromise;curtainCoverPromise=(async()=>{
-document.body.classList.add("is-page-transitioning"),p.boot.hidden=!1,p.boot.classList.remove("is-animating"),p.boot.classList.add("is-below"),p.boot.offsetHeight;
-if(!reducedMotion()){p.boot.classList.add("is-animating"),p.boot.classList.remove("is-below"),await wait(CURTAIN_TRANSITION_MS)}
-else p.boot.classList.remove("is-below");curtainCovered=!0})(),await curtainCoverPromise,curtainCoverPromise=null}
-async function revealCurtain(){if(!curtainCovered)return;if(!reducedMotion()){p.boot.classList.add("is-animating","is-below"),await wait(CURTAIN_TRANSITION_MS)}
-p.boot.hidden=!0,p.boot.classList.remove("is-animating","is-below"),curtainCovered=!1,document.body.classList.remove("is-page-transitioning")}
-const routeHasOwnLoader=e=>"customers"===e.view||"order"===e.view;
-const routeLoaderKind=e=>"customer"===e.view||"customerEdit"===e.view?"ledger":"moodboard"===e.view||"moodboardPreview"===e.view?"moodboard":"form";
-function beginRouteLoader(e){if(routeHasOwnLoader(e))return hideRouteLoader(!0);routeLoaderShownAt=Date.now(),p.routeLoader.dataset.kind=routeLoaderKind(e),
-p.routeLoader.setAttribute("aria-busy","true"),p.routeLoader.classList.remove("is-leaving"),a(".route-loader__canvas",p.routeLoader).hidden=!1,p.routeLoaderError.hidden=!0,
-p.routeLoaderStatus.textContent="Loading "+({customer:"customer",customerEdit:"customer editor",orderEdit:"order editor",moodboard:"moodboard",fittingNew:"fitting journal",fittingJournal:"fitting journal",calendar:"calendar settings",enquiry:"enquiry"}[e.view]||"page")+".",p.routeLoader.hidden=!1}
-async function hideRouteLoader(e){if(p.routeLoader.hidden)return;if(e||curtainCovered)return p.routeLoader.hidden=!0,p.routeLoader.setAttribute("aria-busy","false"),p.routeLoader.classList.remove("is-leaving"),void(p.routeLoaderStatus.textContent="")
-;await wait(Math.max(0,180-(Date.now()-routeLoaderShownAt))),p.routeLoader.classList.add("is-leaving"),await wait(reducedMotion()?0:180),
-p.routeLoader.hidden=!0,p.routeLoader.setAttribute("aria-busy","false"),p.routeLoader.classList.remove("is-leaving"),p.routeLoaderStatus.textContent=""}
-function showRouteError(t,e){console.error(t),p.routeLoader.dataset.kind=routeLoaderKind(e),p.routeLoader.hidden=!1,p.routeLoader.classList.remove("is-leaving"),
-a(".route-loader__canvas",p.routeLoader).hidden=!0,p.routeLoaderError.hidden=!1,p.routeLoader.setAttribute("aria-busy","false"),p.routeLoaderStatus.textContent="",
-p.routeLoaderError.innerHTML='<h2 class="route-loader__error-title">Could not open this page.</h2><p class="route-loader__error-copy">'+
-KK.util.escapeHtml(t&&t.message||"Check your connection and try again.")+'</p><div class="route-loader__error-actions"><button type="button" class="btn btn--primary js-route-retry">Try again</button><a class="btn btn--outline" href="#/customers">Customers</a></div>'
-;const o=a(".js-route-retry",p.routeLoaderError);o.addEventListener("click",()=>handleRoute(!0),{once:!0}),requestAnimationFrame(()=>o.focus({preventScroll:!0}))}
-function focusRoute(e){const t="customers"===e.view?p.heroGreeting:"customer"===e.view?p.custHeroName:"customerEdit"===e.view?p.custEditTitle:"order"===e.view?p.orderTitle:"moodboard"===e.view?p.mbTitle:"moodboardPreview"===e.view?p.mbCanvasBack:p.viewTitle;t&&(t.setAttribute("tabindex","-1"),
-t.focus({preventScroll:!0}),t.addEventListener("blur",()=>t.removeAttribute("tabindex"),{once:!0}))}
+KK.app = (function () {
+  'use strict';
 
-const badgeClass=e=>"badge badge--"+(e=>String(e).toLowerCase().replace(/\s+/g,"-"))(e)
-;function effectiveStatus(e){const t=i.includes(e.status)?e.status:i[0];return e.final_payment_date?"Delivered":t}async function bumpStatus(e){
-const o=function(e,t){const o=i.indexOf(e);return i.indexOf(t)>o?t:-1===o?i[0]:e}(w.order.status,e);if(o!==w.order.status)try{
-w.order=await t.updateOrder(w.order.id,{status:o}),renderOrderStatus()}catch(e){console.error(e)}}function renderOrderStatus(){
-const t=effectiveStatus(w.order);p.viewSub.innerHTML='<span class="'+badgeClass(t)+'">'+e.escapeHtml(t)+"</span>",p.viewSub.hidden=!1}
-function customerStatus(e,t){if(!e)return"In consultation";if(e.cancelled_at)return"Cancelled";const o=t||[]
-;return o.length&&o.every(e=>e.final_payment_date)?"Completed":o.some(orderIsPaid)?"Active":o.length?"Ordering":"In consultation"}
-const orderIsPaid=e=>!!e.first_payment_date||i.indexOf(e.status)>=i.indexOf("In production"),designAnchor=e=>e&&e.first_payment_date||null,productionAnchor=e=>(e?"other"===e.payment_scheme?e.first_payment_date:e.second_payment_date:null)||null,openCustomerOrders=()=>w.customerOrders||[],dateOnly=e=>String(e||"").slice(0,10)
-;function followUpPatch(e,t){return e&&t?{follow_up_date:(o=t,a=e.days,n.fromDay(n.toDay(o)+a)),follow_up_label:e.label,follow_up_synced_at:null}:{
-follow_up_date:null,follow_up_label:null,follow_up_synced_at:null};var o,a}function consultNudgeFor(e,t,o){
-if(!e||e.cancelled_at||(t||[]).length)return followUpPatch(null,null);const n=void 0===o?e.moodboard_date:o
-;return n?followUpPatch(l,dateOnly(n)):followUpPatch(c,dateOnly(e.created_at))}async function setFollowUp(e){const o=w.customer
-;o&&o.id&&(e.follow_up_date===o.follow_up_date&&e.follow_up_label===o.follow_up_label||(w.customer=await t.updateCustomer(o.id,e),
-await pushFollowUp()))}async function pushFollowUp(){const e=w.customer;if(e&&e.id&&(e.follow_up_date||e.follow_up_google_event_id))try{
-await t.syncFollowUp(e.id),
-// Re-read for the event id and synced_at the function just wrote.
-w.customer=await t.getCustomer(e.id)}catch(e){console.error("Follow-up not synced to Google Calendar:",e)}}
-const canCancel=(e,t)=>!(!e||!e.id||e.cancelled_at||(t||[]).some(e=>e.first_payment_date));async function cancelCustomer(){const e=w.customer
-;if(canCancel(e,openCustomerOrders())&&window.confirm("Mark "+e.name+" as not proceeding?\n\nEverything is kept — they just stop appearing as live work."))try{
-w.customer=await t.updateCustomer(e.id,{cancelled_at:(new Date).toISOString(),follow_up_date:null,follow_up_label:null,follow_up_synced_at:null}),
-await pushFollowUp(),renderCustomerReadOnly(w.customer),showToast("Marked as not proceeding")}catch(e){console.error(e),
-showToast(e.message||"Could not update the customer")}}// Reachable from the editor's foot and, on the pages that still have an app
-// bar, from the overflow menu. Both land here.
-async function deleteCustomerRecord(){const o=w.customer;if(!o||!o.id)return;const n=o.name||"this customer"
-;if(window.confirm("Delete "+n+", along with every order and download record? This cannot be undone."))try{await t.deleteCustomer(o.id),
-setDirty(!1),showToast("Customer deleted"),go("#/customers")}catch(e){console.error(e),showToast(e.message||"Could not delete")}}
-async function reopenCustomer(){const e=w.customer;if(e&&e.id&&e.cancelled_at)try{
-w.customer=await t.updateCustomer(e.id,Object.assign({cancelled_at:null,cancelled_reason:null},consultNudgeFor(Object.assign({},e,{cancelled_at:null
-}),openCustomerOrders()))),await pushFollowUp(),renderCustomerReadOnly(w.customer),showToast("Reopened")}catch(e){console.error(e),
-showToast(e.message||"Could not reopen the customer")}}function go(e){location.hash===e?handleRoute():location.hash=e}function leaveFormFor(e){
-k!==e?location.hash!==e?(history.replaceState(null,"",location.pathname+location.search+e),E=e,handleRoute()):handleRoute():history.back()}
-function confirmLeave(){return!w.dirty||window.confirm("You have unsaved changes. Leave without saving?")}let E="",k="";async function handleRoute(x){const skipMotion=!0===x;
-const s=function(){
-const e=String(location.hash||"").replace(/^#\/?/,""),t=e.indexOf("?"),o=(-1===t?e:e.slice(0,t)).split("/").filter(Boolean),n=new URLSearchParams(-1===t?"":e.slice(t+1))
-;return"customer"===o[0]&&o[1]&&"edit"===o[2]?{view:"customerEdit",id:o[1],query:n
-}:"customer"===o[0]&&o[1]?{view:"customer",id:o[1],query:n}:"order"===o[0]&&o[1]&&"edit"===o[2]?{view:"orderEdit",id:o[1],query:n
-}:"order"===o[0]&&o[1]&&"moodboard"===o[2]&&"preview"===o[3]?{view:"moodboardPreview",id:o[1],query:n}:"order"===o[0]&&o[1]&&"moodboard"===o[2]?{
-view:"moodboard",id:o[1],query:n}:"order"===o[0]&&o[1]&&"fitting"===o[2]&&"new"===o[3]?{view:"fittingNew",id:o[1],query:n
-}:"order"===o[0]&&o[1]&&"fitting"===o[2]&&o[3]?{view:"fittingJournal",id:o[1],sessionId:o[3],query:n
-}:"order"===o[0]&&o[1]&&"fittings"===o[2]||"order"===o[0]&&o[1]?{view:"order",id:o[1],query:n}:"calendar"===o[0]?{view:"calendar",query:n
-}:"enquiry"===o[0]&&o[1]?{view:"enquiry",id:o[1],query:n}:{view:"customers",query:n}}(),i=w.route;
-// Guard the transition, and put the URL back if it is refused.
-if(w.dirty&&E!==location.hash){
-if(!confirmLeave())return void(location.hash=E);setDirty(!1)}location.hash!==E&&(k=E),E=location.hash
-;const routeToken=++w.navigation.token;skipMotion||await coverCurtain();if(routeToken!==w.navigation.token)return
-;const d=i&&("moodboard"===i.view||"moodboardPreview"===i.view),c="moodboard"===s.view||"moodboardPreview"===s.view
-;i&&"moodboardPreview"===i.view&&"moodboardPreview"!==s.view&&closeMoodboardOverlay(),d&&!c&&(R.cleanup(),j=null),w.route=s,p.viewCustomers.hidden="customers"!==s.view,
-p.viewCustomer.hidden="customer"!==s.view,p.viewCustomerEdit.hidden="customerEdit"!==s.view,p.viewOrder.hidden="order"!==s.view,p.viewOrderEdit.hidden="orderEdit"!==s.view,p.viewMoodboard.hidden=!c,
-p.viewFittingJournal.hidden="fittingNew"!==s.view&&"fittingJournal"!==s.view,
-p.fittingJournalBar.hidden="fittingJournal"!==s.view&&"fittingNew"!==s.view,
-document.body.classList.toggle("has-fitting-journal-bar",!p.fittingJournalBar.hidden),p.viewCalendar.hidden="calendar"!==s.view,
-p.viewEnquiry.hidden="enquiry"!==s.view,
-!i||"fittingNew"!==i.view&&"fittingJournal"!==i.view||s.view===i.view&&s.id===i.id&&s.sessionId===i.sessionId||KK.fittings.closeAll(),syncBottomBar(),
-window.scrollTo(0,0),beginRouteLoader(s);const render=async()=>{"customers"===s.view?await showCustomers():"customer"===s.view?await showCustomerDetail(s.id):"customerEdit"===s.view?await showCustomerEdit(s.id,s.query):"orderEdit"===s.view?await async function(o){w.order=await t.getOrder(o),
-w.customer=await t.getCustomer(w.order.customer_id),setChrome({title:"Edit order",up:{label:orderLabel(w.order),hash:"#/order/"+o},save:!0,
-destroy:"order"}),p.oTitle.value=w.order.title||"",p.oDocName.value=w.order.doc_name||"",p.oFirstPayment.value=w.order.first_payment_date||"",
-p.oSecondPayment.value=w.order.second_payment_date||"",p.oFinalPayment.value=w.order.final_payment_date||"",
-p.oScheme.value="other"===w.order.payment_scheme?"other":"standard",buildTerms(w.order),syncSchemeCard(),renderScheduleHint(),p.itemList.innerHTML=""
-;((w.order.items||[]).length?w.order.items:[{name:"",qty:1,price:"",cost:""}]).forEach(e=>addItemRow(e,!1)),function(t){
-const o=t||[],isTicked=e=>o.some(t=>t.toLowerCase()===e.toLowerCase()),n=o.filter(e=>!r.some(t=>t.toLowerCase()===e.toLowerCase()))
-;p.includesList.innerHTML=r.map(t=>function(t,o){
-return'<label class="chip'+(o?" is-checked":"")+'" data-label="'+e.escapeHtml(t)+'"><input type="checkbox"'+(o?" checked":"")+'><span class="chip__box">'+h+"</span><span>"+e.escapeHtml(t)+"</span></label>"
-}(t,isTicked(t))).join("")+n.map(e=>customChip(e,!0)).join("")}(w.order.includes||[]),p.customInclude.value="",refreshItemTotals(),setDirty(!1)
-}(s.id):"moodboard"===s.view?await async function(e){w.order=await t.getOrder(e),
-[w.customer,w.customerOrders]=await Promise.all([t.getCustomer(w.order.customer_id),t.listOrders(w.order.customer_id)]),setChrome({title:"Create moodboard",
-save:!1,moodboardpage:!0}),setSaveBar(!1),closeMoodboardOverlay(),p.mbBackBtn.href="#/order/"+e,
-p.mbBackLabel.textContent=orderLabel(w.order),p.mbBackBtn.setAttribute("aria-label","Back to "+orderLabel(w.order)),
-j===e&&R.images.length||(R.init({orderId:w.order.id,customerId:w.customer.id,customerName:w.customer.name,docName:w.order.doc_name||w.customer.name,
-orderRef:w.order.title||""}),j=e);p.mbCanvas.hidden=!0,p.mbEditor.hidden=!1}(s.id):"moodboardPreview"===s.view?await async function(e){
-// The generated canvas is only reachable with a live browser-local session;
-// a reload lands back on image selection rather than on an empty board.
-if(!R.images.length||j!==e)return void go("#/order/"+e+"/moodboard");setChrome({title:"Moodboard",
-save:!1,moodboardpage:!0}),setSaveBar(!1),closeMoodboardOverlay(),p.mbEditor.hidden=!0,p.mbCanvas.hidden=!1,
-p.mbCanvasBack.href="#/order/"+e+"/moodboard",resetMoodboardExports(),
-requestAnimationFrame(()=>syncMoodboardCanvas())}(s.id):"fittingNew"===s.view?await async function(e){w.order=await t.getOrder(e),w.customer=await t.getCustomer(w.order.customer_id),setChrome({
-title:"New fitting",up:{label:orderLabel(w.order),hash:"#/order/"+e},save:!1}),p.fittingJournalBar.hidden=!0,
-document.body.classList.remove("has-fitting-journal-bar"),syncBottomBar()
-;const o=await Promise.all([t.listOrderEvents(e),t.listFittingSessions(e)]),a=o[1].find(e=>"active"===e.status)
-;if(a)return void go("#/order/"+e+"/fitting/"+a.id);const s=o[0].filter(e=>n.isProductionStage(e.stage)),r=s.length?s:n.PRODUCTION_STAGES.map(e=>({
-stage:e})),begin=async o=>{try{const n=await t.createFittingSession({order_id:e,stage:o,status:"active"});setChrome({title:o,up:{
-label:orderLabel(w.order),hash:"#/order/"+e},action:{label:"Done",onClick:()=>KK.fittings.endSession(n,()=>go("#/order/"+e))},save:!1}),
-p.fittingJournalBar.hidden=!1,document.body.classList.add("has-fitting-journal-bar"),syncBottomBar(),KK.fittings.renderJournal(p.fittingJournal,{
-order:w.order,customer:w.customer,session:n,photos:[],onToast:showToast}),KK.fittings.startSession(n,{order:w.order,customer:w.customer,photos:[]
-},showToast)}catch(e){showToast(e.message||"Could not start fitting session")}},i=KK.fittings.detectStage(s)
-;i?await begin(i):KK.fittings.showStagePicker(r,begin,()=>go("#/order/"+e))}(s.id):"fittingJournal"===s.view?await async function(e,o){
-w.order=await t.getOrder(e),w.customer=await t.getCustomer(w.order.customer_id)
-;const n=await Promise.all([t.getFittingSession(o),t.listFittingPhotos(e)]),a=n[0],s=n[1].filter(e=>e.session_id===a.id);setChrome({title:a.stage,up:{
-label:orderLabel(w.order),hash:"#/order/"+e},action:"active"===a.status?{label:"Done",onClick:()=>KK.fittings.endSession(a,()=>go("#/order/"+e))
-}:null,save:!1
-}),p.fittingJournalBar.hidden="active"!==a.status,document.body.classList.toggle("has-fitting-journal-bar",!p.fittingJournalBar.hidden),
-syncBottomBar(),KK.fittings.renderJournal(p.fittingJournal,{order:w.order,customer:w.customer,session:a,photos:s,onToast:showToast})
-}(s.id,s.sessionId):"calendar"===s.view?await showCalendarSettings():"enquiry"===s.view?await async function(o){setChrome({title:"Enquiry",up:{
-label:"Customers",hash:"#/customers"},save:!1}),w.enquiry=await t.getIntake(o);const n=w.enquiry
-;p.enquiryWhen.textContent=e.formatShortDate(n.created_at),p.enquiryAnswers.innerHTML=function(e){
-const t=e.payload&&e.payload.data&&e.payload.data.fields||[],o=t.map(e=>({label:String(e.label||"Answer"),value:readableAnswer(e)
-})).filter(e=>e.value);return o.length?o:[{label:"Name",value:e.name||""},{label:"Phone",value:e.phone||""},{label:"Instagram",value:e.instagram||""
-},{label:"Source",value:e.source||""},{label:"Notes",value:e.notes||""}].filter(e=>e.value)
-}(n).map(t=>'<div class="infolist__stack"><dt>'+e.escapeHtml(t.label)+"</dt><dd>"+e.escapeHtml(t.value)+"</dd></div>").join("")||'<div class="infolist__stack"><dt>Answers</dt><dd>Nothing readable in this submission.</dd></div>'
-;const a="new"!==n.status
-;p.enquiryNote.textContent=a?"accepted"===n.status?"Already accepted.":"Dismissed.":"Creating the customer files them at Enquiry, with a reminder to book the consultation in two days. Dismissing keeps the submission but creates nothing.",
-p.enquiryAccept.hidden=a,p.enquiryDismiss.hidden=a}(s.id):await showOrderDetail(s.id)};const load=(async()=>{try{
-await render()}catch(e){if(!t.isStaleToken(e))throw e;console.warn("Stale token, refreshing and retrying:",e.message),await t.refreshSession(),await render()}})(),
-settled=load.then(()=>({ok:!0}),e=>({ok:!1,error:e}));let early=null;if(!skipMotion){early=await Promise.race([settled,wait(400).then(()=>null)])
-;if(routeToken!==w.navigation.token)return;if(early&&early.ok)await hideRouteLoader(!0);else early&&!early.ok&&!routeHasOwnLoader(s)&&showRouteError(early.error,s)
-;await revealCurtain()}const result=early||await settled;if(routeToken!==w.navigation.token)return;if(result.ok)await hideRouteLoader(!1),focusRoute(s)
-;else routeHasOwnLoader(s)?showToast(result.error&&result.error.message||"Could not load that"):showRouteError(result.error,s)}
-const orNull=e=>""===String(e||"").trim()?null:String(e).trim();function orderLabel(e){if(e.title)return e.title;const t=e.items||[]
-;return t.length&&t[0].name?t[0].name+(t.length>1?" + "+(t.length-1)+" more":""):"Empty order"}
-const isCosted=e=>(Number(e.cost)||0)>0,isNamed=e=>""!==String(e.name||"").trim();function greetingForClock(e){
-return("dawn"===e.period||"morning"===e.period?"Good morning":"noon"===e.period||"afternoon"===e.period?"Good afternoon":"Good evening")+", Ichaku"}
-function homepageOverview(e,t){const o={},n={},a={};e.forEach(e=>{(o[e.customer_id]=o[e.customer_id]||[]).push(e),n[e.id]=e.customer_id}),t.forEach(e=>{const t=n[e.order_id];t&&(a[t]=a[t]||[]).push(e)});return{ordersByCustomer:o,eventsByCustomer:a}}
+  /* ----------------- Core Dependencies & Helper Aliases ----------------- */
 
-// The homepage swaps between three fixed-geometry layers. Everything below is
-// written so the only thing that ever moves is opacity: the ready layer is
-// built and measured while it is still covered by the skeleton.
-const reducedMotion=()=>!!(window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-let homePopTimers=[];
-function clearHomepagePops(){homePopTimers.forEach(clearTimeout),homePopTimers=[]}
-function clearHomepagePresses(){document.querySelectorAll(".is-pressed").forEach(e=>e.classList.remove("is-pressed"))}
-function isCurrentHomepageLoad(e){return e===w.homepage.loadToken&&"customers"===w.route.view}
+  const U = KK.util;
+  const db = KK.db;
+  const docs = KK.docs;
+  const calendar = KK.calendar;
 
-function beginHomepageLoad(){const e=++w.homepage.loadToken;return w.homepage.phase="loading",
-clearHomepagePops(),clearHomepagePresses(),p.homeStage.setAttribute("aria-busy","true"),p.homeStage.style.height="",
-p.homeLoading.hidden=!1,p.homeLoading.classList.remove("is-transitioning","is-hidden"),
-p.homeError.hidden=!0,
-p.homeReady.hidden=!0,p.homeReady.classList.remove("is-transitioning","is-visible"),p.homeReady.style.visibility="",e}
+  const $ = U.$;
+  const $$ = U.$$;
 
-function renderHomepageError(t,o){if(!isCurrentHomepageLoad(o))return;w.homepage.phase="error",
-p.homeLoading.hidden=!0,p.homeLoading.classList.remove("is-transitioning","is-hidden"),p.homeError.hidden=!1,
-p.homeStage.setAttribute("aria-busy","false"),
-p.homeError.innerHTML='<div class="home-error-panel"><p class="home-error-panel__title">Could not load the homepage.</p><p class="home-error-panel__hint">'+e.escapeHtml(t instanceof TypeError?"Check your connection and try again.":t&&t.message||"Try again in a moment.")+'</p><button type="button" class="home-error__retry">Try again</button></div>';
-const n=p.homeError.querySelector(".home-error__retry");n.addEventListener("click",()=>{showCustomers(!0)}),
-requestAnimationFrame(()=>n.focus({preventScroll:!0}))}
+  /* --------------------------- Domain Constants -------------------------- */
 
-function renderHomepageHero(){const t=(new Date).getHours(),o=w.customers.filter(isActive).map(e=>({customer:e,deadline:nextDeadline(e)})).filter(e=>e.deadline).sort((e,t)=>e.deadline.date.localeCompare(t.deadline.date))[0]
-;if(p.heroGreeting.textContent=greetingForClock({period:t<12?"morning":t<18?"afternoon":"evening"}),!o)return void(p.heroDeadline.textContent="No upcoming deadline. All clear!")
-;const n=Math.ceil((new Date(o.deadline.date)-new Date(e.todayISO()))/864e5),a=n<=0?"today":1===n?"tomorrow":"in "+n+" days"
-;p.heroDeadline.innerHTML="Nearest deadline is <strong>"+e.escapeHtml(firstName(o.customer.name)+" - "+o.deadline.what)+"</strong> "+a+". Prep up!"}
+  const INCLUDES_PRESETS = [
+    "Custom design & consultation",
+    "Production",
+    "Standard fabric",
+    "Plain veil",
+    "Fitting",
+    "Laundry"
+  ];
 
-// The bar only exists when the query came back with rows, so an empty result
-// removes its 63px from the layout entirely rather than reserving a gap.
-function renderHomepageAlert(e){p.enquiriesCard.hidden=!e.length,e.length&&(p.enquiriesCount.textContent=e.length+" new order submission"+(1===e.length?"":"s"))}
+  const ORDER_STATUSES = ["Quoted", "Confirmed", "In production", "Delivered"];
+  const CUSTOMER_SOURCES = ["Instagram", "TikTok", "Referral", "Walk-in", "Other"];
 
-function renderHomepageSummary(){const e=w.customers.length,t=w.customers.filter(e=>"In production"===homepageStatus(e,w.overview.ordersByCustomer[e.id]||[]).label).length
-;p.homeSummary.innerHTML='<span>'+e+" total customer"+(1===e?"":"s")+'</span><i></i><span>'+t+" in production</span>"}
+  const CHECK_IN_CONFIG = { label: "Check in", days: 3 };
+  const FOLLOW_UP_CONFIG = { label: "Follow up moodboard", days: 3 };
 
-function renderHomepageReady(e){renderHomepageHero(),renderHomepageAlert(e.submissions),renderHomepageSummary(),renderCustomerList(),
-p.homeReady.hidden=!1,p.homeReady.classList.add("is-measuring")}
+  /* ------------------------------- SVG Icons ------------------------------ */
 
-// Pressed-to-normal, left to right, once per navigation into the homepage.
-function prepareShortcutAppearState(){if(w.homepage.popPlayedForVisit>=w.homepage.visit||reducedMotion())return;
-p.homeActions.querySelectorAll(".home-action").forEach(e=>e.classList.add("is-appear-pressed"))}
-function playShortcutAppear(){if(w.homepage.popPlayedForVisit>=w.homepage.visit)return;w.homepage.popPlayedForVisit=w.homepage.visit;
-p.homeActions.querySelectorAll(".home-action").forEach((e,t)=>{homePopTimers.push(setTimeout(()=>e.classList.remove("is-appear-pressed"),80*t))})}
+  const SVG_TRASH = U.ICONS.trash;
+  const SVG_CLOSE = U.ICONS.close;
+  const SVG_CHECK = U.ICONS.check;
 
-async function revealHomepage(e){await(document.fonts&&document.fonts.ready||Promise.resolve()),
-await new Promise(e=>requestAnimationFrame(e));if(!isCurrentHomepageLoad(e))return
-// Pin the stage to the measured ready height first, so the crossfade happens
-// inside a box that already matches what is about to be shown.
-;p.homeStage.style.height=Math.ceil(p.homeReady.getBoundingClientRect().height||p.homeReady.scrollHeight)+"px",
-p.homeReady.classList.remove("is-measuring"),p.homeReady.classList.add("is-transitioning"),p.homeLoading.classList.add("is-transitioning"),
-requestAnimationFrame(()=>{isCurrentHomepageLoad(e)&&(p.homeReady.classList.add("is-visible"),p.homeLoading.classList.add("is-hidden"),playShortcutAppear())}),
-setTimeout(()=>{isCurrentHomepageLoad(e)&&(p.homeLoading.hidden=!0,p.homeLoading.classList.remove("is-transitioning","is-hidden"),
-p.homeReady.classList.remove("is-transitioning","is-visible"),p.homeStage.style.height="",
-p.homeStage.setAttribute("aria-busy","false"),w.homepage.phase="ready")},reducedMotion()?0:180)}
+  /* ----------------------- Element Registry ------------------------ */
 
-// All four reads are one required batch: a missing events or intake result
-// would silently change the deadline, the ordering, or whether the
-// submissions bar belongs on the page, so a partial result is not shown.
-async function showCustomers(o){setChrome({title:"Customers",up:null,save:!1,homepage:!0}),w.customer=null,w.order=null,
-o||w.homepage.visit++;const n=beginHomepageLoad();try{const[o,a,s,r]=await Promise.all([t.listCustomers(),t.listAllOrders(),t.listAllOrderEvents(),t.listIntake("new")])
-;if(!isCurrentHomepageLoad(n))return;w.customers=o,w.overview=homepageOverview(a,s),
-renderHomepageReady({customers:o,submissions:r}),prepareShortcutAppearState(),await revealHomepage(n)}catch(e){
-if(t.isStaleToken(e))throw e;console.error(e),renderHomepageError(e,n)}}
+  const elements = {
+    boot: $("#boot"),
+    gate: $("#gate"),
+    gateForm: $("#gateForm"),
+    gatePassword: $("#gatePassword"),
+    gateRemember: $("#gateRemember"),
+    gateErr: $("#gateErr"),
+    gateSubmit: $("#gateSubmit"),
+    app: $("#app"),
+    upLink: $("#upLink"),
+    upLabel: $("#upLabel"),
+    appbarBrand: $("#appbarBrand"),
+    homeLink: $("#homeLink"),
+    routeLoader: $("#routeLoader"),
+    routeLoaderError: $("#routeLoaderError"),
+    routeLoaderStatus: $("#routeLoaderStatus"),
+    viewTitle: $("#viewTitle"),
+    viewSub: $("#viewSub"),
+    pageAction: $("#pageAction"),
+    savebar: $("#savebar"),
+    saveBtn: $("#saveBtn"),
+    menu: $("#menu"),
+    menuBtn: $("#menuBtn"),
+    menuList: $("#menuList"),
+    menuDelete: $("#menuDelete"),
+    menuCalendar: $("#menuCalendar"),
+    menuSignOut: $("#menuSignOut"),
+    viewCustomers: $("#viewCustomers"),
+    homeStage: $("#homeStage"),
+    homeLoading: $("#homeLoading"),
+    homeError: $("#homeError"),
+    homeReady: $("#homeReady"),
+    homeHero: $("#homeHero"),
+    homeActions: $("#homeActions"),
+    homeNav: $("#homeNav"),
+    homeNavHome: $("#homeNavHome"),
+    homeNavMenu: $("#homeNavMenu"),
+    homeNavMenuWrapper: $("#homeNavMenuWrapper"),
+    homeCustomers: $("#homeCustomers"),
+    homeFooter: $("#homeFooter"),
+    homeSummary: $("#homeSummary"),
+    heroGreeting: $("#heroGreeting"),
+    heroDeadline: $("#heroDeadline"),
+    customerSearch: $("#customerSearch"),
+    customerList: $("#customerList"),
+    viewCustomer: $("#viewCustomer"),
+    custBackBtn: $("#custBackBtn"),
+    custEditBtn: $("#custEditBtn"),
+    custHeroName: $("#custHeroName"),
+    custWeddingText: $("#custWeddingText"),
+    custNextLabel: $("#custNextLabel"),
+    custNextDate: $("#custNextDate"),
+    custOrdersCount: $("#custOrdersCount"),
+    custOrdersSum: $("#custOrdersSum"),
+    custOrderList: $("#custOrderList"),
+    viewCustomerEdit: $("#viewCustomerEdit"),
+    custEditCancel: $("#custEditCancel"),
+    custEditTitle: $("#custEditTitle"),
+    cancelCustomer: $("#cancelCustomer"),
+    reopenCustomer: $("#reopenCustomer"),
+    deleteCustomer: $("#deleteCustomer"),
+    deleteCustomerRow: $("#deleteCustomerRow"),
+    cName: $("#cName"),
+    errCName: $("#errCName"),
+    cPhone: $("#cPhone"),
+    cInstagram: $("#cInstagram"),
+    cSource: $("#cSource"),
+    cWedding: $("#cWedding"),
+    cWeddingMonth: $("#cWeddingMonth"),
+    cWeddingPrecision: $("#cWeddingPrecision"),
+    cMoodboardDate: $("#cMoodboardDate"),
+    cFollowUpDate: $("#cFollowUpDate"),
+    cFollowUpLabel: $("#cFollowUpLabel"),
+    cCancelledReason: $("#cCancelledReason"),
+    cCancelledField: $("#cCancelledField"),
+    cNotes: $("#cNotes"),
+    viewOrder: $("#viewOrder"),
+    orderStage: $("#orderStage"),
+    orderLoading: $("#orderLoading"),
+    orderLoadingStatus: $("#orderLoadingStatus"),
+    orderError: $("#orderError"),
+    orderReady: $("#orderReady"),
+    orderBackBtn: $("#orderBackBtn"),
+    orderBackLabel: $("#orderBackLabel"),
+    orderHistoryBtn: $("#orderHistoryBtn"),
+    orderEditBtn: $("#orderEditBtn"),
+    orderTitle: $("#orderTitle"),
+    oItemsDisplay: $("#oItemsDisplay"),
+    paymentSummary: $("#paymentSummary"),
+    paymentError: $("#paymentError"),
+    logPaymentBtn: $("#logPaymentBtn"),
+    paymentChooser: $("#paymentChooser"),
+    paymentChooserOptions: $("#paymentChooserOptions"),
+    scheduleList: $("#scheduleList"),
+    createMoodboardBtn: $("#createMoodboardBtn"),
+    logNewFittingBtn: $("#logNewFittingBtn"),
+    viewCalendar: $("#viewCalendar"),
+    gcalState: $("#gcalState"),
+    gcalConnect: $("#gcalConnect"),
+    gcalDisconnect: $("#gcalDisconnect"),
+    gcalErr: $("#gcalErr"),
+    enquiriesCard: $("#enquiriesCard"),
+    enquiriesCount: $("#enquiriesCount"),
+    viewEnquiry: $("#viewEnquiry"),
+    enquiryWhen: $("#enquiryWhen"),
+    enquiryAnswers: $("#enquiryAnswers"),
+    enquiryNote: $("#enquiryNote"),
+    enquiryAccept: $("#enquiryAccept"),
+    enquiryDismiss: $("#enquiryDismiss"),
+    viewMoodboard: $("#viewMoodboard"),
+    viewFittingJournal: $("#viewFittingJournal"),
+    mbBackBtn: $("#mbBackBtn"),
+    mbBackLabel: $("#mbBackLabel"),
+    mbTitle: $("#mbTitle"),
+    fittingJournal: $("#fittingJournal"),
+    fittingJournalBar: $("#fittingJournalBar"),
+    fittingJournalAdd: $("#fittingJournalAdd"),
+    viewOrderEdit: $("#viewOrderEdit"),
+    oTitle: $("#oTitle"),
+    oDocName: $("#oDocName"),
+    oFirstPayment: $("#oFirstPayment"),
+    oSecondPayment: $("#oSecondPayment"),
+    oFinalPayment: $("#oFinalPayment"),
+    oScheduleHint: $("#oScheduleHint"),
+    oScheme: $("#oScheme"),
+    termsCard: $("#termsCard"),
+    termList: $("#termList"),
+    addTerm: $("#addTerm"),
+    termsSum: $("#termsSum"),
+    errTerms: $("#errTerms"),
+    itemList: $("#itemList"),
+    itemsTotal: $("#itemsTotal"),
+    addItem: $("#addItem"),
+    includesList: $("#includesList"),
+    customInclude: $("#customInclude"),
+    addInclude: $("#addInclude"),
+    downloadNote: $("#downloadNote"),
+    downloadQuote: $("#downloadQuote"),
+    downloadInvoice: $("#downloadInvoice"),
+    toast: $("#toast"),
+    calcSheet: $("#calcSheet"),
+    calcItemLabel: $("#calcItemLabel"),
+    calcRowList: $("#calcRowList"),
+    calcAddRow: $("#calcAddRow"),
+    calcTotal: $("#calcTotal"),
+    calcApply: $("#calcApply"),
+    calcBack: $("#calcBack"),
+    mbEditor: $("#mbEditor"),
+    mbCanvas: $("#mbCanvas"),
+    mbCanvasBack: $("#mbCanvasBack"),
+    mbRotate: $("#mbRotate"),
+    mbBoard: $("#mbBoard"),
+    mbBoardScaler: $("#mbBoardScaler"),
+    mbRandomize: $("#mbRandomize"),
+    mbUpload: $("#mbUpload"),
+    mbDownload: $("#mbDownload"),
+    mbExportStatus: $("#mbExportStatus"),
+    mbOverlay: $("#mbOverlay"),
+    mbOverlayCanvas: $("#mbOverlayCanvas"),
+    mbOverlayClose: $("#mbOverlayClose")
+  };
 
-// A short vibration on shortcut press, best-effort since most desktop
-// browsers and iOS Safari have no navigator.vibrate.
-function hapticTap(){try{navigator.vibrate&&navigator.vibrate(10)}catch(e){}}
-// Pointer and keyboard press feedback. The shortcuts and the alert are
-// deliberately inert, so they get the visual state and nothing else.
-p.viewCustomers.addEventListener("pointerdown",e=>{const t=e.target.closest(".home-action,.home-alert,.home-customer-card,.home-nav-btn");t&&(t.classList.add("is-pressed"),t.matches(".home-action")&&hapticTap())}),
-["pointerup","pointercancel","pointerleave","blur"].forEach(e=>window.addEventListener(e,clearHomepagePresses,!0)),
-// Touch scrolling must not leave a card stuck in its pressed state.
-window.addEventListener("scroll",()=>{"ready"===w.homepage.phase&&clearHomepagePresses()},{passive:!0}),
-p.viewCustomers.addEventListener("keydown",e=>{if(" "!==e.key&&"Enter"!==e.key)return;const t=e.target.closest(".home-action,.home-alert,.home-customer-card,.home-nav-btn")
-;t&&(t.classList.add("is-pressed"),t.matches(".home-action")&&hapticTap(),t.matches(".home-action,.home-alert,.home-nav-btn")&&e.preventDefault())}),
-window.addEventListener("keyup",clearHomepagePresses),
-p.homeReady.addEventListener("click",e=>{e.target.closest(".home-action,.home-alert")&&e.preventDefault()}),
-// The customer detail page presses like the homepage — the same window-level
-// listeners above release it, so only the press itself is registered here.
-p.viewCustomer.addEventListener("pointerdown",e=>{const t=e.target.closest(".cust-banner,.cust-nav-btn,.cust-order-card")
-;t&&t.classList.add("is-pressed")}),
-p.viewCustomer.addEventListener("keydown",e=>{if(" "!==e.key&&"Enter"!==e.key)return
-;const t=e.target.closest(".cust-banner,.cust-nav-btn,.cust-order-card");t&&(t.classList.add("is-pressed"),t.matches(".cust-banner")&&e.preventDefault())}),
-window.addEventListener("scroll",()=>{(document.body.classList.contains("is-custpage")||document.body.classList.contains("is-custeditpage")||document.body.classList.contains("is-orderpage")||document.body.classList.contains("is-moodboardpage"))&&clearHomepagePresses()},{passive:!0}),
-// The banners are tactile but do not lead anywhere yet.
-p.viewCustomer.addEventListener("click",e=>{e.target.closest(".cust-banner")&&e.preventDefault()}),
-// The order page presses like the rest of the app: pointer and keyboard add
-// the state, the window listeners above take it away. History and the schedule
-// records are tactile but inert, so Space must not scroll the page under them.
-p.viewOrder.addEventListener("pointerdown",e=>{const t=e.target.closest(".order-nav-btn,.order-action,.order-schedule-record,.order-choice")
-;t&&!t.disabled&&t.classList.add("is-pressed")}),
-p.viewOrder.addEventListener("keydown",e=>{if(" "!==e.key&&"Enter"!==e.key)return
-;const t=e.target.closest(".order-nav-btn,.order-action,.order-schedule-record,.order-choice")
-;t&&!t.disabled&&(t.classList.add("is-pressed")," "===e.key&&t.matches("#orderHistoryBtn,.order-schedule-record")&&e.preventDefault())}),
-p.viewOrder.addEventListener("click",e=>{e.target.closest("#orderHistoryBtn,#uploadDesignBtn,.order-schedule-record")&&e.preventDefault(),
-e.target.closest(".js-order-schedule-retry")&&retryOrderSchedule()}),
-// The editor presses the same way. Fields press on focus rather than on touch,
-// so only the nav, the status rows and the segmented cells are wired here.
-p.viewCustomerEdit.addEventListener("pointerdown",e=>{
-const t=e.target.closest(".cust-banner,.cust-nav-btn,.custedit-segmented__btn,.custedit-danger__btn");t&&t.classList.add("is-pressed")}),
-p.viewCustomerEdit.addEventListener("keydown",e=>{if(" "!==e.key&&"Enter"!==e.key)return
-;const t=e.target.closest(".cust-banner,.cust-nav-btn,.custedit-segmented__btn,.custedit-danger__btn");t&&t.classList.add("is-pressed")}),
-p.saveBtn.addEventListener("pointerdown",()=>{document.body.classList.contains("is-custeditpage")&&p.saveBtn.classList.add("is-pressed")});function readableAnswer(e){const t=e&&e.value
-;if(null==t||""===t)return"";if(!Array.isArray(t))return"object"==typeof t?JSON.stringify(t):String(t);const o=e.options||[];return t.map(e=>{
-const t=o.filter(t=>t.id===e)[0];return t?t.text:String(e)}).filter(Boolean).join(", ")}async function acceptEnquiry(){const o=w.enquiry
-;if(o&&"new"===o.status)try{const n=await t.createCustomer(Object.assign({name:o.name||"Unnamed enquiry",phone:o.phone,instagram:o.instagram,
-source:d.includes(o.source)?o.source:"Other",wedding_date:o.wedding_date,wedding_date_precision:"month"===o.wedding_date_precision?"month":"day",
-notes:o.notes},followUpPatch(c,e.todayISO())));await t.resolveIntake(o.id,"accepted",n.id),w.customer=n,w.customerOrders=[],await pushFollowUp(),
-showToast("Customer created"),leaveFormFor("#/customer/"+n.id)}catch(e){console.error(e),showToast(e.message||"Could not create the customer")}}
-async function dismissEnquiry(){const e=w.enquiry
-;if(e&&"new"===e.status&&window.confirm("Dismiss this enquiry? It stays on record but creates nothing."))try{
-await t.resolveIntake(e.id,"dismissed",null),showToast("Enquiry dismissed"),leaveFormFor("#/customers")}catch(e){console.error(e),
-showToast(e.message||"Could not dismiss the enquiry")}}function renderCustomerList(){
-const t=p.customerSearch.value.trim().toLowerCase(),n=w.customers.filter(e=>!t||[e.name,e.phone,e.instagram].some(e=>String(e||"").toLowerCase().includes(t))).sort(compareHomepageCustomers)
-;if(!n.length){const t=p.customerSearch.value.trim()
-;return void(p.customerList.innerHTML=w.customers.length?'<p class="empty">No match for “'+e.escapeHtml(t)+'”.</p><a class="btn btn--outline btn--new btn--block btn--empty" href="#/customer/new/edit?name='+encodeURIComponent(t)+'">+ Add “'+e.escapeHtml(t)+"” as a new customer</a>":'<p class="empty">No customers yet.</p>')
-}p.customerList.innerHTML=n.map((t,n)=>{
-const a=w.overview.ordersByCustomer[t.id]||[],s=a.reduce((e,t)=>e+o.computeTotal(t.items),0),r=homepageStatus(t,a),i=a.length+" order"+(1===a.length?"":"s")
-;return'<div class="home-customer-record"><div class="home-grid-rule"></div><div class="home-customer-record__inset"><a class="home-customer-card home-customer-card--'+r.tone+'" href="#/customer/'+encodeURIComponent(t.id)+'" aria-label="'+e.escapeHtml((t.name||"Unnamed customer")+", "+r.label)+'"><span class="home-customer-card__face"><span class="home-customer-card__top"><span class="home-customer-card__name">'+e.escapeHtml(t.name||"Unnamed customer")+'</span><span class="home-customer-card__badge">'+e.escapeHtml(r.label)+'</span></span>'+("Cancelled"===r.label?"":'<span class="home-customer-card__meta"><span>'+e.escapeHtml(i)+"</span><span>"+e.formatRupiah(s)+"</span></span>")+'</span><span class="home-customer-card__rail"></span></a></div><div class="home-grid-rule"></div><div class="home-grid-spacer" aria-hidden="true"></div></div>'
-}).join("")}function homepageStatus(e,t){const o=t||[];return e.cancelled_at?{label:"Cancelled",tone:"quiet",rank:5
-}:o.some(e=>"In production"===e.status)?{label:"In production",tone:"production",rank:0}:o.some(e=>"Confirmed"===e.status)?{label:"Invoice sent",
-tone:"invoice",rank:1}:o.some(e=>"Quoted"===e.status)?{label:"Quote sent",tone:"invoice",rank:2}:o.length?(o.some(e=>"Delivered"===e.status),{
-label:"Finished",tone:"quiet",rank:4}):{label:"In consultation",tone:"consultation",rank:3}}function compareHomepageCustomers(e,t){
-const o=homepageStatus(e,w.overview.ordersByCustomer[e.id]||[]),n=homepageStatus(t,w.overview.ordersByCustomer[t.id]||[])
-;if(o.rank!==n.rank)return o.rank-n.rank;const a=nextDeadline(e),s=nextDeadline(t),r=a?a.date:"9999-12-31",i=s?s.date:"9999-12-31"
-;if(r!==i)return r.localeCompare(i);const d=e.wedding_date||"9999-12-31",c=t.wedding_date||"9999-12-31"
-;return d!==c?d.localeCompare(c):String(e.name||"").localeCompare(String(t.name||""),void 0,{sensitivity:"base"})}
-const isActive=e=>!["Cancelled","Completed"].includes(customerStatus(e,w.overview.ordersByCustomer[e.id]));function nextDeadline(t){
-const o=e.todayISO(),n=[];return t.wedding_date&&n.push({date:t.wedding_date,what:"Wedding"}),t.follow_up_date&&n.push({date:t.follow_up_date,
-what:t.follow_up_label||"Follow up"}),(w.overview.eventsByCustomer[t.id]||[]).filter(e=>!e.end_date).forEach(e=>n.push({date:e.event_date,what:e.stage
-})),n.filter(e=>e.date>=o).sort((e,t)=>e.date<t.date?-1:1)[0]||null}
-const relativeDays=e=>0===e?"today":1===e?"tomorrow":"in "+e+" days",firstName=e=>(e||"").trim().split(/\s+/)[0]||"";const M={id:null,name:"",
-phone:"",instagram:"",source:"",wedding_date:"",notes:""}
-const daysUntil=t=>Math.round((new Date(t)-new Date(e.todayISO()))/864e5),isApproximateWedding=e=>!(!e||!e.wedding_date||"month"!==e.wedding_date_precision)
-;function weddingText(t){
-return t&&t.wedding_date?isApproximateWedding(t)?e.formatLongDate(t.wedding_date).replace(/^\d+\s/,"")+" (approximate)":e.formatShortDate(t.wedding_date):"Not set"
-}
-// Read-only customer page (#/customer/:id) — Figma 65:399.
-async function showCustomerDetail(o){
-// Nothing to read about a customer who does not exist yet, so creating one
-// goes straight to the form, keeping any name the search already found.
-if("new"===o){const e=String(location.hash||""),t=e.indexOf("?");return void go("#/customer/new/edit"+(-1===t?"":e.slice(t)))}
-setChrome({title:"Customer",up:{label:"Customers",hash:"#/customers"},save:!1,custpage:!0}),w.order=null,w.schedule=null,w.loggedDeposits={},w.customerOrders=[],
-p.custEditBtn.href="#/customer/"+encodeURIComponent(o)+"/edit",p.custOrderList.innerHTML=""
-;const[n,a]=await Promise.all([t.getCustomer(o),t.listOrders(o)]);w.customer=n,w.customerOrders=a,fillCustomerForm(n),setDirty(!1),
-renderCustomerDetail(n,a),renderCustomerReadOnly(n)}
-// Editor (#/customer/:id/edit, and #/customer/new/edit for a new record).
-// Cancel lives in the nav row and delete at the foot of the page, so neither
-// needs the app bar the retro canvas hides.
-async function showCustomerEdit(o,n){const a="new"===o,s=a?"#/customers":"#/customer/"+encodeURIComponent(o)
-;setChrome({title:a?"New customer":"Edit customer",up:{label:a?"Customers":"Customer",hash:s},save:!0,custedit:!0}),
-w.order=null,w.schedule=null,w.loggedDeposits={},w.customerOrders=[],p.custEditCancel.href=s,p.custEditTitle.textContent=a?"New customer":"Edit customer"
-;
-// Arrived from a search that found nothing: the name is already known.
-if(a){const e=String(n&&n.get("name")||"").trim();return w.customer=Object.assign({},M),e&&(w.customer.name=e),fillCustomerForm(w.customer),
-setDirty(!!e),p.viewSub.hidden=!0,p.cancelCustomer.hidden=!0,p.reopenCustomer.hidden=!0,p.deleteCustomerRow.hidden=!0,
-void(e?p.cPhone:p.cName).focus()}
-const[r,i]=await Promise.all([t.getCustomer(o),t.listOrders(o)]);w.customer=r,w.customerOrders=i,fillCustomerForm(r),setDirty(!1),
-renderCustomerReadOnly(r)}
-// The three things about a customer that are decided rather than typed. They
-// are read off what already exists, so they can only ever be shown or hidden.
-function renderCustomerReadOnly(t){const o=openCustomerOrders(),n=customerStatus(t,o)
-;p.viewSub.innerHTML='<span class="'+badgeClass(n)+'">'+e.escapeHtml(n)+"</span>",p.viewSub.hidden=!1,
-p.cancelCustomer.hidden=!canCancel(t,o),p.reopenCustomer.hidden=!t.cancelled_at,p.deleteCustomerRow.hidden=!t.id}
-// The next thing in the diary: a booked appointment, the follow-up, or, when
-// nothing else is left, the wedding. Computed from the orders on the page, so
-// it is right whether you arrived from the homepage or from a bookmark.
-function custNextEvent(t,o){const a=e.todayISO(),s=[]
-;return t.follow_up_date&&s.push({date:t.follow_up_date,what:t.follow_up_label||"Follow up"}),(o||[]).forEach(e=>{const o=productionAnchor(e)
-;o&&n.computeProduction(o,t.wedding_date).events.forEach(e=>s.push({date:e.event_date,what:e.stage}))}),
-t.wedding_date&&s.push({date:t.wedding_date,what:"Wedding"}),s.filter(e=>e.date>=a).sort((e,t)=>e.date<t.date?-1:1)[0]||null}
-// Order statuses share the homepage's vocabulary and colours, so the same order
-// never has two names depending on which page you opened it from.
-function custOrderStatus(e){const t=effectiveStatus(e);return"In production"===t?{label:"In production",tone:"production"
-}:"Confirmed"===t?{label:"Invoice sent",tone:"invoice"}:"Quoted"===t?{label:"Quote sent",tone:"invoice"}:{label:"Finished",tone:"quiet"}}
-function renderCustomerDetail(t,n){const a=n||[]
-;p.custHeroName.textContent=t.name||"Unnamed customer",
-p.custWeddingText.textContent=t.wedding_date?(isApproximateWedding(t)?weddingText(t):e.formatShortDate(t.wedding_date))+" ("+relativeToToday(t.wedding_date)+")":"Not set"
-;const s=custNextEvent(t,a);p.custNextLabel.textContent=s?"Next: "+s.what:"Next event",
-p.custNextDate.textContent=s?e.formatShortDate(s.date)+" ("+relativeToToday(s.date)+")":"Nothing scheduled",
-p.custOrdersCount.textContent=a.length+" order"+(1===a.length?"":"s"),
-p.custOrdersSum.textContent=e.formatRupiah(a.reduce((e,t)=>e+o.computeTotal(t.items),0)),
-p.custOrderList.innerHTML=a.length?a.map(t=>{const n=custOrderStatus(t),a=(t.items||[]).length
-;return'<div class="cust-grid-spacer" aria-hidden="true"></div><div class="cust-grid-rule"></div><div class="cust-order-record__inset"><a class="cust-order-card cust-order-card--'+n.tone+'" href="#/order/'+encodeURIComponent(t.id)+'" aria-label="'+e.escapeHtml(orderLabel(t)+", "+n.label)+'"><span class="cust-order-card__face"><span class="cust-order-card__top"><span class="cust-order-card__name">'+e.escapeHtml(orderLabel(t))+'</span><span class="cust-order-card__badge">'+e.escapeHtml(n.label)+'</span></span><span class="cust-order-card__meta"><span>'+a+" item"+(1===a?"":"s")+"</span><span>"+e.formatRupiah(o.computeTotal(t.items))+'</span></span></span><span class="cust-order-card__rail" aria-hidden="true"></span></a></div><div class="cust-grid-rule"></div>'
-}).join("")+'<div class="cust-grid-spacer" aria-hidden="true"></div>':'<div class="cust-grid-spacer" aria-hidden="true"></div><p class="empty">No orders for this customer yet.</p><div class="cust-grid-spacer" aria-hidden="true"></div>'}
-function relativeToToday(e){const t=daysUntil(e);if(t>=0)return relativeDays(t);const o=Math.abs(t);return o+(1===o?" day":" days")+" ago"}
-function fillCustomerForm(e){p.cName.value=e.name||"",p.cPhone.value=e.phone||"",p.cInstagram.value=e.instagram||"",p.cSource.value=e.source||"",
-p.cNotes.value=e.notes||"",p.cWedding.value=e.wedding_date||"",p.cWeddingMonth.value=(e.wedding_date||"").slice(0,7),
-setWeddingPrecision("month"===e.wedding_date_precision?"month":"day"),p.cMoodboardDate.value=e.moodboard_date||"",
-p.cFollowUpDate.value=e.follow_up_date||"",p.cFollowUpLabel.value=e.follow_up_label||"",p.cCancelledReason.value=e.cancelled_reason||"",
-p.cCancelledField.hidden=!e.cancelled_at,setNameError(!1)}
-// The label, the value and the rail under the field all carry the error, so
-// it is legible both in the field and from a scroll past it.
-function setNameError(e){const t=p.cName.closest(".custedit-card")
-;p.cName.classList.toggle("is-invalid",e),t&&t.classList.toggle("is-invalid",e),p.cName.setAttribute("aria-invalid",String(!!e)),
-p.errCName.hidden=!e}function setWeddingPrecision(e){
-const t="month"===e;p.cWedding.hidden=t,p.cWeddingMonth.hidden=!t,s(".custedit-segmented__btn",p.cWeddingPrecision).forEach(e=>{
-const o="month"===e.dataset.precision===t;e.classList.toggle("is-on",o),e.setAttribute("aria-pressed",String(o))})}
-const weddingPrecision=()=>p.cWeddingMonth.hidden?"day":"month";function lastDayOfMonth(e){const t=/^(\d{4})-(\d{2})$/.exec(String(e||""))
-;if(!t)return null;const o=new Date(Date.UTC(Number(t[1]),Number(t[2]),0));return n.fromDay(Math.round(o.getTime()/864e5))}
-async function saveCustomer(){if(""===p.cName.value.trim())return setNameError(!0),
-// Scrolled past it on a long form, the field has to come back into view.
-p.cName.scrollIntoView({block:"center",behavior:"smooth"}),p.cName.focus({preventScroll:!0}),showToast("Add the customer name to save"),!1
-;const o=function(){const e="month"===weddingPrecision();return{name:p.cName.value.trim(),phone:orNull(p.cPhone.value),
-instagram:orNull(p.cInstagram.value),source:orNull(p.cSource.value),wedding_date:e?lastDayOfMonth(p.cWeddingMonth.value):orNull(p.cWedding.value),
-wedding_date_precision:e?"month":"day",moodboard_date:orNull(p.cMoodboardDate.value),follow_up_date:orNull(p.cFollowUpDate.value),
-follow_up_label:orNull(p.cFollowUpLabel.value),cancelled_reason:orNull(p.cCancelledReason.value),notes:orNull(p.cNotes.value)}}();if(w.customer.id){
-const e=w.customer;w.customer=await t.updateCustomer(w.customer.id,o),setDirty(!1),e.wedding_date!==w.customer.wedding_date&&await async function(){
-try{const e=await t.listOrders(w.customer.id);for(const o of e){if(!productionAnchor(o))continue;const e=await rescheduleOrder(o,w.customer)
-;e.changed&&await t.logOrderHistory(o.id,"scheduled",{count:e.rows.length,dropped:e.computed.dropped})}}catch(e){console.error(e),
-showToast("Saved, but the fitting schedules could not be rebuilt")}
-}(),e.moodboard_date!==w.customer.moodboard_date?await setFollowUp(consultNudgeFor(w.customer,openCustomerOrders())):e.follow_up_date===w.customer.follow_up_date&&e.follow_up_label===w.customer.follow_up_label||await pushFollowUp(),
-renderCustomerReadOnly(w.customer),showToast("Customer saved"),leaveFormFor("#/customer/"+w.customer.id)
-}else w.customer=await t.createCustomer(Object.assign(o,o.follow_up_date?{}:followUpPatch(c,e.todayISO()))),setDirty(!1),
-showToast("Customer created"),leaveFormFor("#/customer/"+w.customer.id);return!0}const scheduleFor=(e,t,o)=>n.computeSchedule(designAnchor(e),productionAnchor(e),t&&t.wedding_date,n.pinsFrom(o));// --------------------------- Order detail -------------------------------
-// Figma 81:726. The page is three fixed-geometry layers — skeleton, error,
-// ready — that only ever swap opacity, one normalised view model built before
-// anything is written to the DOM, and a load token so a slow response for one
-// order can never paint over another.
-function isCurrentOrderLoad(t,o){return t===w.orderDetail.loadToken&&!!w.route&&"order"===w.route.view&&w.route.id===o}
-function clearOrderPresses(){p.viewOrder.querySelectorAll(".is-pressed").forEach(e=>e.classList.remove("is-pressed"))}
-function closeOrderPaymentChooser(){p.paymentChooser.classList.remove("is-open"),p.paymentChooser.hidden=!0,
-p.logPaymentBtn.setAttribute("aria-expanded","false")}
-function beginOrderLoad(e){const t=++w.orderDetail.loadToken;return w.orderDetail.phase="loading",w.orderDetail.orderId=e,w.orderDetail.vm=null,
-w.orderDetail.sectionErrors={},w.orderDetail.paymentBusy=!1,w.orderDetail.documentBusy=null,clearOrderPresses(),closeOrderPaymentChooser(),
-p.paymentError.hidden=!0,p.orderStage.setAttribute("aria-busy","true"),p.orderStage.style.height="",
-p.orderLoadingStatus.textContent="Loading order details.",p.orderLoading.hidden=!1,
-p.orderLoading.classList.remove("is-transitioning","is-hidden"),p.orderError.hidden=!0,p.orderError.innerHTML="",p.orderReady.hidden=!0,
-p.orderReady.classList.remove("is-transitioning","is-visible","is-measuring"),t}
+  const docButtons = {
+    quotation: elements.downloadQuote,
+    invoice: elements.downloadInvoice
+  };
 
-// The four failures worth their own sentence. Anything else keeps the server's
-// message behind a generic lead rather than inventing a cause.
-function orderErrorCopy(e){return e&&("PGRST116"===e.code||/0 rows/i.test(e.message||""))?"This order no longer exists.":e instanceof TypeError?"Could not load this order. Check your connection and try again.":t.isStaleToken(e)?"Your session expired. Unlock the app and try again.":e&&e.message?"Could not load this order. "+e.message:"Could not load this order. Try again in a moment."}
-function renderOrderError(t,o,n,a){if(!isCurrentOrderLoad(o,n))return;console.error(t),w.orderDetail.phase="error",p.orderLoading.hidden=!0,
-p.orderLoading.classList.remove("is-transitioning","is-hidden"),p.orderReady.hidden=!0,p.orderStage.style.height="",
-p.orderStage.setAttribute("aria-busy","false"),p.orderLoadingStatus.textContent="",p.orderError.hidden=!1,
-p.orderError.innerHTML='<div class="order-error-panel"><p class="order-error-panel__title">Could not open this order.</p><p class="order-error-panel__hint">'+e.escapeHtml(orderErrorCopy(t))+'</p><div class="order-error-panel__actions"><button type="button" class="order-error__btn js-order-retry">Try again</button><a class="order-error__btn order-error__btn--quiet" href="'+(a?"#/customer/"+encodeURIComponent(a):"#/customers")+'">'+(a?"Back to customer":"Back to customers")+"</a></div></div>"
-;const s=p.orderError.querySelector(".js-order-retry");s.addEventListener("click",()=>{showOrderDetail(n)}),
-requestAnimationFrame(()=>s.focus({preventScroll:!0}))}
+  /* ----------------------- Application State ----------------------- */
 
-const orderFirstName=e=>{const t=String(e||"").trim().split(/\s+/)[0]||"";return t?"("+t+")":"Back"}
-// Date-only arithmetic, so a clock at either end of the day cannot move a
-// fitting a day either way.
-;function relativeDateLabel(e,t){const o=n.daysBetween(t,e)
-;return null===o?"":0===o?"today":1===o?"tomorrow":-1===o?"yesterday":o>0?"in "+o+" days":-o+" days ago"}
-// The year is noise on a date this year and information on any other.
-function orderDateLabel(t){const o=e.formatShortDate(t);return o?String(t).slice(0,4)===e.todayISO().slice(0,4)?o.replace(/\s\d{4}$/,""):o:""}
-function pushInto(e,t,o){const n=e.get(t)||[];n.push(o),e.set(t,n)}
-function deriveLoggedDeposits(e){const t={};return(e||[]).forEach(e=>{if("payment_logged"!==e.action)return
-;const o=e.detail&&e.detail.deposit_index;null!=o&&(t[o]=e.created_at)}),t}
+  const state = {
+    route: null, // { view, id, query }
+    customers: [], // whole list, filtered client-side
+    customer: null, // record backing the customer view
+    order: null, // record backing the order views
+    overview: null, // { ordersByCustomer, eventsByCustomer }
+    loggedDeposits: {}, // { depositIndex: loggedAt }
+    schedule: null, // computed programme + stored rows for open order
+    customerOrders: [], // open customer's orders
+    enquiry: null, // intake submission being reviewed
+    googleConnected: null, // null until checked
+    dirty: false,
+    saving: false,
+    navigation: { token: 0 },
+    homepage: { phase: "idle", visit: 0, loadToken: 0, popPlayedForVisit: 0 },
+    orderDetail: {
+      phase: "idle", // idle | loading | ready | error
+      loadToken: 0,
+      orderId: null,
+      vm: null,
+      sectionErrors: {},
+      paymentBusy: false,
+      documentBusy: null
+    }
+  };
 
-// Only the production stages are drawn here: they are the ones this card is
-// about. The design block still exists in the schedule underneath.
-function orderScheduleModel(t){const o=(t.events||[]).filter(e=>n.isProductionStage(e.stage)).slice().sort((e,t)=>n.stageOrder(e.stage)-n.stageOrder(t.stage)),a=new Map,s=new Map,r=new Map,i=e.todayISO()
-;(t.sessions||[]).forEach(e=>{a.set(e.id,e.stage),pushInto(s,e.stage,e)}),(t.photos||[]).forEach(e=>{
-const t=e.session_id&&a.get(e.session_id)||e.stage;t&&pushInto(r,t,e)});const d=o.map(e=>{const t=s.get(e.stage)||[],o=r.get(e.stage)||[]
-;return{stage:e.stage,dateLabel:orderDateLabel(e.event_date),relativeLabel:relativeDateLabel(e.event_date,i),
-completed:t.some(e=>"completed"===e.status),photoCount:o.length,
-thumbnails:o.slice(0,3).map(e=>KK.fittings.imageURL(e,100)).filter(Boolean)}}),c=scheduleFor(t.order,t.customer,t.events||[])
-;return{records:d,message:d.length?"":c.production.reason||c.reason||"No fittings scheduled yet.",
-warning:d.length&&isApproximateWedding(t.customer)?"These dates are estimates until the exact wedding date is confirmed.":""}}
+  let toastTimer = null;
+  let pageActionHandler = null;
 
-// Every calculation, every format and every escape decision happens here, so
-// the render below is a synchronous write of already-final strings.
-function buildOrderDetailViewModel(t){const n=t.order,a=t.customer,s=n.items||[],r=s.filter(isNamed),i=o.computeTotal(s),d=r.filter(isCosted),c=d.reduce((e,t)=>e+((Number(t.price)||0)-(Number(t.cost)||0))*(Number(t.qty)||0),0),l=String(n.doc_name||a&&a.name||"").trim(),u=r.length>0&&i>0,m=o.termsFor(n),h=o.termAmounts(i,m),g=t.loggedDeposits||{}
-;return{order:n,customer:a,title:orderLabel(n),backHref:"#/customer/"+encodeURIComponent(n.customer_id),backLabel:orderFirstName(a&&a.name),
-editHref:"#/order/"+encodeURIComponent(n.id)+"/edit",items:r.map(t=>({name:String(t.name),qtyLabel:String(Number(t.qty)||0),
-priceLabel:e.formatRupiah(t.price)})),total:i,totalLabel:e.formatRupiah(i),profit:{value:c,
-label:d.length?e.formatRupiah(c):"—",
-caveat:d.length?d.length<r.length?"Based on "+d.length+" of "+r.length+" costed items.":"":r.length?"No production costs filled in yet.":""},
-documents:{canDownload:u&&""!==l,
-disabledReason:u?""!==l?"":"Add the name for documents to enable downloads.":"Add a priced item to enable downloads."},
-paymentsPriced:i>0,paymentsUnknown:!!t.paymentsUnknown,payments:m.map((t,o)=>({index:o,label:t.label,amount:h[o],
-amountLabel:e.formatRupiah(h[o]),paidAt:g[o]||null,paidDateLabel:g[o]?"Paid "+orderDateLabel(g[o]):""})),schedule:orderScheduleModel(t)}}
+  /* --------------------- UI Utilities & Chrome ---------------------- */
 
-function renderOrderItems(t){
-const o=t.items.map(t=>'<div class="order-items__row"><span class="order-items__name" title="'+e.escapeHtml(t.name)+'">'+e.escapeHtml(t.name)+'</span><span class="order-items__qty">'+e.escapeHtml(t.qtyLabel)+'</span><span class="order-items__price">'+e.escapeHtml(t.priceLabel)+"</span></div>").join(""),n=t.profit.caveat
-;p.oItemsDisplay.innerHTML='<div class="order-items__row order-items__row--head"><span class="order-items__name">Name</span><span class="order-items__qty">Qty</span><span class="order-items__price">Price</span></div>'+(o||'<p class="order-items__empty">No items yet. Tap edit to add one.</p>')+'<div class="order-items__rule" aria-hidden="true"></div><div class="order-items__totals"><div class="order-items__row order-items__row--total"><span class="order-items__name">Total</span><span class="order-items__price">'+e.escapeHtml(t.totalLabel)+'</span></div><div class="order-items__row order-items__row--profit"><span class="order-items__name">Est. profit</span><span class="order-items__price"'+(n?' title="'+e.escapeHtml(n)+'"':"")+">"+e.escapeHtml(t.profit.label)+"</span></div>"+(n?'<p class="sr-only">'+e.escapeHtml(n)+"</p>":"")+"</div>"}
+  function showToast(msg) {
+    elements.toast.textContent = msg;
+    elements.toast.classList.add("is-visible");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => elements.toast.classList.remove("is-visible"), 2600);
+  }
 
-// Downloads need a priced item and a name to address the document to. The
-// buttons stay where they are and say why instead of disappearing.
-function renderOrderDocumentState(e){const t=e.documents.canDownload&&!w.orderDetail.documentBusy
-;p.downloadQuote.disabled=!t,p.downloadInvoice.disabled=!t,p.downloadNote.textContent=e.documents.disabledReason,
-p.createMoodboardBtn.disabled=!w.order}
+  function setDirty(isDirty) {
+    state.dirty = isDirty;
+    elements.saveBtn.disabled = !isDirty || state.saving;
+    $(".btn__label", elements.saveBtn).textContent = state.saving ? "Saving…" : isDirty ? "Save changes" : "Saved";
+  }
 
-function renderOrderPayments(t){if(p.paymentError.hidden=!p.paymentError.textContent,!t.paymentsPriced)return p.paymentSummary.innerHTML='<p class="order-items__empty">Price the items to work out the payment terms.</p>',
-p.logPaymentBtn.disabled=!0,a(".order-action__label",p.logPaymentBtn).textContent="Log a payment",void closeOrderPaymentChooser()
-;p.paymentSummary.innerHTML=t.payments.map((o,n)=>(n?'<div class="order-payments__rule" aria-hidden="true"></div>':"")+'<div class="order-payment"><span class="order-payment__main"><span class="order-payment__head"><span class="order-payment__label">'+e.escapeHtml(o.label)+"</span>"+(o.paidAt?'<img class="order-payment__tick" src="assets/order-tick-icon.svg" alt="" width="16" height="16">':"")+"</span>"+(o.paidAt?'<span class="order-payment__when">'+e.escapeHtml(o.paidDateLabel)+"</span>":'<span class="sr-only">'+(t.paymentsUnknown?"Payment status unavailable":"Outstanding")+"</span>")+'</span><span class="order-payment__amount">'+e.escapeHtml(o.amountLabel)+"</span></div>").join("")
-;const o=t.payments.filter(e=>!e.paidAt).length
-// A finished order keeps the button rather than losing a row's height when
-// the last payment lands.
-;p.logPaymentBtn.disabled=w.orderDetail.paymentBusy||!o||t.paymentsUnknown,
-a(".order-action__label",p.logPaymentBtn).textContent=w.orderDetail.paymentBusy?"Logging…":o?"Log a payment":"All payments logged",
-o&&!t.paymentsUnknown||closeOrderPaymentChooser(),p.paymentChooser.hidden||renderOrderPaymentChoices(t)}
+  function syncBottomBar() {
+    const activeBar = elements.savebar.hidden
+      ? (elements.fittingJournalBar.hidden ? null : elements.fittingJournalBar)
+      : elements.savebar;
+    document.documentElement.style.setProperty(
+      "--bottombar-h",
+      activeBar ? Math.round(activeBar.getBoundingClientRect().height) + "px" : "0px"
+    );
+  }
 
-function renderOrderPaymentChoices(t){
-p.paymentChooserOptions.innerHTML=t.payments.filter(e=>!e.paidAt).map(t=>'<button type="button" class="order-choice js-log-deposit" data-i="'+t.index+'"'+(w.orderDetail.paymentBusy?" disabled":"")+'><span class="order-choice__face"><span>'+e.escapeHtml(t.label)+"</span><span>"+e.escapeHtml(t.amountLabel)+'</span></span><span class="order-choice__rail" aria-hidden="true"></span></button>').join("")}
+  function syncVisualViewport() {
+    const vp = window.visualViewport;
+    const offset = vp ? Math.max(0, window.innerHeight - vp.height - vp.offsetTop) : 0;
+    document.documentElement.style.setProperty("--keyboard-offset", Math.round(offset) + "px");
+    syncBottomBar();
+  }
 
-function renderOrderSchedule(t){if(w.orderDetail.sectionErrors.schedule)return void(p.scheduleList.innerHTML='<div class="order-schedule__record"><div class="order-schedule__message">Could not load the schedule.<br><button type="button" class="order-schedule__retry js-order-schedule-retry">Retry</button></div></div>')
-;const o=t.schedule||{records:[],message:"",warning:""}
-;if(!o.records.length)return void(p.scheduleList.innerHTML='<div class="order-schedule__record"><div class="order-schedule__message">'+e.escapeHtml(o.message||"No fittings scheduled yet.")+'</div></div><div class="order-schedule__spacer" aria-hidden="true"></div>')
-;p.scheduleList.innerHTML=(o.warning?'<p class="order-schedule__warning">'+e.escapeHtml(o.warning)+"</p>":"")+o.records.map(t=>{
-const o=t.dateLabel?t.dateLabel+(t.relativeLabel?" ("+t.relativeLabel+")":""):"",n=t.photoCount?t.photoCount+" photo"+(1===t.photoCount?"":"s")+" & notes logged":"",a=[t.stage,o,t.completed?"completed":"",n,"coming soon"].filter(Boolean).join(", ")
-;return'<div class="order-schedule__record"><button type="button" class="order-schedule-record'+(t.photoCount?" order-schedule-record--photos":"")+'" aria-disabled="true" aria-label="'+e.escapeHtml(a)+'"><span class="order-schedule-record__face"><span class="order-schedule-record__head"><span class="order-schedule-record__stage">'+e.escapeHtml(t.stage)+(t.completed?'<img class="order-schedule-record__tick" src="assets/order-tick-icon.svg" alt="" width="16" height="16">':"")+"</span>"+(o?'<span class="order-schedule-record__date">'+e.escapeHtml(o)+"</span>":"")+"</span>"+(t.photoCount?'<span class="order-schedule-record__rule" aria-hidden="true"></span><span class="order-schedule-record__photos"><span class="order-schedule-record__thumbs">'+t.thumbnails.map(t=>'<img class="order-schedule-record__thumb" src="'+e.escapeHtml(t)+'" alt="" width="32" height="32" loading="lazy" onerror="this.style.visibility=\'hidden\'">').join("")+'</span><span class="order-schedule-record__count">'+e.escapeHtml(n)+"</span></span>":"")+'</span><span class="order-schedule-record__rail" aria-hidden="true"></span></button></div>'
-}).join('<div class="order-schedule__spacer" aria-hidden="true"></div>')+'<div class="order-schedule__spacer" aria-hidden="true"></div>'}
+  function trapModalFocus(event, modalEl) {
+    if (event.key !== "Tab" || !modalEl || modalEl.hidden) return;
+    const focusables = Array.from(
+      modalEl.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')
+    ).filter((el) => !el.hidden && el.getClientRects().length);
+    if (!focusables.length) return;
 
-function renderOrderReady(e){w.orderDetail.vm=e,p.orderBackBtn.href=e.backHref,p.orderBackLabel.textContent=e.backLabel,
-p.orderBackBtn.setAttribute("aria-label","Back to "+(e.customer&&e.customer.name||"customer")),p.orderEditBtn.href=e.editHref,
-p.orderTitle.textContent=e.title,renderOrderItems(e),renderOrderDocumentState(e),renderOrderPayments(e),renderOrderSchedule(e),
-p.orderReady.hidden=!1,p.orderReady.classList.add("is-measuring")}
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
 
-// The ready layer is measured under the skeleton, the stage is pinned to that
-// height, and only then does the crossfade run — so nothing moves but opacity.
-async function revealOrder(e){if(await(document.fonts&&document.fonts.ready||Promise.resolve()),await new Promise(e=>requestAnimationFrame(e)),
-!isCurrentOrderLoad(e,w.orderDetail.orderId))return
-;p.orderStage.style.height=Math.ceil(p.orderReady.getBoundingClientRect().height||p.orderReady.scrollHeight)+"px",
-p.orderReady.classList.remove("is-measuring"),p.orderReady.classList.add("is-transitioning"),p.orderLoading.classList.add("is-transitioning"),
-requestAnimationFrame(()=>{isCurrentOrderLoad(e,w.orderDetail.orderId)&&(p.orderReady.classList.add("is-visible"),
-p.orderLoading.classList.add("is-hidden"))}),setTimeout(()=>{isCurrentOrderLoad(e,w.orderDetail.orderId)&&(p.orderLoading.hidden=!0,
-p.orderLoading.classList.remove("is-transitioning","is-hidden"),p.orderReady.classList.remove("is-transitioning","is-visible"),
-p.orderStage.style.height="",p.orderStage.setAttribute("aria-busy","false"),p.orderLoadingStatus.textContent="",w.orderDetail.phase="ready")
-},reducedMotion()?0:180)}
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
 
-// Order and customer are required — the title, both navigation targets and
-// every business action are wrong without them. The schedule reads are not:
-// losing them costs the Schedules card and nothing else.
-async function showOrderDetail(o){setChrome({title:"Order",up:{label:"Customers",hash:"#/customers"},save:!1,destroy:"order",orderpage:!0}),
-setDirty(!1);const n=beginOrderLoad(o);let a,s;try{if(a=await t.getOrder(o),!isCurrentOrderLoad(n,o))return
-;s=await t.getCustomer(a.customer_id)}catch(e){if(t.isStaleToken(e))throw e;return void renderOrderError(e,n,o,a&&a.customer_id)}
-if(!isCurrentOrderLoad(n,o))return;w.order=a,w.customer=s;let r=null,i=!1;try{r=await t.listOrderHistory(o)}catch(e){if(t.isStaleToken(e))throw e
-;console.error(e),i=!0}if(!isCurrentOrderLoad(n,o))return;let d=[],c=[],l=[],u=!1
-;try{const e=await Promise.all([t.listOrderEvents(o),t.listFittingSessions(o),t.listFittingPhotos(o)]);d=e[0],c=e[1],l=e[2]}catch(e){
-if(t.isStaleToken(e))throw e;console.error(e),u=!0}if(!isCurrentOrderLoad(n,o))return
-;w.loggedDeposits=deriveLoggedDeposits(r),w.schedule={computed:scheduleFor(a,s,d),rows:d},w.orderDetail.sectionErrors={schedule:u},
-p.paymentError.textContent="",renderOrderReady(buildOrderDetailViewModel({order:a,customer:s,loggedDeposits:w.loggedDeposits,paymentsUnknown:i,
-events:d,sessions:c,photos:l})),await revealOrder(n)}
+  function setSaveBar(show) {
+    elements.savebar.hidden = !show;
+    document.body.classList.toggle("has-savebar", !!show);
+    syncBottomBar();
+  }
 
-// Local refreshes after a mutation. Neither one re-runs the skeleton: the page
-// is already on screen and only one card's data has moved.
-async function refreshOrderPayments(){const e=w.orderDetail.orderId;if(!e||!w.order||w.order.id!==e)return;let o=null,n=!1
-;try{o=await t.listOrderHistory(e)}catch(e){console.error(e),n=!0}if(w.orderDetail.orderId!==e)return;w.loggedDeposits=deriveLoggedDeposits(o)
-;const a=w.orderDetail.vm,s=buildOrderDetailViewModel({order:w.order,customer:w.customer,loggedDeposits:w.loggedDeposits,paymentsUnknown:n,
-events:(w.schedule&&w.schedule.rows)||[],sessions:[],photos:[]});a&&(s.schedule=a.schedule),w.orderDetail.vm=s,renderOrderItems(s),
-renderOrderDocumentState(s),renderOrderPayments(s)}
-async function refreshOrderSchedule(){const e=w.orderDetail.orderId;if(!e||!w.order||w.order.id!==e)return
-;try{const o=await Promise.all([t.listOrderEvents(e),t.listFittingSessions(e),t.listFittingPhotos(e)]);if(w.orderDetail.orderId!==e)return
-;w.orderDetail.sectionErrors.schedule=!1,w.schedule={computed:scheduleFor(w.order,w.customer,o[0]),rows:o[0]}
-;const n=orderScheduleModel({order:w.order,customer:w.customer,events:o[0],sessions:o[1],photos:o[2]})
-;w.orderDetail.vm?(w.orderDetail.vm.schedule=n,renderOrderSchedule(w.orderDetail.vm)):renderOrderSchedule({schedule:n})}catch(e){console.error(e),
-w.orderDetail.sectionErrors.schedule=!0,renderOrderSchedule(w.orderDetail.vm||{})}}
-function retryOrderSchedule(){p.scheduleList.innerHTML='<div class="order-schedule__record"><div class="order-schedule__message">Loading the schedule…</div></div>',
-w.orderDetail.sectionErrors.schedule=!1,refreshOrderSchedule()}
+  function setPageAction(actionConfig) {
+    pageActionHandler = actionConfig ? actionConfig.onClick : null;
+    elements.pageAction.hidden = !actionConfig;
+    if (actionConfig) {
+      elements.pageAction.textContent = actionConfig.label;
+    }
+  }
 
-function toggleOrderPaymentChooser(){const e=w.orderDetail.vm;if(!e||p.logPaymentBtn.disabled)return
-;if(!p.paymentChooser.hidden)return void closeOrderPaymentChooser();renderOrderPaymentChoices(e),p.paymentChooser.hidden=!1,
-p.logPaymentBtn.setAttribute("aria-expanded","true"),requestAnimationFrame(()=>p.paymentChooser.classList.add("is-open"))}
-function setOrderPaymentBusy(e){w.orderDetail.paymentBusy=e,p.logPaymentBtn.setAttribute("aria-busy",e?"true":"false")
-;const t=w.orderDetail.vm;t&&(p.paymentChooser.hidden||renderOrderPaymentChoices(t),renderOrderPayments(t))}
-function renderScheduleHint(){const t={payment_scheme:p.oScheme.value,first_payment_date:p.oFirstPayment.value,
-second_payment_date:p.oSecondPayment.value
-},o=n.computeSchedule(designAnchor(t),productionAnchor(t),w.customer&&w.customer.wedding_date,n.pinsFrom(w.schedule&&w.schedule.rows)),a=[]
-;a.push(o.design.events.length?"Design phase "+e.formatShortDate(o.design.events[0].event_date)+" – "+e.formatShortDate(o.design.events[0].end_date):o.design.reason),
-a.push(o.production.events.length?o.production.events.length+" appointments from "+e.formatShortDate(o.production.events[0].event_date)+" to the wedding":o.production.reason)
-;const s=(o.production.events.length&&o.production.warnings||[]).map(e=>e.replace(/\.$/,""))
-;p.oScheduleHint.innerHTML='<ul class="hintbox__list">'+a.map(t=>"<li>"+e.escapeHtml(t.replace(/\.$/,""))+"</li>").join("")+s.map(t=>'<li class="hintbox__warn">'+e.escapeHtml(t)+"</li>").join("")+"</ul>"
-}async function rescheduleOrder(e,o){const a=await t.listOrderEvents(e.id),s=scheduleFor(e,o,a),r=[{stages:n.DESIGN_STAGES,result:s.design},{
-stages:n.PRODUCTION_STAGES,result:s.production}];let i=a;const d=[];for(const o of r){const n=a.filter(e=>-1!==o.stages.indexOf(e.stage))
-;if(o.result.missingAnchor&&n.length)continue;const s=await t.replaceOrderEvents(e.id,o.result.events,o.stages);d.push.apply(d,s.removed),i=s.events}
-const c=d.map(e=>e.google_event_id).filter(Boolean);if(c.length)try{await t.googleForget(c)}catch(e){
-console.error("Dropped events left in Google Calendar:",e)}const key=e=>e.stage+"@"+e.event_date+(e.end_date?"→"+e.end_date:"");return{computed:s,
-changed:a.map(key).sort().join("|")!==i.map(key).sort().join("|"),rows:i}}const x=["https://www.googleapis.com/auth/calendar.events","https://www.googleapis.com/auth/drive.file"].join(" "),googleRedirectUri=()=>location.origin+location.pathname
-;function connectGoogle(){const e=(window.KK_CONFIG||{}).GOOGLE_CLIENT_ID||"";if(!e)return p.gcalErr.hidden=!1,
-void(p.gcalErr.textContent="No GOOGLE_CLIENT_ID in config.js — see “Google Calendar” in the README.");const t=new URLSearchParams({client_id:e,
-redirect_uri:googleRedirectUri(),response_type:"code",scope:x,access_type:"offline",prompt:"consent",include_granted_scopes:"true"})
-;location.href="https://accounts.google.com/o/oauth2/v2/auth?"+t.toString()}async function showCalendarSettings(){let o;setChrome({
-title:"Google Calendar",up:{label:"Customers",hash:"#/customers"},save:!1}),p.gcalErr.hidden=!0,p.gcalConnect.hidden=!0,
-p.gcalDisconnect.hidden=!0,p.gcalState.textContent="Checking…";try{o=await t.googleStatus()}catch(e){return console.error(e),
-p.gcalState.textContent="Could not reach the calendar service.",p.gcalErr.hidden=!1,p.gcalErr.textContent=e.message||"",void(p.gcalConnect.hidden=!1)}
-w.googleConnected=!(!o||!o.connected),
-p.gcalState.textContent=w.googleConnected?"Connected"+(o.connected_at?" since "+e.formatShortDate(String(o.connected_at).slice(0,10)):"")+".":"Not connected. Fitting dates stay in this app until you connect.",
-p.gcalConnect.hidden=w.googleConnected,p.gcalDisconnect.hidden=!w.googleConnected}async function disconnectGoogle(){
-if(window.confirm("Disconnect Google Calendar? Events already created stay where they are."))try{await t.googleDisconnect(),w.googleConnected=!1,
-showToast("Disconnected"),await showCalendarSettings()}catch(e){console.error(e),showToast(e.message||"Could not disconnect")}}
-async function saveOrder(){if(!function(){if(p.errTerms.hidden=!0,"other"!==p.oScheme.value)return!0;const e=readTerms()
-;if(!e.length)return showTermsError("Add at least one payment term.");if(e.some(e=>!e.label))return showTermsError("Every term needs a label.")
-;if(e.some(e=>null==e.percent||e.percent<=0))return showTermsError("Every term needs a share above 0%.");const t=roundPct(termsTotal(e))
-;if(100!==t)return showTermsError("The shares add up to "+t+"%. They have to add up to 100%.");return!0}())return!1;const e=readItems().filter(isNamed).map(e=>({
-name:e.name,qty:e.qty,price:e.price,cost:e.cost})),o="other"===p.oScheme.value?"other":"standard";w.order=await t.updateOrder(w.order.id,{
-title:orNull(p.oTitle.value),doc_name:orNull(p.oDocName.value),items:e,includes:checkedIncludes(),payment_scheme:o,
-payment_terms:"other"===o?readTerms():[],first_payment_date:orNull(p.oFirstPayment.value),second_payment_date:orNull(p.oSecondPayment.value),
-final_payment_date:orNull(p.oFinalPayment.value)}),setDirty(!1);try{await t.logOrderHistory(w.order.id,"updated",{})}catch(e){console.error(e)}try{
-const e=await rescheduleOrder(w.order,w.customer);e.changed&&await t.logOrderHistory(w.order.id,"scheduled",{count:e.rows.length,
-dropped:e.computed.dropped})}catch(e){console.error(e),showToast("Saved, but the schedule could not be rebuilt")}return!0}function addItemRow(t,o){
-const n=function(t){const o=t||{name:"",qty:1,price:"",cost:""},n=document.createElement("div");return n.className="item",
-n.innerHTML='<div class="item__head"><span class="item__idx"></span><button type="button" class="item__remove js-remove" aria-label="Remove item">'+u+'</button></div><label class="field"><span class="field__label">Description</span><input class="input js-name" type="text" placeholder="e.g. Bridal skirt"></label><div class="item__row2"><label class="field field--qty"><span class="field__label">Qty</span><input class="input js-qty" type="text" inputmode="numeric" value="1"></label><label class="field field--price"><span class="field__label">Price</span><span class="prefixed"><span class="prefix">Rp</span><input class="input js-price" type="text" inputmode="numeric" placeholder="0"></span></label></div><span class="item__sum js-sum"></span><label class="field"><span class="field__label">Est. production cost <span class="tag">Internal</span></span><div class="costfield-row"><span class="prefixed"><span class="prefix">Rp</span><input class="input js-cost" type="text" inputmode="numeric" placeholder="0"></span><button type="button" class="js-cost-calc calc-trigger" aria-label="Break down cost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01"/></svg></button></div><span class="field__hint js-costhint"></span></label><span class="err js-err" hidden></span>',
-a(".js-name",n).value=o.name||"",
-a(".js-qty",n).value=null==o.qty?1:o.qty,a(".js-price",n).value=""===o.price||null==o.price?"":e.groupDigits(o.price),
-a(".js-cost",n).value=""===o.cost||null==o.cost?"":e.groupDigits(o.cost),n}(t);return p.itemList.appendChild(n),refreshRemoveButtons(),
-refreshItemTotals(),o&&a(".js-name",n).focus(),n}const O=.35;function refreshItemTotals(){let t=0;readItems().forEach(o=>{const n=o.qty*o.price;t+=n
-;const s=a(".js-sum",o.row);s&&(s.textContent=o.qty>1&&o.price>0?e.formatRupiah(n):"");const r=a(".js-costhint",o.row);if(r){const t=function(t,o){
-if(!t)return{text:"",over:!1};const n=Math.round(t*O);return o>n?{text:e.formatRupiah(o-n)+" over the 35% target",over:!0}:{
-text:"Keep under "+e.formatRupiah(n)+" (35% of price)",over:!1}}(o.price,o.cost);r.textContent=t.text,r.classList.toggle("field__hint--over",t.over)}
-}),p.itemsTotal.textContent=t>0?e.formatRupiah(t):""}const rowElements=()=>s(".item",p.itemList);function refreshRemoveButtons(){const e=rowElements()
-;e.forEach(t=>{a(".js-remove",t).disabled=e.length<=1})}function readItems(){return rowElements().map(t=>({row:t,name:a(".js-name",t).value.trim(),
-qtyRaw:e.digitsOnly(a(".js-qty",t).value),priceRaw:e.digitsOnly(a(".js-price",t).value),costRaw:e.digitsOnly(a(".js-cost",t).value),get qty(){
-return""===this.qtyRaw?0:Number(this.qtyRaw)},get price(){return""===this.priceRaw?0:Number(this.priceRaw)},get cost(){
-return""===this.costRaw?0:Number(this.costRaw)}}))}function customChip(t,o){
-return'<span class="chip chip--custom'+(o?" is-checked":"")+'" data-label="'+e.escapeHtml(t)+'"><label class="chip__main"><input type="checkbox"'+(o?" checked":"")+'><span class="chip__box">'+h+"</span><span>"+e.escapeHtml(t)+'</span></label><button type="button" class="chip__remove js-remove-include" aria-label="Remove '+e.escapeHtml(t)+'">'+m+"</button></span>"
-}const checkedIncludes=()=>s(".chip",p.includesList).filter(e=>a("input",e).checked).map(e=>e.dataset.label);function addCustomInclude(){
-const e=p.customInclude.value.trim().replace(/\s+/g," ");if(!e)return
-;const t=s("[data-label]",p.includesList).map(e=>e.dataset.label).findIndex(t=>t.toLowerCase()===e.toLowerCase());if(-1!==t){
-// Already on the list — just make sure it is ticked, and say so.
-const o=s(".chip",p.includesList)[t];return a("input",o).checked=!0,o.classList.add("is-checked"),p.customInclude.value="",setDirty(!0),
-void showToast('"'+e+'" is already on the list')}p.includesList.insertAdjacentHTML("beforeend",customChip(e,!0)),p.customInclude.value="",
-p.customInclude.focus(),setDirty(!0)}function addTermRow(e,t){const o=function(e){const t=e||{label:"",percent:"",desc:""
-},o=document.createElement("div")
-;return o.className="term",o.innerHTML='<div class="item__head"><span class="term__idx"></span><button type="button" class="item__remove js-remove-term" aria-label="Remove term">'+u+'</button></div><div class="term__row"><label class="field term__namefield"><span class="field__label">Label</span><input class="input js-tlabel" type="text" maxlength="40" placeholder="e.g. Down payment"></label><label class="field term__pctfield"><span class="field__label">Share</span><span class="prefixed prefixed--suffix"><input class="input js-tpct" type="text" inputmode="decimal" placeholder="0"><span class="suffix">%</span></span></label></div><label class="field"><span class="field__label">Description (optional)</span><input class="input js-tdesc" type="text" maxlength="120" placeholder="Printed under the share on the quotation"></label>',
-a(".js-tlabel",o).value=t.label||"",a(".js-tpct",o).value=""===t.percent||null==t.percent?"":String(t.percent),a(".js-tdesc",o).value=t.desc||"",o}(e)
-;return p.termList.appendChild(o),refreshTermRemoveButtons(),refreshTermsSum(),t&&a(".js-tlabel",o).focus(),o}
-const termRowElements=()=>s(".term",p.termList);function refreshTermRemoveButtons(){const e=termRowElements();e.forEach(t=>{
-a(".js-remove-term",t).disabled=e.length<=1})}const parsePercent=e=>{const t=String(e||"").replace(/[^\d.]/g,"").replace(/(\..*)\./g,"$1")
-;return""===t||"."===t?null:Number(t)};function readTerms(){return termRowElements().map(e=>({label:a(".js-tlabel",e).value.trim(),
-percent:parsePercent(a(".js-tpct",e).value),desc:a(".js-tdesc",e).value.trim()}))}
-const termsTotal=e=>e.reduce((e,t)=>e+(t.percent||0),0),roundPct=e=>Math.round(100*e)/100;function refreshTermsSum(){
-const e=roundPct(termsTotal(readTerms())),t=roundPct(100-e)
-;p.termsSum.textContent="Shares total "+e+"%"+(0===t?"":t>0?" — "+t+"% short":" — "+-t+"% over"),p.termsSum.classList.toggle("termsum--off",0!==t)}
-function showTermsError(e){return p.errTerms.textContent=e,p.errTerms.hidden=!1,p.termsCard.scrollIntoView({block:"center",behavior:"smooth"}),!1}
-function buildTerms(e){p.termList.innerHTML="";const t=e&&e.payment_terms||[];(t.length?t:[{label:"Down payment",percent:50,desc:""},{
-label:"Final payment",percent:50,desc:""}]).forEach(e=>addTermRow(e,!1))}function syncSchemeCard(){p.termsCard.hidden="other"!==p.oScheme.value,
-p.termsCard.hidden||termRowElements().length||buildTerms(null),p.errTerms.hidden=!0,refreshTermsSum()}
-const P=["Fabric","Tailor","Transport","Dry Cleaning"];function addCalcRow(t,o){const n=function(t){const o=document.createElement("div")
-;return o.className="calcrow",
-o.innerHTML='<button type="button" class="calcrow__remove js-remove-calcrow" aria-label="Remove category">'+m+'</button><label class="field calcrow__label"><span class="field__label">Category</span><input class="input js-clabel" type="text" maxlength="40" placeholder="e.g. Fabric"></label><label class="field calcrow__amount"><span class="field__label">Amount</span><span class="prefixed"><span class="prefix">Rp</span><input class="input js-camount" type="text" inputmode="numeric" placeholder="0"></span></label>',
-a(".js-clabel",o).value=t&&t.label||"",a(".js-camount",o).value=t&&t.amount?e.groupDigits(t.amount):"",o}(t);return p.calcRowList.appendChild(n),
-refreshCalcRemoveButtons(),refreshCalcTotal(),o&&a(".js-clabel",n).focus(),n}const calcRowElements=()=>s(".calcrow",p.calcRowList)
-;function refreshCalcRemoveButtons(){const e=calcRowElements();e.forEach(t=>{a(".js-remove-calcrow",t).disabled=e.length<=1})}function readCalcRows(){
-return calcRowElements().map(t=>({label:a(".js-clabel",t).value.trim(),amountRaw:e.digitsOnly(a(".js-camount",t).value),get amount(){
-return""===this.amountRaw?0:Number(this.amountRaw)}}))}function refreshCalcTotal(){const t=readCalcRows().reduce((e,t)=>e+t.amount,0)
-;return p.calcTotal.textContent=e.formatRupiah(t),t}const H=new WeakMap;let I=null,F=null;function closeCostCalc(){I&&H.set(I,readCalcRows().map(e=>({
-label:e.label,amount:e.amount}))),p.calcSheet.hidden=!0,document.body.classList.remove("has-app-modal"),I=null,F&&document.contains(F)&&F.focus(),
-F=null}function applyCostCalc(){const t=refreshCalcTotal();a(".js-cost",I).value=e.groupDigits(t),refreshItemTotals(),setDirty(!0),
-showToast("Cost updated"),closeCostCalc()}const R=KK.moodboard;let j=null,N=null,B=!1,q=null,Y=!1,G=null;
-// Each export owns its label and its state, so a Drive failure never rewrites
-// the download button and neither one steals the other's success message.
-const MB_EXPORTS={drive:{el:"mbUpload",idle:"Upload",busy:"Uploading…",done:"Uploaded"},
-download:{el:"mbDownload",idle:"Download",busy:"Preparing PDF…",done:"Downloaded"}},MB_EXPORT_TIMERS={},
-MB_RECONNECT=/not connected|revoked|reconnect|stored credential|not configured on the server/i,MB_MAX_ZOOM=5;
-function setupMoodboardListeners(){
-const e=a("#mbDropzone"),t=a("#mbFileInput"),o=a("#mbAddMore"),s=a("#mbGenerate"),i=a("#mbThumbs")
-;let dragCounter=0;p.viewMoodboard.addEventListener("pointerdown",e=>{const t=e.target.closest(".order-nav-btn,.moodboard-action,.moodboard-strip")
-;t&&!t.disabled&&t.classList.add("is-pressed")}),p.viewMoodboard.addEventListener("keydown",e=>{if(" "!==e.key&&"Enter"!==e.key)return
-;const t=e.target.closest(".order-nav-btn,.moodboard-action,.moodboard-strip");t&&!t.disabled&&(t.classList.add("is-pressed"),t.matches("#mbFileBtn")&&e.preventDefault())}),
-p.viewMoodboard.addEventListener("click",e=>{e.target.closest("#mbFileBtn")&&e.preventDefault()}),e.addEventListener("click",function(o){
-B||o.target.closest(".mb-thumb__remove")||!o.target.closest(".mb-upload-cell--empty")||t.click()}),
-o.addEventListener("click",function(){t.click()}),t.addEventListener("change",async function(){t.files.length&&await addMoodboardFiles(t.files),
-t.value=""}),e.addEventListener("dragenter",function(t){t.preventDefault(),dragCounter++,e.classList.add("is-over")}),
-e.addEventListener("dragover",function(t){t.preventDefault(),e.classList.add("is-over")}),
-e.addEventListener("dragleave",function(){dragCounter--,dragCounter<=0&&(dragCounter=0,e.classList.remove("is-over"))}),
-e.addEventListener("drop",async function(t){t.preventDefault(),dragCounter=0,e.classList.remove("is-over"),
-B||t.dataTransfer.files.length&&await addMoodboardFiles(t.dataTransfer.files)}),i.addEventListener("click",function(e){
-const t=e.target.closest(".mb-thumb__remove");t&&R.removeImage(Number(t.dataset.i))}),s.addEventListener("click",openMoodboardCanvas),
-p.mbRandomize.addEventListener("click",function(){Y||(R.randomize(),syncMoodboardCanvas())}),
-p.mbRotate.addEventListener("click",function(){Y||(R.toggleOrientation(),syncMoodboardCanvas())}),
-p.mbBoard.addEventListener("click",openMoodboardOverlay),p.mbOverlayClose.addEventListener("click",closeMoodboardOverlay),
-p.mbUpload.addEventListener("click",()=>exportMoodboard("drive")),p.mbDownload.addEventListener("click",()=>exportMoodboard("download")),
-bindMoodboardOverlayGestures(p.mbOverlayCanvas)}
-async function addMoodboardFiles(e){if(B)return
-;const t=a("#mbLoadingText"),o=a("#mbAddMore"),n=a("#mbGenerate"),s=Math.min(Array.from(e).length,R.MAX_IMAGES-R.images.length)
-;B=!0,t.textContent=s>1?"Preparing 1 of "+s+" photos…":"Preparing photo…",o.disabled=!0,n.disabled=!0,await new Promise(e=>{
-requestAnimationFrame(()=>setTimeout(e,0))});try{const o=await R.addFiles(e,function(e,o){
-t.textContent=o>1?"Preparing "+e+" of "+o+" photos…":"Preparing photo…"})
-;o.rejected&&showToast(1===o.rejected?"One image could not be opened and was skipped":o.rejected+" images could not be opened and were skipped")
-}catch(e){console.error(e),showToast("Could not prepare those photos — "+(e.message||"please try again"))}finally{B=!1,t.textContent="",
-o.disabled=R.images.length>=R.MAX_IMAGES,n.disabled=0===R.images.length}}
-function openMoodboardCanvas(){R.images.length&&go("#/order/"+w.order.id+"/moodboard/preview")}
-// Both the framed board and the overlay show the real document, cloned from
-// the off-screen stage, so there is only ever one composition to keep correct.
-function moodboardStageClone(){const e=R.stage;if(!e)return null;const t=e.cloneNode(!0)
-;return t.querySelectorAll("[id]").forEach(e=>e.removeAttribute("id")),t.removeAttribute("id"),t.setAttribute("aria-hidden","true"),t}
-function syncMoodboardCanvas(){if(p.mbCanvas.hidden)return;const e=moodboardStageClone();if(!e)return
-;const t="portrait"===R.orientation
-;p.mbBoardScaler.style.width=R.stageWidth+"px",p.mbBoardScaler.style.height=R.stageHeight+"px",
-p.mbBoardScaler.replaceChildren(e),fitMoodboardBoard(),
-p.mbRotate.setAttribute("aria-label",t?"Rotate to landscape":"Rotate to portrait"),
-p.mbBoard.setAttribute("aria-label",t?"Open the portrait moodboard full screen":"Open the landscape moodboard full screen. It is shown sideways here — turn your device to read it upright."),
-G||"function"!=typeof ResizeObserver||(G=new ResizeObserver(fitMoodboardBoard),G.observe(p.mbBoard)),renderMoodboardOverlay(!0)}
-// The frame is always 9:16. A portrait board fills it directly; a landscape
-// one is turned a quarter-turn so it still fills the frame edge to edge rather
-// than letterboxing — the stylist turns the phone to read it upright.
-function fitMoodboardBoard(){const e=p.mbBoard.clientWidth,t=p.mbBoard.clientHeight;if(!e||!t)return
-;const o="portrait"===R.orientation,n=o?Math.min(e/R.stageWidth,t/R.stageHeight):Math.min(t/R.stageWidth,e/R.stageHeight)
-;p.mbBoardScaler.style.transform="translate(-50%, -50%) "+(o?"":"rotate(90deg) ")+"scale("+n+")"}
-/* ------------------------- Full-screen overlay --------------------------- */
-function openMoodboardOverlay(){if(Y||!R.images.length||!p.mbOverlay.hidden)return
-;q=document.activeElement,p.mbOverlay.hidden=!1,document.body.classList.add("moodboard-presenting"),
-document.body.classList.add("has-app-modal"),N={zoom:1,x:0,y:0,fit:1,clone:null,pointers:new Map,lastDistance:null,lastTap:0},
-requestAnimationFrame(()=>{renderMoodboardOverlay(!0),p.mbOverlayClose.focus()})}
-function closeMoodboardOverlay(){const e=p.mbOverlay,t=e&&!e.hidden;e&&(e.hidden=!0),p.mbOverlayCanvas.replaceChildren(),
-document.body.classList.remove("moodboard-presenting"),document.body.classList.remove("has-app-modal"),N=null,
-t&&q&&document.contains(q)&&q.focus(),q=null}
-// `rebuild` replaces the clone; without it the overlay only refits, which is
-// what a viewport resize or rotation needs.
-function renderMoodboardOverlay(e){if(!N||p.mbOverlay.hidden)return;const t=p.mbOverlayCanvas.getBoundingClientRect()
-;if(!t.width||!t.height)return;if(N.fit=Math.min(t.width/R.stageWidth,t.height/R.stageHeight)*.94,e){
-const t=moodboardStageClone();if(!t)return
-;t.style.cssText="position:absolute;left:50%;top:50%;width:"+R.stageWidth+"px;height:"+R.stageHeight+"px;transform-origin:50% 50%;pointer-events:none;",
-p.mbOverlayCanvas.replaceChildren(t),N.clone=t}clampMoodboardPan(),applyMoodboardTransform()}
-// Zooming about a screen point keeps whatever is under the fingers or cursor
-// where it is. Without a point the view zooms about its own centre.
-function moodboardZoomAt(e,t,o){if(!N)return;const n=Math.max(1,Math.min(MB_MAX_ZOOM,e));if(n===N.zoom)return
-;const s=n/N.zoom;if(void 0===t)N.x*=s,N.y*=s;else{const e=p.mbOverlayCanvas.getBoundingClientRect(),
-n=t-(e.left+e.width/2),r=o-(e.top+e.height/2);N.x=n-(n-N.x)*s,N.y=r-(r-N.y)*s}
-N.zoom=n,1===N.zoom&&(N.x=N.y=0),clampMoodboardPan(),applyMoodboardTransform()}
-function clampMoodboardPan(){if(!N)return;const e=p.mbOverlayCanvas.getBoundingClientRect(),t=N.fit*N.zoom,
-o=Math.max(0,(R.stageWidth*t-e.width)/2),n=Math.max(0,(R.stageHeight*t-e.height)/2)
-;N.x=Math.max(-o,Math.min(o,N.x)),N.y=Math.max(-n,Math.min(n,N.y))}
-function applyMoodboardTransform(){if(!N||!N.clone)return;const e=N.fit*N.zoom
-;N.clone.style.transform="translate(calc(-50% + "+N.x+"px),calc(-50% + "+N.y+"px)) scale("+e+")"}
-function bindMoodboardOverlayGestures(e){if(!e)return;const point=e=>({x:e.clientX,y:e.clientY})
-;e.addEventListener("pointerdown",function(t){N&&(e.setPointerCapture(t.pointerId),N.pointers.set(t.pointerId,point(t)),N.lastDistance=null)}),
-e.addEventListener("pointermove",function(e){if(!N||!N.pointers.has(e.pointerId))return
-;const t=N.pointers.get(e.pointerId);N.pointers.set(e.pointerId,point(e));const o=Array.from(N.pointers.values())
-;if(o.length>=2){const e=Math.hypot(o[0].x-o[1].x,o[0].y-o[1].y)
-;N.lastDistance&&moodboardZoomAt(N.zoom*e/N.lastDistance,(o[0].x+o[1].x)/2,(o[0].y+o[1].y)/2),N.lastDistance=e
-}else N.zoom>1&&(N.x+=e.clientX-t.x,N.y+=e.clientY-t.y,clampMoodboardPan(),applyMoodboardTransform())})
-;const endPointer=function(e){N&&(N.pointers.delete(e.pointerId),N.lastDistance=null)}
-// A mouse gets its double-click from `dblclick`; touch and pen are timed here
-// so the two never fire for the same gesture.
-;e.addEventListener("pointerup",function(e){if(N&&"mouse"!==e.pointerType&&1===N.pointers.size){const t=Date.now()
-;t-N.lastTap<300?(moodboardZoomAt(N.zoom>1?1:2.5,e.clientX,e.clientY),N.lastTap=0):N.lastTap=t}endPointer(e)}),
-e.addEventListener("pointercancel",endPointer),e.addEventListener("wheel",function(e){
-N&&(e.preventDefault(),moodboardZoomAt(N.zoom*(e.deltaY<0?1.12:.89),e.clientX,e.clientY))},{passive:!1}),
-e.addEventListener("dblclick",function(e){N&&moodboardZoomAt(N.zoom>1?1:2.5,e.clientX,e.clientY)})}
-function handleMoodboardOverlayKey(e){if(!N||p.mbOverlay.hidden)return!1
-;if("Escape"===e.key)return e.preventDefault(),closeMoodboardOverlay(),!0
-;if("+"===e.key||"="===e.key)return e.preventDefault(),moodboardZoomAt(N.zoom*1.25),!0
-;if("-"===e.key||"_"===e.key)return e.preventDefault(),moodboardZoomAt(N.zoom/1.25),!0
-;return"0"===e.key&&(e.preventDefault(),moodboardZoomAt(1)),!1}
-/* ------------------------------- Exports --------------------------------- */
-function setMoodboardExportBusy(e){Y=e,[p.mbRotate,p.mbRandomize,p.mbUpload,p.mbDownload,p.mbBoard].forEach(t=>{t.disabled=e})}
-function setMoodboardExportState(e,t,o){const n=p[MB_EXPORTS[e].el]
-;n.classList.toggle("is-busy","busy"===t),n.classList.toggle("is-done","done"===t),n.classList.toggle("is-error","error"===t),
-"busy"===t?n.setAttribute("aria-busy","true"):n.removeAttribute("aria-busy"),
-a(".moodboard-action__label",n).textContent=o||MB_EXPORTS[e].idle}
-function flashMoodboardExportState(e,t,o){clearTimeout(MB_EXPORT_TIMERS[e]),setMoodboardExportState(e,t,o),
-MB_EXPORT_TIMERS[e]=setTimeout(()=>setMoodboardExportState(e,"idle"),2600)}
-function resetMoodboardExports(){Object.keys(MB_EXPORTS).forEach(e=>{clearTimeout(MB_EXPORT_TIMERS[e]),
-setMoodboardExportState(e,"idle")}),setMoodboardExportBusy(!1)}
-// The first successful export is what "the moodboard went out" means for the
-// consultation follow-up. Later exports only add history.
-async function recordMoodboardExport(o,n,s,r){const i=!await t.countMoodboards(o)
-;await t.logMoodboard(o,r),await t.logOrderHistory(o,"moodboard_generated",{file_name:n,orientation:R.orientation,
-destination:"drive"===s?"drive":"download",drive_link:r||null});if(!i)return
-;w.customer=await t.updateCustomer(w.customer.id,{moodboard_date:e.todayISO()})
-;const d=consultNudgeFor(w.customer,w.customerOrders,e.todayISO());if(d){await t.updateCustomer(w.customer.id,d);try{
-await t.syncFollowUp(w.customer.id)}catch(e){console.error(e)}}}
-// A missing or revoked credential must never cost the stylist their selection,
-// so the session is left exactly as it is and the fix opens in its own tab.
-function offerGoogleReconnect(e){showToast(e),
-window.confirm(e+"\n\nOpen Google settings to reconnect?")&&window.open(location.pathname+location.search+"#/calendar","_blank","noopener")}
-async function exportMoodboard(o){if(Y||!R.images.length||!w.order)return;const n=MB_EXPORTS[o],s=w.order.id
-;let r=!1;clearTimeout(MB_EXPORT_TIMERS[o]),setMoodboardExportBusy(!0),setMoodboardExportState(o,"busy",n.busy),
-p.mbExportStatus.textContent=n.busy;try{const e=await R.generatePDF(),i=R.buildFilename(new Date);let d=null
-;if("drive"===o){const t=await KK.db.driveSaveMoodboardPdf(i,R.pdfToBase64(e),w.customer&&w.customer.name||"",
-w.order.title||w.order.doc_name||"Untitled order");d=t&&t.drive_link||null}else e.save(i)
-;r=!0,await recordMoodboardExport(s,i,o,d),flashMoodboardExportState(o,"done",n.done),p.mbExportStatus.textContent=n.done,
-showToast("drive"===o?"Moodboard saved to Google Drive":"Moodboard PDF downloaded")}catch(e){console.error(e)
-;const t=e&&e.message||"please try again";flashMoodboardExportState(o,"error",r?"Not recorded":"Failed"),
-p.mbExportStatus.textContent=t,
-!r&&"drive"===o&&MB_RECONNECT.test(t)?offerGoogleReconnect(t):showToast(r?"The moodboard was exported, but its record could not be finished — "+t:("drive"===o?"Could not upload to Drive — ":"Could not download the PDF — ")+t)
-}finally{setMoodboardExportBusy(!1)}}// Both document buttons are disabled while either one is generating, and the
-// label region is the only thing that changes — the split keeps its geometry.
-function setBusy(e,t){w.orderDetail.documentBusy=t?e:null;const o=w.orderDetail.vm,n=!o||o.documents.canDownload
-;Object.keys(g).forEach(e=>{g[e].disabled=t||!n});const s=g[e];s.classList.toggle("is-busy",t),
-t?s.setAttribute("aria-busy","true"):s.removeAttribute("aria-busy"),
-a(".order-action__label",s).textContent=t?"Generating…":"quotation"===e?"Get quotation":"Get invoice"}
-async function download(n){let a;setBusy(n,!0);try{a=await o.download(n,{docName:w.order.doc_name||w.customer.name||"",date:e.todayISO(),
-items:w.order.items||[],includes:w.order.includes||[],terms:o.termsFor(w.order)})}catch(e){return console.error(e),
-showToast("Could not generate the PDF — please try again"),void setBusy(n,!1)}setBusy(n,!1),showToast(o.DOCS[n].name+" downloaded"),
-// Sending a quotation means it has been quoted; sending an invoice means
-// the order is confirmed. Only ever forward.
-await bumpStatus("invoice"===n?"Confirmed":"Quoted");
-// The file is already on disk by now. A log failure is worth reporting but
-// must not read as a failed download.
-try{await t.logDocument(w.order.id,n,a),await refreshOrderPayments()}catch(e){console.error(e),showToast("Downloaded, but could not record it")}}
-// One payment at a time, and never marked paid before the write succeeds.
-async function logDeposit(e){if(!w.orderDetail.paymentBusy){p.paymentError.textContent="",p.paymentError.hidden=!0,setOrderPaymentBusy(!0)
-;try{await logDepositRequest(e)}finally{setOrderPaymentBusy(!1)}}}
-async function logDepositRequest(a){const s=o.computeTotal(w.order.items),r=o.termsFor(w.order),i=o.termAmounts(s,r)[a],d=function(t,o,n){const a={}
-;return 0!==o||t.first_payment_date||(a.first_payment_date=e.todayISO()),
-o!==(e=>e&&"other"===e.payment_scheme?0:1)(t)||t.second_payment_date||(a.second_payment_date=e.todayISO()),
-o!==n.length-1||t.final_payment_date||(a.final_payment_date=e.todayISO()),a}(w.order,a,r);if(d.first_payment_date&&d.final_payment_date){
-if(!window.confirm("This is the only payment term, so logging it starts the schedule and marks the order finished at the same time. Log it?"))return}
-try{await t.logOrderHistory(w.order.id,"payment_logged",{deposit_index:a,deposit_label:o.termLabel(r[a]),amount:i}),closeOrderPaymentChooser(),
-showToast(r[a].label+" logged"),Object.keys(d).length&&(w.order=await t.updateOrder(w.order.id,d)),
-(d.first_payment_date||d.second_payment_date)&&await async function(){try{
-const e=await rescheduleOrder(w.order,w.customer),o=e.rows.filter(e=>n.isProductionStage(e.stage)).length
-;o?(await t.logOrderHistory(w.order.id,"scheduled",{count:e.rows.length,dropped:e.computed.dropped}),
-showToast(o+" fittings scheduled")):e.rows.length?(await t.logOrderHistory(w.order.id,"scheduled",{count:e.rows.length,dropped:e.computed.dropped}),
-showToast("Design phase scheduled")):e.computed.reason&&showToast(e.computed.reason),await refreshOrderSchedule()}catch(e){console.error(e),
-showToast("Payment logged, but the schedule could not be built")}
-}(),d.final_payment_date?await bumpStatus("Delivered"):d.second_payment_date?await bumpStatus("In production"):d.first_payment_date&&await bumpStatus("Confirmed"),
-await refreshOrderPayments(),renderOrderStatus()}catch(e){console.error(e),showToast(e.message||"Could not log payment"),
-p.paymentError.textContent=e.message||"Could not log that payment. Try again.",p.paymentError.hidden=!1}}async function signOutFromMenu(){
-if(closeMenu(),confirmLeave()){await coverCurtain();try{await t.signOut(),location.hash="",await showGate()}catch(e){await revealCurtain(),showToast(e.message||"Could not sign out")}}}function bindEvents(){window.addEventListener("hashchange",handleRoute),
-p.pageAction.addEventListener("click",()=>{D&&D()}),p.saveBtn.addEventListener("click",async()=>{if(!w.saving){w.saving=!0,setDirty(w.dirty);try{
-if("customer"===w.route.view)await saveCustomer();else if("orderEdit"===w.route.view){const e=w.order.id;
-// Refused by validation: stay on the form, where the error is.
-if(!await saveOrder())return;showToast("Order saved"),leaveFormFor("#/order/"+e)}}catch(e){console.error(e),showToast(e.message||"Could not save")
-}finally{w.saving=!1,setDirty(w.dirty)}}}),p.homeNavHome&&p.homeNavHome.addEventListener("click",()=>{window.scrollTo({top:0,behavior:"smooth"})}),
-p.homeNavMenu&&p.homeNavMenu.addEventListener("click",e=>{e.stopPropagation();const t=p.menuList.hidden;t?(p.menuList.parentNode!==p.homeNavMenuWrapper&&p.homeNavMenuWrapper.appendChild(p.menuList),p.menuList.hidden=!1,p.homeNavMenu.setAttribute("aria-expanded","true")):closeMenu()}),
-p.menuBtn.addEventListener("click",e=>{e.stopPropagation();const t=p.menuList.hidden;p.menuList.parentNode!==p.menu&&p.menu.appendChild(p.menuList),p.menuList.hidden=!t,p.menuBtn.setAttribute("aria-expanded",String(t))}),document.addEventListener("click",e=>{
-p.menuList.hidden||p.menu.contains(e.target)||(p.homeNavMenuWrapper&&p.homeNavMenuWrapper.contains(e.target))||closeMenu()}),document.addEventListener("keydown",e=>{if("Escape"!==e.key||p.menuList.hidden)return
-;closeMenu(),p.menuBtn.focus()}),p.menuSignOut.addEventListener("click",signOutFromMenu),p.menuDelete.addEventListener("click",()=>{closeMenu(),
-"order"===p.menuDelete.dataset.kind?async function(){
-if(window.confirm("Delete this order and its payment and download record? This cannot be undone."))try{const e=w.order.customer_id
-;await t.deleteOrder(w.order.id),setDirty(!1),showToast("Order deleted"),go("#/customer/"+e)}catch(e){console.error(e),
-showToast(e.message||"Could not delete")}}():deleteCustomerRecord()}),p.deleteCustomer.addEventListener("click",deleteCustomerRecord),
-p.customerSearch.addEventListener("input",renderCustomerList),s(".js-cfield").forEach(e=>{e.addEventListener("input",()=>{
-e===p.cName&&e.value.trim()&&setNameError(!1),setDirty(!0)}),e.addEventListener("change",()=>setDirty(!0))}),
-p.cWeddingPrecision.addEventListener("click",e=>{const t=e.target.closest(".custedit-segmented__btn")
-;t&&t.dataset.precision!==weddingPrecision()&&(setWeddingPrecision(t.dataset.precision),setDirty(!0))}),
-p.cancelCustomer.addEventListener("click",cancelCustomer),p.reopenCustomer.addEventListener("click",reopenCustomer),
-p.logPaymentBtn.addEventListener("click",toggleOrderPaymentChooser),
-p.paymentChooserOptions.addEventListener("click",e=>{
-const t=e.target.closest(".js-log-deposit");t&&logDeposit(Number(t.dataset.i))}),p.downloadQuote.addEventListener("click",()=>download("quotation")),
-p.downloadInvoice.addEventListener("click",()=>download("invoice")),p.createMoodboardBtn.addEventListener("click",function(){
-w.order&&go("#/order/"+w.order.id+"/moodboard")}),p.logNewFittingBtn.addEventListener("click",function(){
-w.order&&go("#/order/"+w.order.id+"/fitting/new")}),p.fittingJournalAdd.addEventListener("click",()=>KK.fittings.openCamera()),
-KK.fittings.bindOverlays(),setupMoodboardListeners(),
-p.gcalConnect.addEventListener("click",connectGoogle),p.gcalDisconnect.addEventListener("click",disconnectGoogle),
-p.enquiryAccept.addEventListener("click",acceptEnquiry),p.enquiryDismiss.addEventListener("click",dismissEnquiry),
-p.menuCalendar.addEventListener("click",closeMenu),s(".js-ofield").forEach(e=>{
-e.addEventListener("input",()=>setDirty(!0)),e.addEventListener("change",()=>setDirty(!0))}),[p.oFirstPayment,p.oSecondPayment,p.oScheme].forEach(e=>{
-e.addEventListener("input",renderScheduleHint),e.addEventListener("change",renderScheduleHint)}),p.addItem.addEventListener("click",()=>{addItemRow({
-name:"",qty:1,price:"",cost:""},!0),setDirty(!0)}),p.itemList.addEventListener("click",e=>{const t=e.target.closest(".js-remove")
-;if(t&&!t.disabled)return t.closest(".item").remove(),refreshRemoveButtons(),refreshItemTotals(),void setDirty(!0)
-;const o=e.target.closest(".js-cost-calc");o&&function(e){F=document.activeElement,I=e;const t=a(".js-name",e).value.trim()
-;p.calcItemLabel.textContent=t?'For "'+t+'"':"For this item";const o=H.get(e)||P.map(e=>({label:e,amount:0}));p.calcRowList.innerHTML="",
-o.forEach(e=>addCalcRow(e,!1)),p.calcSheet.hidden=!1,document.body.classList.add("has-app-modal"),
-requestAnimationFrame(()=>a(".js-clabel",p.calcRowList)?.focus())}(o.closest(".item"))}),p.itemList.addEventListener("input",t=>{const o=t.target
-;o.classList.contains("js-qty")?o.value=e.digitsOnly(o.value).replace(/^0+(?=\d)/,""):(o.classList.contains("js-price")||o.classList.contains("js-cost"))&&e.reformatPriceField(o),
-o.classList.remove("is-invalid");const n=a(".js-err",o.closest(".item"));n&&(n.hidden=!0),refreshItemTotals(),setDirty(!0)}),
-p.itemList.addEventListener("focusout",t=>{t.target.classList.contains("js-qty")&&""===e.digitsOnly(t.target.value)&&(t.target.value="1",
-refreshItemTotals())}),p.includesList.addEventListener("change",e=>{const t=e.target
-;"checkbox"===t.type&&(t.closest(".chip").classList.toggle("is-checked",t.checked),setDirty(!0))}),p.includesList.addEventListener("click",e=>{
-const t=e.target.closest(".js-remove-include");t&&(e.preventDefault(),t.closest(".chip").remove(),setDirty(!0))}),
-p.addInclude.addEventListener("click",addCustomInclude),p.oScheme.addEventListener("change",()=>{syncSchemeCard(),setDirty(!0)}),
-p.addTerm.addEventListener("click",()=>{addTermRow(null,!0),setDirty(!0)}),p.termList.addEventListener("click",e=>{
-const t=e.target.closest(".js-remove-term");t&&!t.disabled&&(t.closest(".term").remove(),refreshTermRemoveButtons(),refreshTermsSum(),setDirty(!0))}),
-p.termList.addEventListener("input",e=>{const t=e.target;
-// One dot, digits either side of it, nothing else.
-t.classList.contains("js-tpct")&&(t.value=t.value.replace(/[^\d.]/g,"").replace(/(\..*)\./g,"$1")),p.errTerms.hidden=!0,refreshTermsSum(),setDirty(!0)
-}),p.calcAddRow.addEventListener("click",()=>addCalcRow(null,!0)),p.calcRowList.addEventListener("click",e=>{
-const t=e.target.closest(".js-remove-calcrow");t&&!t.disabled&&(t.closest(".calcrow").remove(),refreshCalcRemoveButtons(),refreshCalcTotal())}),
-p.calcRowList.addEventListener("input",t=>{t.target.classList.contains("js-camount")&&e.reformatPriceField(t.target),refreshCalcTotal()}),
-p.calcApply.addEventListener("click",applyCostCalc),p.calcBack.addEventListener("click",closeCostCalc),p.customInclude.addEventListener("keydown",e=>{
-"Enter"===e.key&&(e.preventDefault(),addCustomInclude())}),
-// A resize or a device rotation refits both the framed board and the overlay
-// without disturbing the composition either one is showing.
-["resize","orientationchange"].forEach(e=>window.addEventListener(e,function(){syncVisualViewport(),
-fitMoodboardBoard(),renderMoodboardOverlay(!1)})),window.visualViewport&&(window.visualViewport.addEventListener("resize",syncVisualViewport),
-window.visualViewport.addEventListener("scroll",syncVisualViewport)),
-window.addEventListener("offline",()=>showToast("You're offline — changes won't save until you're back online")),
-window.addEventListener("online",()=>showToast("Back online")),document.addEventListener("focusin",e=>{var t
-;(t=e.target).matches("input, select, textarea, button")&&requestAnimationFrame(()=>setTimeout(()=>{document.activeElement===t&&t.scrollIntoView({
-block:"center",inline:"nearest",behavior:window.matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"})},80))}),
-document.addEventListener("keydown",e=>{trapModalFocus(e,p.calcSheet),trapModalFocus(e,p.mbOverlay),
-["fittingCamera","fittingConfirm","fittingCaptionStep","fittingPicker","fittingEditSheet"].forEach(e=>trapModalFocus(e,a("#"+e))),
-p.calcSheet.hidden?handleMoodboardOverlayKey(e):"Escape"===e.key&&(e.preventDefault(),closeCostCalc())}),window.addEventListener("beforeunload",e=>{
-w.dirty&&(e.preventDefault(),e.returnValue="")})}async function showGate(){await coverCurtain(),p.app.hidden=!0,p.gate.hidden=!1,
-p.gateRemember.checked=t.rememberPreference(),p.gatePassword.value=p.gateRemember.checked?t.savedPassword():"",p.gateErr.hidden=!0,p.gatePassword.removeAttribute("aria-invalid"),
-await revealCurtain(),p.gatePassword.value?p.gateSubmit.focus():p.gatePassword.focus()}async function showApp(){await coverCurtain(),p.gate.hidden=!0,p.app.hidden=!1,await handleRoute(),
-async function(){const e=new URLSearchParams(location.search),o=e.get("code"),n=e.get("error");if(!o&&!n)return
-;const clean=()=>history.replaceState(null,"",location.pathname+location.hash);if(n)return clean(),
-void showToast("access_denied"===n?"Google Calendar was not connected":"Google sign-in failed");clean();try{
-await t.googleExchange(o,googleRedirectUri()),w.googleConnected=!0,showToast("Google Calendar connected")}catch(e){console.error(e),
-showToast(e.message||"Could not connect Google Calendar")}}()}return async function(){if(p.gateForm.addEventListener("submit",async e=>{
-if(e.preventDefault(),!p.gateSubmit.disabled){p.gateErr.hidden=!0,p.gatePassword.removeAttribute("aria-invalid"),p.gateSubmit.disabled=!0,p.gateSubmit.classList.add("is-busy"),
-a(".btn__label",p.gateSubmit).textContent="Unlocking…";try{await t.signIn(p.gatePassword.value,p.gateRemember.checked),await showApp()}catch(e){
-p.gateErr.textContent=e.message||"Could not sign in",p.gateErr.hidden=!1,p.gatePassword.setAttribute("aria-invalid","true"),p.gatePassword.select()}finally{p.gateSubmit.disabled=!1,
-p.gateSubmit.classList.remove("is-busy"),a(".btn__label",p.gateSubmit).textContent="Unlock"}}}),bindEvents(),t.isConfigured())try{
-await t.currentSession()?await showApp():await showGate()}catch(e){console.error(e),await showGate()
-}else p.boot.innerHTML='<div class="boot__msg"><strong>Not connected.</strong><span>Fill in <code>config.js</code> with your Supabase URL and anon key — see “Setting up the database” in the README.</span></div>'
-}(),{state:w}}();
+  function setChrome(cfg) {
+    elements.viewTitle.textContent = cfg.title;
+    document.body.classList.toggle("is-homepage", !!cfg.homepage);
+    document.body.classList.toggle("is-custpage", !!cfg.custpage);
+    document.body.classList.toggle("is-custeditpage", !!cfg.custedit);
+    document.body.classList.toggle("is-orderpage", !!cfg.orderpage);
+    document.body.classList.toggle("is-moodboardpage", !!cfg.moodboardpage);
+
+    elements.viewSub.innerHTML = cfg.sub || "";
+    elements.viewSub.hidden = !cfg.sub;
+
+    const up = cfg.up || null;
+    elements.upLink.hidden = !up;
+    elements.appbarBrand.hidden = !!up;
+    if (up) {
+      elements.upLink.href = up.hash;
+      elements.upLabel.textContent = up.label;
+    }
+
+    elements.homeLink.hidden = !up || "#/customers" === up.hash;
+    setPageAction(cfg.action || null);
+    setSaveBar(!!cfg.save);
+    closeMenu();
+
+    elements.menuDelete.hidden = !cfg.destroy;
+    elements.menuDelete.className = "menu__item menu__item--danger";
+    if (cfg.destroy) {
+      elements.menuDelete.textContent = "order" === cfg.destroy ? "Delete order" : "Delete customer";
+      elements.menuDelete.dataset.kind = cfg.destroy;
+    }
+    syncBottomBar();
+  }
+
+  function closeMenu() {
+    elements.menuList.hidden = true;
+    elements.menuBtn.setAttribute("aria-expanded", "false");
+    if (elements.homeNavMenu) {
+      elements.homeNavMenu.setAttribute("aria-expanded", "false");
+    }
+  }
+
+  /* ------------------- Routing & View Transition ------------------ */
+
+  const CURTAIN_TRANSITION_MS = 520;
+  let curtainCovered = !elements.boot.hidden;
+  let curtainCoverPromise = null;
+  let routeLoaderShownAt = 0;
+
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  async function coverCurtain() {
+    if (curtainCovered) return;
+    if (curtainCoverPromise) return curtainCoverPromise;
+    curtainCoverPromise = (async () => {
+      document.body.classList.add("is-page-transitioning");
+      elements.boot.hidden = false;
+      elements.boot.classList.remove("is-animating");
+      elements.boot.classList.add("is-below");
+      elements.boot.offsetHeight;
+      if (!reducedMotion()) {
+        elements.boot.classList.add("is-animating");
+        elements.boot.classList.remove("is-below");
+        await wait(CURTAIN_TRANSITION_MS);
+      } else {
+        elements.boot.classList.remove("is-below");
+      }
+      curtainCovered = true;
+    })();
+    await curtainCoverPromise;
+    curtainCoverPromise = null;
+  }
+
+  async function revealCurtain() {
+    if (!curtainCovered) return;
+    if (!reducedMotion()) {
+      elements.boot.classList.add("is-animating", "is-below");
+      await wait(CURTAIN_TRANSITION_MS);
+    }
+    elements.boot.hidden = true;
+    elements.boot.classList.remove("is-animating", "is-below");
+    curtainCovered = false;
+    document.body.classList.remove("is-page-transitioning");
+  }
+
+  const routeHasOwnLoader = (r) => "customers" === r.view || "order" === r.view;
+  const routeLoaderKind = (r) =>
+    "customer" === r.view || "customerEdit" === r.view
+      ? "ledger"
+      : "moodboard" === r.view || "moodboardPreview" === r.view
+      ? "moodboard"
+      : "form";
+
+  function beginRouteLoader(r) {
+    if (routeHasOwnLoader(r)) return hideRouteLoader(true);
+    routeLoaderShownAt = Date.now();
+    elements.routeLoader.dataset.kind = routeLoaderKind(r);
+    elements.routeLoader.setAttribute("aria-busy", "true");
+    elements.routeLoader.classList.remove("is-leaving");
+    $(".route-loader__canvas", elements.routeLoader).hidden = false;
+    elements.routeLoaderError.hidden = true;
+
+    const labelMap = {
+      customer: "customer",
+      customerEdit: "customer editor",
+      orderEdit: "order editor",
+      moodboard: "moodboard",
+      fittingNew: "fitting journal",
+      fittingJournal: "fitting journal",
+      calendar: "calendar settings",
+      enquiry: "enquiry"
+    };
+
+    elements.routeLoaderStatus.textContent = "Loading " + (labelMap[r.view] || "page") + ".";
+    elements.routeLoader.hidden = false;
+  }
+
+  async function hideRouteLoader(force) {
+    if (elements.routeLoader.hidden) return;
+    if (force || curtainCovered) {
+      elements.routeLoader.hidden = true;
+      elements.routeLoader.setAttribute("aria-busy", "false");
+      elements.routeLoader.classList.remove("is-leaving");
+      elements.routeLoaderStatus.textContent = "";
+      return;
+    }
+    await wait(Math.max(0, 180 - (Date.now() - routeLoaderShownAt)));
+    elements.routeLoader.classList.add("is-leaving");
+    await wait(reducedMotion() ? 0 : 180);
+    elements.routeLoader.hidden = true;
+    elements.routeLoader.setAttribute("aria-busy", "false");
+    elements.routeLoader.classList.remove("is-leaving");
+    elements.routeLoaderStatus.textContent = "";
+  }
+
+  function showRouteError(err, r) {
+    console.error(err);
+    elements.routeLoader.dataset.kind = routeLoaderKind(r);
+    elements.routeLoader.hidden = false;
+    elements.routeLoader.classList.remove("is-leaving");
+    $(".route-loader__canvas", elements.routeLoader).hidden = true;
+    elements.routeLoaderError.hidden = false;
+    elements.routeLoader.setAttribute("aria-busy", "false");
+    elements.routeLoaderStatus.textContent = "";
+
+    elements.routeLoaderError.innerHTML =
+      '<h2 class="route-loader__error-title">Could not open this page.</h2>' +
+      '<p class="route-loader__error-copy">' + U.escapeHtml((err && err.message) || "Check your connection and try again.") + '</p>' +
+      '<div class="route-loader__error-actions">' +
+      '<button type="button" class="btn btn--primary js-route-retry">Try again</button>' +
+      '<a class="btn btn--outline" href="#/customers">Customers</a>' +
+      '</div>';
+
+    const retryBtn = $(".js-route-retry", elements.routeLoaderError);
+    retryBtn.addEventListener("click", () => handleRoute(true), { once: true });
+    requestAnimationFrame(() => retryBtn.focus({ preventScroll: true }));
+  }
+
+  function focusRoute(r) {
+    const focusTarget =
+      "customers" === r.view
+        ? elements.heroGreeting
+        : "customer" === r.view
+        ? elements.custHeroName
+        : "customerEdit" === r.view
+        ? elements.custEditTitle
+        : "order" === r.view
+        ? elements.orderTitle
+        : "moodboard" === r.view
+        ? elements.mbTitle
+        : "moodboardPreview" === r.view
+        ? elements.mbCanvasBack
+        : elements.viewTitle;
+
+    if (focusTarget) {
+      focusTarget.setAttribute("tabindex", "-1");
+      focusTarget.focus({ preventScroll: true });
+      focusTarget.addEventListener("blur", () => focusTarget.removeAttribute("tabindex"), { once: true });
+    }
+  }
+
+  /* ----------------- Status Helpers & Data Transformations ----------------- */
+
+  const badgeClass = (statusStr) => "badge badge--" + String(statusStr).toLowerCase().replace(/\s+/g, "-");
+
+  function effectiveStatus(orderRecord) {
+    const statusVal = ORDER_STATUSES.includes(orderRecord.status) ? orderRecord.status : ORDER_STATUSES[0];
+    return orderRecord.final_payment_date ? "Delivered" : statusVal;
+  }
+
+  async function bumpStatus(newStatus) {
+    const prevIdx = ORDER_STATUSES.indexOf(state.order.status);
+    const nextIdx = ORDER_STATUSES.indexOf(newStatus);
+    const targetStatus = nextIdx > prevIdx ? newStatus : prevIdx === -1 ? ORDER_STATUSES[0] : state.order.status;
+
+    if (targetStatus !== state.order.status) {
+      try {
+        state.order = await db.updateOrder(state.order.id, { status: targetStatus });
+        renderOrderStatus();
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  }
+
+  function renderOrderStatus() {
+    const statusVal = effectiveStatus(state.order);
+    elements.viewSub.innerHTML = '<span class="' + badgeClass(statusVal) + '">' + U.escapeHtml(statusVal) + '</span>';
+    elements.viewSub.hidden = false;
+  }
+
+  function customerStatus(customerRecord, ordersList) {
+    if (!customerRecord) return "In consultation";
+    if (customerRecord.cancelled_at) return "Cancelled";
+    const orders = ordersList || [];
+    if (orders.length && orders.every((o) => o.final_payment_date)) return "Completed";
+    if (orders.some(orderIsPaid)) return "Active";
+    if (orders.length) return "Ordering";
+    return "In consultation";
+  }
+
+  const orderIsPaid = (o) => !!o.first_payment_date || ORDER_STATUSES.indexOf(o.status) >= ORDER_STATUSES.indexOf("In production");
+  const designAnchor = (o) => (o && o.first_payment_date) || null;
+  const productionAnchor = (o) => (o ? ("other" === o.payment_scheme ? o.first_payment_date : o.second_payment_date) : null) || null;
+  const openCustomerOrders = () => state.customerOrders || [];
+  const dateOnly = (dateStr) => String(dateStr || "").slice(0, 10);
+
+  function followUpPatch(cfg, anchorDateIso) {
+    if (!cfg || !anchorDateIso) {
+      return {
+        follow_up_date: null,
+        follow_up_label: null,
+        follow_up_synced_at: null
+      };
+    }
+    return {
+      follow_up_date: calendar.fromDay(calendar.toDay(anchorDateIso) + cfg.days),
+      follow_up_label: cfg.label,
+      follow_up_synced_at: null
+    };
+  }
+
+  function consultNudgeFor(customerRecord, ordersList, moodboardDateOverride) {
+    if (!customerRecord || customerRecord.cancelled_at || (ordersList || []).length) {
+      return followUpPatch(null, null);
+    }
+    const mbDate = void 0 === moodboardDateOverride ? customerRecord.moodboard_date : moodboardDateOverride;
+    return mbDate
+      ? followUpPatch(FOLLOW_UP_CONFIG, dateOnly(mbDate))
+      : followUpPatch(CHECK_IN_CONFIG, dateOnly(customerRecord.created_at));
+  }
+
+  async function setFollowUp(patchObj) {
+    const cust = state.customer;
+    if (cust && cust.id) {
+      if (patchObj.follow_up_date !== cust.follow_up_date || patchObj.follow_up_label !== cust.follow_up_label) {
+        state.customer = await db.updateCustomer(cust.id, patchObj);
+        await pushFollowUp();
+      }
+    }
+  }
+
+  async function pushFollowUp() {
+    const cust = state.customer;
+    if (cust && cust.id && (cust.follow_up_date || cust.follow_up_google_event_id)) {
+      try {
+        await db.syncFollowUp(cust.id);
+        state.customer = await db.getCustomer(cust.id);
+      } catch (err) {
+        console.error("Follow-up not synced to Google Calendar:", err);
+      }
+    }
+  }
+
+  const canCancel = (cust, orders) => !(!cust || !cust.id || cust.cancelled_at || (orders || []).some((o) => o.first_payment_date));
+
+  async function cancelCustomer() {
+    const cust = state.customer;
+    if (canCancel(cust, openCustomerOrders()) && window.confirm("Mark " + cust.name + " as not proceeding?\n\nEverything is kept — they just stop appearing as live work.")) {
+      try {
+        state.customer = await db.updateCustomer(cust.id, {
+          cancelled_at: new Date().toISOString(),
+          follow_up_date: null,
+          follow_up_label: null,
+          follow_up_synced_at: null
+        });
+        await pushFollowUp();
+        renderCustomerReadOnly(state.customer);
+        showToast("Marked as not proceeding");
+      } catch (err) {
+        console.error(err);
+        showToast(err.message || "Could not update the customer");
+      }
+    }
+  }
+
+  async function deleteCustomerRecord() {
+    const cust = state.customer;
+    if (!cust || !cust.id) return;
+    const nameStr = cust.name || "this customer";
+    if (window.confirm("Delete " + nameStr + ", along with every order and download record? This cannot be undone.")) {
+      try {
+        await db.deleteCustomer(cust.id);
+        setDirty(false);
+        showToast("Customer deleted");
+        go("#/customers");
+      } catch (err) {
+        console.error(err);
+        showToast(err.message || "Could not delete");
+      }
+    }
+  }
+
+  async function reopenCustomer() {
+    const cust = state.customer;
+    if (cust && cust.id && cust.cancelled_at) {
+      try {
+        state.customer = await db.updateCustomer(
+          cust.id,
+          Object.assign(
+            { cancelled_at: null, cancelled_reason: null },
+            consultNudgeFor(Object.assign({}, cust, { cancelled_at: null }), openCustomerOrders())
+          )
+        );
+        await pushFollowUp();
+        renderCustomerReadOnly(state.customer);
+        showToast("Reopened");
+      } catch (err) {
+        console.error(err);
+        showToast(err.message || "Could not reopen the customer");
+      }
+    }
+  }
+
+  function go(hash) {
+    if (location.hash === hash) handleRoute();
+    else location.hash = hash;
+  }
+
+  function leaveFormFor(hash) {
+    if (lastVisitedHash !== hash) {
+      if (location.hash !== hash) {
+        history.replaceState(null, "", location.pathname + location.search + hash);
+        currentHash = hash;
+        handleRoute();
+      } else {
+        handleRoute();
+      }
+    } else {
+      history.back();
+    }
+  }
+
+  function confirmLeave() {
+    return !state.dirty || window.confirm("You have unsaved changes. Leave without saving?");
+  }
+
+  let currentHash = "";
+  let lastVisitedHash = "";
+
+  async function handleRoute(skipAnimationFlag) {
+    const skipMotion = skipAnimationFlag === true;
+    const targetRoute = (function () {
+      const hashStr = String(location.hash || "").replace(/^#\/?/, "");
+      const qIdx = hashStr.indexOf("?");
+      const segments = (-1 === qIdx ? hashStr : hashStr.slice(0, qIdx)).split("/").filter(Boolean);
+      const query = new URLSearchParams(-1 === qIdx ? "" : hashStr.slice(qIdx + 1));
+
+      if ("customer" === segments[0] && segments[1] && "edit" === segments[2]) {
+        return { view: "customerEdit", id: segments[1], query };
+      }
+      if ("customer" === segments[0] && segments[1]) {
+        return { view: "customer", id: segments[1], query };
+      }
+      if ("order" === segments[0] && segments[1] && "edit" === segments[2]) {
+        return { view: "orderEdit", id: segments[1], query };
+      }
+      if ("order" === segments[0] && segments[1] && "moodboard" === segments[2] && "preview" === segments[3]) {
+        return { view: "moodboardPreview", id: segments[1], query };
+      }
+      if ("order" === segments[0] && segments[1] && "moodboard" === segments[2]) {
+        return { view: "moodboard", id: segments[1], query };
+      }
+      if ("order" === segments[0] && segments[1] && "fitting" === segments[2] && "new" === segments[3]) {
+        return { view: "fittingNew", id: segments[1], query };
+      }
+      if ("order" === segments[0] && segments[1] && "fitting" === segments[2] && segments[3]) {
+        return { view: "fittingJournal", id: segments[1], sessionId: segments[3], query };
+      }
+      if (("order" === segments[0] && segments[1] && "fittings" === segments[2]) || ("order" === segments[0] && segments[1])) {
+        return { view: "order", id: segments[1], query };
+      }
+      if ("calendar" === segments[0]) {
+        return { view: "calendar", query };
+      }
+      if ("enquiry" === segments[0] && segments[1]) {
+        return { view: "enquiry", id: segments[1], query };
+      }
+      return { view: "customers", query };
+    })();
+
+    const prevRoute = state.route;
+
+    if (state.dirty && currentHash !== location.hash) {
+      if (!confirmLeave()) {
+        location.hash = currentHash;
+        return;
+      }
+      setDirty(false);
+    }
+
+    if (location.hash !== currentHash) {
+      lastVisitedHash = currentHash;
+    }
+    currentHash = location.hash;
+
+    const routeToken = ++state.navigation.token;
+    if (!skipMotion) await coverCurtain();
+    if (routeToken !== state.navigation.token) return;
+
+    const wasMoodboard = prevRoute && ("moodboard" === prevRoute.view || "moodboardPreview" === prevRoute.view);
+    const isMoodboard = "moodboard" === targetRoute.view || "moodboardPreview" === targetRoute.view;
+
+    if (prevRoute && "moodboardPreview" === prevRoute.view && "moodboardPreview" !== targetRoute.view) {
+      closeMoodboardOverlay();
+    }
+    if (wasMoodboard && !isMoodboard) {
+      KK.moodboard.cleanup();
+      activeMoodboardOrderId = null;
+    }
+
+    state.route = targetRoute;
+    elements.viewCustomers.hidden = "customers" !== targetRoute.view;
+    elements.viewCustomer.hidden = "customer" !== targetRoute.view;
+    elements.viewCustomerEdit.hidden = "customerEdit" !== targetRoute.view;
+    elements.viewOrder.hidden = "order" !== targetRoute.view;
+    elements.viewOrderEdit.hidden = "orderEdit" !== targetRoute.view;
+    elements.viewMoodboard.hidden = !isMoodboard;
+    elements.viewFittingJournal.hidden = "fittingNew" !== targetRoute.view && "fittingJournal" !== targetRoute.view;
+    elements.fittingJournalBar.hidden = "fittingJournal" !== targetRoute.view && "fittingNew" !== targetRoute.view;
+    document.body.classList.toggle("has-fitting-journal-bar", !elements.fittingJournalBar.hidden);
+    elements.viewCalendar.hidden = "calendar" !== targetRoute.view;
+    elements.viewEnquiry.hidden = "enquiry" !== targetRoute.view;
+
+    if (!prevRoute || ("fittingNew" !== prevRoute.view && "fittingJournal" !== prevRoute.view) ||
+        (targetRoute.view === prevRoute.view && targetRoute.id === prevRoute.id && targetRoute.sessionId === prevRoute.sessionId)) {
+      // Keep fitting overlay active
+    } else {
+      KK.fittings.closeAll();
+    }
+
+    syncBottomBar();
+    window.scrollTo(0, 0);
+    beginRouteLoader(targetRoute);
+
+    const renderFn = async () => {
+      if ("customers" === targetRoute.view) {
+        await showCustomers();
+      } else if ("customer" === targetRoute.view) {
+        await showCustomerDetail(targetRoute.id);
+      } else if ("customerEdit" === targetRoute.view) {
+        await showCustomerEdit(targetRoute.id, targetRoute.query);
+      } else if ("orderEdit" === targetRoute.view) {
+        await (async function (orderId) {
+          state.order = await db.getOrder(orderId);
+          state.customer = await db.getCustomer(state.order.customer_id);
+          setChrome({
+            title: "Edit order",
+            up: { label: orderLabel(state.order), hash: "#/order/" + orderId },
+            save: true,
+            destroy: "order"
+          });
+          elements.oTitle.value = state.order.title || "";
+          elements.oDocName.value = state.order.doc_name || "";
+          elements.oFirstPayment.value = state.order.first_payment_date || "";
+          elements.oSecondPayment.value = state.order.second_payment_date || "";
+          elements.oFinalPayment.value = state.order.final_payment_date || "";
+          elements.oScheme.value = "other" === state.order.payment_scheme ? "other" : "standard";
+
+          buildTerms(state.order);
+          syncSchemeCard();
+          renderScheduleHint();
+          elements.itemList.innerHTML = "";
+
+          const itemsToRender = (state.order.items || []).length ? state.order.items : [{ name: "", qty: 1, price: "", cost: "" }];
+          itemsToRender.forEach((item) => addItemRow(item, false));
+
+          (function (includesArr) {
+            const list = includesArr || [];
+            const isTicked = (val) => list.some((item) => item.toLowerCase() === val.toLowerCase());
+            const customItems = list.filter((item) => !INCLUDES_PRESETS.some((preset) => preset.toLowerCase() === item.toLowerCase()));
+
+            elements.includesList.innerHTML =
+              INCLUDES_PRESETS.map((preset) => (function (lbl, checked) {
+                return '<label class="chip' + (checked ? ' is-checked' : '') + '" data-label="' + U.escapeHtml(lbl) + '"><input type="checkbox"' + (checked ? ' checked' : '') + '><span class="chip__box">' + SVG_CHECK + '</span><span>' + U.escapeHtml(lbl) + '</span></label>';
+              })(preset, isTicked(preset))).join('') +
+              customItems.map((lbl) => customChip(lbl, true)).join('');
+          })(state.order.includes || []);
+
+          elements.customInclude.value = "";
+          refreshItemTotals();
+          setDirty(false);
+        })(targetRoute.id);
+      } else if ("moodboard" === targetRoute.view) {
+        await (async function (orderId) {
+          state.order = await db.getOrder(orderId);
+          const res = await Promise.all([db.getCustomer(state.order.customer_id), db.listOrders(state.order.customer_id)]);
+          state.customer = res[0];
+          state.customerOrders = res[1];
+
+          setChrome({ title: "Create moodboard", save: false, moodboardpage: true });
+          setSaveBar(false);
+          closeMoodboardOverlay();
+
+          elements.mbBackBtn.href = "#/order/" + orderId;
+          elements.mbBackLabel.textContent = orderLabel(state.order);
+          elements.mbBackBtn.setAttribute("aria-label", "Back to " + orderLabel(state.order));
+
+          if (activeMoodboardOrderId !== orderId || !KK.moodboard.images.length) {
+            KK.moodboard.init({
+              orderId: state.order.id,
+              customerId: state.customer.id,
+              customerName: state.customer.name,
+              docName: state.order.doc_name || state.customer.name,
+              orderRef: state.order.title || ""
+            });
+            activeMoodboardOrderId = orderId;
+          }
+          elements.mbCanvas.hidden = true;
+          elements.mbEditor.hidden = false;
+        })(targetRoute.id);
+      } else if ("moodboardPreview" === targetRoute.view) {
+        await (async function (orderId) {
+          if (!KK.moodboard.images.length || activeMoodboardOrderId !== orderId) {
+            return go("#/order/" + orderId + "/moodboard");
+          }
+          setChrome({ title: "Moodboard", save: false, moodboardpage: true });
+          setSaveBar(false);
+          closeMoodboardOverlay();
+          elements.mbEditor.hidden = true;
+          elements.mbCanvas.hidden = false;
+          elements.mbCanvasBack.href = "#/order/" + orderId + "/moodboard";
+          resetMoodboardExports();
+          requestAnimationFrame(() => syncMoodboardCanvas());
+        })(targetRoute.id);
+      } else if ("fittingNew" === targetRoute.view) {
+        await (async function (orderId) {
+          state.order = await db.getOrder(orderId);
+          state.customer = await db.getCustomer(state.order.customer_id);
+          setChrome({ title: "New fitting", up: { label: orderLabel(state.order), hash: "#/order/" + orderId }, save: false });
+          elements.fittingJournalBar.hidden = true;
+          document.body.classList.remove("has-fitting-journal-bar");
+          syncBottomBar();
+
+          const res = await Promise.all([db.listOrderEvents(orderId), db.listFittingSessions(orderId)]);
+          const activeSess = res[1].find((s) => "active" === s.status);
+          if (activeSess) return go("#/order/" + orderId + "/fitting/" + activeSess.id);
+
+          const prodEvents = res[0].filter((e) => calendar.isProductionStage(e.stage));
+          const availableStages = prodEvents.length ? prodEvents : calendar.PRODUCTION_STAGES.map((s) => ({ stage: s }));
+
+          const startSessionFn = async (stageName) => {
+            try {
+              const newSess = await db.createFittingSession({ order_id: orderId, stage: stageName, status: "active" });
+              setChrome({
+                title: stageName,
+                up: { label: orderLabel(state.order), hash: "#/order/" + orderId },
+                action: { label: "Done", onClick: () => KK.fittings.endSession(newSess, () => go("#/order/" + orderId)) },
+                save: false
+              });
+              elements.fittingJournalBar.hidden = false;
+              document.body.classList.add("has-fitting-journal-bar");
+              syncBottomBar();
+              KK.fittings.renderJournal(elements.fittingJournal, {
+                order: state.order,
+                customer: state.customer,
+                session: newSess,
+                photos: [],
+                onToast: showToast
+              });
+              KK.fittings.startSession(newSess, { order: state.order, customer: state.customer, photos: [] }, showToast);
+            } catch (err) {
+              showToast(err.message || "Could not start fitting session");
+            }
+          };
+
+          const detectedStage = KK.fittings.detectStage(prodEvents);
+          if (detectedStage) {
+            await startSessionFn(detectedStage);
+          } else {
+            KK.fittings.showStagePicker(availableStages, startSessionFn, () => go("#/order/" + orderId));
+          }
+        })(targetRoute.id);
+      } else if ("fittingJournal" === targetRoute.view) {
+        await (async function (orderId, sessionId) {
+          state.order = await db.getOrder(orderId);
+          state.customer = await db.getCustomer(state.order.customer_id);
+          const res = await Promise.all([db.getFittingSession(sessionId), db.listFittingPhotos(orderId)]);
+          const sessionRec = res[0];
+          const photoRecs = res[1].filter((p) => p.session_id === sessionRec.id);
+
+          setChrome({
+            title: sessionRec.stage,
+            up: { label: orderLabel(state.order), hash: "#/order/" + orderId },
+            action: "active" === sessionRec.status ? { label: "Done", onClick: () => KK.fittings.endSession(sessionRec, () => go("#/order/" + orderId)) } : null,
+            save: false
+          });
+          elements.fittingJournalBar.hidden = "active" !== sessionRec.status;
+          document.body.classList.toggle("has-fitting-journal-bar", !elements.fittingJournalBar.hidden);
+          syncBottomBar();
+          KK.fittings.renderJournal(elements.fittingJournal, {
+            order: state.order,
+            customer: state.customer,
+            session: sessionRec,
+            photos: photoRecs,
+            onToast: showToast
+          });
+        })(targetRoute.id, targetRoute.sessionId);
+      } else if ("calendar" === targetRoute.view) {
+        await showCalendarSettings();
+      } else if ("enquiry" === targetRoute.view) {
+        await (async function (enquiryId) {
+          setChrome({ title: "Enquiry", up: { label: "Customers", hash: "#/customers" }, save: false });
+          state.enquiry = await db.getIntake(enquiryId);
+          const enq = state.enquiry;
+          elements.enquiryWhen.textContent = U.formatShortDate(enq.created_at);
+
+          elements.enquiryAnswers.innerHTML = (function (sub) {
+            const fields = (sub.payload && sub.payload.data && sub.payload.data.fields) || [];
+            const answers = fields.map((f) => ({ label: String(f.label || "Answer"), value: readableAnswer(f) })).filter((a) => a.value);
+            if (answers.length) return answers;
+            return [
+              { label: "Name", value: sub.name || "" },
+              { label: "Phone", value: sub.phone || "" },
+              { label: "Instagram", value: sub.instagram || "" },
+              { label: "Source", value: sub.source || "" },
+              { label: "Notes", value: sub.notes || "" }
+            ].filter((a) => a.value);
+          })(enq).map((a) => '<div class="infolist__stack"><dt>' + U.escapeHtml(a.label) + '</dt><dd>' + U.escapeHtml(a.value) + '</dd></div>').join('') ||
+          '<div class="infolist__stack"><dt>Answers</dt><dd>Nothing readable in this submission.</dd></div>';
+
+          const isHandled = "new" !== enq.status;
+          elements.enquiryNote.textContent = isHandled
+            ? ("accepted" === enq.status ? "Already accepted." : "Dismissed.")
+            : "Creating the customer files them at Enquiry, with a reminder to book the consultation in two days. Dismissing keeps the submission but creates nothing.";
+
+          elements.enquiryAccept.hidden = isHandled;
+          elements.enquiryDismiss.hidden = isHandled;
+        })(targetRoute.id);
+      } else {
+        await showOrderDetail(targetRoute.id);
+      }
+    };
+
+    const loadTask = (async () => {
+      try {
+        await renderFn();
+      } catch (err) {
+        if (!db.isStaleToken(err)) throw err;
+        console.warn("Stale token, refreshing and retrying:", err.message);
+        await db.refreshSession();
+        await renderFn();
+      }
+    })();
+
+    const settledTask = loadTask.then(() => ({ ok: true }), (err) => ({ ok: false, error: err }));
+    let earlyResult = null;
+
+    if (!skipMotion) {
+      earlyResult = await Promise.race([settledTask, wait(400).then(() => null)]);
+      if (routeToken !== state.navigation.token) return;
+
+      if (earlyResult && earlyResult.ok) {
+        await hideRouteLoader(true);
+      } else if (earlyResult && !earlyResult.ok && !routeHasOwnLoader(targetRoute)) {
+        showRouteError(earlyResult.error, targetRoute);
+      }
+      await revealCurtain();
+    }
+
+    const finalResult = earlyResult || (await settledTask);
+    if (routeToken !== state.navigation.token) return;
+
+    if (finalResult.ok) {
+      await hideRouteLoader(false);
+      focusRoute(targetRoute);
+    } else if (routeHasOwnLoader(targetRoute)) {
+      showToast((finalResult.error && finalResult.error.message) || "Could not load that");
+    } else {
+      showRouteError(finalResult.error, targetRoute);
+    }
+  }
+
+  const orNull = (str) => "" === String(str || "").trim() ? null : String(str).trim();
+
+  function orderLabel(orderRecord) {
+    if (orderRecord.title) return orderRecord.title;
+    const items = orderRecord.items || [];
+    return items.length && items[0].name ? items[0].name + (items.length > 1 ? " + " + (items.length - 1) + " more" : "") : "Empty order";
+  }
+
+  const isCosted = (item) => (Number(item.cost) || 0) > 0;
+  const isNamed = (item) => "" !== String(item.name || "").trim();
+
+  function greetingForClock(clockObj) {
+    const period = clockObj.period;
+    return ("dawn" === period || "morning" === period ? "Good morning" : "noon" === period || "afternoon" === period ? "Good afternoon" : "Good evening") + ", Ichaku";
+  }
+
+  function homepageOverview(ordersList, eventsList) {
+    const ordersByCustomer = {};
+    const orderToCustMap = {};
+    const eventsByCustomer = {};
+
+    ordersList.forEach((o) => {
+      (ordersByCustomer[o.customer_id] = ordersByCustomer[o.customer_id] || []).push(o);
+      orderToCustMap[o.id] = o.customer_id;
+    });
+
+    eventsList.forEach((e) => {
+      const custId = orderToCustMap[e.order_id];
+      if (custId) {
+        (eventsByCustomer[custId] = eventsByCustomer[custId] || []).push(e);
+      }
+    });
+
+    return { ordersByCustomer, eventsByCustomer };
+  }
+
+  const reducedMotion = () => !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  let homePopTimers = [];
+
+  function clearHomepagePops() {
+    homePopTimers.forEach(clearTimeout);
+    homePopTimers = [];
+  }
+
+  function clearHomepagePresses() {
+    document.querySelectorAll(".is-pressed").forEach((el) => el.classList.remove("is-pressed"));
+  }
+
+  function isCurrentHomepageLoad(token) {
+    return token === state.homepage.loadToken && "customers" === state.route.view;
+  }
+
+  function beginHomepageLoad() {
+    const token = ++state.homepage.loadToken;
+    state.homepage.phase = "loading";
+    clearHomepagePops();
+    clearHomepagePresses();
+
+    elements.homeStage.setAttribute("aria-busy", "true");
+    elements.homeStage.style.height = "";
+    elements.homeLoading.hidden = false;
+    elements.homeLoading.classList.remove("is-transitioning", "is-hidden");
+    elements.homeError.hidden = true;
+    elements.homeReady.hidden = true;
+    elements.homeReady.classList.remove("is-transitioning", "is-visible");
+    elements.homeReady.style.visibility = "";
+
+    return token;
+  }
+
+  function renderHomepageError(err, token) {
+    if (!isCurrentHomepageLoad(token)) return;
+    state.homepage.phase = "error";
+    elements.homeLoading.hidden = true;
+    elements.homeLoading.classList.remove("is-transitioning", "is-hidden");
+    elements.homeError.hidden = false;
+    elements.homeStage.setAttribute("aria-busy", "false");
+
+    elements.homeError.innerHTML =
+      '<div class="home-error-panel">' +
+      '<p class="home-error-panel__title">Could not load the homepage.</p>' +
+      '<p class="home-error-panel__hint">' + U.escapeHtml(err instanceof TypeError ? "Check your connection and try again." : (err && err.message) || "Try again in a moment.") + '</p>' +
+      '<button type="button" class="home-error__retry">Try again</button>' +
+      '</div>';
+
+    const retryBtn = elements.homeError.querySelector(".home-error__retry");
+    retryBtn.addEventListener("click", () => { showCustomers(true); });
+    requestAnimationFrame(() => retryBtn.focus({ preventScroll: true }));
+  }
+
+  function renderHomepageHero() {
+    const hour = new Date().getHours();
+    const activeDeadlineCust = state.customers
+      .filter(isActive)
+      .map((c) => ({ customer: c, deadline: nextDeadline(c) }))
+      .filter((c) => c.deadline)
+      .sort((a, b) => a.deadline.date.localeCompare(b.deadline.date))[0];
+
+    elements.heroGreeting.textContent = greetingForClock({ period: hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening" });
+
+    if (!activeDeadlineCust) {
+      elements.heroDeadline.textContent = "No upcoming deadline. All clear!";
+      return;
+    }
+
+    const diffDays = Math.ceil((new Date(activeDeadlineCust.deadline.date) - new Date(U.todayISO())) / 86400000);
+    const relativeText = diffDays <= 0 ? "today" : diffDays === 1 ? "tomorrow" : "in " + diffDays + " days";
+    elements.heroDeadline.innerHTML =
+      "Nearest deadline is <strong>" + U.escapeHtml(firstName(activeDeadlineCust.customer.name) + " - " + activeDeadlineCust.deadline.what) + "</strong> " + relativeText + ". Prep up!";
+  }
+
+  function renderHomepageAlert(submissionsList) {
+    elements.enquiriesCard.hidden = !submissionsList.length;
+    if (submissionsList.length) {
+      elements.enquiriesCount.textContent = submissionsList.length + " new order submission" + (1 === submissionsList.length ? "" : "s");
+    }
+  }
+
+  function renderHomepageSummary() {
+    const totalCusts = state.customers.length;
+    const prodCount = state.customers.filter((c) => "In production" === homepageStatus(c, state.overview.ordersByCustomer[c.id] || []).label).length;
+    elements.homeSummary.innerHTML = '<span>' + totalCusts + ' total customer' + (1 === totalCusts ? '' : 's') + '</span><i></i><span>' + prodCount + ' in production</span>';
+  }
+
+  function renderHomepageReady(dataObj) {
+    renderHomepageHero();
+    renderHomepageAlert(dataObj.submissions);
+    renderHomepageSummary();
+    renderCustomerList();
+    elements.homeReady.hidden = false;
+    elements.homeReady.classList.add("is-measuring");
+  }
+
+  function prepareShortcutAppearState() {
+    if (state.homepage.popPlayedForVisit >= state.homepage.visit || reducedMotion()) return;
+    elements.homeActions.querySelectorAll(".home-action").forEach((el) => el.classList.add("is-appear-pressed"));
+  }
+
+  function playShortcutAppear() {
+    if (state.homepage.popPlayedForVisit >= state.homepage.visit) return;
+    state.homepage.popPlayedForVisit = state.homepage.visit;
+    elements.homeActions.querySelectorAll(".home-action").forEach((el, idx) => {
+      homePopTimers.push(setTimeout(() => el.classList.remove("is-appear-pressed"), 80 * idx));
+    });
+  }
+
+  async function revealHomepage(token) {
+    await (document.fonts && document.fonts.ready || Promise.resolve());
+    await new Promise((res) => requestAnimationFrame(res));
+    if (!isCurrentHomepageLoad(token)) return;
+
+    elements.homeStage.style.height = Math.ceil(elements.homeReady.getBoundingClientRect().height || elements.homeReady.scrollHeight) + "px";
+    elements.homeReady.classList.remove("is-measuring");
+    elements.homeReady.classList.add("is-transitioning");
+    elements.homeLoading.classList.add("is-transitioning");
+
+    requestAnimationFrame(() => {
+      if (isCurrentHomepageLoad(token)) {
+        elements.homeReady.classList.add("is-visible");
+        elements.homeLoading.classList.add("is-hidden");
+        playShortcutAppear();
+      }
+    });
+
+    setTimeout(() => {
+      if (isCurrentHomepageLoad(token)) {
+        elements.homeLoading.hidden = true;
+        elements.homeLoading.classList.remove("is-transitioning", "is-hidden");
+        elements.homeReady.classList.remove("is-transitioning", "is-visible");
+        elements.homeStage.style.height = "";
+        elements.homeStage.setAttribute("aria-busy", "false");
+        state.homepage.phase = "ready";
+      }
+    }, reducedMotion() ? 0 : 180);
+  }
+
+  async function showCustomers(isRefresh) {
+    setChrome({ title: "Customers", up: null, save: false, homepage: true });
+    state.customer = null;
+    state.order = null;
+
+    if (!isRefresh) state.homepage.visit++;
+    const token = beginHomepageLoad();
+
+    try {
+      const res = await Promise.all([db.listCustomers(), db.listAllOrders(), db.listAllOrderEvents(), db.listIntake("new")]);
+      if (!isCurrentHomepageLoad(token)) return;
+      state.customers = res[0];
+      state.overview = homepageOverview(res[1], res[2]);
+      renderHomepageReady({ customers: res[0], submissions: res[3] });
+      prepareShortcutAppearState();
+      await revealHomepage(token);
+    } catch (err) {
+      if (db.isStaleToken(err)) throw err;
+      console.error(err);
+      renderHomepageError(err, token);
+    }
+  }
+
+  function hapticTap() {
+    try {
+      if (navigator.vibrate) navigator.vibrate(10);
+    } catch (_) {}
+  }
+
+  elements.viewCustomers.addEventListener("pointerdown", (e) => {
+    const target = e.target.closest(".home-action,.home-alert,.home-customer-card,.home-nav-btn");
+    if (target) {
+      target.classList.add("is-pressed");
+      if (target.matches(".home-action")) hapticTap();
+    }
+  });
+
+  ["pointerup", "pointercancel", "pointerleave", "blur"].forEach((evtName) =>
+    window.addEventListener(evtName, clearHomepagePresses, true)
+  );
+
+  window.addEventListener("scroll", () => {
+    if ("ready" === state.homepage.phase) clearHomepagePresses();
+  }, { passive: true });
+
+  elements.viewCustomers.addEventListener("keydown", (e) => {
+    if (" " !== e.key && "Enter" !== e.key) return;
+    const target = e.target.closest(".home-action,.home-alert,.home-customer-card,.home-nav-btn");
+    if (target) {
+      target.classList.add("is-pressed");
+      if (target.matches(".home-action")) hapticTap();
+      if (target.matches(".home-action,.home-alert,.home-nav-btn")) e.preventDefault();
+    }
+  });
+
+  window.addEventListener("keyup", clearHomepagePresses);
+  elements.homeReady.addEventListener("click", (e) => {
+    if (e.target.closest(".home-action,.home-alert")) e.preventDefault();
+  });
+
+  elements.viewCustomer.addEventListener("pointerdown", (e) => {
+    const target = e.target.closest(".cust-banner,.cust-nav-btn,.cust-order-card");
+    if (target) target.classList.add("is-pressed");
+  });
+
+  elements.viewCustomer.addEventListener("keydown", (e) => {
+    if (" " !== e.key && "Enter" !== e.key) return;
+    const target = e.target.closest(".cust-banner,.cust-nav-btn,.cust-order-card");
+    if (target) {
+      target.classList.add("is-pressed");
+      if (target.matches(".cust-banner")) e.preventDefault();
+    }
+  });
+
+  window.addEventListener("scroll", () => {
+    if (document.body.classList.contains("is-custpage") ||
+        document.body.classList.contains("is-custeditpage") ||
+        document.body.classList.contains("is-orderpage") ||
+        document.body.classList.contains("is-moodboardpage")) {
+      clearHomepagePresses();
+    }
+  }, { passive: true });
+
+  elements.viewCustomer.addEventListener("click", (e) => {
+    if (e.target.closest(".cust-banner")) e.preventDefault();
+  });
+
+  elements.viewOrder.addEventListener("pointerdown", (e) => {
+    const target = e.target.closest(".order-nav-btn,.order-action,.order-schedule-record,.order-choice");
+    if (target && !target.disabled) target.classList.add("is-pressed");
+  });
+
+  elements.viewOrder.addEventListener("keydown", (e) => {
+    if (" " !== e.key && "Enter" !== e.key) return;
+    const target = e.target.closest(".order-nav-btn,.order-action,.order-schedule-record,.order-choice");
+    if (target && !target.disabled) {
+      target.classList.add("is-pressed");
+      if (" " === e.key && target.matches("#orderHistoryBtn,.order-schedule-record")) e.preventDefault();
+    }
+  });
+
+  elements.viewOrder.addEventListener("click", (e) => {
+    if (e.target.closest("#orderHistoryBtn,#uploadDesignBtn,.order-schedule-record")) e.preventDefault();
+    if (e.target.closest(".js-order-schedule-retry")) retryOrderSchedule();
+  });
+
+  elements.viewCustomerEdit.addEventListener("pointerdown", (e) => {
+    const target = e.target.closest(".cust-banner,.cust-nav-btn,.custedit-segmented__btn,.custedit-danger__btn");
+    if (target) target.classList.add("is-pressed");
+  });
+
+  elements.viewCustomerEdit.addEventListener("keydown", (e) => {
+    if (" " !== e.key && "Enter" !== e.key) return;
+    const target = e.target.closest(".cust-banner,.cust-nav-btn,.custedit-segmented__btn,.custedit-danger__btn");
+    if (target) target.classList.add("is-pressed");
+  });
+
+  elements.saveBtn.addEventListener("pointerdown", () => {
+    if (document.body.classList.contains("is-custeditpage")) elements.saveBtn.classList.add("is-pressed");
+  });
+
+  function readableAnswer(fieldObj) {
+    const val = fieldObj && fieldObj.value;
+    if (null == val || "" === val) return "";
+    if (!Array.isArray(val)) return "object" === typeof val ? JSON.stringify(val) : String(val);
+    const opts = fieldObj.options || [];
+    return val.map((id) => {
+      const match = opts.filter((o) => o.id === id)[0];
+      return match ? match.text : String(id);
+    }).filter(Boolean).join(", ");
+  }
+
+  async function acceptEnquiry() {
+    const enq = state.enquiry;
+    if (enq && "new" === enq.status) {
+      try {
+        const createdCust = await db.createCustomer(
+          Object.assign(
+            {
+              name: enq.name || "Unnamed enquiry",
+              phone: enq.phone,
+              instagram: enq.instagram,
+              source: CUSTOMER_SOURCES.includes(enq.source) ? enq.source : "Other",
+              wedding_date: enq.wedding_date,
+              wedding_date_precision: "month" === enq.wedding_date_precision ? "month" : "day",
+              notes: enq.notes
+            },
+            followUpPatch(CHECK_IN_CONFIG, U.todayISO())
+          )
+        );
+        await db.resolveIntake(enq.id, "accepted", createdCust.id);
+        state.customer = createdCust;
+        state.customerOrders = [];
+        await pushFollowUp();
+        showToast("Customer created");
+        leaveFormFor("#/customer/" + createdCust.id);
+      } catch (err) {
+        console.error(err);
+        showToast(err.message || "Could not create the customer");
+      }
+    }
+  }
+
+  async function dismissEnquiry() {
+    const enq = state.enquiry;
+    if (enq && "new" === enq.status && window.confirm("Dismiss this enquiry? It stays on record but creates nothing.")) {
+      try {
+        await db.resolveIntake(enq.id, "dismissed", null);
+        showToast("Enquiry dismissed");
+        leaveFormFor("#/customers");
+      } catch (err) {
+        console.error(err);
+        showToast(err.message || "Could not dismiss the enquiry");
+      }
+    }
+  }
+
+  function renderCustomerList() {
+    const query = elements.customerSearch.value.trim().toLowerCase();
+    const filtered = state.customers
+      .filter((c) => !query || [c.name, c.phone, c.instagram].some((val) => String(val || "").toLowerCase().includes(query)))
+      .sort(compareHomepageCustomers);
+
+    if (!filtered.length) {
+      const searchVal = elements.customerSearch.value.trim();
+      elements.customerList.innerHTML = state.customers.length
+        ? '<p class="empty">No match for “' + U.escapeHtml(searchVal) + '”.</p><a class="btn btn--outline btn--new btn--block btn--empty" href="#/customer/new/edit?name=' + encodeURIComponent(searchVal) + '">+ Add “' + U.escapeHtml(searchVal) + '” as a new customer</a>'
+        : '<p class="empty">No customers yet.</p>';
+      return;
+    }
+
+    elements.customerList.innerHTML = filtered.map((c) => {
+      const orders = state.overview.ordersByCustomer[c.id] || [];
+      const sumTotal = orders.reduce((acc, o) => acc + docs.computeTotal(o.items), 0);
+      const statusInfo = homepageStatus(c, orders);
+      const metaText = orders.length + " order" + (1 === orders.length ? "" : "s");
+
+      return '<div class="home-customer-record"><div class="home-grid-rule"></div><div class="home-customer-record__inset"><a class="home-customer-card home-customer-card--' + statusInfo.tone + '" href="#/customer/' + encodeURIComponent(c.id) + '" aria-label="' + U.escapeHtml((c.name || "Unnamed customer") + ", " + statusInfo.label) + '"><span class="home-customer-card__face"><span class="home-customer-card__top"><span class="home-customer-card__name">' + U.escapeHtml(c.name || "Unnamed customer") + '</span><span class="home-customer-card__badge">' + U.escapeHtml(statusInfo.label) + '</span></span>' + ("Cancelled" === statusInfo.label ? "" : '<span class="home-customer-card__meta"><span>' + U.escapeHtml(metaText) + '</span><span>' + U.formatRupiah(sumTotal) + '</span></span>') + '</span><span class="home-customer-card__rail"></span></a></div><div class="home-grid-rule"></div><div class="home-grid-spacer" aria-hidden="true"></div></div>';
+    }).join('');
+  }
+
+  function homepageStatus(customerRecord, ordersList) {
+    const orders = ordersList || [];
+    if (customerRecord.cancelled_at) {
+      return { label: "Cancelled", tone: "quiet", rank: 5 };
+    }
+    if (orders.some((o) => "In production" === o.status)) {
+      return { label: "In production", tone: "production", rank: 0 };
+    }
+    if (orders.some((o) => "Confirmed" === o.status)) {
+      return { label: "Invoice sent", tone: "invoice", rank: 1 };
+    }
+    if (orders.some((o) => "Quoted" === o.status)) {
+      return { label: "Quote sent", tone: "invoice", rank: 2 };
+    }
+    if (orders.length) {
+      return { label: "Finished", tone: "quiet", rank: 4 };
+    }
+    return { label: "In consultation", tone: "consultation", rank: 3 };
+  }
+
+  function compareHomepageCustomers(a, b) {
+    const statusA = homepageStatus(a, state.overview.ordersByCustomer[a.id] || []);
+    const statusB = homepageStatus(b, state.overview.ordersByCustomer[b.id] || []);
+    if (statusA.rank !== statusB.rank) return statusA.rank - statusB.rank;
+
+    const deadA = nextDeadline(a);
+    const deadB = nextDeadline(b);
+    const dateA = deadA ? deadA.date : "9999-12-31";
+    const dateB = deadB ? deadB.date : "9999-12-31";
+    if (dateA !== dateB) return dateA.localeCompare(dateB);
+
+    const wedA = a.wedding_date || "9999-12-31";
+    const wedB = b.wedding_date || "9999-12-31";
+    if (wedA !== wedB) return wedA.localeCompare(wedB);
+
+    return String(a.name || "").localeCompare(String(b.name || ""), undefined, { sensitivity: "base" });
+  }
+
+  const isActive = (c) => !["Cancelled", "Completed"].includes(customerStatus(c, state.overview.ordersByCustomer[c.id]));
+
+  function nextDeadline(customerRecord) {
+    const today = U.todayISO();
+    const list = [];
+    if (customerRecord.wedding_date) list.push({ date: customerRecord.wedding_date, what: "Wedding" });
+    if (customerRecord.follow_up_date) list.push({ date: customerRecord.follow_up_date, what: customerRecord.follow_up_label || "Follow up" });
+
+    (state.overview.eventsByCustomer[customerRecord.id] || []).filter((e) => !e.end_date).forEach((e) => {
+      list.push({ date: e.event_date, what: e.stage });
+    });
+
+    return list.filter((item) => item.date >= today).sort((a, b) => (a.date < b.date ? -1 : 1))[0] || null;
+  }
+
+  const relativeDays = (days) => (0 === days ? "today" : 1 === days ? "tomorrow" : "in " + days + " days");
+  const firstName = (fullName) => (fullName || "").trim().split(/\s+/)[0] || "";
+
+  const NEW_CUSTOMER_TEMPLATE = {
+    id: null,
+    name: "",
+    phone: "",
+    instagram: "",
+    source: "",
+    wedding_date: "",
+    notes: ""
+  };
+
+  const daysUntil = (targetIso) => Math.round((new Date(targetIso) - new Date(U.todayISO())) / 86400000);
+  const isApproximateWedding = (cust) => !(!cust || !cust.wedding_date || "month" !== cust.wedding_date_precision);
+
+  function weddingText(cust) {
+    if (!cust || !cust.wedding_date) return "Not set";
+    return isApproximateWedding(cust)
+      ? U.formatLongDate(cust.wedding_date).replace(/^\d+\s/, "") + " (approximate)"
+      : U.formatShortDate(cust.wedding_date);
+  }
+
+  /* ---------------- Customer Detail & Edit Controller --------------- */
+
+  async function showCustomerDetail(customerId) {
+    if ("new" === customerId) {
+      const hashVal = String(location.hash || "");
+      const qIdx = hashVal.indexOf("?");
+      return go("#/customer/new/edit" + (-1 === qIdx ? "" : hashVal.slice(qIdx)));
+    }
+    setChrome({ title: "Customer", up: { label: "Customers", hash: "#/customers" }, save: false, custpage: true });
+    state.order = null;
+    state.schedule = null;
+    state.loggedDeposits = {};
+    state.customerOrders = [];
+
+    elements.custEditBtn.href = "#/customer/" + encodeURIComponent(customerId) + "/edit";
+    elements.custOrderList.innerHTML = "";
+
+    const res = await Promise.all([db.getCustomer(customerId), db.listOrders(customerId)]);
+    state.customer = res[0];
+    state.customerOrders = res[1];
+
+    fillCustomerForm(res[0]);
+    setDirty(false);
+    renderCustomerDetail(res[0], res[1]);
+    renderCustomerReadOnly(res[0]);
+  }
+
+  async function showCustomerEdit(customerId, queryParams) {
+    const isNew = "new" === customerId;
+    const backHash = isNew ? "#/customers" : "#/customer/" + encodeURIComponent(customerId);
+
+    setChrome({
+      title: isNew ? "New customer" : "Edit customer",
+      up: { label: isNew ? "Customers" : "Customer", hash: backHash },
+      save: true,
+      custedit: true
+    });
+
+    state.order = null;
+    state.schedule = null;
+    state.loggedDeposits = {};
+    state.customerOrders = [];
+
+    elements.custEditCancel.href = backHash;
+    elements.custEditTitle.textContent = isNew ? "New customer" : "Edit customer";
+
+    if (isNew) {
+      const initialName = String((queryParams && queryParams.get("name")) || "").trim();
+      state.customer = Object.assign({}, NEW_CUSTOMER_TEMPLATE);
+      if (initialName) state.customer.name = initialName;
+
+      fillCustomerForm(state.customer);
+      setDirty(!!initialName);
+
+      elements.viewSub.hidden = true;
+      elements.cancelCustomer.hidden = true;
+      elements.reopenCustomer.hidden = true;
+      elements.deleteCustomerRow.hidden = true;
+
+      (initialName ? elements.cPhone : elements.cName).focus();
+      return;
+    }
+
+    const res = await Promise.all([db.getCustomer(customerId), db.listOrders(customerId)]);
+    state.customer = res[0];
+    state.customerOrders = res[1];
+    fillCustomerForm(res[0]);
+    setDirty(false);
+    renderCustomerReadOnly(res[0]);
+  }
+
+  function renderCustomerReadOnly(customerRecord) {
+    const orders = openCustomerOrders();
+    const statusVal = customerStatus(customerRecord, orders);
+    elements.viewSub.innerHTML = '<span class="' + badgeClass(statusVal) + '">' + U.escapeHtml(statusVal) + '</span>';
+    elements.viewSub.hidden = false;
+    elements.cancelCustomer.hidden = !canCancel(customerRecord, orders);
+    elements.reopenCustomer.hidden = !customerRecord.cancelled_at;
+    elements.deleteCustomerRow.hidden = !customerRecord.id;
+  }
+
+  function custNextEvent(customerRecord, ordersList) {
+    const today = U.todayISO();
+    const events = [];
+
+    if (customerRecord.follow_up_date) {
+      events.push({ date: customerRecord.follow_up_date, what: customerRecord.follow_up_label || "Follow up" });
+    }
+    (ordersList || []).forEach((o) => {
+      const anchor = productionAnchor(o);
+      if (anchor) {
+        calendar.computeProduction(anchor, customerRecord.wedding_date).events.forEach((evt) => {
+          events.push({ date: evt.event_date, what: evt.stage });
+        });
+      }
+    });
+    if (customerRecord.wedding_date) {
+      events.push({ date: customerRecord.wedding_date, what: "Wedding" });
+    }
+
+    return events.filter((e) => e.date >= today).sort((a, b) => (a.date < b.date ? -1 : 1))[0] || null;
+  }
+
+  function custOrderStatus(orderRecord) {
+    const effStatus = effectiveStatus(orderRecord);
+    if ("In production" === effStatus) return { label: "In production", tone: "production" };
+    if ("Confirmed" === effStatus) return { label: "Invoice sent", tone: "invoice" };
+    if ("Quoted" === effStatus) return { label: "Quote sent", tone: "invoice" };
+    return { label: "Finished", tone: "quiet" };
+  }
+
+  function renderCustomerDetail(customerRecord, ordersList) {
+    const orders = ordersList || [];
+    elements.custHeroName.textContent = customerRecord.name || "Unnamed customer";
+    elements.custWeddingText.textContent = customerRecord.wedding_date
+      ? (isApproximateWedding(customerRecord) ? weddingText(customerRecord) : U.formatShortDate(customerRecord.wedding_date)) + " (" + relativeToToday(customerRecord.wedding_date) + ")"
+      : "Not set";
+
+    const nextEvt = custNextEvent(customerRecord, orders);
+    elements.custNextLabel.textContent = nextEvt ? "Next: " + nextEvt.what : "Next event";
+    elements.custNextDate.textContent = nextEvt ? U.formatShortDate(nextEvt.date) + " (" + relativeToToday(nextEvt.date) + ")" : "Nothing scheduled";
+    elements.custOrdersCount.textContent = orders.length + " order" + (1 === orders.length ? "" : "s");
+    elements.custOrdersSum.textContent = U.formatRupiah(orders.reduce((sum, o) => sum + docs.computeTotal(o.items), 0));
+
+    elements.custOrderList.innerHTML = orders.length
+      ? orders.map((o) => {
+          const st = custOrderStatus(o);
+          const itemLen = (o.items || []).length;
+          return '<div class="cust-grid-spacer" aria-hidden="true"></div><div class="cust-grid-rule"></div><div class="cust-order-record__inset"><a class="cust-order-card cust-order-card--' + st.tone + '" href="#/order/' + encodeURIComponent(o.id) + '" aria-label="' + U.escapeHtml(orderLabel(o) + ", " + st.label) + '"><span class="cust-order-card__face"><span class="cust-order-card__top"><span class="cust-order-card__name">' + U.escapeHtml(orderLabel(o)) + '</span><span class="cust-order-card__badge">' + U.escapeHtml(st.label) + '</span></span><span class="cust-order-card__meta"><span>' + itemLen + " item" + (1 === itemLen ? "" : "s") + '</span><span>' + U.formatRupiah(docs.computeTotal(o.items)) + '</span></span></span><span class="cust-order-card__rail" aria-hidden="true"></span></a></div><div class="cust-grid-rule"></div>';
+        }).join('') + '<div class="cust-grid-spacer" aria-hidden="true"></div>'
+      : '<div class="cust-grid-spacer" aria-hidden="true"></div><p class="empty">No orders for this customer yet.</p><div class="cust-grid-spacer" aria-hidden="true"></div>';
+  }
+
+  function relativeToToday(isoDate) {
+    const diff = daysUntil(isoDate);
+    if (diff >= 0) return relativeDays(diff);
+    const abs = Math.abs(diff);
+    return abs + (1 === abs ? " day" : " days") + " ago";
+  }
+
+  function fillCustomerForm(cust) {
+    elements.cName.value = cust.name || "";
+    elements.cPhone.value = cust.phone || "";
+    elements.cInstagram.value = cust.instagram || "";
+    elements.cSource.value = cust.source || "";
+    elements.cNotes.value = cust.notes || "";
+    elements.cWedding.value = cust.wedding_date || "";
+    elements.cWeddingMonth.value = (cust.wedding_date || "").slice(0, 7);
+    setWeddingPrecision("month" === cust.wedding_date_precision ? "month" : "day");
+    elements.cMoodboardDate.value = cust.moodboard_date || "";
+    elements.cFollowUpDate.value = cust.follow_up_date || "";
+    elements.cFollowUpLabel.value = cust.follow_up_label || "";
+    elements.cCancelledReason.value = cust.cancelled_reason || "";
+    elements.cCancelledField.hidden = !cust.cancelled_at;
+    setNameError(false);
+  }
+
+  function setNameError(isErr) {
+    const cardEl = elements.cName.closest(".custedit-card");
+    elements.cName.classList.toggle("is-invalid", isErr);
+    if (cardEl) cardEl.classList.toggle("is-invalid", isErr);
+    elements.cName.setAttribute("aria-invalid", String(!!isErr));
+    elements.errCName.hidden = !isErr;
+  }
+
+  function setWeddingPrecision(prec) {
+    const isMonth = "month" === prec;
+    elements.cWedding.hidden = isMonth;
+    elements.cWeddingMonth.hidden = !isMonth;
+    $$(".custedit-segmented__btn", elements.cWeddingPrecision).forEach((btn) => {
+      const active = ("month" === btn.dataset.precision) === isMonth;
+      btn.classList.toggle("is-on", active);
+      btn.setAttribute("aria-pressed", String(active));
+    });
+  }
+
+  const weddingPrecision = () => elements.cWeddingMonth.hidden ? "day" : "month";
+
+  function lastDayOfMonth(yearMonthStr) {
+    const match = /^(\d{4})-(\d{2})$/.exec(String(yearMonthStr || ""));
+    if (!match) return null;
+    const dateObj = new Date(Date.UTC(Number(match[1]), Number(match[2]), 0));
+    return calendar.fromDay(Math.round(dateObj.getTime() / 86400000));
+  }
+
+  async function saveCustomer() {
+    if ("" === elements.cName.value.trim()) {
+      setNameError(true);
+      elements.cName.scrollIntoView({ block: "center", behavior: "smooth" });
+      elements.cName.focus({ preventScroll: true });
+      showToast("Add the customer name to save");
+      return false;
+    }
+
+    const payload = (function () {
+      const isMonth = "month" === weddingPrecision();
+      return {
+        name: elements.cName.value.trim(),
+        phone: orNull(elements.cPhone.value),
+        instagram: orNull(elements.cInstagram.value),
+        source: orNull(elements.cSource.value),
+        wedding_date: isMonth ? lastDayOfMonth(elements.cWeddingMonth.value) : orNull(elements.cWedding.value),
+        wedding_date_precision: isMonth ? "month" : "day",
+        moodboard_date: orNull(elements.cMoodboardDate.value),
+        follow_up_date: orNull(elements.cFollowUpDate.value),
+        follow_up_label: orNull(elements.cFollowUpLabel.value),
+        cancelled_reason: orNull(elements.cCancelledReason.value),
+        notes: orNull(elements.cNotes.value)
+      };
+    })();
+
+    if (state.customer.id) {
+      const prevCust = state.customer;
+      state.customer = await db.updateCustomer(state.customer.id, payload);
+      setDirty(false);
+
+      if (prevCust.wedding_date !== state.customer.wedding_date) {
+        await (async function () {
+          try {
+            const orders = await db.listOrders(state.customer.id);
+            for (const o of orders) {
+              if (!productionAnchor(o)) continue;
+              const res = await rescheduleOrder(o, state.customer);
+              if (res.changed) {
+                await db.logOrderHistory(o.id, "scheduled", { count: res.rows.length, dropped: res.computed.dropped });
+              }
+            }
+          } catch (err) {
+            console.error(err);
+            showToast("Saved, but the fitting schedules could not be rebuilt");
+          }
+        })();
+      }
+
+      if (prevCust.moodboard_date !== state.customer.moodboard_date) {
+        await setFollowUp(consultNudgeFor(state.customer, openCustomerOrders()));
+      } else if (prevCust.follow_up_date !== state.customer.follow_up_date || prevCust.follow_up_label !== state.customer.follow_up_label) {
+        await pushFollowUp();
+      }
+
+      renderCustomerReadOnly(state.customer);
+      showToast("Customer saved");
+      leaveFormFor("#/customer/" + state.customer.id);
+    } else {
+      state.customer = await db.createCustomer(
+        Object.assign(payload, payload.follow_up_date ? {} : followUpPatch(CHECK_IN_CONFIG, U.todayISO()))
+      );
+      setDirty(false);
+      showToast("Customer created");
+      leaveFormFor("#/customer/" + state.customer.id);
+    }
+    return true;
+  }
+
+  const scheduleFor = (orderRec, custRec, eventsList) =>
+    calendar.computeSchedule(designAnchor(orderRec), productionAnchor(orderRec), custRec && custRec.wedding_date, calendar.pinsFrom(eventsList));
+
+  /* ------------------ Order Detail ViewModel & UI ------------------ */
+
+  function isCurrentOrderLoad(token, orderId) {
+    return token === state.orderDetail.loadToken && !!state.route && "order" === state.route.view && state.route.id === orderId;
+  }
+
+  function clearOrderPresses() {
+    elements.viewOrder.querySelectorAll(".is-pressed").forEach((el) => el.classList.remove("is-pressed"));
+  }
+
+  function closeOrderPaymentChooser() {
+    elements.paymentChooser.classList.remove("is-open");
+    elements.paymentChooser.hidden = true;
+    elements.logPaymentBtn.setAttribute("aria-expanded", "false");
+  }
+
+  function beginOrderLoad(orderId) {
+    const token = ++state.orderDetail.loadToken;
+    state.orderDetail.phase = "loading";
+    state.orderDetail.orderId = orderId;
+    state.orderDetail.vm = null;
+    state.orderDetail.sectionErrors = {};
+    state.orderDetail.paymentBusy = false;
+    state.orderDetail.documentBusy = null;
+
+    clearOrderPresses();
+    closeOrderPaymentChooser();
+
+    elements.paymentError.hidden = true;
+    elements.orderStage.setAttribute("aria-busy", "true");
+    elements.orderStage.style.height = "";
+    elements.orderLoadingStatus.textContent = "Loading order details.";
+    elements.orderLoading.hidden = false;
+    elements.orderLoading.classList.remove("is-transitioning", "is-hidden");
+    elements.orderError.hidden = true;
+    elements.orderError.innerHTML = "";
+    elements.orderReady.hidden = true;
+    elements.orderReady.classList.remove("is-transitioning", "is-visible", "is-measuring");
+
+    return token;
+  }
+
+  function orderErrorCopy(err) {
+    if (err && ("PGRST116" === err.code || /0 rows/i.test(err.message || ""))) return "This order no longer exists.";
+    if (err instanceof TypeError) return "Could not load this order. Check your connection and try again.";
+    if (db.isStaleToken(err)) return "Your session expired. Unlock the app and try again.";
+    return err && err.message ? "Could not load this order. " + err.message : "Could not load this order. Try again in a moment.";
+  }
+
+  function renderOrderError(err, token, orderId, custId) {
+    if (!isCurrentOrderLoad(token, orderId)) return;
+    console.error(err);
+    state.orderDetail.phase = "error";
+    elements.orderLoading.hidden = true;
+    elements.orderLoading.classList.remove("is-transitioning", "is-hidden");
+    elements.orderReady.hidden = true;
+    elements.orderStage.style.height = "";
+    elements.orderStage.setAttribute("aria-busy", "false");
+    elements.orderLoadingStatus.textContent = "";
+    elements.orderError.hidden = false;
+
+    elements.orderError.innerHTML =
+      '<div class="order-error-panel">' +
+      '<p class="order-error-panel__title">Could not open this order.</p>' +
+      '<p class="order-error-panel__hint">' + U.escapeHtml(orderErrorCopy(err)) + '</p>' +
+      '<div class="order-error-panel__actions">' +
+      '<button type="button" class="order-error__btn js-order-retry">Try again</button>' +
+      '<a class="order-error__btn order-error__btn--quiet" href="' + (custId ? "#/customer/" + encodeURIComponent(custId) : "#/customers") + '">' + (custId ? "Back to customer" : "Back to customers") + '</a>' +
+      '</div></div>';
+
+    const retryBtn = elements.orderError.querySelector(".js-order-retry");
+    retryBtn.addEventListener("click", () => { showOrderDetail(orderId); });
+    requestAnimationFrame(() => retryBtn.focus({ preventScroll: true }));
+  }
+
+  const orderFirstName = (fullName) => {
+    const fName = String(fullName || "").trim().split(/\s+/)[0] || "";
+    return fName ? "(" + fName + ")" : "Back";
+  };
+
+  function relativeDateLabel(isoDate, todayIso) {
+    const diff = calendar.daysBetween(todayIso, isoDate);
+    if (null === diff) return "";
+    if (0 === diff) return "today";
+    if (1 === diff) return "tomorrow";
+    if (-1 === diff) return "yesterday";
+    return diff > 0 ? "in " + diff + " days" : -diff + " days ago";
+  }
+
+  function orderDateLabel(isoDate) {
+    const fmt = U.formatShortDate(isoDate);
+    if (!fmt) return "";
+    return String(isoDate).slice(0, 4) === U.todayISO().slice(0, 4) ? fmt.replace(/\s\d{4}$/, "") : fmt;
+  }
+
+  function pushInto(mapObj, key, val) {
+    const list = mapObj.get(key) || [];
+    list.push(val);
+    mapObj.set(key, list);
+  }
+
+  function deriveLoggedDeposits(historyList) {
+    const result = {};
+    (historyList || []).forEach((item) => {
+      if ("payment_logged" !== item.action) return;
+      const idx = item.detail && item.detail.deposit_index;
+      if (null != idx) result[idx] = item.created_at;
+    });
+    return result;
+  }
+
+  function orderScheduleModel(orderDetailObj) {
+    const prodEvents = (orderDetailObj.events || [])
+      .filter((e) => calendar.isProductionStage(e.stage))
+      .slice()
+      .sort((a, b) => calendar.stageOrder(a.stage) - calendar.stageOrder(b.stage));
+
+    const stageSessionMap = new Map();
+    const sessionListMap = new Map();
+    const photoListMap = new Map();
+    const today = U.todayISO();
+
+    (orderDetailObj.sessions || []).forEach((s) => {
+      stageSessionMap.set(s.id, s.stage);
+      pushInto(sessionListMap, s.stage, s);
+    });
+
+    (orderDetailObj.photos || []).forEach((p) => {
+      const stageName = p.session_id && stageSessionMap.get(p.session_id) || p.stage;
+      if (stageName) pushInto(photoListMap, stageName, p);
+    });
+
+    const records = prodEvents.map((e) => {
+      const sessions = sessionListMap.get(e.stage) || [];
+      const photos = photoListMap.get(e.stage) || [];
+      return {
+        stage: e.stage,
+        dateLabel: orderDateLabel(e.event_date),
+        relativeLabel: relativeDateLabel(e.event_date, today),
+        completed: sessions.some((s) => "completed" === s.status),
+        photoCount: photos.length,
+        thumbnails: photos.slice(0, 3).map((p) => KK.fittings.imageURL(p, 100)).filter(Boolean)
+      };
+    });
+
+    const sched = scheduleFor(orderDetailObj.order, orderDetailObj.customer, orderDetailObj.events || []);
+    return {
+      records,
+      message: records.length ? "" : sched.production.reason || sched.reason || "No fittings scheduled yet.",
+      warning: records.length && isApproximateWedding(orderDetailObj.customer) ? "These dates are estimates until the exact wedding date is confirmed." : ""
+    };
+  }
+
+  function buildOrderDetailViewModel(paramObj) {
+    const ord = paramObj.order;
+    const cust = paramObj.customer;
+    const items = ord.items || [];
+    const validItems = items.filter(isNamed);
+    const totalAmount = docs.computeTotal(items);
+    const costedItems = validItems.filter(isCosted);
+
+    const estProfit = costedItems.reduce((acc, it) => acc + ((Number(it.price) || 0) - (Number(it.cost) || 0)) * (Number(it.qty) || 0), 0);
+    const docName = String(ord.doc_name || (cust && cust.name) || "").trim();
+    const canDownloadDocs = validItems.length > 0 && totalAmount > 0;
+    const terms = docs.termsFor(ord);
+    const termAmts = docs.termAmounts(totalAmount, terms);
+    const deposits = paramObj.loggedDeposits || {};
+
+    return {
+      order: ord,
+      customer: cust,
+      title: orderLabel(ord),
+      backHref: "#/customer/" + encodeURIComponent(ord.customer_id),
+      backLabel: orderFirstName(cust && cust.name),
+      editHref: "#/order/" + encodeURIComponent(ord.id) + "/edit",
+      items: validItems.map((it) => ({
+        name: String(it.name),
+        qtyLabel: String(Number(it.qty) || 0),
+        priceLabel: U.formatRupiah(it.price)
+      })),
+      total: totalAmount,
+      totalLabel: U.formatRupiah(totalAmount),
+      profit: {
+        value: estProfit,
+        label: costedItems.length ? U.formatRupiah(estProfit) : "—",
+        caveat: costedItems.length
+          ? (costedItems.length < validItems.length ? "Based on " + costedItems.length + " of " + validItems.length + " costed items." : "")
+          : (validItems.length ? "No production costs filled in yet." : "")
+      },
+      documents: {
+        canDownload: canDownloadDocs && "" !== docName,
+        disabledReason: canDownloadDocs
+          ? ("" !== docName ? "" : "Add the name for documents to enable downloads.")
+          : "Add a priced item to enable downloads."
+      },
+      paymentsPriced: totalAmount > 0,
+      paymentsUnknown: !!paramObj.paymentsUnknown,
+      payments: terms.map((t, idx) => ({
+        index: idx,
+        label: t.label,
+        amount: termAmts[idx],
+        amountLabel: U.formatRupiah(termAmts[idx]),
+        paidAt: deposits[idx] || null,
+        paidDateLabel: deposits[idx] ? "Paid " + orderDateLabel(deposits[idx]) : ""
+      })),
+      schedule: orderScheduleModel(paramObj)
+    };
+  }
+
+  function renderOrderItems(vm) {
+    const rowsHtml = vm.items.map((it) =>
+      '<div class="order-items__row"><span class="order-items__name" title="' + U.escapeHtml(it.name) + '">' + U.escapeHtml(it.name) + '</span><span class="order-items__qty">' + U.escapeHtml(it.qtyLabel) + '</span><span class="order-items__price">' + U.escapeHtml(it.priceLabel) + '</span></div>'
+    ).join('');
+
+    const caveatText = vm.profit.caveat;
+    elements.oItemsDisplay.innerHTML =
+      '<div class="order-items__row order-items__row--head"><span class="order-items__name">Name</span><span class="order-items__qty">Qty</span><span class="order-items__price">Price</span></div>' +
+      (rowsHtml || '<p class="order-items__empty">No items yet. Tap edit to add one.</p>') +
+      '<div class="order-items__rule" aria-hidden="true"></div>' +
+      '<div class="order-items__totals"><div class="order-items__row order-items__row--total"><span class="order-items__name">Total</span><span class="order-items__price">' + U.escapeHtml(vm.totalLabel) + '</span></div><div class="order-items__row order-items__row--profit"><span class="order-items__name">Est. profit</span><span class="order-items__price"' + (caveatText ? ' title="' + U.escapeHtml(caveatText) + '"' : '') + '>' + U.escapeHtml(vm.profit.label) + '</span></div>' +
+      (caveatText ? '<p class="sr-only">' + U.escapeHtml(caveatText) + '</p>' : '') +
+      '</div>';
+  }
+
+  function renderOrderDocumentState(vm) {
+    const enabled = vm.documents.canDownload && !state.orderDetail.documentBusy;
+    elements.downloadQuote.disabled = !enabled;
+    elements.downloadInvoice.disabled = !enabled;
+    elements.downloadNote.textContent = vm.documents.disabledReason;
+    elements.createMoodboardBtn.disabled = !state.order;
+  }
+
+  function renderOrderPayments(vm) {
+    elements.paymentError.hidden = !elements.paymentError.textContent;
+    if (!vm.paymentsPriced) {
+      elements.paymentSummary.innerHTML = '<p class="order-items__empty">Price the items to work out the payment terms.</p>';
+      elements.logPaymentBtn.disabled = true;
+      $(".order-action__label", elements.logPaymentBtn).textContent = "Log a payment";
+      closeOrderPaymentChooser();
+      return;
+    }
+
+    elements.paymentSummary.innerHTML = vm.payments.map((p, idx) =>
+      (idx ? '<div class="order-payments__rule" aria-hidden="true"></div>' : '') +
+      '<div class="order-payment"><span class="order-payment__main"><span class="order-payment__head"><span class="order-payment__label">' + U.escapeHtml(p.label) + '</span>' +
+      (p.paidAt ? '<img class="order-payment__tick" src="assets/order-tick-icon.svg" alt="" width="16" height="16">' : '') +
+      '</span>' + (p.paidAt ? '<span class="order-payment__when">' + U.escapeHtml(p.paidDateLabel) + '</span>' : '<span class="sr-only">' + (vm.paymentsUnknown ? "Payment status unavailable" : "Outstanding") + '</span>') +
+      '</span><span class="order-payment__amount">' + U.escapeHtml(p.amountLabel) + '</span></div>'
+    ).join('');
+
+    const unpaidCount = vm.payments.filter((p) => !p.paidAt).length;
+    elements.logPaymentBtn.disabled = state.orderDetail.paymentBusy || !unpaidCount || vm.paymentsUnknown;
+    $(".order-action__label", elements.logPaymentBtn).textContent = state.orderDetail.paymentBusy ? "Logging…" : unpaidCount ? "Log a payment" : "All payments logged";
+
+    if (!unpaidCount || vm.paymentsUnknown) closeOrderPaymentChooser();
+    if (!elements.paymentChooser.hidden) renderOrderPaymentChoices(vm);
+  }
+
+  function renderOrderPaymentChoices(vm) {
+    elements.paymentChooserOptions.innerHTML = vm.payments
+      .filter((p) => !p.paidAt)
+      .map((p) =>
+        '<button type="button" class="order-choice js-log-deposit" data-i="' + p.index + '"' + (state.orderDetail.paymentBusy ? ' disabled' : '') + '><span class="order-choice__face"><span>' + U.escapeHtml(p.label) + '</span><span>' + U.escapeHtml(p.amountLabel) + '</span></span><span class="order-choice__rail" aria-hidden="true"></span></button>'
+      ).join('');
+  }
+
+  function renderOrderSchedule(vm) {
+    if (state.orderDetail.sectionErrors.schedule) {
+      elements.scheduleList.innerHTML = '<div class="order-schedule__record"><div class="order-schedule__message">Could not load the schedule.<br><button type="button" class="order-schedule__retry js-order-schedule-retry">Retry</button></div></div>';
+      return;
+    }
+
+    const sched = vm.schedule || { records: [], message: "", warning: "" };
+    if (!sched.records.length) {
+      elements.scheduleList.innerHTML = '<div class="order-schedule__record"><div class="order-schedule__message">' + U.escapeHtml(sched.message || "No fittings scheduled yet.") + '</div></div><div class="order-schedule__spacer" aria-hidden="true"></div>';
+      return;
+    }
+
+    elements.scheduleList.innerHTML =
+      (sched.warning ? '<p class="order-schedule__warning">' + U.escapeHtml(sched.warning) + '</p>' : '') +
+      sched.records.map((r) => {
+        const dateStr = r.dateLabel ? r.dateLabel + (r.relativeLabel ? " (" + r.relativeLabel + ")" : "") : "";
+        const noteStr = r.photoCount ? r.photoCount + " photo" + (1 === r.photoCount ? "" : "s") + " & notes logged" : "";
+        const ariaLbl = [r.stage, dateStr, r.completed ? "completed" : "", noteStr, "coming soon"].filter(Boolean).join(", ");
+
+        return '<div class="order-schedule__record"><button type="button" class="order-schedule-record' + (r.photoCount ? ' order-schedule-record--photos' : '') + '" aria-disabled="true" aria-label="' + U.escapeHtml(ariaLbl) + '"><span class="order-schedule-record__face"><span class="order-schedule-record__head"><span class="order-schedule-record__stage">' + U.escapeHtml(r.stage) + (r.completed ? '<img class="order-schedule-record__tick" src="assets/order-tick-icon.svg" alt="" width="16" height="16">' : '') + '</span>' + (dateStr ? '<span class="order-schedule-record__date">' + U.escapeHtml(dateStr) + '</span>' : '') + '</span>' + (r.photoCount ? '<span class="order-schedule-record__rule" aria-hidden="true"></span><span class="order-schedule-record__photos"><span class="order-schedule-record__thumbs">' + r.thumbnails.map((t) => '<img class="order-schedule-record__thumb" src="' + U.escapeHtml(t) + '" alt="" width="32" height="32" loading="lazy" onerror="this.style.visibility=\'hidden\'">').join('') + '</span><span class="order-schedule-record__count">' + U.escapeHtml(noteStr) + '</span></span>' : '') + '</span><span class="order-schedule-record__rail" aria-hidden="true"></span></button></div>';
+      }).join('<div class="order-schedule__spacer" aria-hidden="true"></div>') +
+      '<div class="order-schedule__spacer" aria-hidden="true"></div>';
+  }
+
+  function renderOrderReady(vm) {
+    state.orderDetail.vm = vm;
+    elements.orderBackBtn.href = vm.backHref;
+    elements.orderBackLabel.textContent = vm.backLabel;
+    elements.orderBackBtn.setAttribute("aria-label", "Back to " + (vm.customer && vm.customer.name || "customer"));
+    elements.orderEditBtn.href = vm.editHref;
+    elements.orderTitle.textContent = vm.title;
+
+    renderOrderItems(vm);
+    renderOrderDocumentState(vm);
+    renderOrderPayments(vm);
+    renderOrderSchedule(vm);
+
+    elements.orderReady.hidden = false;
+    elements.orderReady.classList.add("is-measuring");
+  }
+
+  async function revealOrder(token) {
+    await (document.fonts && document.fonts.ready || Promise.resolve());
+    await new Promise((res) => requestAnimationFrame(res));
+    if (!isCurrentOrderLoad(token, state.orderDetail.orderId)) return;
+
+    elements.orderStage.style.height = Math.ceil(elements.orderReady.getBoundingClientRect().height || elements.orderReady.scrollHeight) + "px";
+    elements.orderReady.classList.remove("is-measuring");
+    elements.orderReady.classList.add("is-transitioning");
+    elements.orderLoading.classList.add("is-transitioning");
+
+    requestAnimationFrame(() => {
+      if (isCurrentOrderLoad(token, state.orderDetail.orderId)) {
+        elements.orderReady.classList.add("is-visible");
+        elements.orderLoading.classList.add("is-hidden");
+      }
+    });
+
+    setTimeout(() => {
+      if (isCurrentOrderLoad(token, state.orderDetail.orderId)) {
+        elements.orderLoading.hidden = true;
+        elements.orderLoading.classList.remove("is-transitioning", "is-hidden");
+        elements.orderReady.classList.remove("is-transitioning", "is-visible");
+        elements.orderStage.style.height = "";
+        elements.orderStage.setAttribute("aria-busy", "false");
+        elements.orderLoadingStatus.textContent = "";
+        state.orderDetail.phase = "ready";
+      }
+    }, reducedMotion() ? 0 : 180);
+  }
+
+  async function showOrderDetail(orderId) {
+    setChrome({ title: "Order", up: { label: "Customers", hash: "#/customers" }, save: false, destroy: "order", orderpage: true });
+    setDirty(false);
+    const token = beginOrderLoad(orderId);
+
+    let ordRec, custRec;
+    try {
+      ordRec = await db.getOrder(orderId);
+      if (!isCurrentOrderLoad(token, orderId)) return;
+      custRec = await db.getCustomer(ordRec.customer_id);
+    } catch (err) {
+      if (db.isStaleToken(err)) throw err;
+      return renderOrderError(err, token, orderId, ordRec && ordRec.customer_id);
+    }
+
+    if (!isCurrentOrderLoad(token, orderId)) return;
+    state.order = ordRec;
+    state.customer = custRec;
+
+    let historyList = null;
+    let historyErr = false;
+    try {
+      historyList = await db.listOrderHistory(orderId);
+    } catch (err) {
+      if (db.isStaleToken(err)) throw err;
+      console.error(err);
+      historyErr = true;
+    }
+    if (!isCurrentOrderLoad(token, orderId)) return;
+
+    let eventsList = [];
+    let sessionsList = [];
+    let photosList = [];
+    let schedErr = false;
+
+    try {
+      const res = await Promise.all([db.listOrderEvents(orderId), db.listFittingSessions(orderId), db.listFittingPhotos(orderId)]);
+      eventsList = res[0];
+      sessionsList = res[1];
+      photosList = res[2];
+    } catch (err) {
+      if (db.isStaleToken(err)) throw err;
+      console.error(err);
+      schedErr = true;
+    }
+
+    if (!isCurrentOrderLoad(token, orderId)) return;
+
+    state.loggedDeposits = deriveLoggedDeposits(historyList);
+    state.schedule = { computed: scheduleFor(ordRec, custRec, eventsList), rows: eventsList };
+    state.orderDetail.sectionErrors = { schedule: schedErr };
+    elements.paymentError.textContent = "";
+
+    renderOrderReady(
+      buildOrderDetailViewModel({
+        order: ordRec,
+        customer: custRec,
+        loggedDeposits: state.loggedDeposits,
+        paymentsUnknown: historyErr,
+        events: eventsList,
+        sessions: sessionsList,
+        photos: photosList
+      })
+    );
+    await revealOrder(token);
+  }
+
+  async function refreshOrderPayments() {
+    const currentOrderId = state.orderDetail.orderId;
+    if (!currentOrderId || !state.order || state.order.id !== currentOrderId) return;
+
+    let historyList = null;
+    let historyErr = false;
+    try {
+      historyList = await db.listOrderHistory(currentOrderId);
+    } catch (err) {
+      console.error(err);
+      historyErr = true;
+    }
+    if (state.orderDetail.orderId !== currentOrderId) return;
+
+    state.loggedDeposits = deriveLoggedDeposits(historyList);
+    const existingVm = state.orderDetail.vm;
+    const newVm = buildOrderDetailViewModel({
+      order: state.order,
+      customer: state.customer,
+      loggedDeposits: state.loggedDeposits,
+      paymentsUnknown: historyErr,
+      events: (state.schedule && state.schedule.rows) || [],
+      sessions: [],
+      photos: []
+    });
+
+    if (existingVm) newVm.schedule = existingVm.schedule;
+    state.orderDetail.vm = newVm;
+
+    renderOrderItems(newVm);
+    renderOrderDocumentState(newVm);
+    renderOrderPayments(newVm);
+  }
+
+  async function refreshOrderSchedule() {
+    const currentOrderId = state.orderDetail.orderId;
+    if (!currentOrderId || !state.order || state.order.id !== currentOrderId) return;
+
+    try {
+      const res = await Promise.all([db.listOrderEvents(currentOrderId), db.listFittingSessions(currentOrderId), db.listFittingPhotos(currentOrderId)]);
+      if (state.orderDetail.orderId !== currentOrderId) return;
+
+      state.orderDetail.sectionErrors.schedule = false;
+      state.schedule = { computed: scheduleFor(state.order, state.customer, res[0]), rows: res[0] };
+
+      const schedModel = orderScheduleModel({
+        order: state.order,
+        customer: state.customer,
+        events: res[0],
+        sessions: res[1],
+        photos: res[2]
+      });
+
+      if (state.orderDetail.vm) {
+        state.orderDetail.vm.schedule = schedModel;
+        renderOrderSchedule(state.orderDetail.vm);
+      } else {
+        renderOrderSchedule({ schedule: schedModel });
+      }
+    } catch (err) {
+      console.error(err);
+      state.orderDetail.sectionErrors.schedule = true;
+      renderOrderSchedule(state.orderDetail.vm || {});
+    }
+  }
+
+  function retryOrderSchedule() {
+    elements.scheduleList.innerHTML = '<div class="order-schedule__record"><div class="order-schedule__message">Loading the schedule…</div></div>';
+    state.orderDetail.sectionErrors.schedule = false;
+    refreshOrderSchedule();
+  }
+
+  function toggleOrderPaymentChooser() {
+    const vm = state.orderDetail.vm;
+    if (!vm || elements.logPaymentBtn.disabled) return;
+    if (!elements.paymentChooser.hidden) return closeOrderPaymentChooser();
+
+    renderOrderPaymentChoices(vm);
+    elements.paymentChooser.hidden = false;
+    elements.logPaymentBtn.setAttribute("aria-expanded", "true");
+    requestAnimationFrame(() => elements.paymentChooser.classList.add("is-open"));
+  }
+
+  function setOrderPaymentBusy(isBusy) {
+    state.orderDetail.paymentBusy = isBusy;
+    elements.logPaymentBtn.setAttribute("aria-busy", isBusy ? "true" : "false");
+    const vm = state.orderDetail.vm;
+    if (vm) {
+      if (!elements.paymentChooser.hidden) renderOrderPaymentChoices(vm);
+      renderOrderPayments(vm);
+    }
+  }
+
+  function renderScheduleHint() {
+    const paramObj = {
+      payment_scheme: elements.oScheme.value,
+      first_payment_date: elements.oFirstPayment.value,
+      second_payment_date: elements.oSecondPayment.value
+    };
+
+    const sched = calendar.computeSchedule(
+      designAnchor(paramObj),
+      productionAnchor(paramObj),
+      state.customer && state.customer.wedding_date,
+      calendar.pinsFrom(state.schedule && state.schedule.rows)
+    );
+
+    const hints = [];
+    hints.push(
+      sched.design.events.length
+        ? "Design phase " + U.formatShortDate(sched.design.events[0].event_date) + " – " + U.formatShortDate(sched.design.events[0].end_date)
+        : sched.design.reason
+    );
+    hints.push(
+      sched.production.events.length
+        ? sched.production.events.length + " appointments from " + U.formatShortDate(sched.production.events[0].event_date) + " to the wedding"
+        : sched.production.reason
+    );
+
+    const warns = (sched.production.events.length && sched.production.warnings || []).map((w) => w.replace(/\.$/, ""));
+
+    elements.oScheduleHint.innerHTML =
+      '<ul class="hintbox__list">' +
+      hints.map((h) => '<li>' + U.escapeHtml(h.replace(/\.$/, "")) + '</li>').join('') +
+      warns.map((w) => '<li class="hintbox__warn">' + U.escapeHtml(w) + '</li>').join('') +
+      '</ul>';
+  }
+
+  async function rescheduleOrder(orderRecord, customerRecord) {
+    const existingEvents = await db.listOrderEvents(orderRecord.id);
+    const sched = scheduleFor(orderRecord, customerRecord, existingEvents);
+    const phases = [
+      { stages: calendar.DESIGN_STAGES, result: sched.design },
+      { stages: calendar.PRODUCTION_STAGES, result: sched.production }
+    ];
+
+    let currentEvents = existingEvents;
+    const removedEvents = [];
+
+    for (const phase of phases) {
+      const stageEvents = existingEvents.filter((e) => -1 !== phase.stages.indexOf(e.stage));
+      if (phase.result.missingAnchor && stageEvents.length) continue;
+
+      const res = await db.replaceOrderEvents(orderRecord.id, phase.result.events, phase.stages);
+      removedEvents.push.apply(removedEvents, res.removed);
+      currentEvents = res.events;
+    }
+
+    const googleEventIds = removedEvents.map((e) => e.google_event_id).filter(Boolean);
+    if (googleEventIds.length) {
+      try {
+        await db.googleForget(googleEventIds);
+      } catch (err) {
+        console.error("Dropped events left in Google Calendar:", err);
+      }
+    }
+
+    const eventKey = (e) => e.stage + "@" + e.event_date + (e.end_date ? "→" + e.end_date : "");
+    return {
+      computed: sched,
+      changed: existingEvents.map(eventKey).sort().join("|") !== currentEvents.map(eventKey).sort().join("|"),
+      rows: currentEvents
+    };
+  }
+
+  /* ---------------- Order Editor & Cost Calculator ----------------- */
+
+  const OAUTH_SCOPES = [
+    "https://www.googleapis.com/auth/calendar.events",
+    "https://www.googleapis.com/auth/drive.file"
+  ].join(" ");
+
+  const googleRedirectUri = () => location.origin + location.pathname;
+
+  function connectGoogle() {
+    const clientId = (window.KK_CONFIG || {}).GOOGLE_CLIENT_ID || "";
+    if (!clientId) {
+      elements.gcalErr.hidden = false;
+      elements.gcalErr.textContent = 'No GOOGLE_CLIENT_ID in config.js — see “Google Calendar” in the README.';
+      return;
+    }
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: googleRedirectUri(),
+      response_type: "code",
+      scope: OAUTH_SCOPES,
+      access_type: "offline",
+      prompt: "consent",
+      include_granted_scopes: "true"
+    });
+    location.href = "https://accounts.google.com/o/oauth2/v2/auth?" + params.toString();
+  }
+
+  async function showCalendarSettings() {
+    setChrome({ title: "Google Calendar", up: { label: "Customers", hash: "#/customers" }, save: false });
+    elements.gcalErr.hidden = true;
+    elements.gcalConnect.hidden = true;
+    elements.gcalDisconnect.hidden = true;
+    elements.gcalState.textContent = "Checking…";
+
+    let statusRes;
+    try {
+      statusRes = await db.googleStatus();
+    } catch (err) {
+      console.error(err);
+      elements.gcalState.textContent = "Could not reach the calendar service.";
+      elements.gcalErr.hidden = false;
+      elements.gcalErr.textContent = err.message || "";
+      elements.gcalConnect.hidden = false;
+      return;
+    }
+
+    state.googleConnected = !(!statusRes || !statusRes.connected);
+    elements.gcalState.textContent = state.googleConnected
+      ? "Connected" + (statusRes.connected_at ? " since " + U.formatShortDate(String(statusRes.connected_at).slice(0, 10)) : "") + "."
+      : "Not connected. Fitting dates stay in this app until you connect.";
+
+    elements.gcalConnect.hidden = state.googleConnected;
+    elements.gcalDisconnect.hidden = !state.googleConnected;
+  }
+
+  async function disconnectGoogle() {
+    if (window.confirm("Disconnect Google Calendar? Events already created stay where they are.")) {
+      try {
+        await db.googleDisconnect();
+        state.googleConnected = false;
+        showToast("Disconnected");
+        await showCalendarSettings();
+      } catch (err) {
+        console.error(err);
+        showToast(err.message || "Could not disconnect");
+      }
+    }
+  }
+
+  async function saveOrder() {
+    if (!validateTerms()) return false;
+
+    const itemsPayload = readItems().filter(isNamed).map((it) => ({
+      name: it.name,
+      qty: it.qty,
+      price: it.price,
+      cost: it.cost
+    }));
+
+    const schemeVal = "other" === elements.oScheme.value ? "other" : "standard";
+
+    state.order = await db.updateOrder(state.order.id, {
+      title: orNull(elements.oTitle.value),
+      doc_name: orNull(elements.oDocName.value),
+      items: itemsPayload,
+      includes: checkedIncludes(),
+      payment_scheme: schemeVal,
+      payment_terms: "other" === schemeVal ? readTerms() : [],
+      first_payment_date: orNull(elements.oFirstPayment.value),
+      second_payment_date: orNull(elements.oSecondPayment.value),
+      final_payment_date: orNull(elements.oFinalPayment.value)
+    });
+
+    setDirty(false);
+
+    try {
+      await db.logOrderHistory(state.order.id, "updated", {});
+    } catch (err) {
+      console.error(err);
+    }
+
+    try {
+      const res = await rescheduleOrder(state.order, state.customer);
+      if (res.changed) {
+        await db.logOrderHistory(state.order.id, "scheduled", { count: res.rows.length, dropped: res.computed.dropped });
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Saved, but the schedule could not be rebuilt");
+    }
+
+    return true;
+  }
+
+  function validateTerms() {
+    elements.errTerms.hidden = true;
+    if ("other" !== elements.oScheme.value) return true;
+    const terms = readTerms();
+    if (!terms.length) return showTermsError("Add at least one payment term.");
+    if (terms.some((t) => !t.label)) return showTermsError("Every term needs a label.");
+    if (terms.some((t) => null == t.percent || t.percent <= 0)) return showTermsError("Every term needs a share above 0%.");
+
+    const totalPct = roundPct(termsTotal(terms));
+    if (100 !== totalPct) return showTermsError("The shares add up to " + totalPct + "%. They have to add up to 100%.");
+
+    return true;
+  }
+
+  function addItemRow(itemData, focusNew) {
+    const rowEl = (function (data) {
+      const it = data || { name: "", qty: 1, price: "", cost: "" };
+      const el = document.createElement("div");
+      el.className = "item";
+      el.innerHTML =
+        '<div class="item__head"><span class="item__idx"></span><button type="button" class="item__remove js-remove" aria-label="Remove item">' + SVG_TRASH + '</button></div>' +
+        '<label class="field"><span class="field__label">Description</span><input class="input js-name" type="text" placeholder="e.g. Bridal skirt"></label>' +
+        '<div class="item__row2"><label class="field field--qty"><span class="field__label">Qty</span><input class="input js-qty" type="text" inputmode="numeric" value="1"></label><label class="field field--price"><span class="field__label">Price</span><span class="prefixed"><span class="prefix">Rp</span><input class="input js-price" type="text" inputmode="numeric" placeholder="0"></span></label></div>' +
+        '<span class="item__sum js-sum"></span>' +
+        '<label class="field"><span class="field__label">Est. production cost <span class="tag">Internal</span></span><div class="costfield-row"><span class="prefixed"><span class="prefix">Rp</span><input class="input js-cost" type="text" inputmode="numeric" placeholder="0"></span><button type="button" class="js-cost-calc calc-trigger" aria-label="Break down cost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01"/></svg></button></div><span class="field__hint js-costhint"></span></label>' +
+        '<span class="err js-err" hidden></span>';
+
+      $(".js-name", el).value = it.name || "";
+      $(".js-qty", el).value = null == it.qty ? 1 : it.qty;
+      $(".js-price", el).value = "" === it.price || null == it.price ? "" : U.groupDigits(it.price);
+      $(".js-cost", el).value = "" === it.cost || null == it.cost ? "" : U.groupDigits(it.cost);
+      return el;
+    })(itemData);
+
+    elements.itemList.appendChild(rowEl);
+    refreshRemoveButtons();
+    refreshItemTotals();
+    if (focusNew) $(".js-name", rowEl).focus();
+    return rowEl;
+  }
+
+  const MARGIN_TARGET_PCT = 0.35;
+
+  function refreshItemTotals() {
+    let grandTotal = 0;
+    readItems().forEach((it) => {
+      const lineTotal = it.qty * it.price;
+      grandTotal += lineTotal;
+
+      const sumEl = $(".js-sum", it.row);
+      if (sumEl) sumEl.textContent = it.qty > 1 && it.price > 0 ? U.formatRupiah(lineTotal) : "";
+
+      const hintEl = $(".js-costhint", it.row);
+      if (hintEl) {
+        const costHint = (function (priceVal, costVal) {
+          if (!priceVal) return { text: "", over: false };
+          const maxCost = Math.round(priceVal * MARGIN_TARGET_PCT);
+          return costVal > maxCost
+            ? { text: U.formatRupiah(costVal - maxCost) + " over the 35% target", over: true }
+            : { text: "Keep under " + U.formatRupiah(maxCost) + " (35% of price)", over: false };
+        })(it.price, it.cost);
+
+        hintEl.textContent = costHint.text;
+        hintEl.classList.toggle("field__hint--over", costHint.over);
+      }
+    });
+    elements.itemsTotal.textContent = grandTotal > 0 ? U.formatRupiah(grandTotal) : "";
+  }
+
+  const rowElements = () => $$(".item", elements.itemList);
+
+  function refreshRemoveButtons() {
+    const rows = rowElements();
+    rows.forEach((r) => {
+      $(".js-remove", r).disabled = rows.length <= 1;
+    });
+  }
+
+  function readItems() {
+    return rowElements().map((r) => ({
+      row: r,
+      name: $(".js-name", r).value.trim(),
+      qtyRaw: U.digitsOnly($(".js-qty", r).value),
+      priceRaw: U.digitsOnly($(".js-price", r).value),
+      costRaw: U.digitsOnly($(".js-cost", r).value),
+      get qty() { return "" === this.qtyRaw ? 0 : Number(this.qtyRaw); },
+      get price() { return "" === this.priceRaw ? 0 : Number(this.priceRaw); },
+      get cost() { return "" === this.costRaw ? 0 : Number(this.costRaw); }
+    }));
+  }
+
+  function customChip(labelStr, isChecked) {
+    return (
+      '<span class="chip chip--custom' + (isChecked ? ' is-checked' : '') + '" data-label="' + U.escapeHtml(labelStr) + '">' +
+      '<label class="chip__main"><input type="checkbox"' + (isChecked ? ' checked' : '') + '><span class="chip__box">' + SVG_CHECK + '</span><span>' + U.escapeHtml(labelStr) + '</span></label>' +
+      '<button type="button" class="chip__remove js-remove-include" aria-label="Remove ' + U.escapeHtml(labelStr) + '">' + SVG_CLOSE + '</button>' +
+      '</span>'
+    );
+  }
+
+  const checkedIncludes = () => $$(".chip", elements.includesList).filter((el) => $("input", el).checked).map((el) => el.dataset.label);
+
+  function addCustomInclude() {
+    const textVal = elements.customInclude.value.trim().replace(/\s+/g, " ");
+    if (!textVal) return;
+
+    const existingIdx = $$("[data-label]", elements.includesList)
+      .map((el) => el.dataset.label)
+      .findIndex((lbl) => lbl.toLowerCase() === textVal.toLowerCase());
+
+    if (-1 !== existingIdx) {
+      const chipEl = $$(".chip", elements.includesList)[existingIdx];
+      $("input", chipEl).checked = true;
+      chipEl.classList.add("is-checked");
+      elements.customInclude.value = "";
+      setDirty(true);
+      showToast('"' + textVal + '" is already on the list');
+      return;
+    }
+
+    elements.includesList.insertAdjacentHTML("beforeend", customChip(textVal, true));
+    elements.customInclude.value = "";
+    elements.customInclude.focus();
+    setDirty(true);
+  }
+
+  function addTermRow(termData, focusNew) {
+    const termEl = (function (data) {
+      const t = data || { label: "", percent: "", desc: "" };
+      const el = document.createElement("div");
+      el.className = "term";
+      el.innerHTML =
+        '<div class="item__head"><span class="term__idx"></span><button type="button" class="item__remove js-remove-term" aria-label="Remove term">' + SVG_TRASH + '</button></div>' +
+        '<div class="term__row"><label class="field term__namefield"><span class="field__label">Label</span><input class="input js-tlabel" type="text" maxlength="40" placeholder="e.g. Down payment"></label><label class="field term__pctfield"><span class="field__label">Share</span><span class="prefixed prefixed--suffix"><input class="input js-tpct" type="text" inputmode="decimal" placeholder="0"><span class="suffix">%</span></span></label></div>' +
+        '<label class="field"><span class="field__label">Description (optional)</span><input class="input js-tdesc" type="text" maxlength="120" placeholder="Printed under the share on the quotation"></label>';
+
+      $(".js-tlabel", el).value = t.label || "";
+      $(".js-tpct", el).value = "" === t.percent || null == t.percent ? "" : String(t.percent);
+      $(".js-tdesc", el).value = t.desc || "";
+      return el;
+    })(termData);
+
+    elements.termList.appendChild(termEl);
+    refreshTermRemoveButtons();
+    refreshTermsSum();
+    if (focusNew) $(".js-tlabel", termEl).focus();
+    return termEl;
+  }
+
+  const termRowElements = () => $$(".term", elements.termList);
+
+  function refreshTermRemoveButtons() {
+    const terms = termRowElements();
+    terms.forEach((t) => {
+      $(".js-remove-term", t).disabled = terms.length <= 1;
+    });
+  }
+
+  const parsePercent = (valStr) => {
+    const cleaned = String(valStr || "").replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1");
+    return "" === cleaned || "." === cleaned ? null : Number(cleaned);
+  };
+
+  function readTerms() {
+    return termRowElements().map((el) => ({
+      label: $(".js-tlabel", el).value.trim(),
+      percent: parsePercent($(".js-tpct", el).value),
+      desc: $(".js-tdesc", el).value.trim()
+    }));
+  }
+
+  const termsTotal = (termsList) => termsList.reduce((acc, t) => acc + (t.percent || 0), 0);
+  const roundPct = (num) => Math.round(100 * num) / 100;
+
+  function refreshTermsSum() {
+    const sumVal = roundPct(termsTotal(readTerms()));
+    const diff = roundPct(100 - sumVal);
+    elements.termsSum.textContent = "Shares total " + sumVal + "%" + (0 === diff ? "" : diff > 0 ? " — " + diff + "% short" : " — " + -diff + "% over");
+    elements.termsSum.classList.toggle("termsum--off", 0 !== diff);
+  }
+
+  function showTermsError(msg) {
+    elements.errTerms.textContent = msg;
+    elements.errTerms.hidden = false;
+    elements.termsCard.scrollIntoView({ block: "center", behavior: "smooth" });
+    return false;
+  }
+
+  function buildTerms(orderRecord) {
+    elements.termList.innerHTML = "";
+    const termsList = (orderRecord && orderRecord.payment_terms) || [];
+    const initialList = termsList.length ? termsList : [
+      { label: "Down payment", percent: 50, desc: "" },
+      { label: "Final payment", percent: 50, desc: "" }
+    ];
+    initialList.forEach((t) => addTermRow(t, false));
+  }
+
+  function syncSchemeCard() {
+    elements.termsCard.hidden = "other" !== elements.oScheme.value;
+    if (!elements.termsCard.hidden && !termRowElements().length) {
+      buildTerms(null);
+    }
+    elements.errTerms.hidden = true;
+    refreshTermsSum();
+  }
+
+  const COST_CALC_PRESETS = ["Fabric", "Tailor", "Transport", "Dry Cleaning"];
+
+  function addCalcRow(rowObj, focusNew) {
+    const calcEl = (function (data) {
+      const el = document.createElement("div");
+      el.className = "calcrow";
+      el.innerHTML =
+        '<button type="button" class="calcrow__remove js-remove-calcrow" aria-label="Remove category">' + SVG_CLOSE + '</button>' +
+        '<label class="field calcrow__label"><span class="field__label">Category</span><input class="input js-clabel" type="text" maxlength="40" placeholder="e.g. Fabric"></label>' +
+        '<label class="field calcrow__amount"><span class="field__label">Amount</span><span class="prefixed"><span class="prefix">Rp</span><input class="input js-camount" type="text" inputmode="numeric" placeholder="0"></span></label>';
+
+      $(".js-clabel", el).value = (data && data.label) || "";
+      $(".js-camount", el).value = data && data.amount ? U.groupDigits(data.amount) : "";
+      return el;
+    })(rowObj);
+
+    elements.calcRowList.appendChild(calcEl);
+    refreshCalcRemoveButtons();
+    refreshCalcTotal();
+    if (focusNew) $(".js-clabel", calcEl).focus();
+    return calcEl;
+  }
+
+  const calcRowElements = () => $$(".calcrow", elements.calcRowList);
+
+  function refreshCalcRemoveButtons() {
+    const rows = calcRowElements();
+    rows.forEach((r) => {
+      $(".js-remove-calcrow", r).disabled = rows.length <= 1;
+    });
+  }
+
+  function readCalcRows() {
+    return calcRowElements().map((r) => ({
+      label: $(".js-clabel", r).value.trim(),
+      amountRaw: U.digitsOnly($(".js-camount", r).value),
+      get amount() { return "" === this.amountRaw ? 0 : Number(this.amountRaw); }
+    }));
+  }
+
+  function refreshCalcTotal() {
+    const totalVal = readCalcRows().reduce((acc, r) => acc + r.amount, 0);
+    elements.calcTotal.textContent = U.formatRupiah(totalVal);
+    return totalVal;
+  }
+
+  const calcStateMap = new WeakMap();
+  let activeCalcItemRow = null;
+  let activeCalcFocusTarget = null;
+
+  function closeCostCalc() {
+    if (activeCalcItemRow) {
+      calcStateMap.set(
+        activeCalcItemRow,
+        readCalcRows().map((r) => ({ label: r.label, amount: r.amount }))
+      );
+    }
+    elements.calcSheet.hidden = true;
+    document.body.classList.remove("has-app-modal");
+    activeCalcItemRow = null;
+    if (activeCalcFocusTarget && document.contains(activeCalcFocusTarget)) {
+      activeCalcFocusTarget.focus();
+    }
+    activeCalcFocusTarget = null;
+  }
+
+  function applyCostCalc() {
+    const totalVal = refreshCalcTotal();
+    $(".js-cost", activeCalcItemRow).value = U.groupDigits(totalVal);
+    refreshItemTotals();
+    setDirty(true);
+    showToast("Cost updated");
+    closeCostCalc();
+  }
+
+  /* ------------------- Moodboard Integration ------------------- */
+
+  let activeMoodboardOrderId = null;
+  let activeMoodboardFocusTarget = null;
+  let isMoodboardExportBusy = false;
+
+  let moodboardPresenterState = null;
+  let isMoodboardOverlayBusy = false;
+
+  let moodboardResizeObserver = null;
+
+  const MB_EXPORTS = {
+    drive: { el: "mbUpload", idle: "Upload", busy: "Uploading…", done: "Uploaded" },
+    download: { el: "mbDownload", idle: "Download", busy: "Preparing PDF…", done: "Downloaded" }
+  };
+
+  const MB_EXPORT_TIMERS = {};
+  const MB_RECONNECT_REGEX = /not connected|revoked|reconnect|stored credential|not configured on the server/i;
+  const MB_MAX_ZOOM = 5;
+
+  function setupMoodboardListeners() {
+    const dropzoneEl = $("#mbDropzone");
+    const fileInputEl = $("#mbFileInput");
+    const addMoreBtn = $("#mbAddMore");
+    const generateBtn = $("#mbGenerate");
+    const thumbsEl = $("#mbThumbs");
+
+    let dragCounter = 0;
+
+    elements.viewMoodboard.addEventListener("pointerdown", (e) => {
+      const btn = e.target.closest(".order-nav-btn,.moodboard-action,.moodboard-strip");
+      if (btn && !btn.disabled) btn.classList.add("is-pressed");
+    });
+
+    elements.viewMoodboard.addEventListener("keydown", (e) => {
+      if (" " !== e.key && "Enter" !== e.key) return;
+      const btn = e.target.closest(".order-nav-btn,.moodboard-action,.moodboard-strip");
+      if (btn && !btn.disabled) {
+        btn.classList.add("is-pressed");
+        if (btn.matches("#mbFileBtn")) e.preventDefault();
+      }
+    });
+
+    elements.viewMoodboard.addEventListener("click", (e) => {
+      if (e.target.closest("#mbFileBtn")) e.preventDefault();
+    });
+
+    dropzoneEl.addEventListener("click", (e) => {
+      if (!isMoodboardExportBusy && !e.target.closest(".mb-thumb__remove") && e.target.closest(".mb-upload-cell--empty")) {
+        fileInputEl.click();
+      }
+    });
+
+    addMoreBtn.addEventListener("click", () => fileInputEl.click());
+    fileInputEl.addEventListener("change", async () => {
+      if (fileInputEl.files.length) await addMoodboardFiles(fileInputEl.files);
+      fileInputEl.value = "";
+    });
+
+    dropzoneEl.addEventListener("dragenter", (e) => {
+      e.preventDefault();
+      dragCounter++;
+      dropzoneEl.classList.add("is-over");
+    });
+
+    dropzoneEl.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropzoneEl.classList.add("is-over");
+    });
+
+    dropzoneEl.addEventListener("dragleave", () => {
+      dragCounter--;
+      if (dragCounter <= 0) {
+        dragCounter = 0;
+        dropzoneEl.classList.remove("is-over");
+      }
+    });
+
+    dropzoneEl.addEventListener("drop", async (e) => {
+      e.preventDefault();
+      dragCounter = 0;
+      dropzoneEl.classList.remove("is-over");
+      if (!isMoodboardExportBusy && e.dataTransfer.files.length) {
+        await addMoodboardFiles(e.dataTransfer.files);
+      }
+    });
+
+    thumbsEl.addEventListener("click", (e) => {
+      const rmBtn = e.target.closest(".mb-thumb__remove");
+      if (rmBtn) KK.moodboard.removeImage(Number(rmBtn.dataset.i));
+    });
+
+    generateBtn.addEventListener("click", openMoodboardCanvas);
+
+    elements.mbRandomize.addEventListener("click", () => {
+      if (!isMoodboardOverlayBusy) {
+        KK.moodboard.randomize();
+        syncMoodboardCanvas();
+      }
+    });
+
+    elements.mbRotate.addEventListener("click", () => {
+      if (!isMoodboardOverlayBusy) {
+        KK.moodboard.toggleOrientation();
+        syncMoodboardCanvas();
+      }
+    });
+
+    elements.mbBoard.addEventListener("click", openMoodboardOverlay);
+    elements.mbOverlayClose.addEventListener("click", closeMoodboardOverlay);
+
+    elements.mbUpload.addEventListener("click", () => exportMoodboard("drive"));
+    elements.mbDownload.addEventListener("click", () => exportMoodboard("download"));
+
+    bindMoodboardOverlayGestures(elements.mbOverlayCanvas);
+  }
+
+  async function addMoodboardFiles(filesList) {
+    if (isMoodboardExportBusy) return;
+
+    const loadingTextEl = $("#mbLoadingText");
+    const addMoreBtn = $("#mbAddMore");
+    const generateBtn = $("#mbGenerate");
+
+    const batchCount = Math.min(Array.from(filesList).length, KK.moodboard.MAX_IMAGES - KK.moodboard.images.length);
+    isMoodboardExportBusy = true;
+
+    loadingTextEl.textContent = batchCount > 1 ? "Preparing 1 of " + batchCount + " photos…" : "Preparing photo…";
+    addMoreBtn.disabled = true;
+    generateBtn.disabled = true;
+
+    await new Promise((res) => requestAnimationFrame(() => setTimeout(res, 0)));
+
+    try {
+      const result = await KK.moodboard.addFiles(filesList, (curr, total) => {
+        loadingTextEl.textContent = total > 1 ? "Preparing " + curr + " of " + total + " photos…" : "Preparing photo…";
+      });
+
+      if (result.rejected) {
+        showToast(1 === result.rejected ? "One image could not be opened and was skipped" : result.rejected + " images could not be opened and were skipped");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Could not prepare those photos — " + (err.message || "please try again"));
+    } finally {
+      isMoodboardExportBusy = false;
+      loadingTextEl.textContent = "";
+      addMoreBtn.disabled = KK.moodboard.images.length >= KK.moodboard.MAX_IMAGES;
+      generateBtn.disabled = 0 === KK.moodboard.images.length;
+    }
+  }
+
+  function openMoodboardCanvas() {
+    if (KK.moodboard.images.length) {
+      go("#/order/" + state.order.id + "/moodboard/preview");
+    }
+  }
+
+  function moodboardStageClone() {
+    const stage = KK.moodboard.stage;
+    if (!stage) return null;
+    const clone = stage.cloneNode(true);
+    clone.querySelectorAll("[id]").forEach((el) => el.removeAttribute("id"));
+    clone.removeAttribute("id");
+    clone.setAttribute("aria-hidden", "true");
+    return clone;
+  }
+
+  function syncMoodboardCanvas() {
+    if (elements.mbCanvas.hidden) return;
+    const stageClone = moodboardStageClone();
+    if (!stageClone) return;
+
+    const isPortrait = "portrait" === KK.moodboard.orientation;
+
+    elements.mbBoardScaler.style.width = KK.moodboard.stageWidth + "px";
+    elements.mbBoardScaler.style.height = KK.moodboard.stageHeight + "px";
+    elements.mbBoardScaler.replaceChildren(stageClone);
+
+    fitMoodboardBoard();
+
+    elements.mbRotate.setAttribute("aria-label", isPortrait ? "Rotate to landscape" : "Rotate to portrait");
+    elements.mbBoard.setAttribute(
+      "aria-label",
+      isPortrait
+        ? "Open the portrait moodboard full screen"
+        : "Open the landscape moodboard full screen. It is shown sideways here — turn your device to read it upright."
+    );
+
+    if (!moodboardResizeObserver && typeof ResizeObserver === "function") {
+      moodboardResizeObserver = new ResizeObserver(fitMoodboardBoard);
+      moodboardResizeObserver.observe(elements.mbBoard);
+    }
+    renderMoodboardOverlay(true);
+  }
+
+  function fitMoodboardBoard() {
+    const w = elements.mbBoard.clientWidth;
+    const h = elements.mbBoard.clientHeight;
+    if (!w || !h) return;
+
+    const isPortrait = "portrait" === KK.moodboard.orientation;
+    const scale = isPortrait
+      ? Math.min(w / KK.moodboard.stageWidth, h / KK.moodboard.stageHeight)
+      : Math.min(h / KK.moodboard.stageWidth, w / KK.moodboard.stageHeight);
+
+    elements.mbBoardScaler.style.transform = "translate(-50%, -50%) " + (isPortrait ? "" : "rotate(90deg) ") + "scale(" + scale + ")";
+  }
+
+  function openMoodboardOverlay() {
+    if (isMoodboardOverlayBusy || !KK.moodboard.images.length || !elements.mbOverlay.hidden) return;
+    activeMoodboardFocusTarget = document.activeElement;
+    elements.mbOverlay.hidden = false;
+
+    document.body.classList.add("moodboard-presenting");
+    document.body.classList.add("has-app-modal");
+
+    moodboardPresenterState = {
+      zoom: 1,
+      x: 0,
+      y: 0,
+      fit: 1,
+      clone: null,
+      pointers: new Map(),
+      lastDistance: null,
+      lastTap: 0
+    };
+
+    requestAnimationFrame(() => {
+      renderMoodboardOverlay(true);
+      elements.mbOverlayClose.focus();
+    });
+  }
+
+  function closeMoodboardOverlay() {
+    const overlay = elements.mbOverlay;
+    const isVisible = overlay && !overlay.hidden;
+    if (overlay) overlay.hidden = true;
+
+    elements.mbOverlayCanvas.replaceChildren();
+    document.body.classList.remove("moodboard-presenting");
+    document.body.classList.remove("has-app-modal");
+
+    moodboardPresenterState = null;
+    if (isVisible && activeMoodboardFocusTarget && document.contains(activeMoodboardFocusTarget)) {
+      activeMoodboardFocusTarget.focus();
+    }
+    activeMoodboardFocusTarget = null;
+  }
+
+  function renderMoodboardOverlay(rebuild) {
+    if (!moodboardPresenterState || elements.mbOverlay.hidden) return;
+    const rect = elements.mbOverlayCanvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+
+    moodboardPresenterState.fit = Math.min(rect.width / KK.moodboard.stageWidth, rect.height / KK.moodboard.stageHeight) * 0.94;
+
+    if (rebuild) {
+      const stageClone = moodboardStageClone();
+      if (!stageClone) return;
+      stageClone.style.cssText =
+        "position:absolute;left:50%;top:50%;width:" + KK.moodboard.stageWidth + "px;height:" + KK.moodboard.stageHeight + "px;transform-origin:50% 50%;pointer-events:none;";
+      elements.mbOverlayCanvas.replaceChildren(stageClone);
+      moodboardPresenterState.clone = stageClone;
+    }
+
+    clampMoodboardPan();
+    applyMoodboardTransform();
+  }
+
+  function moodboardZoomAt(newZoom, originX, originY) {
+    if (!moodboardPresenterState) return;
+    const clampedZoom = Math.max(1, Math.min(MB_MAX_ZOOM, newZoom));
+    if (clampedZoom === moodboardPresenterState.zoom) return;
+
+    const scaleFactor = clampedZoom / moodboardPresenterState.zoom;
+    if (void 0 === originX) {
+      moodboardPresenterState.x *= scaleFactor;
+      moodboardPresenterState.y *= scaleFactor;
+    } else {
+      const rect = elements.mbOverlayCanvas.getBoundingClientRect();
+      const offsetX = originX - (rect.left + rect.width / 2);
+      const offsetY = originY - (rect.top + rect.height / 2);
+      moodboardPresenterState.x = offsetX - (offsetX - moodboardPresenterState.x) * scaleFactor;
+      moodboardPresenterState.y = offsetY - (offsetY - moodboardPresenterState.y) * scaleFactor;
+    }
+
+    moodboardPresenterState.zoom = clampedZoom;
+    if (1 === moodboardPresenterState.zoom) {
+      moodboardPresenterState.x = moodboardPresenterState.y = 0;
+    }
+    clampMoodboardPan();
+    applyMoodboardTransform();
+  }
+
+  function clampMoodboardPan() {
+    if (!moodboardPresenterState) return;
+    const rect = elements.mbOverlayCanvas.getBoundingClientRect();
+    const effectiveScale = moodboardPresenterState.fit * moodboardPresenterState.zoom;
+
+    const maxX = Math.max(0, (KK.moodboard.stageWidth * effectiveScale - rect.width) / 2);
+    const maxY = Math.max(0, (KK.moodboard.stageHeight * effectiveScale - rect.height) / 2);
+
+    moodboardPresenterState.x = Math.max(-maxX, Math.min(maxX, moodboardPresenterState.x));
+    moodboardPresenterState.y = Math.max(-maxY, Math.min(maxY, moodboardPresenterState.y));
+  }
+
+  function applyMoodboardTransform() {
+    if (!moodboardPresenterState || !moodboardPresenterState.clone) return;
+    const effectiveScale = moodboardPresenterState.fit * moodboardPresenterState.zoom;
+    moodboardPresenterState.clone.style.transform =
+      "translate(calc(-50% + " + moodboardPresenterState.x + "px),calc(-50% + " + moodboardPresenterState.y + "px)) scale(" + effectiveScale + ")";
+  }
+
+  function bindMoodboardOverlayGestures(containerEl) {
+    if (!containerEl) return;
+    const pt = (e) => ({ x: e.clientX, y: e.clientY });
+
+    containerEl.addEventListener("pointerdown", (e) => {
+      if (moodboardPresenterState) {
+        containerEl.setPointerCapture(e.pointerId);
+        moodboardPresenterState.pointers.set(e.pointerId, pt(e));
+        moodboardPresenterState.lastDistance = null;
+      }
+    });
+
+    containerEl.addEventListener("pointermove", (e) => {
+      if (!moodboardPresenterState || !moodboardPresenterState.pointers.has(e.pointerId)) return;
+      const prevPt = moodboardPresenterState.pointers.get(e.pointerId);
+      moodboardPresenterState.pointers.set(e.pointerId, pt(e));
+
+      const points = Array.from(moodboardPresenterState.pointers.values());
+      if (points.length >= 2) {
+        const dist = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+        if (moodboardPresenterState.lastDistance) {
+          moodboardZoomAt(
+            moodboardPresenterState.zoom * dist / moodboardPresenterState.lastDistance,
+            (points[0].x + points[1].x) / 2,
+            (points[0].y + points[1].y) / 2
+          );
+        }
+        moodboardPresenterState.lastDistance = dist;
+      } else if (moodboardPresenterState.zoom > 1) {
+        moodboardPresenterState.x += e.clientX - prevPt.x;
+        moodboardPresenterState.y += e.clientY - prevPt.y;
+        clampMoodboardPan();
+        applyMoodboardTransform();
+      }
+    });
+
+    const endPointer = (e) => {
+      if (moodboardPresenterState) {
+        moodboardPresenterState.pointers.delete(e.pointerId);
+        moodboardPresenterState.lastDistance = null;
+      }
+    };
+
+    containerEl.addEventListener("pointerup", (e) => {
+      if (moodboardPresenterState && "mouse" !== e.pointerType && 1 === moodboardPresenterState.pointers.size) {
+        const now = Date.now();
+        if (now - moodboardPresenterState.lastTap < 300) {
+          moodboardZoomAt(moodboardPresenterState.zoom > 1 ? 1 : 2.5, e.clientX, e.clientY);
+          moodboardPresenterState.lastTap = 0;
+        } else {
+          moodboardPresenterState.lastTap = now;
+        }
+      }
+      endPointer(e);
+    });
+
+    containerEl.addEventListener("pointercancel", endPointer);
+    containerEl.addEventListener("wheel", (e) => {
+      if (moodboardPresenterState) {
+        e.preventDefault();
+        moodboardZoomAt(moodboardPresenterState.zoom * (e.deltaY < 0 ? 1.12 : 0.89), e.clientX, e.clientY);
+      }
+    }, { passive: false });
+
+    containerEl.addEventListener("dblclick", (e) => {
+      if (moodboardPresenterState) {
+        moodboardZoomAt(moodboardPresenterState.zoom > 1 ? 1 : 2.5, e.clientX, e.clientY);
+      }
+    });
+  }
+
+  function handleMoodboardOverlayKey(e) {
+    if (!moodboardPresenterState || elements.mbOverlay.hidden) return false;
+    if ("Escape" === e.key) {
+      e.preventDefault();
+      closeMoodboardOverlay();
+      return true;
+    }
+    if ("+" === e.key || "=" === e.key) {
+      e.preventDefault();
+      moodboardZoomAt(moodboardPresenterState.zoom * 1.25);
+      return true;
+    }
+    if ("-" === e.key || "_" === e.key) {
+      e.preventDefault();
+      moodboardZoomAt(moodboardPresenterState.zoom / 1.25);
+      return true;
+    }
+    if ("0" === e.key) {
+      e.preventDefault();
+      moodboardZoomAt(1);
+      return true;
+    }
+    return false;
+  }
+
+  /* ------------------------------- Exports --------------------------------- */
+
+  function setMoodboardExportBusy(isBusy) {
+    isMoodboardOverlayBusy = isBusy;
+    [elements.mbRotate, elements.mbRandomize, elements.mbUpload, elements.mbDownload, elements.mbBoard].forEach((btn) => {
+      btn.disabled = isBusy;
+    });
+  }
+
+  function setMoodboardExportState(exportKind, statusStr, customLabel) {
+    const btn = elements[MB_EXPORTS[exportKind].el];
+    btn.classList.toggle("is-busy", "busy" === statusStr);
+    btn.classList.toggle("is-done", "done" === statusStr);
+    btn.classList.toggle("is-error", "error" === statusStr);
+
+    if ("busy" === statusStr) btn.setAttribute("aria-busy", "true");
+    else btn.removeAttribute("aria-busy");
+
+    $(".moodboard-action__label", btn).textContent = customLabel || MB_EXPORTS[exportKind].idle;
+  }
+
+  function flashMoodboardExportState(exportKind, statusStr, customLabel) {
+    clearTimeout(MB_EXPORT_TIMERS[exportKind]);
+    setMoodboardExportState(exportKind, statusStr, customLabel);
+    MB_EXPORT_TIMERS[exportKind] = setTimeout(() => setMoodboardExportState(exportKind, "idle"), 2600);
+  }
+
+  function resetMoodboardExports() {
+    Object.keys(MB_EXPORTS).forEach((k) => {
+      clearTimeout(MB_EXPORT_TIMERS[k]);
+      setMoodboardExportState(k, "idle");
+    });
+    setMoodboardExportBusy(false);
+  }
+
+  async function recordMoodboardExport(orderId, fileName, exportKind, driveLink) {
+    const isFirstExport = !await db.countMoodboards(orderId);
+    await db.logMoodboard(orderId, driveLink);
+    await db.logOrderHistory(orderId, "moodboard_generated", {
+      file_name: fileName,
+      orientation: KK.moodboard.orientation,
+      destination: "drive" === exportKind ? "drive" : "download",
+      drive_link: driveLink || null
+    });
+
+    if (!isFirstExport) return;
+
+    state.customer = await db.updateCustomer(state.customer.id, { moodboard_date: U.todayISO() });
+    const nudgePatch = consultNudgeFor(state.customer, state.customerOrders, U.todayISO());
+
+    if (nudgePatch) {
+      await db.updateCustomer(state.customer.id, nudgePatch);
+      try {
+        await db.syncFollowUp(state.customer.id);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  }
+
+  function offerGoogleReconnect(msgStr) {
+    showToast(msgStr);
+    if (window.confirm(msgStr + "\n\nOpen Google settings to reconnect?")) {
+      window.open(location.pathname + location.search + "#/calendar", "_blank", "noopener");
+    }
+  }
+
+  async function exportMoodboard(exportKind) {
+    if (isMoodboardOverlayBusy || !KK.moodboard.images.length || !state.order) return;
+    const cfg = MB_EXPORTS[exportKind];
+    const orderId = state.order.id;
+    let recordedSuccess = false;
+
+    clearTimeout(MB_EXPORT_TIMERS[exportKind]);
+    setMoodboardExportBusy(true);
+    setMoodboardExportState(exportKind, "busy", cfg.busy);
+    elements.mbExportStatus.textContent = cfg.busy;
+
+    try {
+      const pdfDoc = await KK.moodboard.generatePDF();
+      const fileName = KK.moodboard.buildFilename(new Date());
+      let driveLink = null;
+
+      if ("drive" === exportKind) {
+        const driveRes = await db.driveSaveMoodboardPdf(
+          fileName,
+          KK.moodboard.pdfToBase64(pdfDoc),
+          state.customer && state.customer.name || "",
+          state.order.title || state.order.doc_name || "Untitled order"
+        );
+        driveLink = driveRes && driveRes.drive_link || null;
+      } else {
+        pdfDoc.save(fileName);
+      }
+
+      recordedSuccess = true;
+      await recordMoodboardExport(orderId, fileName, exportKind, driveLink);
+      flashMoodboardExportState(exportKind, "done", cfg.done);
+      elements.mbExportStatus.textContent = cfg.done;
+      showToast("drive" === exportKind ? "Moodboard saved to Google Drive" : "Moodboard PDF downloaded");
+    } catch (err) {
+      console.error(err);
+      const errText = err && err.message || "please try again";
+      flashMoodboardExportState(exportKind, "error", recordedSuccess ? "Not recorded" : "Failed");
+      elements.mbExportStatus.textContent = errText;
+
+      if (!recordedSuccess && "drive" === exportKind && MB_RECONNECT_REGEX.test(errText)) {
+        offerGoogleReconnect(errText);
+      } else {
+        showToast(
+          recordedSuccess
+            ? "The moodboard was exported, but its record could not be finished — " + errText
+            : ("drive" === exportKind ? "Could not upload to Drive — " : "Could not download the PDF — ") + errText
+        );
+      }
+    } finally {
+      setMoodboardExportBusy(false);
+    }
+  }
+
+  function setDocumentBusy(docType, isBusy) {
+    state.orderDetail.documentBusy = isBusy ? docType : null;
+    const vm = state.orderDetail.vm;
+    const canDownload = !vm || vm.documents.canDownload;
+
+    Object.keys(docButtons).forEach((k) => {
+      docButtons[k].disabled = isBusy || !canDownload;
+    });
+
+    const targetBtn = docButtons[docType];
+    targetBtn.classList.toggle("is-busy", isBusy);
+    if (isBusy) targetBtn.setAttribute("aria-busy", "true");
+    else targetBtn.removeAttribute("aria-busy");
+
+    $(".order-action__label", targetBtn).textContent = isBusy ? "Generating…" : "quotation" === docType ? "Get quotation" : "Get invoice";
+  }
+
+  async function downloadDocument(docType) {
+    let totalAmt;
+    setDocumentBusy(docType, true);
+
+    try {
+      totalAmt = await docs.download(docType, {
+        docName: state.order.doc_name || state.customer.name || "",
+        date: U.todayISO(),
+        items: state.order.items || [],
+        includes: state.order.includes || [],
+        terms: docs.termsFor(state.order)
+      });
+    } catch (err) {
+      console.error(err);
+      showToast("Could not generate the PDF — please try again");
+      setDocumentBusy(docType, false);
+      return;
+    }
+
+    setDocumentBusy(docType, false);
+    showToast(docs.DOCS[docType].name + " downloaded");
+    await bumpStatus("invoice" === docType ? "Confirmed" : "Quoted");
+
+    try {
+      await db.logDocument(state.order.id, docType, totalAmt);
+      await refreshOrderPayments();
+    } catch (err) {
+      console.error(err);
+      showToast("Downloaded, but could not record it");
+    }
+  }
+
+  async function logDeposit(depositIndex) {
+    if (!state.orderDetail.paymentBusy) {
+      elements.paymentError.textContent = "";
+      elements.paymentError.hidden = true;
+      setOrderPaymentBusy(true);
+      try {
+        await logDepositRequest(depositIndex);
+      } finally {
+        setOrderPaymentBusy(false);
+      }
+    }
+  }
+
+  async function logDepositRequest(depositIndex) {
+    const grandTotal = docs.computeTotal(state.order.items);
+    const terms = docs.termsFor(state.order);
+    const termAmt = docs.termAmounts(grandTotal, terms)[depositIndex];
+
+    const patchObj = (function (ordRec, idx, termsList) {
+      const patch = {};
+      if (0 === idx && !ordRec.first_payment_date) patch.first_payment_date = U.todayISO();
+      const prodIdx = "other" === ordRec.payment_scheme ? 0 : 1;
+      if (idx === prodIdx && !ordRec.second_payment_date) patch.second_payment_date = U.todayISO();
+      if (idx === termsList.length - 1 && !ordRec.final_payment_date) patch.final_payment_date = U.todayISO();
+      return patch;
+    })(state.order, depositIndex, terms);
+
+    if (patchObj.first_payment_date && patchObj.final_payment_date) {
+      if (!window.confirm("This is the only payment term, so logging it starts the schedule and marks the order finished at the same time. Log it?")) {
+        return;
+      }
+    }
+
+    try {
+      await db.logOrderHistory(state.order.id, "payment_logged", {
+        deposit_index: depositIndex,
+        deposit_label: docs.termLabel(terms[depositIndex]),
+        amount: termAmt
+      });
+      closeOrderPaymentChooser();
+      showToast(terms[depositIndex].label + " logged");
+
+      if (Object.keys(patchObj).length) {
+        state.order = await db.updateOrder(state.order.id, patchObj);
+      }
+
+      if (patchObj.first_payment_date || patchObj.second_payment_date) {
+        await (async function () {
+          try {
+            const res = await rescheduleOrder(state.order, state.customer);
+            const count = res.rows.filter((e) => calendar.isProductionStage(e.stage)).length;
+            if (count) {
+              await db.logOrderHistory(state.order.id, "scheduled", { count: res.rows.length, dropped: res.computed.dropped });
+              showToast(count + " fittings scheduled");
+            } else if (res.rows.length) {
+              await db.logOrderHistory(state.order.id, "scheduled", { count: res.rows.length, dropped: res.computed.dropped });
+              showToast("Design phase scheduled");
+            } else if (res.computed.reason) {
+              showToast(res.computed.reason);
+            }
+            await refreshOrderSchedule();
+          } catch (err) {
+            console.error(err);
+            showToast("Payment logged, but the schedule could not be built");
+          }
+        })();
+      }
+
+      if (patchObj.final_payment_date) {
+        await bumpStatus("Delivered");
+      } else if (patchObj.second_payment_date) {
+        await bumpStatus("In production");
+      } else if (patchObj.first_payment_date) {
+        await bumpStatus("Confirmed");
+      }
+
+      await refreshOrderPayments();
+      renderOrderStatus();
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || "Could not log payment");
+      elements.paymentError.textContent = err.message || "Could not log that payment. Try again.";
+      elements.paymentError.hidden = false;
+    }
+  }
+
+  async function signOutFromMenu() {
+    closeMenu();
+    if (confirmLeave()) {
+      await coverCurtain();
+      try {
+        await db.signOut();
+        location.hash = "";
+        await showGate();
+      } catch (err) {
+        await revealCurtain();
+        showToast(err.message || "Could not sign out");
+      }
+    }
+  }
+
+  /* -------------------- Boot & Event Listeners --------------------- */
+
+  function bindEvents() {
+    window.addEventListener("hashchange", handleRoute);
+
+    elements.pageAction.addEventListener("click", () => {
+      if (pageActionHandler) pageActionHandler();
+    });
+
+    elements.saveBtn.addEventListener("click", async () => {
+      if (state.saving) return;
+      state.saving = true;
+      setDirty(state.dirty);
+      try {
+        if ("customer" === state.route.view) {
+          await saveCustomer();
+        } else if ("orderEdit" === state.route.view) {
+          const ordId = state.order.id;
+          if (!await saveOrder()) return;
+          showToast("Order saved");
+          leaveFormFor("#/order/" + ordId);
+        }
+      } catch (err) {
+        console.error(err);
+        showToast(err.message || "Could not save");
+      } finally {
+        state.saving = false;
+        setDirty(state.dirty);
+      }
+    });
+
+    if (elements.homeNavHome) {
+      elements.homeNavHome.addEventListener("click", () => {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+    }
+
+    if (elements.homeNavMenu) {
+      elements.homeNavMenu.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const isHidden = elements.menuList.hidden;
+        if (isHidden) {
+          if (elements.menuList.parentNode !== elements.homeNavMenuWrapper) {
+            elements.homeNavMenuWrapper.appendChild(elements.menuList);
+          }
+          elements.menuList.hidden = false;
+          elements.homeNavMenu.setAttribute("aria-expanded", "true");
+        } else {
+          closeMenu();
+        }
+      });
+    }
+
+    elements.menuBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const isHidden = elements.menuList.hidden;
+      if (elements.menuList.parentNode !== elements.menu) {
+        elements.menu.appendChild(elements.menuList);
+      }
+      elements.menuList.hidden = !isHidden;
+      elements.menuBtn.setAttribute("aria-expanded", String(isHidden));
+    });
+
+    document.addEventListener("click", (e) => {
+      if (elements.menuList.hidden) return;
+      if (elements.menu.contains(e.target) || (elements.homeNavMenuWrapper && elements.homeNavMenuWrapper.contains(e.target))) return;
+      closeMenu();
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if ("Escape" !== e.key || elements.menuList.hidden) return;
+      closeMenu();
+      elements.menuBtn.focus();
+    });
+
+    elements.menuSignOut.addEventListener("click", signOutFromMenu);
+    elements.menuDelete.addEventListener("click", () => {
+      closeMenu();
+      if ("order" === elements.menuDelete.dataset.kind) {
+        (async function () {
+          if (window.confirm("Delete this order and its payment and download record? This cannot be undone.")) {
+            try {
+              const custId = state.order.customer_id;
+              await db.deleteOrder(state.order.id);
+              setDirty(false);
+              showToast("Order deleted");
+              go("#/customer/" + custId);
+            } catch (err) {
+              console.error(err);
+              showToast(err.message || "Could not delete");
+            }
+          }
+        })();
+      } else {
+        deleteCustomerRecord();
+      }
+    });
+
+    elements.deleteCustomer.addEventListener("click", deleteCustomerRecord);
+    elements.customerSearch.addEventListener("input", renderCustomerList);
+
+    $$(".js-cfield").forEach((f) => {
+      f.addEventListener("input", () => {
+        if (f === elements.cName && f.value.trim()) setNameError(false);
+        setDirty(true);
+      });
+      f.addEventListener("change", () => setDirty(true));
+    });
+
+    elements.cWeddingPrecision.addEventListener("click", (e) => {
+      const btn = e.target.closest(".custedit-segmented__btn");
+      if (btn && btn.dataset.precision !== weddingPrecision()) {
+        setWeddingPrecision(btn.dataset.precision);
+        setDirty(true);
+      }
+    });
+
+    elements.cancelCustomer.addEventListener("click", cancelCustomer);
+    elements.reopenCustomer.addEventListener("click", reopenCustomer);
+
+    elements.logPaymentBtn.addEventListener("click", toggleOrderPaymentChooser);
+    elements.paymentChooserOptions.addEventListener("click", (e) => {
+      const choiceBtn = e.target.closest(".js-log-deposit");
+      if (choiceBtn) logDeposit(Number(choiceBtn.dataset.i));
+    });
+
+    elements.downloadQuote.addEventListener("click", () => downloadDocument("quotation"));
+    elements.downloadInvoice.addEventListener("click", () => downloadDocument("invoice"));
+
+    elements.createMoodboardBtn.addEventListener("click", () => {
+      if (state.order) go("#/order/" + state.order.id + "/moodboard");
+    });
+    elements.logNewFittingBtn.addEventListener("click", () => {
+      if (state.order) go("#/order/" + state.order.id + "/fitting/new");
+    });
+
+    elements.fittingJournalAdd.addEventListener("click", () => KK.fittings.openCamera());
+    KK.fittings.bindOverlays();
+    setupMoodboardListeners();
+
+    elements.gcalConnect.addEventListener("click", connectGoogle);
+    elements.gcalDisconnect.addEventListener("click", disconnectGoogle);
+
+    elements.enquiryAccept.addEventListener("click", acceptEnquiry);
+    elements.enquiryDismiss.addEventListener("click", dismissEnquiry);
+    elements.menuCalendar.addEventListener("click", closeMenu);
+
+    $$(".js-ofield").forEach((f) => {
+      f.addEventListener("input", () => setDirty(true));
+      f.addEventListener("change", () => setDirty(true));
+    });
+
+    [elements.oFirstPayment, elements.oSecondPayment, elements.oScheme].forEach((f) => {
+      f.addEventListener("input", renderScheduleHint);
+      f.addEventListener("change", renderScheduleHint);
+    });
+
+    elements.addItem.addEventListener("click", () => {
+      addItemRow({ name: "", qty: 1, price: "", cost: "" }, true);
+      setDirty(true);
+    });
+
+    elements.itemList.addEventListener("click", (e) => {
+      const rmBtn = e.target.closest(".js-remove");
+      if (rmBtn && !rmBtn.disabled) {
+        rmBtn.closest(".item").remove();
+        refreshRemoveButtons();
+        refreshItemTotals();
+        setDirty(true);
+        return;
+      }
+      const calcBtn = e.target.closest(".js-cost-calc");
+      if (calcBtn) {
+        (function (itemRowEl) {
+          activeCalcFocusTarget = document.activeElement;
+          activeCalcItemRow = itemRowEl;
+          const desc = $(".js-name", itemRowEl).value.trim();
+          elements.calcItemLabel.textContent = desc ? 'For "' + desc + '"' : "For this item";
+
+          const savedRows = calcStateMap.get(itemRowEl) || COST_CALC_PRESETS.map((lbl) => ({ label: lbl, amount: 0 }));
+          elements.calcRowList.innerHTML = "";
+          savedRows.forEach((r) => addCalcRow(r, false));
+
+          elements.calcSheet.hidden = false;
+          document.body.classList.add("has-app-modal");
+          requestAnimationFrame(() => $(".js-clabel", elements.calcRowList)?.focus());
+        })(calcBtn.closest(".item"));
+      }
+    });
+
+    elements.itemList.addEventListener("input", (e) => {
+      const target = e.target;
+      if (target.classList.contains("js-qty")) {
+        target.value = U.digitsOnly(target.value).replace(/^0+(?=\d)/, "");
+      } else if (target.classList.contains("js-price") || target.classList.contains("js-cost")) {
+        U.reformatPriceField(target);
+      }
+      target.classList.remove("is-invalid");
+      const errEl = $(".js-err", target.closest(".item"));
+      if (errEl) errEl.hidden = true;
+      refreshItemTotals();
+      setDirty(true);
+    });
+
+    elements.itemList.addEventListener("focusout", (e) => {
+      if (e.target.classList.contains("js-qty") && "" === U.digitsOnly(e.target.value)) {
+        e.target.value = "1";
+        refreshItemTotals();
+      }
+    });
+
+    elements.includesList.addEventListener("change", (e) => {
+      const target = e.target;
+      if ("checkbox" === target.type) {
+        target.closest(".chip").classList.toggle("is-checked", target.checked);
+        setDirty(true);
+      }
+    });
+
+    elements.includesList.addEventListener("click", (e) => {
+      const rmBtn = e.target.closest(".js-remove-include");
+      if (rmBtn) {
+        e.preventDefault();
+        rmBtn.closest(".chip").remove();
+        setDirty(true);
+      }
+    });
+
+    elements.addInclude.addEventListener("click", addCustomInclude);
+    elements.oScheme.addEventListener("change", () => {
+      syncSchemeCard();
+      setDirty(true);
+    });
+
+    elements.addTerm.addEventListener("click", () => {
+      addTermRow(null, true);
+      setDirty(true);
+    });
+
+    elements.termList.addEventListener("click", (e) => {
+      const rmBtn = e.target.closest(".js-remove-term");
+      if (rmBtn && !rmBtn.disabled) {
+        rmBtn.closest(".term").remove();
+        refreshTermRemoveButtons();
+        refreshTermsSum();
+        setDirty(true);
+      }
+    });
+
+    elements.termList.addEventListener("input", (e) => {
+      const target = e.target;
+      if (target.classList.contains("js-tpct")) {
+        target.value = target.value.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1");
+      }
+      elements.errTerms.hidden = true;
+      refreshTermsSum();
+      setDirty(true);
+    });
+
+    elements.calcAddRow.addEventListener("click", () => addCalcRow(null, true));
+
+    elements.calcRowList.addEventListener("click", (e) => {
+      const rmBtn = e.target.closest(".js-remove-calcrow");
+      if (rmBtn && !rmBtn.disabled) {
+        rmBtn.closest(".calcrow").remove();
+        refreshCalcRemoveButtons();
+        refreshCalcTotal();
+      }
+    });
+
+    elements.calcRowList.addEventListener("input", (e) => {
+      if (e.target.classList.contains("js-camount")) {
+        U.reformatPriceField(e.target);
+      }
+      refreshCalcTotal();
+    });
+
+    elements.calcApply.addEventListener("click", applyCostCalc);
+    elements.calcBack.addEventListener("click", closeCostCalc);
+
+    elements.customInclude.addEventListener("keydown", (e) => {
+      if ("Enter" === e.key) {
+        e.preventDefault();
+        addCustomInclude();
+      }
+    });
+
+    ["resize", "orientationchange"].forEach((evtName) =>
+      window.addEventListener(evtName, () => {
+        syncVisualViewport();
+        fitMoodboardBoard();
+        renderMoodboardOverlay(false);
+      })
+    );
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", syncVisualViewport);
+      window.visualViewport.addEventListener("scroll", syncVisualViewport);
+    }
+
+    window.addEventListener("offline", () => showToast("You're offline — changes won't save until you're back online"));
+    window.addEventListener("online", () => showToast("Back online"));
+
+    document.addEventListener("focusin", (e) => {
+      const target = e.target;
+      if (target.matches("input, select, textarea, button")) {
+        requestAnimationFrame(() =>
+          setTimeout(() => {
+            if (document.activeElement === target) {
+              target.scrollIntoView({
+                block: "center",
+                inline: "nearest",
+                behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"
+              });
+            }
+          }, 80)
+        );
+      }
+    });
+
+    document.addEventListener("keydown", (e) => {
+      trapModalFocus(e, elements.calcSheet);
+      trapModalFocus(e, elements.mbOverlay);
+      ["fittingCamera", "fittingConfirm", "fittingCaptionStep", "fittingPicker", "fittingEditSheet"].forEach((id) => trapModalFocus(e, $("#" + id)));
+      if (elements.calcSheet.hidden) {
+        handleMoodboardOverlayKey(e);
+      } else if ("Escape" === e.key) {
+        e.preventDefault();
+        closeCostCalc();
+      }
+    });
+
+    window.addEventListener("beforeunload", (e) => {
+      if (state.dirty) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    });
+  }
+
+  async function showGate() {
+    await coverCurtain();
+    elements.app.hidden = true;
+    elements.gate.hidden = false;
+    elements.gateRemember.checked = db.rememberPreference();
+    elements.gatePassword.value = elements.gateRemember.checked ? db.savedPassword() : "";
+    elements.gateErr.hidden = true;
+    elements.gatePassword.removeAttribute("aria-invalid");
+    await revealCurtain();
+
+    if (elements.gatePassword.value) {
+      elements.gateSubmit.focus();
+    } else {
+      elements.gatePassword.focus();
+    }
+  }
+
+  async function showApp() {
+    await coverCurtain();
+    elements.gate.hidden = true;
+    elements.app.hidden = false;
+    await handleRoute();
+
+    await (async function () {
+      const queryParams = new URLSearchParams(location.search);
+      const codeVal = queryParams.get("code");
+      const errVal = queryParams.get("error");
+      if (!codeVal && !errVal) return;
+
+      const cleanUrl = () => history.replaceState(null, "", location.pathname + location.hash);
+      if (errVal) {
+        cleanUrl();
+        return showToast("access_denied" === errVal ? "Google Calendar was not connected" : "Google sign-in failed");
+      }
+      cleanUrl();
+
+      try {
+        await db.googleExchange(codeVal, googleRedirectUri());
+        state.googleConnected = true;
+        showToast("Google Calendar connected");
+      } catch (err) {
+        console.error(err);
+        showToast(err.message || "Could not connect Google Calendar");
+      }
+    })();
+  }
+
+  /* ------------------------------ App Boot -------------------------------- */
+
+  return (function () {
+    elements.gateForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!elements.gateSubmit.disabled) {
+        elements.gateErr.hidden = true;
+        elements.gatePassword.removeAttribute("aria-invalid");
+        elements.gateSubmit.disabled = true;
+        elements.gateSubmit.classList.add("is-busy");
+        $(".btn__label", elements.gateSubmit).textContent = "Unlocking…";
+
+        try {
+          await db.signIn(elements.gatePassword.value, elements.gateRemember.checked);
+          await showApp();
+        } catch (err) {
+          elements.gateErr.textContent = err.message || "Could not sign in";
+          elements.gateErr.hidden = false;
+          elements.gatePassword.setAttribute("aria-invalid", "true");
+          elements.gatePassword.select();
+        } finally {
+          elements.gateSubmit.disabled = false;
+          elements.gateSubmit.classList.remove("is-busy");
+          $(".btn__label", elements.gateSubmit).textContent = "Unlock";
+        }
+      }
+    });
+
+    bindEvents();
+
+    if (db.isConfigured()) {
+      (async function () {
+        try {
+          if (await db.currentSession()) {
+            await showApp();
+          } else {
+            await showGate();
+          }
+        } catch (err) {
+          console.error(err);
+          await showGate();
+        }
+      })();
+    } else {
+      elements.boot.innerHTML =
+        '<div class="boot__msg"><strong>Not connected.</strong><span>Fill in <code>config.js</code> with your Supabase URL and anon key — see “Setting up the database” in the README.</span></div>';
+    }
+
+    return { state };
+  })();
+})();
