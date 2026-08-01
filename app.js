@@ -310,7 +310,7 @@ p.viewCustomer.addEventListener("pointerdown",e=>{const t=e.target.closest(".cus
 ;t&&t.classList.add("is-pressed")}),
 p.viewCustomer.addEventListener("keydown",e=>{if(" "!==e.key&&"Enter"!==e.key)return
 ;const t=e.target.closest(".cust-banner,.cust-nav-btn,.cust-order-card");t&&(t.classList.add("is-pressed"),t.matches(".cust-banner")&&e.preventDefault())}),
-window.addEventListener("scroll",()=>{(document.body.classList.contains("is-custpage")||document.body.classList.contains("is-custeditpage")||document.body.classList.contains("is-orderpage"))&&clearHomepagePresses()},{passive:!0}),
+window.addEventListener("scroll",()=>{(document.body.classList.contains("is-custpage")||document.body.classList.contains("is-custeditpage")||document.body.classList.contains("is-orderpage")||document.body.classList.contains("is-moodboardpage"))&&clearHomepagePresses()},{passive:!0}),
 // The banners are tactile but do not lead anywhere yet.
 p.viewCustomer.addEventListener("click",e=>{e.target.closest(".cust-banner")&&e.preventDefault()}),
 // The order page presses like the rest of the app: pointer and keyboard add
@@ -670,7 +670,10 @@ label:e.label,amount:e.amount}))),p.calcSheet.hidden=!0,document.body.classList.
 F=null}function applyCostCalc(){const t=refreshCalcTotal();a(".js-cost",I).value=e.groupDigits(t),refreshItemTotals(),setDirty(!0),
 showToast("Cost updated"),closeCostCalc()}const R=KK.moodboard;let j=null,N=null,B=!1,q=null;function setupMoodboardListeners(){
 const e=a("#mbDropzone"),t=a("#mbFileInput"),o=a("#mbAddMore"),n=a("#mbRandomize"),s=a("#mbGenerate"),r=a("#mbDownload"),i=a("#mbThumbs")
-;let dragCounter=0;e.addEventListener("click",function(o){
+;let dragCounter=0;p.viewMoodboard.addEventListener("pointerdown",e=>{const t=e.target.closest(".order-nav-btn,.moodboard-action")
+;t&&!t.disabled&&t.classList.add("is-pressed")}),p.viewMoodboard.addEventListener("keydown",e=>{if(" "!==e.key&&"Enter"!==e.key)return
+;const t=e.target.closest(".order-nav-btn,.moodboard-action");t&&!t.disabled&&(t.classList.add("is-pressed"),t.matches("#mbFileBtn")&&e.preventDefault())}),
+p.viewMoodboard.addEventListener("click",e=>{e.target.closest("#mbFileBtn")&&e.preventDefault()}),e.addEventListener("click",function(o){
 B||o.target.closest(".mb-thumb__remove")||!o.target.closest(".mb-upload-cell--empty")||t.click()}),
 o.addEventListener("click",function(){t.click()}),t.addEventListener("change",async function(){t.files.length&&await addMoodboardFiles(t.files),
 t.value=""}),e.addEventListener("dragenter",function(t){t.preventDefault(),dragCounter++,e.classList.add("is-over")}),

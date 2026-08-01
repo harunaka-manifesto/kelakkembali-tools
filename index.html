@@ -874,6 +874,12 @@
           </span>
           <span class="order-nav-btn__rail" aria-hidden="true"></span>
         </a>
+        <button type="button" class="order-nav-btn order-nav-btn--icon moodboard-nav__file" id="mbFileBtn" aria-label="Files">
+          <span class="order-nav-btn__face">
+            <img src="assets/moodboard-file-icon.svg" alt="" width="24" height="24">
+          </span>
+          <span class="order-nav-btn__rail" aria-hidden="true"></span>
+        </button>
       </nav>
 
       <main class="moodboard-ledger">
@@ -894,7 +900,11 @@
                    photo picker (including Google Photos) than its generic Files UI. -->
               <input type="file" id="mbFileInput" multiple accept="image/*" hidden>
               <div class="mb-upload-grid-wrap" id="mbDropzone">
+                <div class="mb-upload-ticks mb-upload-ticks--top" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+                <div class="mb-upload-ticks mb-upload-ticks--left" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
                 <div class="mb-upload-grid" id="mbThumbs" role="group" aria-label="Moodboard images"></div>
+                <div class="mb-upload-ticks mb-upload-ticks--right" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+                <div class="mb-upload-ticks mb-upload-ticks--bottom" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
               </div>
               <p class="sr-only" id="mbLoadingText" role="status" aria-live="polite"></p>
             </div>

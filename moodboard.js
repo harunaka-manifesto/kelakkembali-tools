@@ -183,7 +183,7 @@ KK.moodboard = (function () {
     if (item.pending) {
       return '<div class="mb-upload-cell mb-upload-cell--uploading" data-upload-id="' + U.escapeHtml(item.id) + '" aria-label="Preparing image">' +
         '<button type="button" class="mb-upload-cell__control" disabled tabindex="-1" aria-label="Preparing image">' +
-          '<span class="mb-upload-cell__spinner" aria-hidden="true"></span>' +
+          '<span class="mb-upload-cell__progress" role="progressbar" aria-label="Preparing image" aria-valuemin="0" aria-valuemax="100" aria-valuenow="75"></span>' +
         '</button>' +
       '</div>';
     }
