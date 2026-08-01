@@ -7,9 +7,10 @@
  *
  * Actions:
  *
- *   save_moodboard_pdf   { file_name, pdf_base64 }
- *     -> writes the already-downloaded PDF to the archive folder and returns
- *        a shareable link. Source images never reach Drive.
+ *   save_moodboard_pdf   { file_name, pdf_base64, customer_name, order_title }
+ *     -> writes the generated PDF to
+ *        Kelak Kembali Moodboards/{customer}/{order}/Moodboard/ and returns a
+ *        shareable link. Source images never reach Drive.
  *   save_fitting_photo  -> writes a compressed fitting photo by client/order/stage.
  */
 
@@ -20,7 +21,19 @@ const DRIVE_API        = 'https://www.googleapis.com/drive/v3';
 const DRIVE_UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3';
 
 const ARCHIVE_FOLDER_NAME = 'Kelak Kembali Moodboards';
+const MOODBOARD_FOLDER_NAME = 'Moodboard';
 const FITTINGS_FOLDER_NAME = 'Kelak Kembali Fittings';
+
+/* Drive folder names are matched by an escaped query, so only the path
+   separators and control characters have to go — accents and non-Latin
+   scripts are kept so the archive stays readable. */
+const folderSegment = (value: string, fallback: string) =>
+  String(value || '')
+    // deno-lint-ignore no-control-regex
+    .replace(/[\\/\u0000-\u001f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 120) || fallback;
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -187,9 +200,16 @@ async function setViewPermission(token: string, fileId: string) {
 async function saveMoodboardPdf(
   token: string,
   requestedName: string,
-  pdfBase64: string
+  pdfBase64: string,
+  customerName: string,
+  orderTitle: string
 ) {
-  const archiveId = await findOrCreateFolder(token, ARCHIVE_FOLDER_NAME);
+  /* Kelak Kembali Moodboards/{customer}/{order}/Moodboard/{file}. Folder names
+     keep their readable Unicode and only lose what Drive queries choke on. */
+  const rootId = await findOrCreateFolder(token, ARCHIVE_FOLDER_NAME);
+  const customerId = await findOrCreateFolder(token, folderSegment(customerName, 'Unnamed customer'), rootId);
+  const orderId = await findOrCreateFolder(token, folderSegment(orderTitle, 'Untitled order'), customerId);
+  const archiveId = await findOrCreateFolder(token, MOODBOARD_FOLDER_NAME, orderId);
 
   const fallbackStamp = new Date().toISOString()
     .replace('T', '-').replace(/[:.]/g, '').replace('Z', '');
@@ -256,9 +276,11 @@ Deno.serve(async (req) => {
     const token = await accessToken(cred.refresh_token);
 
     if (action === 'save_moodboard_pdf') {
-      const { file_name, pdf_base64 } = payload;
+      const { file_name, pdf_base64, customer_name, order_title } = payload;
       if (!pdf_base64) throw new Told('pdf_base64 is required.');
-      return json(await saveMoodboardPdf(token, file_name || '', pdf_base64));
+      return json(await saveMoodboardPdf(
+        token, file_name || '', pdf_base64, customer_name || '', order_title || ''
+      ));
     }
 
     if (action === 'save_fitting_photo') {

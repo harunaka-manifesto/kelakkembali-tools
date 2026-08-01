@@ -76,7 +76,13 @@ getIntake:async function(e){return unwrap(await init().from("intake_submissions"
 return unwrap(await init().from("intake_submissions").update({status:t,customer_id:n||null,reviewed_at:(new Date).toISOString()
 }).eq("id",e).select(d).single())},googleStatus:()=>callGoogle("status"),googleExchange:(e,t)=>callGoogle("exchange",{code:e,redirect_uri:t}),
 googleDisconnect:()=>callGoogle("disconnect"),googleForget:e=>callGoogle("forget",{google_event_ids:e}),syncOrderCalendar:e=>callGoogle("sync",{
-order_id:e}),syncFollowUp:e=>callGoogle("sync_follow_up",{customer_id:e}),driveSaveMoodboardPdf:(e,t)=>callDrive("save_moodboard_pdf",{file_name:e,
-pdf_base64:t}),driveSaveFittingPhoto:(e,t,n,r,i,a)=>callDrive("save_fitting_photo",{image_base64:e,mime_type:t,file_name:n,customer_name:r,
-order_title:i,stage:a}),logMoodboard:async function(e,t){unwrap(await init().from("document_log").insert({order_id:e,kind:"moodboard",total:null,
-drive_link:t}))}}}();
+order_id:e}),syncFollowUp:e=>callGoogle("sync_follow_up",{customer_id:e}),driveSaveMoodboardPdf:(e,t,n,r)=>callDrive("save_moodboard_pdf",{file_name:e,
+pdf_base64:t,customer_name:n,order_title:r}),driveSaveFittingPhoto:(e,t,n,r,i,a)=>callDrive("save_fitting_photo",{image_base64:e,mime_type:t,file_name:n,customer_name:r,
+order_title:i,stage:a}),
+// A local download logs with no link; only the Drive copy has one.
+logMoodboard:async function(e,t){unwrap(await init().from("document_log").insert({order_id:e,kind:"moodboard",total:null,
+drive_link:t||null}))},
+// Whether this order has ever produced a moodboard — the moodboard date is
+// set by the first export only.
+countMoodboards:async function(e){const{count:t,error:n}=await init().from("document_log").select("id",{count:"exact",head:!0}).eq("order_id",e).eq("kind","moodboard")
+;if(n)throw new Error(n.message||"Could not read the moodboard log");return t||0}}}();

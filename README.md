@@ -81,7 +81,7 @@ business, rendering, and design contracts.
 | `config.js` | Supabase URL, anon key, the shared account's email, Google client ID |
 | `util.js` | Formatting, escaping, the seeded-PRNG primitives |
 | `docs.js` | The document engine: fills both templates, exports the PDF |
-| `moodboard.js` | Browser-local image cache, 16:9 layout engine, and moodboard PDF renderer |
+| `moodboard.js` | Browser-local image cache, orientation-aware layout engine, and moodboard PDF renderer |
 | `fittings.js` | Photo-first fitting revision log, captions, local previews, and Drive backup |
 | `calendar.js` | The fitting schedule: places the appointments, draws the card |
 | `db.js` | Every Supabase call — auth and CRUD, nothing else touches the client |
@@ -318,29 +318,79 @@ While selected photos are decoded, the dropzone displays preparation progress.
 Files are handled sequentially to avoid simultaneous large-image or HEIC
 conversion work on mobile devices.
 
-**Generate Moodboard** opens a dedicated preview route rather than an embedded
-preview card. It does not change the device orientation. The composition fits
-inside a portrait screen and supports pinch/drag, wheel, and double-tap zoom.
-The presentation has only **Randomize** and **Download**. Randomize changes both
-photo order and layout variation in one press. Browser Back returns to the
-selection page without discarding the locally cached photos.
+**Generate Moodboard** opens the generated canvas at
+`#/order/:id/moodboard/preview`: a centred column, up to 390px wide, holding the
+framed board, **Randomize layout**, **Upload to Drive**, and **Download PDF**.
+It does not change the device orientation. Randomize changes both photo order
+and layout variation in one press. Browser Back returns to the selection page
+with the locally cached photos, their order, and the current orientation
+intact. Leaving the moodboard workflow discards the source images.
+
+### Orientation
+
+The frame on the canvas is always 9:16; the moodboard **inside** it is what
+rotates. The rotate control switches the document between two exact 16:9
+counterparts — landscape `1920 × 1080` and portrait `1080 × 1920`. Either one
+fills the frame edge to edge with no letterboxing: a portrait board directly, a
+landscape board laid in sideways with a quarter-turn, which the stylist reads by
+turning the phone. Every browser-local session starts landscape. Rotating
+recalculates geometry only: the photo order and the layout variation both
+survive it.
 
 For boards with 2–16 images, every layout keeps its image cells portrait while
-still filling the entire 16:9 photo region. Column widths flex around a roughly
-2:3 target and columns may contain one to four stacked photos. A one-image
-board is the sole exception because its image must fill the landscape region.
+filling the entire photo region in both orientations. Landscape partitions the
+region into columns of one to four stacked photos; portrait transposes that into
+rows of one to four photos side by side. Either way the band measurements are
+solved together around a roughly 2:3 cell target, so the mosaic reaches all four
+edges with no blank remainder. A one-image board is the sole exception: its
+image fills the region full-bleed.
 
-Download creates a landscape PDF and starts the browser download first. It then
-uploads the same bytes as an archive copy in `Kelak Kembali Moodboards/` on
-Google Drive, logs the Drive link, and updates the moodboard follow-up. Both
-copies share a millisecond timestamped filename, so repeated exports do not
+### Full-screen overlay
+
+The composed board is the tap target — individual photos never open on their
+own. It opens a full-screen overlay with the close control at the top right.
+The board starts fitted and centred and supports gesture-centred pinch zoom,
+bounded panning, mouse wheel and drag, double-tap or double-click, and the
+keyboard `+`, `-`, and `0` (return to fitted) keys. Zoom is capped at 5×.
+Escape closes it, focus is trapped while it is open and restored on dismissal,
+background scrolling is locked, and resizing or rotating the viewport refits it.
+
+### Exports
+
+The two exports are independent, and each keeps its own busy, success, and
+failure state. Orientation, randomization, and both exports are disabled during
+a capture so the layout cannot change mid-render.
+
+- **Download PDF** generates and downloads locally without contacting Drive.
+- **Upload to Drive** generates the same PDF and uploads it without downloading.
+
+The page follows the chosen orientation: landscape produces a 16:9 landscape
+page, portrait a 9:16 portrait one. Watermarking, capture quality, and the
+millisecond timestamped filename are unchanged, so repeated exports do not
 collide:
 
 `Moodboard-KelakKembali-{DocName}-{YYYY-MM-DD-HHmmss-SSS}.pdf`
 
+Every successful export writes a moodboard document row and a history event
+recording the filename, orientation, and destination; a Drive export also
+stores its link. Only the **first** successful export for an order sets
+`moodboard_date` and recalculates the consultation follow-up — later exports add
+history without moving that date. Downloading or uploading counts as generating
+the moodboard; neither implies it was sent to the customer.
+
+Drive uploads go to:
+
+`Kelak Kembali Moodboards/{customer name}/{order title}/Moodboard/{filename}`
+
+The order title is used first, then the document name, then `Untitled order`.
+Folder segments are sanitized but keep readable Unicode names. A missing,
+revoked, or invalid credential leaves the moodboard session and its photos
+intact and offers to open the Google settings page in a new tab.
+
 The Drive function needs the additional OAuth scope
 `https://www.googleapis.com/auth/drive.file`. It exposes `save_moodboard_pdf`
-and `save_fitting_photo`; no cleanup endpoint exists. After adding the scope,
+(`{file_name, pdf_base64, customer_name, order_title}`) and
+`save_fitting_photo`; no cleanup endpoint exists. After adding the scope,
 reconnect Google once so the stored refresh token includes the new permission.
 
 ## Fitting log

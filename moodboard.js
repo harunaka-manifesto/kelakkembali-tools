@@ -1,12 +1,13 @@
 /* Kelak Kembali — moodboard generator.
 
-   Owns the 16:9 moodboard canvas: image management, the algorithmic grid
-   layout engine (three variations per image count), and the off-screen render
-   pipeline (reusing docs.js's watermark/capture approach). Selected images
-   stay in the browser as object URLs; only the completed PDF leaves the device.
+   Owns the moodboard canvas in both orientations (16:9 landscape and 9:16
+   portrait): image management, the algorithmic grid layout engine (three
+   variations per image count), and the off-screen render pipeline (reusing
+   docs.js's watermark/capture approach). Selected images stay in the browser
+   as object URLs; only the completed PDF leaves the device.
 
-   The view itself (dropzone and full-screen presentation) lives in index.html under
-   #viewMoodboard; this module fills and drives it. */
+   The views (dropzone, generated canvas, and full-screen overlay) live in
+   index.html under #viewMoodboard; this module fills and drives them. */
 
 window.KK = window.KK || {};
 
@@ -21,21 +22,22 @@ KK.moodboard = (function () {
 
   const MAX_IMAGES = 16;
   const GAP = 12;
-  const STAGE_W = 1920;
-  const STAGE_H = 1080;
   const SNAPSHOT_SCALE = 3;
 
+  /* Exact 16:9 counterparts. Everything downstream — the grid solver, the
+     capture, and the PDF page — reads the active pair rather than a constant. */
+  const STAGES = {
+    landscape: { w: 1920, h: 1080 },
+    portrait: { w: 1080, h: 1920 }
+  };
+  const DEFAULT_ORIENTATION = 'landscape';
+
   const HEADER_PAD_TOP = 24;
-  const HEADER_PAD_SIDE = 32;
-  const HEADER_PAD_BOTTOM = 32;
   const HEADER_GAP = 16;
   const HEADER_HEIGHT = 48;
   const CONTENT_TOP = HEADER_PAD_TOP + HEADER_HEIGHT + HEADER_GAP;
   const CONTENT_PAD = 32;
-  const GRID_TOP = CONTENT_TOP;
-  const GRID_LEFT = CONTENT_PAD;
-  const GRID_W = STAGE_W - CONTENT_PAD * 2;
-  const GRID_H = STAGE_H - GRID_TOP - CONTENT_PAD;
+  const TARGET_ASPECT = 0.72;
 
   const WM_BASE = '#EBE9E4';
   const WM_TONES = [
@@ -53,63 +55,105 @@ KK.moodboard = (function () {
   let pending = [];         // { file, id } while a selection is decoded
   let uploadGeneration = 0; // invalidates an in-flight batch when the view closes
   let variation = 'A';
+  let orientation = DEFAULT_ORIENTATION;
   let shuffleOrder = null;  // null = natural order, array = shuffled indices
   let stageEl = null;
   let gridEl = null;
   let headerNameEl = null;
   let orderData = null;     // { orderId, customerId, customerName, docName, orderRef }
 
+  /* --------------------------- Stage geometry ----------------------------- */
+
+  function stageSize() {
+    return STAGES[orientation] || STAGES[DEFAULT_ORIENTATION];
+  }
+
+  /* The photo region: the whole stage minus the branded header band and the
+     uniform 32px margin. Both orientations use the same header, so only the
+     region's own width and height move. */
+  function photoRegion() {
+    const stage = stageSize();
+    return {
+      w: stage.w - CONTENT_PAD * 2,
+      h: stage.h - CONTENT_TOP - CONTENT_PAD
+    };
+  }
+
+  function applyStageGeometry() {
+    if (!stageEl) return;
+    const stage = stageSize();
+    const region = photoRegion();
+    stageEl.style.width = stage.w + 'px';
+    stageEl.style.height = stage.h + 'px';
+    if (gridEl) {
+      gridEl.style.width = region.w + 'px';
+      gridEl.style.height = region.h + 'px';
+    }
+  }
+
   /* ----------------------------- Layout engine ---------------------------- */
 
   function computeGrid(count, v) {
+    const region = photoRegion();
     if (count === 0) return [];
-    if (count === 1) return [{ x: 0, y: 0, w: GRID_W, h: GRID_H }];
-    return portraitGrid(count, v);
+    if (count === 1) return [{ x: 0, y: 0, w: region.w, h: region.h }];
+    return mosaic(count, v, region);
   }
 
-  /* A column is split into one to four stacked images. Its width is derived
-     from that stack's tile height so every cell in a candidate shares one
-     portrait aspect ratio. Because the widths are solved together, the mosaic
-     still touches all four edges of the photo region with no blank remainder. */
-  function portraitPartitions(total, min, current, output) {
+  /* A landscape board is partitioned into bands running down the page: each
+     column holds one to four stacked images. A portrait board transposes that
+     into bands running across it: each row holds one to four images side by
+     side. Either way the band measurements are solved together so every cell
+     in a candidate shares one portrait aspect ratio, and the mosaic still
+     touches all four edges of the photo region with no blank remainder. */
+  function bandPartitions(total, min, current, output) {
     if (total === 0) {
       output.push(current.slice());
       return;
     }
     for (let size = min; size <= Math.min(4, total); size++) {
       current.push(size);
-      portraitPartitions(total - size, size, current, output);
+      bandPartitions(total - size, size, current, output);
       current.pop();
     }
   }
 
-  function portraitCandidate(parts) {
-    const columnHeights = parts.map((rows) =>
-      (GRID_H - (rows - 1) * GAP) / rows
-    );
-    const usableW = GRID_W - (parts.length - 1) * GAP;
-    const aspect = usableW / columnHeights.reduce((sum, height) => sum + height, 0);
-    return { parts, columnHeights, aspect };
+  /* `sizes` is each band's fixed cross-axis measurement — a column's cell
+     height in landscape, a row's cell width in portrait. The shared aspect
+     then falls out of making the bands span the remaining axis exactly. */
+  function bandCandidate(parts, region, transposed) {
+    const span = transposed ? region.w : region.h;
+    const other = transposed ? region.h : region.w;
+    const sizes = parts.map((count) => (span - (count - 1) * GAP) / count);
+    const usable = other - (parts.length - 1) * GAP;
+    const filled = sizes.reduce((sum, size) => sum + size, 0);
+    return {
+      parts,
+      sizes,
+      aspect: transposed ? filled / usable : usable / filled
+    };
   }
 
-  function portraitGrid(count, variationName) {
+  function candidateScore(candidate) {
+    const spread = Math.max.apply(null, candidate.parts) - Math.min.apply(null, candidate.parts);
+    return Math.abs(candidate.aspect - TARGET_ASPECT) + spread * 0.012;
+  }
+
+  function mosaic(count, variationName, region) {
+    const transposed = orientation === 'portrait';
     const partitions = [];
-    portraitPartitions(count, 1, [], partitions);
+    bandPartitions(count, 1, [], partitions);
 
     let candidates = partitions
-      .map(portraitCandidate)
+      .map((parts) => bandCandidate(parts, region, transposed))
       .filter((candidate) => candidate.aspect < 1)
-      .sort((a, b) => {
-        const aSpread = Math.max(...a.parts) - Math.min(...a.parts);
-        const bSpread = Math.max(...b.parts) - Math.min(...b.parts);
-        const aScore = Math.abs(a.aspect - 0.72) + aSpread * 0.012;
-        const bScore = Math.abs(b.aspect - 0.72) + bSpread * 0.012;
-        return aScore - bScore;
-      });
+      .sort((a, b) => candidateScore(a) - candidateScore(b));
 
     /* Two images are the tightest possible portrait fit. Keep a defensive
        fallback in case the stage dimensions or gap are changed later. */
-    if (!candidates.length) candidates = [portraitCandidate(Array(count).fill(1))];
+    if (!candidates.length) {
+      candidates = [bandCandidate(Array(count).fill(1), region, transposed)];
+    }
 
     const variationIndex = VARIATIONS.indexOf(variationName);
     const chosen = candidates[Math.max(0, variationIndex) % Math.min(3, candidates.length)];
@@ -117,20 +161,29 @@ KK.moodboard = (function () {
     if (variationName === 'B') parts.reverse();
     if (variationName === 'C' && parts.length > 1) parts.push(parts.shift());
 
-    const geometry = portraitCandidate(parts);
+    const geometry = bandCandidate(parts, region, transposed);
     const cells = [];
-    let x = 0;
+    let offset = 0;
 
-    parts.forEach((rows, columnIndex) => {
-      const cellH = geometry.columnHeights[columnIndex];
-      const width = columnIndex === parts.length - 1
-        ? GRID_W - x
-        : geometry.aspect * cellH;
+    parts.forEach((count, band) => {
+      const size = geometry.sizes[band];
+      const last = band === parts.length - 1;
 
-      for (let row = 0; row < rows; row++) {
-        cells.push({ x, y: row * (cellH + GAP), w: width, h: cellH });
+      if (transposed) {
+        /* The last band absorbs the sub-pixel remainder so the mosaic reaches
+           the bottom edge exactly. */
+        const cellH = last ? region.h - offset : size / geometry.aspect;
+        for (let i = 0; i < count; i++) {
+          cells.push({ x: i * (size + GAP), y: offset, w: size, h: cellH });
+        }
+        offset += cellH + GAP;
+      } else {
+        const cellW = last ? region.w - offset : geometry.aspect * size;
+        for (let i = 0; i < count; i++) {
+          cells.push({ x: offset, y: i * (size + GAP), w: cellW, h: size });
+        }
+        offset += cellW + GAP;
       }
-      x += width + GAP;
     });
 
     return cells;
@@ -145,6 +198,7 @@ KK.moodboard = (function () {
 
   function renderPreview() {
     if (!gridEl) return;
+    applyStageGeometry();
 
     const ordered = getOrderedImages();
     const cells = computeGrid(ordered.length, variation);
@@ -497,6 +551,9 @@ KK.moodboard = (function () {
     await fontsReady();
     await imagesReady(stageEl);
 
+    const stage = stageSize();
+    const wide = orientation !== 'portrait';
+
     stageEl.style.backgroundColor = 'transparent';
     let raw;
     try {
@@ -505,15 +562,15 @@ KK.moodboard = (function () {
         backgroundColor: null,
         useCORS: true,
         logging: false,
-        width: STAGE_W,
-        height: STAGE_H,
+        width: stage.w,
+        height: stage.h,
         onclone: cloneReady
       });
     } finally {
       stageEl.style.backgroundColor = '';
     }
 
-    const watermark = buildWatermark(moodboardSeed(), STAGE_W, STAGE_H, SNAPSHOT_SCALE);
+    const watermark = buildWatermark(moodboardSeed(), stage.w, stage.h, SNAPSHOT_SCALE);
 
     const canvas = document.createElement('canvas');
     canvas.width = raw.width;
@@ -522,11 +579,15 @@ KK.moodboard = (function () {
     ctx.drawImage(watermark, 0, 0, canvas.width, canvas.height);
     ctx.drawImage(raw, 0, 0);
 
-    const pageW = 841.89;  // A4 landscape width in pt
-    const pageH = pageW * (STAGE_H / STAGE_W);
+    /* One page shape per orientation: the long edge is always the A4 landscape
+       width, and the short edge follows the stage's own 16:9 ratio. */
+    const longEdge = 841.89;
+    const shortEdge = longEdge * (Math.min(stage.w, stage.h) / Math.max(stage.w, stage.h));
+    const pageW = wide ? longEdge : shortEdge;
+    const pageH = wide ? shortEdge : longEdge;
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({
-      orientation: 'landscape',
+      orientation: wide ? 'landscape' : 'portrait',
       unit: 'pt',
       format: [pageW, pageH],
       compress: true
@@ -572,6 +633,7 @@ KK.moodboard = (function () {
     cleanup();
     orderData = opts;
     variation = 'A';
+    orientation = DEFAULT_ORIENTATION;
 
     stageEl = document.querySelector('.stage #moodboardStage');
     gridEl = stageEl ? stageEl.querySelector('#mbGrid') : null;
@@ -589,6 +651,21 @@ KK.moodboard = (function () {
     updateControls();
   }
 
+  /* Orientation only changes geometry — the photo order and the chosen
+     variation both survive a rotation. */
+  function setOrientation(value) {
+    const next = value === 'portrait' ? 'portrait' : 'landscape';
+    if (next !== orientation) {
+      orientation = next;
+      renderPreview();
+    }
+    return orientation;
+  }
+
+  function toggleOrientation() {
+    return setOrientation(orientation === 'landscape' ? 'portrait' : 'landscape');
+  }
+
   function cleanup() {
     uploadGeneration++;
     images.forEach((img) => URL.revokeObjectURL(img.objectURL));
@@ -602,10 +679,14 @@ KK.moodboard = (function () {
     MAX_IMAGES,
     init, cleanup,
     addFiles, removeImage, randomize,
-    setVariation,
+    setVariation, setOrientation, toggleOrientation,
+    computeGrid, photoRegion,
     generatePDF, pdfToBase64, buildFilename,
     get stage() { return stageEl; },
     get images() { return images; },
-    get variation() { return variation; }
+    get variation() { return variation; },
+    get orientation() { return orientation; },
+    get stageWidth() { return stageSize().w; },
+    get stageHeight() { return stageSize().h; }
   };
 })();

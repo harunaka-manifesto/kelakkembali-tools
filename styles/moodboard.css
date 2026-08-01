@@ -20,12 +20,15 @@ body.is-moodboardpage .page {
 }
 body.is-moodboardpage .view { gap: 0; }
 
-.moodboard-editor {
+.moodboard-editor,
+.moodboard-canvas {
   min-height: 100svh;
   display: flex;
   flex-direction: column;
   background: var(--home-black);
 }
+.moodboard-editor[hidden],
+.moodboard-canvas[hidden] { display: none; }
 .moodboard-nav {
   padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 0;
   display: flex;
@@ -35,7 +38,9 @@ body.is-moodboardpage .view { gap: 0; }
   background: var(--home-black);
 }
 .moodboard-nav__back { flex: 1 1 auto; max-width: 240px; }
-.moodboard-nav__file { flex: none; }
+.moodboard-nav__file,
+.moodboard-nav__rotate { flex: none; }
+.moodboard-nav__rotate:disabled { cursor: progress; opacity: .55; }
 .moodboard-nav__back .order-nav-btn__face { justify-content: flex-start; }
 .moodboard-nav__back .order-nav-btn__face span {
   min-width: 0;
@@ -219,6 +224,95 @@ body.is-moodboardpage .view { gap: 0; }
 .mb-upload-cell.is-loaded .mb-upload-cell__progress { opacity: 0; transform: scale(.65); }
 .mb-upload-cell__control:focus-visible { outline: 2px solid var(--home-white); outline-offset: -4px; }
 
+/* --------------------------- Generated canvas ---------------------------- */
+
+/* The framed board. Its top edge is the ledger rule above it, so the frame
+   carries only three borders — the same trick the upload card uses. */
+.mb-board-frame {
+  display: flex;
+  padding: 12px;
+  background: var(--home-white);
+  border-right: 1px solid var(--home-grid);
+  border-bottom: 1px solid var(--home-grid);
+  border-left: 1px solid var(--home-grid);
+}
+/* The frame is always 9:16. The document inside it is what rotates: a portrait
+   board fills the frame directly, a landscape one is laid in sideways so it
+   fills it too, and the stylist turns the phone to read it. */
+.mb-board {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 9 / 16;
+  display: block;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: #000;
+  cursor: zoom-in;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity var(--motion-quick) var(--ease-standard);
+}
+.mb-board:not(:disabled):active { opacity: .88; }
+.mb-board:disabled { cursor: progress; opacity: .78; }
+.mb-board:focus-visible { outline: 2px solid var(--home-orange); outline-offset: 2px; }
+/* The clone renders at the stage's own pixel size and is scaled to fit the
+   frame, so the board on screen is the document, not a re-implementation of
+   it. */
+.mb-board__scaler {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: block;
+  transform-origin: 50% 50%;
+  pointer-events: none;
+}
+.mb-board__scaler .mb { background: #E4E2DD; }
+
+/* Full-width strip, styled as the nav buttons are: a face over a rail that
+   gives up its height when pressed. */
+.moodboard-strip {
+  width: 100%;
+  display: grid;
+  grid-template-rows: 48px 7px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-right: 1px solid var(--home-grid);
+  border-bottom: 1px solid var(--home-grid);
+  border-left: 1px solid var(--home-grid);
+  border-radius: 0;
+  background: var(--home-white);
+  color: var(--home-black);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition: grid-template-rows 120ms var(--ease-out-expo);
+}
+.moodboard-strip__face {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  overflow: hidden;
+  background: var(--home-white);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: -.48px;
+  white-space: nowrap;
+}
+.moodboard-strip__face img { flex: none; display: block; width: 20px; height: 20px; }
+.moodboard-strip__rail { display: block; background: var(--home-white-dark); }
+.moodboard-strip:not(:disabled):active,
+.moodboard-strip.is-pressed:not(:disabled) { grid-template-rows: 53px 2px; }
+.moodboard-strip:not(:disabled):active .moodboard-strip__face,
+.moodboard-strip.is-pressed:not(:disabled) .moodboard-strip__face {
+  background-image: linear-gradient(180deg, transparent, rgba(0,0,0,.06));
+}
+.moodboard-strip:disabled { cursor: not-allowed; opacity: .55; }
+
 /* ------------------------------ Actions --------------------------------- */
 
 .moodboard-actions { display: flex; }
@@ -248,15 +342,30 @@ body.is-moodboardpage .view { gap: 0; }
 }
 .moodboard-action__face img { flex: none; width: 20px; height: 20px; }
 .moodboard-action__rail { display: block; }
-.moodboard-action--add .moodboard-action__face { background: var(--home-grid); }
-.moodboard-action--add .moodboard-action__rail { background: var(--home-black-light); }
-.moodboard-action--generate .moodboard-action__face { background: var(--home-orange); }
-.moodboard-action--generate .moodboard-action__rail { background: #dd5d01; }
+.moodboard-action--add .moodboard-action__face,
+.moodboard-action--drive .moodboard-action__face { background: var(--home-grid); }
+.moodboard-action--add .moodboard-action__rail,
+.moodboard-action--drive .moodboard-action__rail { background: var(--home-black-light); }
+.moodboard-action--generate .moodboard-action__face,
+.moodboard-action--download .moodboard-action__face { background: var(--home-orange); }
+.moodboard-action--generate .moodboard-action__rail,
+.moodboard-action--download .moodboard-action__rail { background: #dd5d01; }
+/* The label region is the only thing that changes while an export runs, so the
+   split keeps its geometry through busy, success, and failure alike. */
+.moodboard-action__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.moodboard-action.is-busy { cursor: progress; }
+.moodboard-action.is-busy .moodboard-action__face { animation: moodboard-action-pulse 1.4s ease-in-out infinite; }
+.moodboard-action.is-done .moodboard-action__face { background: #2f7d4f; }
+.moodboard-action.is-done .moodboard-action__rail { background: #24623d; }
+.moodboard-action.is-error .moodboard-action__face { background: #9b2f22; }
+.moodboard-action.is-error .moodboard-action__rail { background: #7a241a; }
 .moodboard-action:not(:disabled):active,
 .moodboard-action.is-pressed:not(:disabled) { grid-template-rows: 57px 3px; }
 .moodboard-action:not(:disabled):active .moodboard-action__face,
 .moodboard-action.is-pressed:not(:disabled) .moodboard-action__face { background-image: linear-gradient(180deg, transparent, rgba(0,0,0,.12)); }
-.moodboard-action:disabled { cursor: not-allowed; filter: grayscale(.55); opacity: .72; }
+/* An export disables every control including itself, so the button actually
+   working is exempt from the dimming its siblings get. */
+.moodboard-action:disabled:not(.is-busy) { cursor: not-allowed; filter: grayscale(.55); opacity: .72; }
 
 .moodboard-footer {
   padding: 24px;
@@ -274,36 +383,40 @@ body.is-moodboardpage .view { gap: 0; }
   .moodboard-grid-spacer { margin: 0 16px; }
 }
 
+@keyframes moodboard-action-pulse {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.18); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .mb-upload-cell > img,
   .mb-upload-cell__control::before,
   .mb-upload-cell__control::after,
   .mb-upload-cell__progress,
+  .moodboard-strip,
   .moodboard-action { transition: none; }
+  .moodboard-action.is-busy .moodboard-action__face { animation: none; }
 }
 
-/* -------------------------- Moodboard presentation ----------------------- */
+/* ---------------------- Full-screen moodboard overlay -------------------- */
 
-.mb-presentation {
+.mb-overlay {
   position: fixed;
   inset: 0;
   z-index: 80;
-}
-
-.mb-presentation[hidden] { display: none; }
-
-.mb-presentation {
-  background: #17150F;
+  background: var(--home-black);
   overflow: hidden;
   overscroll-behavior: contain;
   animation: presentation-in var(--motion-enter) var(--ease-standard) both;
 }
 
-.mb-presentation__close {
+.mb-overlay[hidden] { display: none; }
+
+.mb-overlay__close {
   position: absolute;
   z-index: 3;
   top: calc(10px + env(safe-area-inset-top, 0px));
-  left: calc(10px + env(safe-area-inset-left, 0px));
+  right: calc(10px + env(safe-area-inset-right, 0px));
   width: 44px;
   height: 44px;
   display: grid;
@@ -317,15 +430,15 @@ body.is-moodboardpage .view { gap: 0; }
   transition: transform var(--motion-quick) var(--ease-standard), background-color var(--motion-standard) var(--ease-standard), border-color var(--motion-standard) var(--ease-standard);
 }
 
-.mb-presentation__close svg { width: 20px; height: 20px; }
-.mb-presentation__close:hover { background: rgba(0, 0, 0, .55); border-color: rgba(255, 255, 255, .62); }
-.mb-presentation__close:active { background: rgba(0, 0, 0, 0.68); transform: scale(.92); }
+.mb-overlay__close svg { width: 20px; height: 20px; }
+.mb-overlay__close:hover { background: rgba(0, 0, 0, .55); border-color: rgba(255, 255, 255, .62); }
+.mb-overlay__close:active { background: rgba(0, 0, 0, 0.68); transform: scale(.92); }
 
-.mb-presentation__hint {
+.mb-overlay__hint {
   position: absolute;
   z-index: 2;
-  top: calc(14px + env(safe-area-inset-top, 0px));
   left: 50%;
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
   width: max-content;
   max-width: calc(100% - 32px);
@@ -333,12 +446,12 @@ body.is-moodboardpage .view { gap: 0; }
   padding: 7px 11px;
   border-radius: 999px;
   color: rgba(255, 255, 255, 0.82);
-  background: rgba(0, 0, 0, 0.38);
+  background: rgba(255, 255, 255, 0.08);
   font-size: 12px;
   pointer-events: none;
 }
 
-.mb-presentation__canvas {
+.mb-overlay__canvas {
   position: absolute;
   inset: 0;
   overflow: hidden;
@@ -346,28 +459,7 @@ body.is-moodboardpage .view { gap: 0; }
   cursor: grab;
   user-select: none;
 }
-.mb-presentation__canvas:active { cursor: grabbing; }
-
-.mb-presentation__actions {
-  position: absolute;
-  z-index: 2;
-  left: 50%;
-  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-  transform: translateX(-50%);
-  display: flex;
-  gap: 10px;
-  padding: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 14px;
-  background: rgba(244, 243, 240, 0.9);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.28);
-  backdrop-filter: blur(12px);
-}
-
-.mb-presentation__actions .btn {
-  min-width: 122px;
-  min-height: 44px;
-}
+.mb-overlay__canvas:active { cursor: grabbing; }
 
 body.moodboard-presenting { overflow: hidden; }
 
@@ -451,20 +543,10 @@ body.moodboard-presenting { overflow: hidden; }
   .fitting-caption-step__form { padding-top: 10px; }
 }
 
-@media (max-height: 500px) {
-  .mb-presentation__actions {
-    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
-    padding: 5px;
-  }
-  .mb-presentation__actions .btn {
-    min-height: 40px;
-    padding-top: 8px;
-    padding-bottom: 8px;
-  }
-}
-
 /* =================== Moodboard document (off-screen) ==================== */
 
+/* The landscape stage is the default; moodboard.js writes the active pair of
+   dimensions inline whenever the orientation changes. */
 .mb {
   position: relative;
   width: 1920px;

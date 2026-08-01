@@ -934,19 +934,76 @@
       <footer class="moodboard-footer">Made with love for Ichaku</footer>
     </div>
 
-    <section class="mb-presentation" id="mbPresentation" aria-label="Moodboard preview" role="dialog" aria-modal="true" hidden>
-      <button type="button" class="mb-presentation__close" id="mbPresentationClose" aria-label="Close moodboard preview">
+    <!-- Generated canvas. Figma node 139:1733. -->
+    <div class="moodboard-canvas" id="mbCanvas" hidden>
+      <nav class="moodboard-nav" aria-label="Moodboard navigation">
+        <a class="order-nav-btn moodboard-nav__back" id="mbCanvasBack" href="#/customers">
+          <span class="order-nav-btn__face">
+            <img src="assets/cust-back-icon.svg" alt="" width="24" height="24">
+            <span>Moodboard</span>
+          </span>
+          <span class="order-nav-btn__rail" aria-hidden="true"></span>
+        </a>
+        <button type="button" class="order-nav-btn order-nav-btn--icon moodboard-nav__rotate" id="mbRotate" aria-label="Rotate to portrait">
+          <span class="order-nav-btn__face">
+            <img src="assets/moodboard-rotate-icon.svg" alt="" width="24" height="24">
+          </span>
+          <span class="order-nav-btn__rail" aria-hidden="true"></span>
+        </button>
+      </nav>
+
+      <main class="moodboard-ledger">
+        <div class="moodboard-grid-spacer" aria-hidden="true"></div>
+        <section class="moodboard-section" aria-label="Generated moodboard">
+          <div class="moodboard-grid-rule" aria-hidden="true"></div>
+          <div class="moodboard-inset">
+            <div class="mb-board-frame">
+              <button type="button" class="mb-board" id="mbBoard" aria-label="Open the moodboard full screen">
+                <span class="mb-board__scaler" id="mbBoardScaler" aria-hidden="true"></span>
+              </button>
+            </div>
+
+            <button type="button" class="moodboard-strip" id="mbRandomize">
+              <span class="moodboard-strip__face">
+                <img src="assets/moodboard-shuffle-icon.svg" alt="" width="20" height="20">
+                <span>Randomize layout</span>
+              </span>
+              <span class="moodboard-strip__rail" aria-hidden="true"></span>
+            </button>
+
+            <div class="moodboard-actions">
+              <button type="button" class="moodboard-action moodboard-action--drive" id="mbUpload">
+                <span class="moodboard-action__face">
+                  <img src="assets/moodboard-upload-icon.svg" alt="" width="20" height="20">
+                  <span class="moodboard-action__label">Upload to Drive</span>
+                </span>
+                <span class="moodboard-action__rail" aria-hidden="true"></span>
+              </button>
+              <button type="button" class="moodboard-action moodboard-action--download" id="mbDownload">
+                <span class="moodboard-action__face">
+                  <img src="assets/order-moodboard-icon.svg" alt="" width="20" height="20">
+                  <span class="moodboard-action__label">Download PDF</span>
+                </span>
+                <span class="moodboard-action__rail" aria-hidden="true"></span>
+              </button>
+            </div>
+          </div>
+          <div class="moodboard-grid-rule" aria-hidden="true"></div>
+        </section>
+        <div class="moodboard-grid-spacer" aria-hidden="true"></div>
+      </main>
+
+      <p class="sr-only" id="mbExportStatus" role="status" aria-live="polite"></p>
+      <footer class="moodboard-footer">Made with love for Ichaku</footer>
+    </div>
+
+    <!-- The whole board is the zoom target; individual photos never open. -->
+    <section class="mb-overlay" id="mbOverlay" aria-label="Moodboard, full screen" role="dialog" aria-modal="true" hidden>
+      <div class="mb-overlay__canvas" id="mbOverlayCanvas"></div>
+      <button type="button" class="mb-overlay__close" id="mbOverlayClose" aria-label="Close the full screen moodboard">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
-      <p class="mb-presentation__hint">Pinch, drag, or scroll to zoom</p>
-      <div class="mb-presentation__canvas" id="mbPresentationCanvas"></div>
-      <div class="mb-presentation__actions">
-        <button type="button" class="btn btn--outline" id="mbRandomize">Randomize</button>
-        <button type="button" class="btn btn--primary" id="mbDownload">
-          <span class="btn__label">Download</span>
-          <span class="spinner" aria-hidden="true"></span>
-        </button>
-      </div>
+      <p class="mb-overlay__hint">Pinch, scroll, or double-tap to zoom · 0 to fit</p>
     </section>
   </section>
 
@@ -1246,7 +1303,8 @@
 </div>
 
 <!-- =================== MOODBOARD DOCUMENT (locked spec) =================== -->
-<!-- 16:9 landscape, snapshotted for the PDF. Figma node 27:21. -->
+<!-- Snapshotted for the PDF. Figma node 27:21. The stage starts landscape at
+     1920x1080; moodboard.js swaps in 1080x1920 for portrait. -->
 <div class="stage" aria-hidden="true">
   <div class="mb" id="moodboardStage">
     <div class="mb-header">

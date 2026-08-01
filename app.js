@@ -11,7 +11,8 @@
    saveOrder / addItemRow / addTermRow          order editor
    rescheduleOrder / logDeposit       payments and calendar scheduling
    setupMoodboardListeners            moodboard interaction
-   download / downloadMoodboard       document generation and logging
+   syncMoodboardCanvas / openMoodboardOverlay  generated moodboard canvas
+   download / exportMoodboard         document generation and logging
    bindEvents / showGate / showApp    application boot and global events */
 window.KK=window.KK||{},KK.app=function(){"use strict"
 ;const e=KK.util,t=KK.db,o=KK.docs,n=KK.calendar,a=e.$,s=e.$$,r=["Custom design & consultation","Production","Standard fabric","Plain veil","Fitting","Laundry"],i=["Quoted","Confirmed","In production","Delivered"],d=["Instagram","TikTok","Referral","Walk-in","Other"],c={
@@ -50,8 +51,11 @@ addTerm:a("#addTerm"),termsSum:a("#termsSum"),errTerms:a("#errTerms"),itemList:a
 includesList:a("#includesList"),customInclude:a("#customInclude"),addInclude:a("#addInclude"),
 downloadNote:a("#downloadNote"),downloadQuote:a("#downloadQuote"),downloadInvoice:a("#downloadInvoice"),
 toast:a("#toast"),calcSheet:a("#calcSheet"),calcItemLabel:a("#calcItemLabel"),calcRowList:a("#calcRowList"),calcAddRow:a("#calcAddRow"),
-calcTotal:a("#calcTotal"),calcApply:a("#calcApply"),calcBack:a("#calcBack"),mbPresentation:a("#mbPresentation"),
-mbPresentationClose:a("#mbPresentationClose")},g={quotation:p.downloadQuote,invoice:p.downloadInvoice},w={route:null,// { view, id }
+calcTotal:a("#calcTotal"),calcApply:a("#calcApply"),calcBack:a("#calcBack"),
+mbEditor:a("#mbEditor"),mbCanvas:a("#mbCanvas"),mbCanvasBack:a("#mbCanvasBack"),mbRotate:a("#mbRotate"),
+mbBoard:a("#mbBoard"),mbBoardScaler:a("#mbBoardScaler"),mbRandomize:a("#mbRandomize"),mbUpload:a("#mbUpload"),
+mbDownload:a("#mbDownload"),mbExportStatus:a("#mbExportStatus"),mbOverlay:a("#mbOverlay"),
+mbOverlayCanvas:a("#mbOverlayCanvas"),mbOverlayClose:a("#mbOverlayClose")},g={quotation:p.downloadQuote,invoice:p.downloadInvoice},w={route:null,// { view, id }
 customers:[],// the whole list, filtered client-side
 customer:null,// record backing the customer view
 order:null,// record backing the order views
@@ -114,7 +118,7 @@ a(".route-loader__canvas",p.routeLoader).hidden=!0,p.routeLoaderError.hidden=!1,
 p.routeLoaderError.innerHTML='<h2 class="route-loader__error-title">Could not open this page.</h2><p class="route-loader__error-copy">'+
 KK.util.escapeHtml(t&&t.message||"Check your connection and try again.")+'</p><div class="route-loader__error-actions"><button type="button" class="btn btn--primary js-route-retry">Try again</button><a class="btn btn--outline" href="#/customers">Customers</a></div>'
 ;const o=a(".js-route-retry",p.routeLoaderError);o.addEventListener("click",()=>handleRoute(!0),{once:!0}),requestAnimationFrame(()=>o.focus({preventScroll:!0}))}
-function focusRoute(e){const t="customers"===e.view?p.heroGreeting:"customer"===e.view?p.custHeroName:"customerEdit"===e.view?p.custEditTitle:"order"===e.view?p.orderTitle:"moodboard"===e.view?p.mbTitle:"moodboardPreview"===e.view?p.mbPresentationClose:p.viewTitle;t&&(t.setAttribute("tabindex","-1"),
+function focusRoute(e){const t="customers"===e.view?p.heroGreeting:"customer"===e.view?p.custHeroName:"customerEdit"===e.view?p.custEditTitle:"order"===e.view?p.orderTitle:"moodboard"===e.view?p.mbTitle:"moodboardPreview"===e.view?p.mbCanvasBack:p.viewTitle;t&&(t.setAttribute("tabindex","-1"),
 t.focus({preventScroll:!0}),t.addEventListener("blur",()=>t.removeAttribute("tabindex"),{once:!0}))}
 
 const badgeClass=e=>"badge badge--"+(e=>String(e).toLowerCase().replace(/\s+/g,"-"))(e)
@@ -163,7 +167,7 @@ if(w.dirty&&E!==location.hash){
 if(!confirmLeave())return void(location.hash=E);setDirty(!1)}location.hash!==E&&(k=E),E=location.hash
 ;const routeToken=++w.navigation.token;skipMotion||await coverCurtain();if(routeToken!==w.navigation.token)return
 ;const d=i&&("moodboard"===i.view||"moodboardPreview"===i.view),c="moodboard"===s.view||"moodboardPreview"===s.view
-;i&&"moodboardPreview"===i.view&&"moodboardPreview"!==s.view&&closeMoodboardPresentation(),d&&!c&&(R.cleanup(),j=null),w.route=s,p.viewCustomers.hidden="customers"!==s.view,
+;i&&"moodboardPreview"===i.view&&"moodboardPreview"!==s.view&&closeMoodboardOverlay(),d&&!c&&(R.cleanup(),j=null),w.route=s,p.viewCustomers.hidden="customers"!==s.view,
 p.viewCustomer.hidden="customer"!==s.view,p.viewCustomerEdit.hidden="customerEdit"!==s.view,p.viewOrder.hidden="order"!==s.view,p.viewOrderEdit.hidden="orderEdit"!==s.view,p.viewMoodboard.hidden=!c,
 p.viewFittingJournal.hidden="fittingNew"!==s.view&&"fittingJournal"!==s.view,
 p.fittingJournalBar.hidden="fittingJournal"!==s.view&&"fittingNew"!==s.view,
@@ -182,15 +186,16 @@ return'<label class="chip'+(o?" is-checked":"")+'" data-label="'+e.escapeHtml(t)
 }(t,isTicked(t))).join("")+n.map(e=>customChip(e,!0)).join("")}(w.order.includes||[]),p.customInclude.value="",refreshItemTotals(),setDirty(!1)
 }(s.id):"moodboard"===s.view?await async function(e){w.order=await t.getOrder(e),
 [w.customer,w.customerOrders]=await Promise.all([t.getCustomer(w.order.customer_id),t.listOrders(w.order.customer_id)]),setChrome({title:"Create moodboard",
-save:!1,moodboardpage:!0}),setSaveBar(!1),closeMoodboardPresentation(),p.mbBackBtn.href="#/order/"+e,
+save:!1,moodboardpage:!0}),setSaveBar(!1),closeMoodboardOverlay(),p.mbBackBtn.href="#/order/"+e,
 p.mbBackLabel.textContent=orderLabel(w.order),p.mbBackBtn.setAttribute("aria-label","Back to "+orderLabel(w.order)),
 j===e&&R.images.length||(R.init({orderId:w.order.id,customerId:w.customer.id,customerName:w.customer.name,docName:w.order.doc_name||w.customer.name,
-orderRef:w.order.title||""}),j=e);a("#mbEditor").hidden=!1,a("#mbGenerate").hidden=!1}(s.id):"moodboardPreview"===s.view?await async function(e){
-if(!R.images.length||j!==e)return void go("#/order/"+e+"/moodboard");setChrome({title:"Moodboard preview",up:{label:"Images",
-hash:"#/order/"+e+"/moodboard"},save:!1}),setSaveBar(!1),a("#mbEditor").hidden=!0,a("#mbGenerate").hidden=!0,
-q=document.activeElement,p.mbPresentation.hidden=!1,document.body.classList.add("moodboard-presenting"),document.body.classList.add("has-app-modal"),
-resetMoodboardView(),requestAnimationFrame(()=>{renderMoodboardPresentation(!0),p.mbPresentationClose.focus()})
-}(s.id):"fittingNew"===s.view?await async function(e){w.order=await t.getOrder(e),w.customer=await t.getCustomer(w.order.customer_id),setChrome({
+orderRef:w.order.title||""}),j=e);p.mbCanvas.hidden=!0,p.mbEditor.hidden=!1}(s.id):"moodboardPreview"===s.view?await async function(e){
+// The generated canvas is only reachable with a live browser-local session;
+// a reload lands back on image selection rather than on an empty board.
+if(!R.images.length||j!==e)return void go("#/order/"+e+"/moodboard");setChrome({title:"Moodboard",
+save:!1,moodboardpage:!0}),setSaveBar(!1),closeMoodboardOverlay(),p.mbEditor.hidden=!0,p.mbCanvas.hidden=!1,
+p.mbCanvasBack.href="#/order/"+e+"/moodboard",resetMoodboardExports(),
+requestAnimationFrame(()=>syncMoodboardCanvas())}(s.id):"fittingNew"===s.view?await async function(e){w.order=await t.getOrder(e),w.customer=await t.getCustomer(w.order.customer_id),setChrome({
 title:"New fitting",up:{label:orderLabel(w.order),hash:"#/order/"+e},save:!1}),p.fittingJournalBar.hidden=!0,
 document.body.classList.remove("has-fitting-journal-bar"),syncBottomBar()
 ;const o=await Promise.all([t.listOrderEvents(e),t.listFittingSessions(e)]),a=o[1].find(e=>"active"===e.status)
@@ -668,11 +673,17 @@ return""===this.amountRaw?0:Number(this.amountRaw)}}))}function refreshCalcTotal
 ;return p.calcTotal.textContent=e.formatRupiah(t),t}const H=new WeakMap;let I=null,F=null;function closeCostCalc(){I&&H.set(I,readCalcRows().map(e=>({
 label:e.label,amount:e.amount}))),p.calcSheet.hidden=!0,document.body.classList.remove("has-app-modal"),I=null,F&&document.contains(F)&&F.focus(),
 F=null}function applyCostCalc(){const t=refreshCalcTotal();a(".js-cost",I).value=e.groupDigits(t),refreshItemTotals(),setDirty(!0),
-showToast("Cost updated"),closeCostCalc()}const R=KK.moodboard;let j=null,N=null,B=!1,q=null;function setupMoodboardListeners(){
-const e=a("#mbDropzone"),t=a("#mbFileInput"),o=a("#mbAddMore"),n=a("#mbRandomize"),s=a("#mbGenerate"),r=a("#mbDownload"),i=a("#mbThumbs")
-;let dragCounter=0;p.viewMoodboard.addEventListener("pointerdown",e=>{const t=e.target.closest(".order-nav-btn,.moodboard-action")
+showToast("Cost updated"),closeCostCalc()}const R=KK.moodboard;let j=null,N=null,B=!1,q=null,Y=!1,G=null;
+// Each export owns its label and its state, so a Drive failure never rewrites
+// the download button and neither one steals the other's success message.
+const MB_EXPORTS={drive:{el:"mbUpload",idle:"Upload to Drive",busy:"Uploading…",done:"Uploaded"},
+download:{el:"mbDownload",idle:"Download PDF",busy:"Preparing PDF…",done:"Downloaded"}},MB_EXPORT_TIMERS={},
+MB_RECONNECT=/not connected|revoked|reconnect|stored credential|not configured on the server/i,MB_MAX_ZOOM=5;
+function setupMoodboardListeners(){
+const e=a("#mbDropzone"),t=a("#mbFileInput"),o=a("#mbAddMore"),s=a("#mbGenerate"),i=a("#mbThumbs")
+;let dragCounter=0;p.viewMoodboard.addEventListener("pointerdown",e=>{const t=e.target.closest(".order-nav-btn,.moodboard-action,.moodboard-strip")
 ;t&&!t.disabled&&t.classList.add("is-pressed")}),p.viewMoodboard.addEventListener("keydown",e=>{if(" "!==e.key&&"Enter"!==e.key)return
-;const t=e.target.closest(".order-nav-btn,.moodboard-action");t&&!t.disabled&&(t.classList.add("is-pressed"),t.matches("#mbFileBtn")&&e.preventDefault())}),
+;const t=e.target.closest(".order-nav-btn,.moodboard-action,.moodboard-strip");t&&!t.disabled&&(t.classList.add("is-pressed"),t.matches("#mbFileBtn")&&e.preventDefault())}),
 p.viewMoodboard.addEventListener("click",e=>{e.target.closest("#mbFileBtn")&&e.preventDefault()}),e.addEventListener("click",function(o){
 B||o.target.closest(".mb-thumb__remove")||!o.target.closest(".mb-upload-cell--empty")||t.click()}),
 o.addEventListener("click",function(){t.click()}),t.addEventListener("change",async function(){t.files.length&&await addMoodboardFiles(t.files),
@@ -681,21 +692,12 @@ e.addEventListener("dragover",function(t){t.preventDefault(),e.classList.add("is
 e.addEventListener("dragleave",function(){dragCounter--,dragCounter<=0&&(dragCounter=0,e.classList.remove("is-over"))}),
 e.addEventListener("drop",async function(t){t.preventDefault(),dragCounter=0,e.classList.remove("is-over"),
 B||t.dataTransfer.files.length&&await addMoodboardFiles(t.dataTransfer.files)}),i.addEventListener("click",function(e){
-const t=e.target.closest(".mb-thumb__remove");t&&R.removeImage(Number(t.dataset.i))}),n.addEventListener("click",function(){R.randomize(),
-renderMoodboardPresentation()}),s.addEventListener("click",openMoodboardPresentation),r.addEventListener("click",downloadMoodboard),
-document.addEventListener("keydown",function(e){"Escape"===e.key&&p.mbPresentation&&!p.mbPresentation.hidden&&(!r||!r.disabled)&&closeMoodboardPresentation()}),
-function(e){
-if(!e)return;const clampZoom=e=>Math.max(1,Math.min(5,e)),point=e=>({x:e.clientX,y:e.clientY});e.addEventListener("pointerdown",function(t){
-N&&(e.setPointerCapture(t.pointerId),N.pointers.set(t.pointerId,point(t)),N.lastDistance=null)}),e.addEventListener("pointermove",function(e){
-if(!N||!N.pointers.has(e.pointerId))return;const t=N.pointers.get(e.pointerId);N.pointers.set(e.pointerId,point(e))
-;const o=Array.from(N.pointers.values());if(o.length>=2){const e=o[0].x-o[1].x,t=o[0].y-o[1].y,n=Math.hypot(e,t)
-;N.lastDistance&&(N.zoom=clampZoom(N.zoom*n/N.lastDistance)),N.lastDistance=n}else if(N.zoom>1){
-const rect=e.getBoundingClientRect(),currentScale=N.baseScale*N.zoom,maxPanX=Math.max(0,(1920*currentScale-rect.width)/2+160),maxPanY=Math.max(0,(1080*currentScale-rect.height)/2+160)
-;N.x=Math.max(-maxPanX,Math.min(maxPanX,N.x+(e.clientX-t.x))),N.y=Math.max(-maxPanY,Math.min(maxPanY,N.y+(e.clientY-t.y)))}
-applyMoodboardTransform()});const endPointer=function(e){N&&(N.pointers.delete(e.pointerId),N.lastDistance=null)}
-;e.addEventListener("pointerup",endPointer),e.addEventListener("pointercancel",endPointer),e.addEventListener("wheel",function(e){
-N&&(e.preventDefault(),N.zoom=clampZoom(N.zoom*(e.deltaY<0?1.12:.89)),1===N.zoom&&(N.x=N.y=0),applyMoodboardTransform())},{passive:!1}),
-e.addEventListener("dblclick",function(){N&&(N.zoom=N.zoom>1?1:2,1===N.zoom&&(N.x=N.y=0),applyMoodboardTransform())})}(a("#mbPresentationCanvas"))}
+const t=e.target.closest(".mb-thumb__remove");t&&R.removeImage(Number(t.dataset.i))}),s.addEventListener("click",openMoodboardCanvas),
+p.mbRandomize.addEventListener("click",function(){Y||(R.randomize(),syncMoodboardCanvas())}),
+p.mbRotate.addEventListener("click",function(){Y||(R.toggleOrientation(),syncMoodboardCanvas())}),
+p.mbBoard.addEventListener("click",openMoodboardOverlay),p.mbOverlayClose.addEventListener("click",closeMoodboardOverlay),
+p.mbUpload.addEventListener("click",()=>exportMoodboard("drive")),p.mbDownload.addEventListener("click",()=>exportMoodboard("download")),
+bindMoodboardOverlayGestures(p.mbOverlayCanvas)}
 async function addMoodboardFiles(e){if(B)return
 ;const t=a("#mbLoadingText"),o=a("#mbAddMore"),n=a("#mbGenerate"),s=Math.min(Array.from(e).length,R.MAX_IMAGES-R.images.length)
 ;B=!0,t.textContent=s>1?"Preparing 1 of "+s+" photos…":"Preparing photo…",o.disabled=!0,n.disabled=!0,await new Promise(e=>{
@@ -704,26 +706,103 @@ t.textContent=o>1?"Preparing "+e+" of "+o+" photos…":"Preparing photo…"})
 ;o.rejected&&showToast(1===o.rejected?"One image could not be opened and was skipped":o.rejected+" images could not be opened and were skipped")
 }catch(e){console.error(e),showToast("Could not prepare those photos — "+(e.message||"please try again"))}finally{B=!1,t.textContent="",
 o.disabled=R.images.length>=R.MAX_IMAGES,n.disabled=0===R.images.length}}
-function openMoodboardPresentation(){R.images.length&&go("#/order/"+w.order.id+"/moodboard/preview")}function resetMoodboardView(){N={zoom:1,x:0,y:0,
-baseScale:1,clone:null,pointers:new Map}}function applyMoodboardTransform(){if(!N||!N.clone)return;const e=N.baseScale*N.zoom
-;N.clone.style.transform="translate(calc(-50% + "+N.x+"px),calc(-50% + "+N.y+"px)) scale("+e+")"}function renderMoodboardPresentation(e){
-const t=a("#mbPresentation"),o=a("#mbPresentationCanvas"),n=R.stage;if(!t||t.hidden||!o||!n)return;const s=o.getBoundingClientRect()
-;N&&!e||resetMoodboardView(),N.baseScale=Math.min(s.width/1920,s.height/1080);const r=n.cloneNode(!0)
-;r.querySelectorAll("[id]").forEach(e=>e.removeAttribute("id")),r.removeAttribute("id"),
-r.style.cssText="position:absolute;left:50%;top:50%;width:1920px;height:1080px;transform-origin:50% 50%;pointer-events:none;",o.replaceChildren(r),
-N.clone=r,applyMoodboardTransform()}function closeMoodboardPresentation(){const e=p.mbPresentation,t=e&&!e.hidden;e&&(e.hidden=!0)
-;const o=a("#mbPresentationCanvas");o&&o.replaceChildren(),document.body.classList.remove("moodboard-presenting"),
-document.body.classList.remove("has-app-modal"),N=null,t&&q&&document.contains(q)&&q.focus(),q=null}async function downloadMoodboard(){
-const o=a("#mbDownload"),nBtn=a("#mbRandomize"),closeBtn=a("#mbPresentationClose");if(o.disabled)return;let n=!1,s=!1;
-o.disabled=!0,nBtn&&(nBtn.disabled=!0),closeBtn&&(closeBtn.disabled=!0),o.classList.add("is-busy"),a(".btn__label",o).textContent="Preparing PDF…";try{
-const r=await R.generatePDF(),i=R.buildFilename(new Date);r.save(i),n=!0,a(".btn__label",o).textContent="Saving copy…"
-;const d=R.pdfToBase64(r),c=await t.driveSaveMoodboardPdf(i,d);s=!0,await t.logMoodboard(w.order.id,c.drive_link),
-await t.logOrderHistory(w.order.id,"moodboard_generated",{drive_link:c.drive_link,file_name:c.file_name}),
-w.customer=await t.updateCustomer(w.customer.id,{moodboard_date:e.todayISO()});const l=consultNudgeFor(w.customer,w.customerOrders,e.todayISO())
-;if(l){await t.updateCustomer(w.customer.id,l);try{await t.syncFollowUp(w.customer.id)}catch(e){}}R.cleanup(),closeMoodboardPresentation(),
-showToast("Moodboard downloaded and copied to Google Drive"),go("#/order/"+w.order.id)}catch(e){console.error(e),
-showToast(n?s?"PDF downloaded and copied, but its record could not be finished — "+(e.message||"please try again"):"PDF downloaded, but the Drive copy failed — "+(e.message||"please try again"):"Could not generate the moodboard — "+(e.message||"please try again"))
-}finally{o.disabled=!1,closeBtn&&(closeBtn.disabled=!1),nBtn&&(nBtn.disabled=!1),o.classList.remove("is-busy"),a(".btn__label",o).textContent="Download"}}// Both document buttons are disabled while either one is generating, and the
+function openMoodboardCanvas(){R.images.length&&go("#/order/"+w.order.id+"/moodboard/preview")}
+// Both the framed board and the overlay show the real document, cloned from
+// the off-screen stage, so there is only ever one composition to keep correct.
+function moodboardStageClone(){const e=R.stage;if(!e)return null;const t=e.cloneNode(!0)
+;return t.querySelectorAll("[id]").forEach(e=>e.removeAttribute("id")),t.removeAttribute("id"),t.setAttribute("aria-hidden","true"),t}
+function syncMoodboardCanvas(){if(p.mbCanvas.hidden)return;const e=moodboardStageClone();if(!e)return
+;const t="portrait"===R.orientation
+;p.mbBoardScaler.style.width=R.stageWidth+"px",p.mbBoardScaler.style.height=R.stageHeight+"px",
+p.mbBoardScaler.replaceChildren(e),fitMoodboardBoard(),
+p.mbRotate.setAttribute("aria-label",t?"Rotate to landscape":"Rotate to portrait"),
+p.mbBoard.setAttribute("aria-label",t?"Open the portrait moodboard full screen":"Open the landscape moodboard full screen. It is shown sideways here — turn your device to read it upright."),
+G||"function"!=typeof ResizeObserver||(G=new ResizeObserver(fitMoodboardBoard),G.observe(p.mbBoard)),renderMoodboardOverlay(!0)}
+// The frame is always 9:16. A portrait board fills it directly; a landscape
+// one is turned a quarter-turn so it still fills the frame edge to edge rather
+// than letterboxing — the stylist turns the phone to read it upright.
+function fitMoodboardBoard(){const e=p.mbBoard.clientWidth,t=p.mbBoard.clientHeight;if(!e||!t)return
+;const o="portrait"===R.orientation,n=o?Math.min(e/R.stageWidth,t/R.stageHeight):Math.min(t/R.stageWidth,e/R.stageHeight)
+;p.mbBoardScaler.style.transform="translate(-50%, -50%) "+(o?"":"rotate(90deg) ")+"scale("+n+")"}
+/* ------------------------- Full-screen overlay --------------------------- */
+function openMoodboardOverlay(){if(Y||!R.images.length||!p.mbOverlay.hidden)return
+;q=document.activeElement,p.mbOverlay.hidden=!1,document.body.classList.add("moodboard-presenting"),
+document.body.classList.add("has-app-modal"),N={zoom:1,x:0,y:0,fit:1,clone:null,pointers:new Map,lastDistance:null,lastTap:0},
+requestAnimationFrame(()=>{renderMoodboardOverlay(!0),p.mbOverlayClose.focus()})}
+function closeMoodboardOverlay(){const e=p.mbOverlay,t=e&&!e.hidden;e&&(e.hidden=!0),p.mbOverlayCanvas.replaceChildren(),
+document.body.classList.remove("moodboard-presenting"),document.body.classList.remove("has-app-modal"),N=null,
+t&&q&&document.contains(q)&&q.focus(),q=null}
+// `rebuild` replaces the clone; without it the overlay only refits, which is
+// what a viewport resize or rotation needs.
+function renderMoodboardOverlay(e){if(!N||p.mbOverlay.hidden)return;const t=p.mbOverlayCanvas.getBoundingClientRect()
+;if(!t.width||!t.height)return;if(N.fit=Math.min(t.width/R.stageWidth,t.height/R.stageHeight)*.94,e){
+const t=moodboardStageClone();if(!t)return
+;t.style.cssText="position:absolute;left:50%;top:50%;width:"+R.stageWidth+"px;height:"+R.stageHeight+"px;transform-origin:50% 50%;pointer-events:none;",
+p.mbOverlayCanvas.replaceChildren(t),N.clone=t}clampMoodboardPan(),applyMoodboardTransform()}
+// Zooming about a screen point keeps whatever is under the fingers or cursor
+// where it is. Without a point the view zooms about its own centre.
+function moodboardZoomAt(e,t,o){if(!N)return;const n=Math.max(1,Math.min(MB_MAX_ZOOM,e));if(n===N.zoom)return
+;const s=n/N.zoom;if(void 0===t)N.x*=s,N.y*=s;else{const e=p.mbOverlayCanvas.getBoundingClientRect(),
+n=t-(e.left+e.width/2),r=o-(e.top+e.height/2);N.x=n-(n-N.x)*s,N.y=r-(r-N.y)*s}
+N.zoom=n,1===N.zoom&&(N.x=N.y=0),clampMoodboardPan(),applyMoodboardTransform()}
+function clampMoodboardPan(){if(!N)return;const e=p.mbOverlayCanvas.getBoundingClientRect(),t=N.fit*N.zoom,
+o=Math.max(0,(R.stageWidth*t-e.width)/2),n=Math.max(0,(R.stageHeight*t-e.height)/2)
+;N.x=Math.max(-o,Math.min(o,N.x)),N.y=Math.max(-n,Math.min(n,N.y))}
+function applyMoodboardTransform(){if(!N||!N.clone)return;const e=N.fit*N.zoom
+;N.clone.style.transform="translate(calc(-50% + "+N.x+"px),calc(-50% + "+N.y+"px)) scale("+e+")"}
+function bindMoodboardOverlayGestures(e){if(!e)return;const point=e=>({x:e.clientX,y:e.clientY})
+;e.addEventListener("pointerdown",function(t){N&&(e.setPointerCapture(t.pointerId),N.pointers.set(t.pointerId,point(t)),N.lastDistance=null)}),
+e.addEventListener("pointermove",function(e){if(!N||!N.pointers.has(e.pointerId))return
+;const t=N.pointers.get(e.pointerId);N.pointers.set(e.pointerId,point(e));const o=Array.from(N.pointers.values())
+;if(o.length>=2){const e=Math.hypot(o[0].x-o[1].x,o[0].y-o[1].y)
+;N.lastDistance&&moodboardZoomAt(N.zoom*e/N.lastDistance,(o[0].x+o[1].x)/2,(o[0].y+o[1].y)/2),N.lastDistance=e
+}else N.zoom>1&&(N.x+=e.clientX-t.x,N.y+=e.clientY-t.y,clampMoodboardPan(),applyMoodboardTransform())})
+;const endPointer=function(e){N&&(N.pointers.delete(e.pointerId),N.lastDistance=null)}
+// A mouse gets its double-click from `dblclick`; touch and pen are timed here
+// so the two never fire for the same gesture.
+;e.addEventListener("pointerup",function(e){if(N&&"mouse"!==e.pointerType&&1===N.pointers.size){const t=Date.now()
+;t-N.lastTap<300?(moodboardZoomAt(N.zoom>1?1:2.5,e.clientX,e.clientY),N.lastTap=0):N.lastTap=t}endPointer(e)}),
+e.addEventListener("pointercancel",endPointer),e.addEventListener("wheel",function(e){
+N&&(e.preventDefault(),moodboardZoomAt(N.zoom*(e.deltaY<0?1.12:.89),e.clientX,e.clientY))},{passive:!1}),
+e.addEventListener("dblclick",function(e){N&&moodboardZoomAt(N.zoom>1?1:2.5,e.clientX,e.clientY)})}
+function handleMoodboardOverlayKey(e){if(!N||p.mbOverlay.hidden)return!1
+;if("Escape"===e.key)return e.preventDefault(),closeMoodboardOverlay(),!0
+;if("+"===e.key||"="===e.key)return e.preventDefault(),moodboardZoomAt(N.zoom*1.25),!0
+;if("-"===e.key||"_"===e.key)return e.preventDefault(),moodboardZoomAt(N.zoom/1.25),!0
+;return"0"===e.key&&(e.preventDefault(),moodboardZoomAt(1)),!1}
+/* ------------------------------- Exports --------------------------------- */
+function setMoodboardExportBusy(e){Y=e,[p.mbRotate,p.mbRandomize,p.mbUpload,p.mbDownload,p.mbBoard].forEach(t=>{t.disabled=e})}
+function setMoodboardExportState(e,t,o){const n=p[MB_EXPORTS[e].el]
+;n.classList.toggle("is-busy","busy"===t),n.classList.toggle("is-done","done"===t),n.classList.toggle("is-error","error"===t),
+"busy"===t?n.setAttribute("aria-busy","true"):n.removeAttribute("aria-busy"),
+a(".moodboard-action__label",n).textContent=o||MB_EXPORTS[e].idle}
+function flashMoodboardExportState(e,t,o){clearTimeout(MB_EXPORT_TIMERS[e]),setMoodboardExportState(e,t,o),
+MB_EXPORT_TIMERS[e]=setTimeout(()=>setMoodboardExportState(e,"idle"),2600)}
+function resetMoodboardExports(){Object.keys(MB_EXPORTS).forEach(e=>{clearTimeout(MB_EXPORT_TIMERS[e]),
+setMoodboardExportState(e,"idle")}),setMoodboardExportBusy(!1)}
+// The first successful export is what "the moodboard went out" means for the
+// consultation follow-up. Later exports only add history.
+async function recordMoodboardExport(o,n,s,r){const i=!await t.countMoodboards(o)
+;await t.logMoodboard(o,r),await t.logOrderHistory(o,"moodboard_generated",{file_name:n,orientation:R.orientation,
+destination:"drive"===s?"drive":"download",drive_link:r||null});if(!i)return
+;w.customer=await t.updateCustomer(w.customer.id,{moodboard_date:e.todayISO()})
+;const d=consultNudgeFor(w.customer,w.customerOrders,e.todayISO());if(d){await t.updateCustomer(w.customer.id,d);try{
+await t.syncFollowUp(w.customer.id)}catch(e){console.error(e)}}}
+// A missing or revoked credential must never cost the stylist their selection,
+// so the session is left exactly as it is and the fix opens in its own tab.
+function offerGoogleReconnect(e){showToast(e),
+window.confirm(e+"\n\nOpen Google settings to reconnect?")&&window.open(location.pathname+location.search+"#/calendar","_blank","noopener")}
+async function exportMoodboard(o){if(Y||!R.images.length||!w.order)return;const n=MB_EXPORTS[o],s=w.order.id
+;let r=!1;clearTimeout(MB_EXPORT_TIMERS[o]),setMoodboardExportBusy(!0),setMoodboardExportState(o,"busy",n.busy),
+p.mbExportStatus.textContent=n.busy;try{const e=await R.generatePDF(),i=R.buildFilename(new Date);let d=null
+;if("drive"===o){const t=await KK.db.driveSaveMoodboardPdf(i,R.pdfToBase64(e),w.customer&&w.customer.name||"",
+w.order.title||w.order.doc_name||"Untitled order");d=t&&t.drive_link||null}else e.save(i)
+;r=!0,await recordMoodboardExport(s,i,o,d),flashMoodboardExportState(o,"done",n.done),p.mbExportStatus.textContent=n.done,
+showToast("drive"===o?"Moodboard saved to Google Drive":"Moodboard PDF downloaded")}catch(e){console.error(e)
+;const t=e&&e.message||"please try again";flashMoodboardExportState(o,"error",r?"Not recorded":"Failed"),
+p.mbExportStatus.textContent=t,
+!r&&"drive"===o&&MB_RECONNECT.test(t)?offerGoogleReconnect(t):showToast(r?"The moodboard was exported, but its record could not be finished — "+t:("drive"===o?"Could not upload to Drive — ":"Could not download the PDF — ")+t)
+}finally{setMoodboardExportBusy(!1)}}// Both document buttons are disabled while either one is generating, and the
 // label region is the only thing that changes — the split keeps its geometry.
 function setBusy(e,t){w.orderDetail.documentBusy=t?e:null;const o=w.orderDetail.vm,n=!o||o.documents.canDownload
 ;Object.keys(g).forEach(e=>{g[e].disabled=t||!n});const s=g[e];s.classList.toggle("is-busy",t),
@@ -780,7 +859,6 @@ p.logPaymentBtn.addEventListener("click",toggleOrderPaymentChooser),
 p.paymentChooserOptions.addEventListener("click",e=>{
 const t=e.target.closest(".js-log-deposit");t&&logDeposit(Number(t.dataset.i))}),p.downloadQuote.addEventListener("click",()=>download("quotation")),
 p.downloadInvoice.addEventListener("click",()=>download("invoice")),p.createMoodboardBtn.addEventListener("click",function(){
-w.order&&go("#/order/"+w.order.id+"/moodboard")}),p.mbPresentationClose.addEventListener("click",function(){
 w.order&&go("#/order/"+w.order.id+"/moodboard")}),p.logNewFittingBtn.addEventListener("click",function(){
 w.order&&go("#/order/"+w.order.id+"/fitting/new")}),p.fittingJournalAdd.addEventListener("click",()=>KK.fittings.openCamera()),
 KK.fittings.bindOverlays(),setupMoodboardListeners(),
@@ -811,17 +889,19 @@ t.classList.contains("js-tpct")&&(t.value=t.value.replace(/[^\d.]/g,"").replace(
 const t=e.target.closest(".js-remove-calcrow");t&&!t.disabled&&(t.closest(".calcrow").remove(),refreshCalcRemoveButtons(),refreshCalcTotal())}),
 p.calcRowList.addEventListener("input",t=>{t.target.classList.contains("js-camount")&&e.reformatPriceField(t.target),refreshCalcTotal()}),
 p.calcApply.addEventListener("click",applyCostCalc),p.calcBack.addEventListener("click",closeCostCalc),p.customInclude.addEventListener("keydown",e=>{
-"Enter"===e.key&&(e.preventDefault(),addCustomInclude())}),window.addEventListener("resize",function(){syncVisualViewport(),
-renderMoodboardPresentation()}),window.visualViewport&&(window.visualViewport.addEventListener("resize",syncVisualViewport),
+"Enter"===e.key&&(e.preventDefault(),addCustomInclude())}),
+// A resize or a device rotation refits both the framed board and the overlay
+// without disturbing the composition either one is showing.
+["resize","orientationchange"].forEach(e=>window.addEventListener(e,function(){syncVisualViewport(),
+fitMoodboardBoard(),renderMoodboardOverlay(!1)})),window.visualViewport&&(window.visualViewport.addEventListener("resize",syncVisualViewport),
 window.visualViewport.addEventListener("scroll",syncVisualViewport)),
 window.addEventListener("offline",()=>showToast("You're offline — changes won't save until you're back online")),
 window.addEventListener("online",()=>showToast("Back online")),document.addEventListener("focusin",e=>{var t
 ;(t=e.target).matches("input, select, textarea, button")&&requestAnimationFrame(()=>setTimeout(()=>{document.activeElement===t&&t.scrollIntoView({
 block:"center",inline:"nearest",behavior:window.matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"})},80))}),
-document.addEventListener("keydown",e=>{trapModalFocus(e,p.calcSheet),trapModalFocus(e,p.mbPresentation),
+document.addEventListener("keydown",e=>{trapModalFocus(e,p.calcSheet),trapModalFocus(e,p.mbOverlay),
 ["fittingCamera","fittingConfirm","fittingCaptionStep","fittingPicker","fittingEditSheet"].forEach(e=>trapModalFocus(e,a("#"+e))),
-"Escape"===e.key&&(p.calcSheet.hidden?!p.mbPresentation.hidden&&w.order&&(e.preventDefault(),
-go("#/order/"+w.order.id+"/moodboard")):(e.preventDefault(),closeCostCalc()))}),window.addEventListener("beforeunload",e=>{
+p.calcSheet.hidden?handleMoodboardOverlayKey(e):"Escape"===e.key&&(e.preventDefault(),closeCostCalc())}),window.addEventListener("beforeunload",e=>{
 w.dirty&&(e.preventDefault(),e.returnValue="")})}async function showGate(){await coverCurtain(),p.app.hidden=!0,p.gate.hidden=!1,
 p.gateRemember.checked=t.rememberPreference(),p.gatePassword.value=p.gateRemember.checked?t.savedPassword():"",p.gateErr.hidden=!0,p.gatePassword.removeAttribute("aria-invalid"),
 await revealCurtain(),p.gatePassword.value?p.gateSubmit.focus():p.gatePassword.focus()}async function showApp(){await coverCurtain(),p.gate.hidden=!0,p.app.hidden=!1,await handleRoute(),
