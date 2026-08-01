@@ -972,15 +972,15 @@
             <div class="moodboard-actions">
               <button type="button" class="moodboard-action moodboard-action--drive" id="mbUpload">
                 <span class="moodboard-action__face">
-                  <img src="assets/moodboard-upload-icon.svg" alt="" width="20" height="20">
-                  <span class="moodboard-action__label">Upload to Drive</span>
+                  <img src="assets/moodboard-drive-upload-icon.svg" alt="" width="20" height="20">
+                  <span class="moodboard-action__label">Upload</span>
                 </span>
                 <span class="moodboard-action__rail" aria-hidden="true"></span>
               </button>
               <button type="button" class="moodboard-action moodboard-action--download" id="mbDownload">
                 <span class="moodboard-action__face">
-                  <img src="assets/order-moodboard-icon.svg" alt="" width="20" height="20">
-                  <span class="moodboard-action__label">Download PDF</span>
+                  <img src="assets/moodboard-download-icon.svg" alt="" width="20" height="20">
+                  <span class="moodboard-action__label">Download</span>
                 </span>
                 <span class="moodboard-action__rail" aria-hidden="true"></span>
               </button>
@@ -1359,19 +1359,23 @@
 
 <!-- =================== MOODBOARD DOCUMENT (locked spec) =================== -->
 <!-- Snapshotted for the PDF. Figma node 27:21. The stage starts landscape at
-     1920x1080; moodboard.js swaps in 1080x1920 for portrait. -->
+     1920x1080; moodboard.js swaps in 1080x1920 for portrait. The logo sits in
+     a band above the photos and the customer's name in one below them, so both
+     orientations read the same way. -->
 <div class="stage" aria-hidden="true">
   <div class="mb" id="moodboardStage">
     <div class="mb-header">
       <div class="mb-logo">
         <img class="mb-logo__img" src="assets/logo-header.png" alt="">
       </div>
+    </div>
+    <div class="mb-grid" id="mbGrid"></div>
+    <div class="mb-footer">
       <p class="mb-header__name" id="mbHeaderName">
         <span class="mb-header-light">Moodboard for </span>
         <span class="mb-header-bold">Customer Name</span>
       </p>
     </div>
-    <div class="mb-grid" id="mbGrid"></div>
   </div>
 </div>
 

@@ -290,7 +290,6 @@ body.is-moodboardpage .view { gap: 0; }
   transform-origin: 50% 50%;
   pointer-events: none;
 }
-.mb-board__scaler .mb { background: #E4E2DD; }
 
 /* Full-width strip, styled as the nav buttons are: a face over a rail that
    gives up its height when pressed. */
@@ -574,22 +573,27 @@ body.moodboard-presenting { overflow: hidden; }
   position: relative;
   width: 1920px;
   height: 1080px;
-  background: #E4E2DD;
+  background: #FEFAF1;
   overflow: hidden;
   -webkit-text-size-adjust: none;
   text-size-adjust: none;
 }
 
-.mb-header {
+/* Two 48px bands, one above the photos and one below, both inset 64px from the
+   page edge and 32px from its top or bottom. The logo opens the page at the
+   left; the customer's name closes it at the right. Neither band moves when
+   the stage rotates, so only the photo region between them is resized. */
+.mb-header,
+.mb-footer {
   position: absolute;
-  top: 24px;
-  left: 32px;
-  right: 32px;
+  left: 64px;
+  right: 64px;
   height: 48px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
 }
+.mb-header { top: 32px; }
+.mb-footer { bottom: 32px; justify-content: flex-end; }
 
 .mb-logo {
   width: 77px;
@@ -606,7 +610,7 @@ body.moodboard-presenting { overflow: hidden; }
 .mb-header__name {
   margin: 0;
   font-size: 20px;
-  line-height: 24px;
+  line-height: 32px;
   letter-spacing: -0.6px;
   color: #000;
   white-space: nowrap;
@@ -614,12 +618,14 @@ body.moodboard-presenting { overflow: hidden; }
 .mb-header-light { font-weight: 300; }
 .mb-header-bold  { font-weight: 600; }
 
+/* Landscape defaults; moodboard.js writes the portrait width and height inline.
+   The top and left insets are shared by both orientations. */
 .mb-grid {
   position: absolute;
-  top: 88px; /* 24 + 48 + 16 */
-  left: 32px;
-  width: 1856px;  /* 1920 - 32*2 */
-  height: 960px;  /* 1080 - 88 - 32 */
+  top: 104px; /* 32 + 48 + 24 */
+  left: 64px;
+  width: 1792px;  /* 1920 - 64*2 */
+  height: 872px;  /* 1080 - 104 - 24 - 48 - 32 */
 }
 
 .mb-cell {

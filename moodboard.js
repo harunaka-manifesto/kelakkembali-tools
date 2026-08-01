@@ -21,7 +21,7 @@ KK.moodboard = (function () {
   /* ------------------------------- Constants ------------------------------ */
 
   const MAX_IMAGES = 16;
-  const GAP = 12;
+  const GAP = 0;
   const SNAPSHOT_SCALE = 3;
 
   /* Exact 16:9 counterparts. Everything downstream — the grid solver, the
@@ -32,14 +32,19 @@ KK.moodboard = (function () {
   };
   const DEFAULT_ORIENTATION = 'landscape';
 
-  const HEADER_PAD_TOP = 24;
-  const HEADER_GAP = 16;
-  const HEADER_HEIGHT = 48;
-  const CONTENT_TOP = HEADER_PAD_TOP + HEADER_HEIGHT + HEADER_GAP;
-  const CONTENT_PAD = 32;
+  /* The page is a logo band, the photo region, and a title band, stacked with
+     a 24px gap between them and inset from the page edge by 64px across and
+     32px down. Both bands are 48px tall, so the two of them cost the photo
+     region the same amount at the top and at the bottom. */
+  const PAGE_PAD_X = 64;
+  const PAGE_PAD_Y = 32;
+  const BAND_HEIGHT = 48;
+  const BAND_GAP = 24;
+  const CONTENT_TOP = PAGE_PAD_Y + BAND_HEIGHT + BAND_GAP;
+  const CONTENT_BOTTOM = BAND_GAP + BAND_HEIGHT + PAGE_PAD_Y;
   const TARGET_ASPECT = 0.72;
 
-  const WM_BASE = '#EBE9E4';
+  const WM_BASE = '#FEFAF1';
   const WM_TONES = [
     [255, 253, 250], [251, 247, 240], [245, 239, 228],
     [236, 228, 213], [219, 206, 184], [199, 183, 156]
@@ -68,14 +73,14 @@ KK.moodboard = (function () {
     return STAGES[orientation] || STAGES[DEFAULT_ORIENTATION];
   }
 
-  /* The photo region: the whole stage minus the branded header band and the
-     uniform 32px margin. Both orientations use the same header, so only the
-     region's own width and height move. */
+  /* The photo region: the whole stage minus the two branded bands and the page
+     margin. Both orientations use the same bands, so only the region's own
+     width and height move. */
   function photoRegion() {
     const stage = stageSize();
     return {
-      w: stage.w - CONTENT_PAD * 2,
-      h: stage.h - CONTENT_TOP - CONTENT_PAD
+      w: stage.w - PAGE_PAD_X * 2,
+      h: stage.h - CONTENT_TOP - CONTENT_BOTTOM
     };
   }
 
@@ -165,25 +170,29 @@ KK.moodboard = (function () {
     const cells = [];
     let offset = 0;
 
+    /* Every edge is rounded to a whole pixel before the cell is measured from
+       it, so touching photos resolve to the very same boundary. Left as
+       fractions they land a hair apart and the page shows through as a seam —
+       visible now that the images butt up against each other. */
     parts.forEach((count, band) => {
       const size = geometry.sizes[band];
       const last = band === parts.length - 1;
+      /* The last band absorbs the sub-pixel remainder so the mosaic reaches
+         the far edge exactly. */
+      const thickness = last
+        ? (transposed ? region.h : region.w) - offset
+        : (transposed ? size / geometry.aspect : geometry.aspect * size);
+      const near = Math.round(offset);
+      const far = Math.round(offset + thickness);
 
-      if (transposed) {
-        /* The last band absorbs the sub-pixel remainder so the mosaic reaches
-           the bottom edge exactly. */
-        const cellH = last ? region.h - offset : size / geometry.aspect;
-        for (let i = 0; i < count; i++) {
-          cells.push({ x: i * (size + GAP), y: offset, w: size, h: cellH });
-        }
-        offset += cellH + GAP;
-      } else {
-        const cellW = last ? region.w - offset : geometry.aspect * size;
-        for (let i = 0; i < count; i++) {
-          cells.push({ x: offset, y: i * (size + GAP), w: cellW, h: size });
-        }
-        offset += cellW + GAP;
+      for (let i = 0; i < count; i++) {
+        const start = Math.round(i * (size + GAP));
+        const end = Math.round(i * (size + GAP) + size);
+        cells.push(transposed
+          ? { x: start, y: near, w: end - start, h: far - near }
+          : { x: near, y: start, w: far - near, h: end - start });
       }
+      offset += thickness + GAP;
     });
 
     return cells;

@@ -676,8 +676,8 @@ F=null}function applyCostCalc(){const t=refreshCalcTotal();a(".js-cost",I).value
 showToast("Cost updated"),closeCostCalc()}const R=KK.moodboard;let j=null,N=null,B=!1,q=null,Y=!1,G=null;
 // Each export owns its label and its state, so a Drive failure never rewrites
 // the download button and neither one steals the other's success message.
-const MB_EXPORTS={drive:{el:"mbUpload",idle:"Upload to Drive",busy:"Uploading…",done:"Uploaded"},
-download:{el:"mbDownload",idle:"Download PDF",busy:"Preparing PDF…",done:"Downloaded"}},MB_EXPORT_TIMERS={},
+const MB_EXPORTS={drive:{el:"mbUpload",idle:"Upload",busy:"Uploading…",done:"Uploaded"},
+download:{el:"mbDownload",idle:"Download",busy:"Preparing PDF…",done:"Downloaded"}},MB_EXPORT_TIMERS={},
 MB_RECONNECT=/not connected|revoked|reconnect|stored credential|not configured on the server/i,MB_MAX_ZOOM=5;
 function setupMoodboardListeners(){
 const e=a("#mbDropzone"),t=a("#mbFileInput"),o=a("#mbAddMore"),s=a("#mbGenerate"),i=a("#mbThumbs")
