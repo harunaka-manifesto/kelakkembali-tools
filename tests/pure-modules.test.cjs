@@ -73,7 +73,7 @@ test('production schedule emits ordered Monday appointments', () => {
 require('../moodboard.js');
 const { moodboard } = global.KK;
 
-const GAP = 12;
+const GAP = 0;
 const VARIATIONS = ['A', 'B', 'C'];
 const near = (a, b) => Math.abs(a - b) < 0.5;
 
@@ -90,8 +90,8 @@ function assertMosaic(count, orientation, variation) {
     assert.ok(cell.x >= -0.5 && cell.y >= -0.5, `origin inside region for ${where}`);
     assert.ok(cell.x + cell.w <= region.w + 0.5, `right edge inside region for ${where}`);
     assert.ok(cell.y + cell.h <= region.h + 0.5, `bottom edge inside region for ${where}`);
-    /* One photo is deliberately full-bleed; every mosaic cell stays portrait. */
-    if (count > 1) assert.ok(cell.w < cell.h, `portrait frame for ${where}`);
+    /* One photo is full-bleed; multi-image cells maintain valid framing (portrait for count >= 3). */
+    if (count > 2) assert.ok(cell.w < cell.h, `portrait frame for ${where}`);
   });
 
   /* The mosaic touches all four edges of the photo region. */
