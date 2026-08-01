@@ -900,11 +900,11 @@
                    photo picker (including Google Photos) than its generic Files UI. -->
               <input type="file" id="mbFileInput" multiple accept="image/*" hidden>
               <div class="mb-upload-grid-wrap" id="mbDropzone">
-                <div class="mb-upload-ticks mb-upload-ticks--top" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
-                <div class="mb-upload-ticks mb-upload-ticks--left" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+                <div class="mb-upload-ticks mb-upload-ticks--top" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+                <div class="mb-upload-ticks mb-upload-ticks--left" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
                 <div class="mb-upload-grid" id="mbThumbs" role="group" aria-label="Moodboard images"></div>
-                <div class="mb-upload-ticks mb-upload-ticks--right" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
-                <div class="mb-upload-ticks mb-upload-ticks--bottom" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+                <div class="mb-upload-ticks mb-upload-ticks--right" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+                <div class="mb-upload-ticks mb-upload-ticks--bottom" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
               </div>
               <p class="sr-only" id="mbLoadingText" role="status" aria-live="polite"></p>
             </div>
@@ -1123,12 +1123,69 @@
 <!-- Shared fallback for routes that do not own a bespoke loading stage. It
      covers the application while the destination is built underneath. -->
 <div class="route-loader" id="routeLoader" hidden aria-live="polite">
-  <div class="route-loader__canvas" aria-hidden="true">
+  <div class="route-loader__canvas route-loader__canvas--default" aria-hidden="true">
     <div class="route-loader__nav"><i></i><i></i></div>
     <div class="route-loader__hero"><i></i><i></i></div>
     <div class="route-loader__card"><i></i><i></i><i></i></div>
     <div class="route-loader__card"><i></i><i></i><i></i></div>
     <div class="route-loader__card route-loader__card--short"><i></i><i></i></div>
+  </div>
+  <div class="route-loader__canvas route-loader__canvas--moodboard" aria-hidden="true">
+    <div class="moodboard-nav">
+      <div class="route-loader__skel-btn route-loader__skel-btn--back"><i></i></div>
+      <div class="route-loader__skel-btn route-loader__skel-btn--file"><i></i></div>
+    </div>
+    <div class="moodboard-ledger">
+      <div class="moodboard-grid-spacer"></div>
+      <div class="moodboard-title-band">
+        <div class="route-loader__skel-title"><i></i></div>
+      </div>
+      <div class="moodboard-grid-spacer"></div>
+      <div class="moodboard-section">
+        <div class="moodboard-grid-rule"></div>
+        <div class="moodboard-inset">
+          <div class="moodboard-card">
+            <div class="moodboard-card__head">
+              <div class="route-loader__skel-line route-loader__skel-line--head1"><i></i></div>
+              <div class="route-loader__skel-line route-loader__skel-line--head2"><i></i></div>
+            </div>
+            <div class="mb-upload-grid-wrap">
+              <div class="mb-upload-ticks mb-upload-ticks--top"><i></i><i></i><i></i><i></i></div>
+              <div class="mb-upload-ticks mb-upload-ticks--left"><i></i><i></i><i></i><i></i></div>
+              <div class="mb-upload-grid">
+                <div class="mb-upload-cell mb-upload-cell--skel"><i></i></div>
+                <div class="mb-upload-cell mb-upload-cell--skel"><i></i></div>
+                <div class="mb-upload-cell mb-upload-cell--skel"><i></i></div>
+                <div class="mb-upload-cell mb-upload-cell--skel"><i></i></div>
+                <div class="mb-upload-cell mb-upload-cell--skel"><i></i></div>
+                <div class="mb-upload-cell mb-upload-cell--skel"><i></i></div>
+                <div class="mb-upload-cell mb-upload-cell--skel"><i></i></div>
+                <div class="mb-upload-cell mb-upload-cell--skel"><i></i></div>
+                <div class="mb-upload-cell mb-upload-cell--skel"><i></i></div>
+                <div class="mb-upload-cell mb-upload-cell--skel"><i></i></div>
+                <div class="mb-upload-cell mb-upload-cell--skel"><i></i></div>
+                <div class="mb-upload-cell mb-upload-cell--skel"><i></i></div>
+                <div class="mb-upload-cell mb-upload-cell--skel"><i></i></div>
+                <div class="mb-upload-cell mb-upload-cell--skel"><i></i></div>
+                <div class="mb-upload-cell mb-upload-cell--skel"><i></i></div>
+                <div class="mb-upload-cell mb-upload-cell--skel"><i></i></div>
+              </div>
+              <div class="mb-upload-ticks mb-upload-ticks--right"><i></i><i></i><i></i><i></i></div>
+              <div class="mb-upload-ticks mb-upload-ticks--bottom"><i></i><i></i><i></i><i></i></div>
+            </div>
+            <div class="moodboard-actions">
+              <div class="route-loader__skel-action"><i></i></div>
+              <div class="route-loader__skel-action route-loader__skel-action--gen"><i></i></div>
+            </div>
+          </div>
+        </div>
+        <div class="moodboard-grid-rule"></div>
+      </div>
+      <div class="moodboard-grid-spacer"></div>
+    </div>
+    <div class="moodboard-footer">
+      <div class="route-loader__skel-line route-loader__skel-line--footer"><i></i></div>
+    </div>
   </div>
   <div class="route-loader__error" id="routeLoaderError" role="alert" hidden></div>
   <span class="sr-only" id="routeLoaderStatus" role="status"></span>

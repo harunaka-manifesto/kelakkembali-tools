@@ -106,7 +106,7 @@ else p.boot.classList.remove("is-below");curtainCovered=!0})(),await curtainCove
 async function revealCurtain(){if(!curtainCovered)return;if(!reducedMotion()){p.boot.classList.add("is-animating","is-below"),await wait(CURTAIN_TRANSITION_MS)}
 p.boot.hidden=!0,p.boot.classList.remove("is-animating","is-below"),curtainCovered=!1,document.body.classList.remove("is-page-transitioning")}
 const routeHasOwnLoader=e=>"customers"===e.view||"order"===e.view;
-const routeLoaderKind=e=>"customer"===e.view||"customerEdit"===e.view?"ledger":"form";
+const routeLoaderKind=e=>"customer"===e.view||"customerEdit"===e.view?"ledger":"moodboard"===e.view||"moodboardPreview"===e.view?"moodboard":"form";
 function beginRouteLoader(e){if(routeHasOwnLoader(e))return hideRouteLoader(!0);routeLoaderShownAt=Date.now(),p.routeLoader.dataset.kind=routeLoaderKind(e),
 p.routeLoader.setAttribute("aria-busy","true"),p.routeLoader.classList.remove("is-leaving"),a(".route-loader__canvas",p.routeLoader).hidden=!1,p.routeLoaderError.hidden=!0,
 p.routeLoaderStatus.textContent="Loading "+({customer:"customer",customerEdit:"customer editor",orderEdit:"order editor",moodboard:"moodboard",fittingNew:"fitting journal",fittingJournal:"fitting journal",calendar:"calendar settings",enquiry:"enquiry"}[e.view]||"page")+".",p.routeLoader.hidden=!1}

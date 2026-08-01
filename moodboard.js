@@ -321,22 +321,40 @@ KK.moodboard = (function () {
     });
   }
 
+  function updateTileProgress(id, pct) {
+    const tile = document.querySelector('[data-upload-id="' + id + '"]');
+    if (!tile) return;
+    const progressEl = tile.querySelector('.mb-upload-cell__progress');
+    if (progressEl) {
+      progressEl.setAttribute('aria-valuenow', String(Math.round(pct)));
+    }
+  }
+
   /* Google Photos and iCloud sometimes hand a browser a valid photo with an
      empty MIME type. Try every selected blob instead of rejecting it by its
      metadata. HEIC/HEIF is converted locally only when the browser cannot
      decode the original itself. */
-  async function cacheImage(file) {
+  async function cacheImage(file, onProgress) {
+    if (onProgress) onProgress(20);
     const native = await probeImage(file);
-    if (native || !U.isHeic(file) || typeof window.heic2any !== 'function') return native;
+    if (native) {
+      if (onProgress) onProgress(90);
+      return native;
+    }
+    if (!U.isHeic(file) || typeof window.heic2any !== 'function') return null;
 
     try {
+      if (onProgress) onProgress(40);
       const converted = await U.convertHeicToJpeg(file);
+      if (onProgress) onProgress(80);
       const jpeg = new File(
         [converted],
         (file.name || 'photo').replace(/\.(?:heic|heif)$/i, '') + '.jpg',
         { type: 'image/jpeg', lastModified: file.lastModified }
       );
-      return probeImage(jpeg);
+      const res = await probeImage(jpeg);
+      if (onProgress) onProgress(95);
+      return res;
     } catch (_) {
       return null;
     }
@@ -365,8 +383,9 @@ KK.moodboard = (function () {
     for (let index = 0; index < batch.length; index++) {
       const item = batch[index];
       let cached = null;
+      updateTileProgress(item.id, 15);
       try {
-        cached = await cacheImage(item.file);
+        cached = await cacheImage(item.file, (pct) => updateTileProgress(item.id, pct));
       } catch (_) {
         cached = null;
       } finally {
@@ -382,6 +401,7 @@ KK.moodboard = (function () {
         cached.id = item.id;
         images.push(cached);
         added++;
+        updateTileProgress(item.id, 100);
         resolvePendingTile(item.id, cached);
         renderPreview();
       } else {

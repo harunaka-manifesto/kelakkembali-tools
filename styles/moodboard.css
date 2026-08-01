@@ -72,7 +72,7 @@ body.is-moodboardpage .view { gap: 0; }
 }
 .moodboard-inset { margin: 0 24px; }
 .moodboard-card {
-  padding: 16px 15px 20px;
+  padding: 16px 16px 20px;
   background: var(--home-white);
   border-right: 1px solid var(--home-grid);
   border-bottom: 1px solid var(--home-grid);
@@ -105,25 +105,37 @@ body.is-moodboardpage .view { gap: 0; }
   transition: background-color var(--motion-quick) ease;
 }
 .mb-upload-grid-wrap.is-over { background: rgba(76, 76, 76, .08); }
-.mb-upload-ticks { position: relative; z-index: 3; display: flex; pointer-events: none; }
-.mb-upload-ticks i { display: block; flex: none; background: var(--home-grid); }
+.mb-upload-ticks { position: relative; z-index: 3; pointer-events: none; }
 .mb-upload-ticks--top,
-.mb-upload-ticks--bottom { grid-column: 2; justify-content: space-between; }
-.mb-upload-ticks--top { grid-row: 1; margin-bottom: -1px; }
-.mb-upload-ticks--bottom { grid-row: 3; margin-top: -1px; }
+.mb-upload-ticks--bottom {
+  grid-column: 2;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-left: 1px solid var(--home-grid);
+}
+.mb-upload-ticks--top { grid-row: 1; }
+.mb-upload-ticks--bottom { grid-row: 3; }
 .mb-upload-ticks--top i,
-.mb-upload-ticks--bottom i { width: 1px; height: 12px; }
+.mb-upload-ticks--bottom i {
+  display: block;
+  height: 12px;
+  border-right: 1px solid var(--home-grid);
+}
 .mb-upload-ticks--left,
 .mb-upload-ticks--right {
   grid-row: 1 / 4;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 11px 0;
+  display: grid;
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--home-grid);
 }
 .mb-upload-ticks--left { grid-column: 1; }
 .mb-upload-ticks--right { grid-column: 3; }
 .mb-upload-ticks--left i,
-.mb-upload-ticks--right i { width: 12px; height: 1px; }
+.mb-upload-ticks--right i {
+  display: block;
+  width: 12px;
+  border-bottom: 1px solid var(--home-grid);
+}
 .mb-upload-grid {
   grid-column: 2;
   grid-row: 2;
@@ -151,7 +163,13 @@ body.is-moodboardpage .view { gap: 0; }
 .mb-upload-cell--empty:focus-visible { background: var(--home-white-dark); }
 .mb-upload-cell--empty:focus-visible { z-index: 2; outline-offset: -3px; }
 .mb-upload-cell--uploading {
-  background: linear-gradient(90deg, var(--home-white-dark), #fff);
+  background: linear-gradient(110deg, var(--home-white-dark) 20%, #ffffff 50%, var(--home-white-dark) 80%);
+  background-size: 200% 100%;
+  animation: mb-tile-shimmer 1.2s ease-in-out infinite;
+}
+@keyframes mb-tile-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
 }
 @media (hover: hover) and (pointer: fine) {
   .mb-upload-cell--empty:hover { background: var(--home-white-dark); }
@@ -220,8 +238,17 @@ body.is-moodboardpage .view { gap: 0; }
   height: 28px;
   background: url("../assets/moodboard-progress-icon.svg") center / 28px 28px no-repeat;
   transition: opacity 150ms ease, transform 260ms var(--ease-standard);
+  animation: mb-progress-spin 0.9s linear infinite;
 }
-.mb-upload-cell.is-loaded .mb-upload-cell__progress { opacity: 0; transform: scale(.65); }
+@keyframes mb-progress-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.mb-upload-cell.is-loaded .mb-upload-cell__progress {
+  opacity: 0;
+  transform: scale(.65);
+  animation: none;
+}
 .mb-upload-cell__control:focus-visible { outline: 2px solid var(--home-white); outline-offset: -4px; }
 
 /* --------------------------- Generated canvas ---------------------------- */
