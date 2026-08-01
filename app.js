@@ -318,7 +318,7 @@ p.viewOrder.addEventListener("pointerdown",e=>{const t=e.target.closest(".order-
 p.viewOrder.addEventListener("keydown",e=>{if(" "!==e.key&&"Enter"!==e.key)return
 ;const t=e.target.closest(".order-nav-btn,.order-action,.order-schedule-record,.order-choice")
 ;t&&!t.disabled&&(t.classList.add("is-pressed")," "===e.key&&t.matches("#orderHistoryBtn,.order-schedule-record")&&e.preventDefault())}),
-p.viewOrder.addEventListener("click",e=>{e.target.closest("#orderHistoryBtn,.order-schedule-record")&&e.preventDefault(),
+p.viewOrder.addEventListener("click",e=>{e.target.closest("#orderHistoryBtn,#uploadDesignBtn,.order-schedule-record")&&e.preventDefault(),
 e.target.closest(".js-order-schedule-retry")&&retryOrderSchedule()}),
 // The editor presses the same way. Fields press on focus rather than on touch,
 // so only the nav, the status rows and the segmented cells are wired here.

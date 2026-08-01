@@ -1515,6 +1515,86 @@ body.is-orderpage .view { gap: 0; }
 }
 .order-card__error[hidden] { display: none; }
 
+/* ------------------------------- Designs -------------------------------- */
+
+.order-card--designs { overflow: hidden; }
+.order-designs__header {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.order-designs__header .order-card__title { flex: 1; min-width: 0; }
+.order-designs__count {
+  flex: none;
+  color: var(--home-black);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: -.39px;
+}
+.order-designs__empty {
+  display: grid;
+  grid-template-rows: 147px 4px;
+  width: 100%;
+}
+.order-designs__empty-face {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--home-grid);
+  text-align: center;
+}
+.order-designs__empty-rail {
+  display: block;
+  background: var(--home-white-dark);
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
+  border-bottom: 1px solid var(--home-grid);
+}
+.order-designs__empty-icon {
+  width: 24px;
+  height: 24px;
+  margin-bottom: 8px;
+  fill: none;
+  stroke: var(--home-grid);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.order-designs__empty-title {
+  margin: 0;
+  color: var(--home-black);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+  letter-spacing: -.42px;
+}
+.order-designs__empty-copy {
+  max-width: 230px;
+  margin: 4px 0 0;
+  color: var(--home-grid);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: -.39px;
+}
+/* Ready for populated state: fixed portrait cards leave a partial next card
+   visible, which is the affordance that the row scrolls horizontally. */
+.order-designs__carousel {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.order-designs__carousel::-webkit-scrollbar { display: none; }
+.order-designs__image { flex: 0 0 110px; scroll-snap-align: start; }
+
 /* ------------------------------ Items table ------------------------------ */
 
 /* One column template for every row, so the three columns line up down the
@@ -1647,9 +1727,12 @@ body.is-orderpage .view { gap: 0; }
 /* ------------------------------- Schedules ------------------------------- */
 
 .order-schedule { display: flex; flex-direction: column; }
-/* Each record is boxed by the card's own rules, 16px in from its edges. */
+/* The full-width rules form the horizontal grid; the record itself sits 16px
+   inside them, matching the vertical grid lines in each spacer. */
 .order-schedule__record {
   padding: 0 16px;
+  border-top: 1px solid var(--home-grid);
+  border-bottom: 1px solid var(--home-grid);
 }
 .order-schedule__spacer { height: 24px; position: relative; }
 .order-schedule__spacer::before,
@@ -1837,6 +1920,15 @@ body.is-orderpage .view { gap: 0; }
 .order-action--moodboard .order-action__rail { background: #dd5d01; border-bottom: 1px solid var(--home-grid); }
 .order-action--payment  .order-action__face { background: var(--home-grid); }
 .order-action--payment  .order-action__rail { background: var(--home-black-light); }
+.order-action--design-upload .order-action__face { background: var(--home-grid); }
+.order-action--design-upload .order-action__rail { background: var(--home-black-light); }
+.order-action--design-upload .order-action__icon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .order-action--fitting  .order-action__face { background: linear-gradient(180deg, rgba(0,0,0,.06), transparent), var(--home-pink); }
 .order-action--fitting  .order-action__rail { background: #e72a90; }
 /* The split keeps one continuous outer border: only the outer edges are drawn. */

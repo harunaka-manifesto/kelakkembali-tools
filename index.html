@@ -732,6 +732,46 @@
           </section>
           <div class="order-grid-spacer" aria-hidden="true"></div>
 
+          <!-- Design uploads are intentionally local to the order. Uploading is
+               coming later, but the control remains focusable and tactile so
+               this section already communicates its eventual interaction. -->
+          <section class="order-section" aria-labelledby="orderDesignsTitle">
+            <div class="order-grid-rule" aria-hidden="true"></div>
+            <div class="order-inset">
+              <div class="order-card order-card--designs">
+                <div class="order-designs__header">
+                  <h2 class="order-card__title" id="orderDesignsTitle">Designs</h2>
+                  <span class="order-designs__count">0 items</span>
+                </div>
+                <div class="order-designs__empty">
+                  <div class="order-designs__empty-face">
+                    <svg class="order-designs__empty-icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <rect x="3.5" y="4.5" width="17" height="15" rx="1"></rect>
+                      <circle cx="9" cy="10" r="1.5"></circle>
+                      <path d="m5.5 17 4.5-4 3 2.5 2.5-2 3 3.5"></path>
+                    </svg>
+                    <p class="order-designs__empty-title">No designs yet</p>
+                    <p class="order-designs__empty-copy">Designs added to this order will appear here.</p>
+                  </div>
+                  <span class="order-designs__empty-rail" aria-hidden="true"></span>
+                </div>
+              </div>
+              <button type="button" class="order-action order-action--design-upload" id="uploadDesignBtn"
+                      aria-disabled="true" aria-label="Upload a design — coming soon">
+                <span class="order-action__face">
+                  <svg class="order-action__icon" viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M5.25 15.75h9.5a3.25 3.25 0 0 0 .36-6.48A5.25 5.25 0 0 0 5.03 8.2a3.78 3.78 0 0 0 .22 7.55Z"></path>
+                    <path d="M10 14V8.75m0 0L7.9 10.9M10 8.75l2.1 2.15"></path>
+                  </svg>
+                  <span class="order-action__label">Upload a design</span>
+                </span>
+                <span class="order-action__rail" aria-hidden="true"></span>
+              </button>
+            </div>
+            <div class="order-grid-rule" aria-hidden="true"></div>
+          </section>
+          <div class="order-grid-spacer" aria-hidden="true"></div>
+
           <section class="order-section" aria-labelledby="orderPaymentsTitle">
             <div class="order-grid-rule" aria-hidden="true"></div>
             <div class="order-inset">
