@@ -213,11 +213,14 @@ KK.moodboard = (function () {
         'left:' + cell.x + 'px;top:' + cell.y + 'px;' +
         'width:' + cell.w + 'px;height:' + cell.h + 'px;overflow:hidden;';
 
-      const img = document.createElement('img');
-      img.src = ordered[i].objectURL;
-      img.style.cssText =
-        'width:100%;height:100%;object-fit:cover;object-position:50% 50%;display:block;';
-      div.appendChild(img);
+      /* A background image, not an <img object-fit:cover>: html2canvas doesn't
+         honor object-fit and stretches the image to the cell instead of
+         cropping it, so the PDF snapshot would distort every photo. */
+      const tile = document.createElement('div');
+      tile.style.cssText =
+        'width:100%;height:100%;background-size:cover;background-position:50% 50%;' +
+        'background-image:url("' + ordered[i].objectURL + '");';
+      div.appendChild(tile);
       gridEl.appendChild(div);
     });
 
