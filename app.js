@@ -670,20 +670,26 @@ label:e.label,amount:e.amount}))),p.calcSheet.hidden=!0,document.body.classList.
 F=null}function applyCostCalc(){const t=refreshCalcTotal();a(".js-cost",I).value=e.groupDigits(t),refreshItemTotals(),setDirty(!0),
 showToast("Cost updated"),closeCostCalc()}const R=KK.moodboard;let j=null,N=null,B=!1,q=null;function setupMoodboardListeners(){
 const e=a("#mbDropzone"),t=a("#mbFileInput"),o=a("#mbAddMore"),n=a("#mbRandomize"),s=a("#mbGenerate"),r=a("#mbDownload"),i=a("#mbThumbs")
-;e.addEventListener("click",function(o){
+;let dragCounter=0;e.addEventListener("click",function(o){
 B||o.target.closest(".mb-thumb__remove")||!o.target.closest(".mb-upload-cell--empty")||t.click()}),
 o.addEventListener("click",function(){t.click()}),t.addEventListener("change",async function(){t.files.length&&await addMoodboardFiles(t.files),
-t.value=""}),e.addEventListener("dragover",function(t){t.preventDefault(),e.classList.add("is-over")}),e.addEventListener("dragleave",function(){
-e.classList.remove("is-over")}),e.addEventListener("drop",async function(t){t.preventDefault(),e.classList.remove("is-over"),
+t.value=""}),e.addEventListener("dragenter",function(t){t.preventDefault(),dragCounter++,e.classList.add("is-over")}),
+e.addEventListener("dragover",function(t){t.preventDefault(),e.classList.add("is-over")}),
+e.addEventListener("dragleave",function(){dragCounter--,dragCounter<=0&&(dragCounter=0,e.classList.remove("is-over"))}),
+e.addEventListener("drop",async function(t){t.preventDefault(),dragCounter=0,e.classList.remove("is-over"),
 B||t.dataTransfer.files.length&&await addMoodboardFiles(t.dataTransfer.files)}),i.addEventListener("click",function(e){
 const t=e.target.closest(".mb-thumb__remove");t&&R.removeImage(Number(t.dataset.i))}),n.addEventListener("click",function(){R.randomize(),
-renderMoodboardPresentation()}),s.addEventListener("click",openMoodboardPresentation),r.addEventListener("click",downloadMoodboard),function(e){
+renderMoodboardPresentation()}),s.addEventListener("click",openMoodboardPresentation),r.addEventListener("click",downloadMoodboard),
+document.addEventListener("keydown",function(e){"Escape"===e.key&&p.mbPresentation&&!p.mbPresentation.hidden&&(!r||!r.disabled)&&closeMoodboardPresentation()}),
+function(e){
 if(!e)return;const clampZoom=e=>Math.max(1,Math.min(5,e)),point=e=>({x:e.clientX,y:e.clientY});e.addEventListener("pointerdown",function(t){
 N&&(e.setPointerCapture(t.pointerId),N.pointers.set(t.pointerId,point(t)),N.lastDistance=null)}),e.addEventListener("pointermove",function(e){
 if(!N||!N.pointers.has(e.pointerId))return;const t=N.pointers.get(e.pointerId);N.pointers.set(e.pointerId,point(e))
 ;const o=Array.from(N.pointers.values());if(o.length>=2){const e=o[0].x-o[1].x,t=o[0].y-o[1].y,n=Math.hypot(e,t)
-;N.lastDistance&&(N.zoom=clampZoom(N.zoom*n/N.lastDistance)),N.lastDistance=n}else N.zoom>1&&(N.x+=e.clientX-t.x,N.y+=e.clientY-t.y)
-;applyMoodboardTransform()});const endPointer=function(e){N&&(N.pointers.delete(e.pointerId),N.lastDistance=null)}
+;N.lastDistance&&(N.zoom=clampZoom(N.zoom*n/N.lastDistance)),N.lastDistance=n}else if(N.zoom>1){
+const rect=e.getBoundingClientRect(),currentScale=N.baseScale*N.zoom,maxPanX=Math.max(0,(1920*currentScale-rect.width)/2+160),maxPanY=Math.max(0,(1080*currentScale-rect.height)/2+160)
+;N.x=Math.max(-maxPanX,Math.min(maxPanX,N.x+(e.clientX-t.x))),N.y=Math.max(-maxPanY,Math.min(maxPanY,N.y+(e.clientY-t.y)))}
+applyMoodboardTransform()});const endPointer=function(e){N&&(N.pointers.delete(e.pointerId),N.lastDistance=null)}
 ;e.addEventListener("pointerup",endPointer),e.addEventListener("pointercancel",endPointer),e.addEventListener("wheel",function(e){
 N&&(e.preventDefault(),N.zoom=clampZoom(N.zoom*(e.deltaY<0?1.12:.89)),1===N.zoom&&(N.x=N.y=0),applyMoodboardTransform())},{passive:!1}),
 e.addEventListener("dblclick",function(){N&&(N.zoom=N.zoom>1?1:2,1===N.zoom&&(N.x=N.y=0),applyMoodboardTransform())})}(a("#mbPresentationCanvas"))}
@@ -705,7 +711,8 @@ r.style.cssText="position:absolute;left:50%;top:50%;width:1920px;height:1080px;t
 N.clone=r,applyMoodboardTransform()}function closeMoodboardPresentation(){const e=p.mbPresentation,t=e&&!e.hidden;e&&(e.hidden=!0)
 ;const o=a("#mbPresentationCanvas");o&&o.replaceChildren(),document.body.classList.remove("moodboard-presenting"),
 document.body.classList.remove("has-app-modal"),N=null,t&&q&&document.contains(q)&&q.focus(),q=null}async function downloadMoodboard(){
-const o=a("#mbDownload");let n=!1,s=!1;o.disabled=!0,o.classList.add("is-busy"),a(".btn__label",o).textContent="Preparing PDF…";try{
+const o=a("#mbDownload"),nBtn=a("#mbRandomize"),closeBtn=a("#mbPresentationClose");if(o.disabled)return;let n=!1,s=!1;
+o.disabled=!0,nBtn&&(nBtn.disabled=!0),closeBtn&&(closeBtn.disabled=!0),o.classList.add("is-busy"),a(".btn__label",o).textContent="Preparing PDF…";try{
 const r=await R.generatePDF(),i=R.buildFilename(new Date);r.save(i),n=!0,a(".btn__label",o).textContent="Saving copy…"
 ;const d=R.pdfToBase64(r),c=await t.driveSaveMoodboardPdf(i,d);s=!0,await t.logMoodboard(w.order.id,c.drive_link),
 await t.logOrderHistory(w.order.id,"moodboard_generated",{drive_link:c.drive_link,file_name:c.file_name}),
@@ -713,7 +720,7 @@ w.customer=await t.updateCustomer(w.customer.id,{moodboard_date:e.todayISO()});c
 ;if(l){await t.updateCustomer(w.customer.id,l);try{await t.syncFollowUp(w.customer.id)}catch(e){}}R.cleanup(),closeMoodboardPresentation(),
 showToast("Moodboard downloaded and copied to Google Drive"),go("#/order/"+w.order.id)}catch(e){console.error(e),
 showToast(n?s?"PDF downloaded and copied, but its record could not be finished — "+(e.message||"please try again"):"PDF downloaded, but the Drive copy failed — "+(e.message||"please try again"):"Could not generate the moodboard — "+(e.message||"please try again"))
-}finally{o.disabled=!1,o.classList.remove("is-busy"),a(".btn__label",o).textContent="Download"}}// Both document buttons are disabled while either one is generating, and the
+}finally{o.disabled=!1,closeBtn&&(closeBtn.disabled=!1),nBtn&&(nBtn.disabled=!1),o.classList.remove("is-busy"),a(".btn__label",o).textContent="Download"}}// Both document buttons are disabled while either one is generating, and the
 // label region is the only thing that changes — the split keeps its geometry.
 function setBusy(e,t){w.orderDetail.documentBusy=t?e:null;const o=w.orderDetail.vm,n=!o||o.documents.canDownload
 ;Object.keys(g).forEach(e=>{g[e].disabled=t||!n});const s=g[e];s.classList.toggle("is-busy",t),

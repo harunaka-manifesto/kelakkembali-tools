@@ -217,7 +217,7 @@ body.is-moodboardpage .view { gap: 0; }
   transition: opacity 150ms ease, transform 260ms var(--ease-standard);
 }
 .mb-upload-cell.is-loaded .mb-upload-cell__spinner { opacity: 0; transform: rotate(90deg) scale(.65); }
-.mb-upload-cell__control:focus-visible { outline-color: var(--home-white); outline-offset: -8px; }
+.mb-upload-cell__control:focus-visible { outline: 2px solid var(--home-white); outline-offset: -4px; }
 
 /* ------------------------------ Actions --------------------------------- */
 
@@ -254,7 +254,7 @@ body.is-moodboardpage .view { gap: 0; }
 .moodboard-action--generate .moodboard-action__rail { background: #dd5d01; }
 .moodboard-action:not(:disabled):active { grid-template-rows: 57px 3px; }
 .moodboard-action:not(:disabled):active .moodboard-action__face { background-image: linear-gradient(180deg, transparent, rgba(0,0,0,.12)); }
-.moodboard-action:disabled { cursor: default; filter: grayscale(.55); opacity: .72; }
+.moodboard-action:disabled { cursor: not-allowed; filter: grayscale(.55); opacity: .72; }
 
 .moodboard-footer {
   padding: 24px;

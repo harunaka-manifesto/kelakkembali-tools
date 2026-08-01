@@ -168,9 +168,10 @@ KK.moodboard = (function () {
     });
 
     if (headerNameEl && orderData) {
+      const name = orderData.docName || orderData.customerName || 'Customer';
       headerNameEl.innerHTML =
         '<span class="mb-header-light">Moodboard for </span>' +
-        '<span class="mb-header-bold">' + U.escapeHtml(orderData.docName || orderData.customerName) + '</span>';
+        '<span class="mb-header-bold">' + U.escapeHtml(name) + '</span>';
     }
   }
 
@@ -309,13 +310,20 @@ KK.moodboard = (function () {
        callback gives the browser a chance to paint between files. */
     for (let index = 0; index < batch.length; index++) {
       const item = batch[index];
-      const cached = await cacheImage(item.file);
+      let cached = null;
+      try {
+        cached = await cacheImage(item.file);
+      } catch (_) {
+        cached = null;
+      } finally {
+        pending = pending.filter((entry) => entry.id !== item.id);
+      }
+
       if (generation !== uploadGeneration) {
         if (cached) URL.revokeObjectURL(cached.objectURL);
         break;
       }
 
-      pending = pending.filter((entry) => entry.id !== item.id);
       if (cached) {
         cached.id = item.id;
         images.push(cached);
@@ -338,7 +346,9 @@ KK.moodboard = (function () {
   }
 
   function removeImage(index) {
-    const removed = images.splice(index, 1);
+    const idx = Number(index);
+    if (isNaN(idx) || idx < 0 || idx >= images.length) return;
+    const removed = images.splice(idx, 1);
     if (removed[0]) URL.revokeObjectURL(removed[0].objectURL);
     shuffleOrder = null;
     renderDropzone();
