@@ -864,42 +864,65 @@
   </section>
 
   <!-- --------------------------- Moodboard generator ------------------------ -->
-  <section class="view" id="viewMoodboard" hidden>
-    <section class="card" id="mbEditor">
-      <h2 class="card__title">Images</h2>
-      <p class="card__hint">Choose up to 16 photos. They stay on this device until you download the moodboard.</p>
+  <section class="view moodboard-page" id="viewMoodboard" hidden>
+    <div class="moodboard-editor" id="mbEditor">
+      <nav class="moodboard-nav" aria-label="Moodboard navigation">
+        <a class="order-nav-btn moodboard-nav__back" id="mbBackBtn" href="#/customers">
+          <span class="order-nav-btn__face">
+            <img src="assets/cust-back-icon.svg" alt="" width="24" height="24">
+            <span id="mbBackLabel">Back</span>
+          </span>
+          <span class="order-nav-btn__rail" aria-hidden="true"></span>
+        </a>
+      </nav>
 
-      <div class="mb-dropzone" id="mbDropzone">
-        <!-- Keep this MIME-only: Android is more likely to open its native
-             photo picker (including Google Photos) than its generic Files UI. -->
-        <input type="file" id="mbFileInput" multiple accept="image/*" hidden>
-        <div class="mb-dropzone__empty">
-          <svg class="mb-dropzone__icon" viewBox="0 0 48 48" fill="none" stroke="currentColor"
-               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="6" y="10" width="36" height="28" rx="3"/>
-            <circle cx="18" cy="24" r="4"/>
-            <path d="M42 32l-10-10-14 14"/>
-            <path d="M30 28l-4-4-8 8"/>
-          </svg>
-          <p class="mb-dropzone__label">Choose photos</p>
-        </div>
-        <div class="mb-thumbs" id="mbThumbs"></div>
-        <div class="mb-loading" id="mbLoading" role="status" aria-live="polite" hidden>
-          <span class="mb-loading__spinner" aria-hidden="true"></span>
-          <span id="mbLoadingText">Preparing photos…</span>
-        </div>
-      </div>
+      <main class="moodboard-ledger">
+        <div class="moodboard-grid-spacer" aria-hidden="true"></div>
+        <header class="moodboard-title-band"><h1 class="moodboard-title" id="mbTitle">Create moodboard</h1></header>
+        <div class="moodboard-grid-spacer" aria-hidden="true"></div>
 
-      <div class="mb-addrow">
-        <span class="mb-count" id="mbCount">0/16</span>
-        <button type="button" class="btn btn--outline btn--sm" id="mbAddMore">Add more</button>
-      </div>
-    </section>
+        <section class="moodboard-section" aria-labelledby="mbUploadTitle">
+          <div class="moodboard-grid-rule" aria-hidden="true"></div>
+          <div class="moodboard-inset">
+            <div class="moodboard-card">
+              <div class="moodboard-card__head">
+                <h2 class="moodboard-card__title" id="mbUploadTitle">Upload images</h2>
+                <p class="moodboard-card__hint">You can upload up to 16 images.</p>
+              </div>
 
-    <button type="button" class="btn btn--primary btn--block" id="mbGenerate" disabled>
-      <span class="btn__label">Generate Moodboard</span>
-      <span class="spinner" aria-hidden="true"></span>
-    </button>
+              <!-- Keep this MIME-only: Android is more likely to open its native
+                   photo picker (including Google Photos) than its generic Files UI. -->
+              <input type="file" id="mbFileInput" multiple accept="image/*" hidden>
+              <div class="mb-upload-grid-wrap" id="mbDropzone">
+                <div class="mb-upload-grid" id="mbThumbs" role="group" aria-label="Moodboard images"></div>
+              </div>
+              <p class="sr-only" id="mbLoadingText" role="status" aria-live="polite"></p>
+            </div>
+
+            <div class="moodboard-actions">
+              <button type="button" class="moodboard-action moodboard-action--add" id="mbAddMore">
+                <span class="moodboard-action__face">
+                  <img src="assets/moodboard-upload-icon.svg" alt="" width="20" height="20">
+                  <span>Add images</span>
+                </span>
+                <span class="moodboard-action__rail" aria-hidden="true"></span>
+              </button>
+              <button type="button" class="moodboard-action moodboard-action--generate" id="mbGenerate" disabled>
+                <span class="moodboard-action__face">
+                  <img src="assets/order-moodboard-icon.svg" alt="" width="20" height="20">
+                  <span>Generate</span>
+                </span>
+                <span class="moodboard-action__rail" aria-hidden="true"></span>
+              </button>
+            </div>
+          </div>
+          <div class="moodboard-grid-rule" aria-hidden="true"></div>
+        </section>
+        <div class="moodboard-grid-spacer" aria-hidden="true"></div>
+      </main>
+
+      <footer class="moodboard-footer">Made with love for Ichaku</footer>
+    </div>
 
     <section class="mb-presentation" id="mbPresentation" aria-label="Moodboard preview" role="dialog" aria-modal="true" hidden>
       <button type="button" class="mb-presentation__close" id="mbPresentationClose" aria-label="Close moodboard preview">

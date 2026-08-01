@@ -42,6 +42,7 @@ createMoodboardBtn:a("#createMoodboardBtn"),logNewFittingBtn:a("#logNewFittingBt
 gcalDisconnect:a("#gcalDisconnect"),gcalErr:a("#gcalErr"),enquiriesCard:a("#enquiriesCard"),enquiriesCount:a("#enquiriesCount"),
 viewEnquiry:a("#viewEnquiry"),enquiryWhen:a("#enquiryWhen"),enquiryAnswers:a("#enquiryAnswers"),enquiryNote:a("#enquiryNote"),
 enquiryAccept:a("#enquiryAccept"),enquiryDismiss:a("#enquiryDismiss"),viewMoodboard:a("#viewMoodboard"),viewFittingJournal:a("#viewFittingJournal"),
+mbBackBtn:a("#mbBackBtn"),mbBackLabel:a("#mbBackLabel"),mbTitle:a("#mbTitle"),
 fittingJournal:a("#fittingJournal"),fittingJournalBar:a("#fittingJournalBar"),fittingJournalAdd:a("#fittingJournalAdd"),
 viewOrderEdit:a("#viewOrderEdit"),oTitle:a("#oTitle"),oDocName:a("#oDocName"),oFirstPayment:a("#oFirstPayment"),oSecondPayment:a("#oSecondPayment"),
 oFinalPayment:a("#oFinalPayment"),oScheduleHint:a("#oScheduleHint"),oScheme:a("#oScheme"),termsCard:a("#termsCard"),termList:a("#termList"),
@@ -80,7 +81,8 @@ document.body.classList.toggle("is-custpage",!!e.custpage),
 document.body.classList.toggle("is-custeditpage",!!e.custedit),
 // The order page owns its whole canvas too, and has no fixed document bar
 // left to make room for.
-document.body.classList.toggle("is-orderpage",!!e.orderpage),p.viewSub.innerHTML=e.sub||"",p.viewSub.hidden=!e.sub
+document.body.classList.toggle("is-orderpage",!!e.orderpage),document.body.classList.toggle("is-moodboardpage",!!e.moodboardpage),
+p.viewSub.innerHTML=e.sub||"",p.viewSub.hidden=!e.sub
 ;const t=e.up||null;p.upLink.hidden=!t,p.appbarBrand.hidden=!!t,t&&(p.upLink.href=t.hash,p.upLabel.textContent=t.label),
 p.homeLink.hidden=!t||"#/customers"===t.hash,setPageAction(e.action||null),setSaveBar(!!e.save),closeMenu(),
 // Delete belongs to a record, so the menu only offers it on a record page.
@@ -112,7 +114,7 @@ a(".route-loader__canvas",p.routeLoader).hidden=!0,p.routeLoaderError.hidden=!1,
 p.routeLoaderError.innerHTML='<h2 class="route-loader__error-title">Could not open this page.</h2><p class="route-loader__error-copy">'+
 KK.util.escapeHtml(t&&t.message||"Check your connection and try again.")+'</p><div class="route-loader__error-actions"><button type="button" class="btn btn--primary js-route-retry">Try again</button><a class="btn btn--outline" href="#/customers">Customers</a></div>'
 ;const o=a(".js-route-retry",p.routeLoaderError);o.addEventListener("click",()=>handleRoute(!0),{once:!0}),requestAnimationFrame(()=>o.focus({preventScroll:!0}))}
-function focusRoute(e){const t="customers"===e.view?p.heroGreeting:"customer"===e.view?p.custHeroName:"customerEdit"===e.view?p.custEditTitle:"order"===e.view?p.orderTitle:p.viewTitle;t&&(t.setAttribute("tabindex","-1"),
+function focusRoute(e){const t="customers"===e.view?p.heroGreeting:"customer"===e.view?p.custHeroName:"customerEdit"===e.view?p.custEditTitle:"order"===e.view?p.orderTitle:"moodboard"===e.view?p.mbTitle:"moodboardPreview"===e.view?p.mbPresentationClose:p.viewTitle;t&&(t.setAttribute("tabindex","-1"),
 t.focus({preventScroll:!0}),t.addEventListener("blur",()=>t.removeAttribute("tabindex"),{once:!0}))}
 
 const badgeClass=e=>"badge badge--"+(e=>String(e).toLowerCase().replace(/\s+/g,"-"))(e)
@@ -179,8 +181,9 @@ const o=t||[],isTicked=e=>o.some(t=>t.toLowerCase()===e.toLowerCase()),n=o.filte
 return'<label class="chip'+(o?" is-checked":"")+'" data-label="'+e.escapeHtml(t)+'"><input type="checkbox"'+(o?" checked":"")+'><span class="chip__box">'+h+"</span><span>"+e.escapeHtml(t)+"</span></label>"
 }(t,isTicked(t))).join("")+n.map(e=>customChip(e,!0)).join("")}(w.order.includes||[]),p.customInclude.value="",refreshItemTotals(),setDirty(!1)
 }(s.id):"moodboard"===s.view?await async function(e){w.order=await t.getOrder(e),
-[w.customer,w.customerOrders]=await Promise.all([t.getCustomer(w.order.customer_id),t.listOrders(w.order.customer_id)]),setChrome({title:"Moodboard",
-up:{label:orderLabel(w.order),hash:"#/order/"+e},save:!1}),setSaveBar(!1),closeMoodboardPresentation(),
+[w.customer,w.customerOrders]=await Promise.all([t.getCustomer(w.order.customer_id),t.listOrders(w.order.customer_id)]),setChrome({title:"Create moodboard",
+save:!1,moodboardpage:!0}),setSaveBar(!1),closeMoodboardPresentation(),p.mbBackBtn.href="#/order/"+e,
+p.mbBackLabel.textContent=orderLabel(w.order),p.mbBackBtn.setAttribute("aria-label","Back to "+orderLabel(w.order)),
 j===e&&R.images.length||(R.init({orderId:w.order.id,customerId:w.customer.id,customerName:w.customer.name,docName:w.order.doc_name||w.customer.name,
 orderRef:w.order.title||""}),j=e);a("#mbEditor").hidden=!1,a("#mbGenerate").hidden=!1}(s.id):"moodboardPreview"===s.view?await async function(e){
 if(!R.images.length||j!==e)return void go("#/order/"+e+"/moodboard");setChrome({title:"Moodboard preview",up:{label:"Images",
@@ -668,7 +671,7 @@ F=null}function applyCostCalc(){const t=refreshCalcTotal();a(".js-cost",I).value
 showToast("Cost updated"),closeCostCalc()}const R=KK.moodboard;let j=null,N=null,B=!1,q=null;function setupMoodboardListeners(){
 const e=a("#mbDropzone"),t=a("#mbFileInput"),o=a("#mbAddMore"),n=a("#mbRandomize"),s=a("#mbGenerate"),r=a("#mbDownload"),i=a("#mbThumbs")
 ;e.addEventListener("click",function(o){
-B||o.target.closest(".mb-thumb__remove")||o.target.closest(".mb-thumb")||e.classList.contains("has-images")||t.click()}),
+B||o.target.closest(".mb-thumb__remove")||!o.target.closest(".mb-upload-cell--empty")||t.click()}),
 o.addEventListener("click",function(){t.click()}),t.addEventListener("change",async function(){t.files.length&&await addMoodboardFiles(t.files),
 t.value=""}),e.addEventListener("dragover",function(t){t.preventDefault(),e.classList.add("is-over")}),e.addEventListener("dragleave",function(){
 e.classList.remove("is-over")}),e.addEventListener("drop",async function(t){t.preventDefault(),e.classList.remove("is-over"),
@@ -685,14 +688,13 @@ if(!N||!N.pointers.has(e.pointerId))return;const t=N.pointers.get(e.pointerId);N
 N&&(e.preventDefault(),N.zoom=clampZoom(N.zoom*(e.deltaY<0?1.12:.89)),1===N.zoom&&(N.x=N.y=0),applyMoodboardTransform())},{passive:!1}),
 e.addEventListener("dblclick",function(){N&&(N.zoom=N.zoom>1?1:2,1===N.zoom&&(N.x=N.y=0),applyMoodboardTransform())})}(a("#mbPresentationCanvas"))}
 async function addMoodboardFiles(e){if(B)return
-;const t=a("#mbLoading"),o=a("#mbLoadingText"),n=a("#mbAddMore"),s=a("#mbGenerate"),r=Math.min(Array.from(e).length,R.MAX_IMAGES-R.images.length)
-;B=!0,t.hidden=!1,a("#mbDropzone").classList.add("is-loading"),a("#mbDropzone").setAttribute("aria-busy","true"),
-o.textContent=r>1?"Preparing 1 of "+r+" photos…":"Preparing photo…",n.disabled=!0,s.disabled=!0,await new Promise(e=>{
-requestAnimationFrame(()=>setTimeout(e,0))});try{const t=await R.addFiles(e,function(e,t){
-o.textContent=t>1?"Preparing "+e+" of "+t+" photos…":"Preparing photo…"})
-;t.rejected&&showToast(1===t.rejected?"One image could not be opened and was skipped":t.rejected+" images could not be opened and were skipped")
-}catch(e){console.error(e),showToast("Could not prepare those photos — "+(e.message||"please try again"))}finally{B=!1,t.hidden=!0,
-a("#mbDropzone").classList.remove("is-loading"),a("#mbDropzone").removeAttribute("aria-busy"),n.disabled=!1,s.disabled=0===R.images.length}}
+;const t=a("#mbLoadingText"),o=a("#mbAddMore"),n=a("#mbGenerate"),s=Math.min(Array.from(e).length,R.MAX_IMAGES-R.images.length)
+;B=!0,t.textContent=s>1?"Preparing 1 of "+s+" photos…":"Preparing photo…",o.disabled=!0,n.disabled=!0,await new Promise(e=>{
+requestAnimationFrame(()=>setTimeout(e,0))});try{const o=await R.addFiles(e,function(e,o){
+t.textContent=o>1?"Preparing "+e+" of "+o+" photos…":"Preparing photo…"})
+;o.rejected&&showToast(1===o.rejected?"One image could not be opened and was skipped":o.rejected+" images could not be opened and were skipped")
+}catch(e){console.error(e),showToast("Could not prepare those photos — "+(e.message||"please try again"))}finally{B=!1,t.textContent="",
+o.disabled=R.images.length>=R.MAX_IMAGES,n.disabled=0===R.images.length}}
 function openMoodboardPresentation(){R.images.length&&go("#/order/"+w.order.id+"/moodboard/preview")}function resetMoodboardView(){N={zoom:1,x:0,y:0,
 baseScale:1,clone:null,pointers:new Map}}function applyMoodboardTransform(){if(!N||!N.clone)return;const e=N.baseScale*N.zoom
 ;N.clone.style.transform="translate(calc(-50% + "+N.x+"px),calc(-50% + "+N.y+"px)) scale("+e+")"}function renderMoodboardPresentation(e){

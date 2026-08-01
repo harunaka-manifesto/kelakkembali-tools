@@ -50,6 +50,8 @@ KK.moodboard = (function () {
   /* -------------------------------- State --------------------------------- */
 
   let images = [];          // { file, objectURL, id }
+  let pending = [];         // { file, id } while a selection is decoded
+  let uploadGeneration = 0; // invalidates an in-flight batch when the view closes
   let variation = 'A';
   let shuffleOrder = null;  // null = natural order, array = shuffled indices
   let stageEl = null;
@@ -172,32 +174,77 @@ KK.moodboard = (function () {
     }
   }
 
+  function uploadCellMarkup(item, index) {
+    if (!item) {
+      return '<button type="button" class="mb-upload-cell mb-upload-cell--empty" data-empty-slot="' + index +
+        '" aria-label="Add image in slot ' + (index + 1) + '"></button>';
+    }
+    if (item.pending) {
+      return '<div class="mb-upload-cell mb-upload-cell--uploading" data-upload-id="' + U.escapeHtml(item.id) + '" aria-label="Preparing image">' +
+        '<button type="button" class="mb-upload-cell__control" disabled tabindex="-1" aria-label="Preparing image">' +
+          '<span class="mb-upload-cell__spinner" aria-hidden="true"></span>' +
+        '</button>' +
+      '</div>';
+    }
+    return '<div class="mb-upload-cell is-loaded" data-upload-id="' + U.escapeHtml(item.id) + '">' +
+      '<img src="' + item.objectURL + '" alt="">' +
+      '<button type="button" class="mb-upload-cell__control mb-thumb__remove" data-i="' + index + '" aria-label="Remove image ' + (index + 1) + '"></button>' +
+    '</div>';
+  }
+
   function renderDropzone() {
     const dropzone = $('#mbDropzone');
     const thumbs = $('#mbThumbs');
     if (!dropzone || !thumbs) return;
 
-    if (images.length === 0) {
-      dropzone.classList.remove('has-images');
-      thumbs.innerHTML = '';
-      return;
+    const cells = images.concat(pending.map((item) => Object.assign({ pending: true }, item)));
+    while (cells.length < MAX_IMAGES) cells.push(null);
+    dropzone.classList.toggle('has-images', images.length > 0 || pending.length > 0);
+    dropzone.classList.toggle('is-loading', pending.length > 0);
+    dropzone.setAttribute('aria-busy', String(pending.length > 0));
+    thumbs.innerHTML = cells.slice(0, MAX_IMAGES).map(uploadCellMarkup).join('');
+  }
+
+  function resolvePendingTile(id, image) {
+    const tile = document.querySelector('[data-upload-id="' + id + '"]');
+    if (!tile) return renderDropzone();
+    const dropzone = $('#mbDropzone');
+    if (dropzone) {
+      dropzone.classList.toggle('is-loading', pending.length > 0);
+      dropzone.setAttribute('aria-busy', String(pending.length > 0));
     }
 
-    dropzone.classList.add('has-images');
-    thumbs.innerHTML = images.map((img, i) =>
-      '<div class="mb-thumb">' +
-        '<img src="' + img.objectURL + '" alt="">' +
-        '<button type="button" class="mb-thumb__remove" data-i="' + i + '" aria-label="Remove">&times;</button>' +
-      '</div>'
-    ).join('');
+    const imageIndex = images.indexOf(image);
+    const img = document.createElement('img');
+    img.src = image.objectURL;
+    img.alt = '';
+    tile.insertBefore(img, tile.firstChild);
+    tile.classList.remove('mb-upload-cell--uploading');
+    tile.classList.add('is-resolving');
+    tile.removeAttribute('aria-label');
+
+    const control = tile.querySelector('.mb-upload-cell__control');
+    control.disabled = false;
+    control.removeAttribute('tabindex');
+    control.classList.add('mb-thumb__remove');
+    control.dataset.i = String(imageIndex);
+    control.setAttribute('aria-label', 'Remove image ' + (imageIndex + 1));
+
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      tile.classList.add('is-loaded');
+      tile.classList.remove('is-resolving');
+    }));
   }
 
   function updateControls() {
     const countEl = $('#mbCount');
     const genBtn = $('#mbGenerate');
+    const addBtn = $('#mbAddMore');
+    const isPreparing = pending.length > 0;
 
     if (countEl) countEl.textContent = images.length + '/' + MAX_IMAGES;
-    if (genBtn) genBtn.disabled = images.length === 0;
+    if (genBtn) genBtn.disabled = images.length === 0 || isPreparing;
+    if (addBtn) addBtn.disabled = images.length >= MAX_IMAGES || isPreparing;
   }
 
   /* ----------------------------- Image handling --------------------------- */
@@ -241,29 +288,53 @@ KK.moodboard = (function () {
   }
 
   async function addFiles(fileList, onProgress) {
-    const remaining = MAX_IMAGES - images.length;
+    const remaining = MAX_IMAGES - images.length - pending.length;
     if (remaining <= 0) return { added: 0, rejected: 0 };
 
     const files = Array.from(fileList).slice(0, remaining);
-    const cached = [];
+    const batch = files.map((file) => ({
+      file,
+      id: 'pending-' + Math.random().toString(36).slice(2)
+    }));
+    const generation = uploadGeneration;
+    let added = 0;
+    let rejected = 0;
+
+    pending.push(...batch);
+    renderDropzone();
+    updateControls();
 
     /* Phone photos can be large, and HEIC conversion is expensive. Processing
        sequentially avoids a burst of simultaneous decodes while the progress
        callback gives the browser a chance to paint between files. */
-    for (let index = 0; index < files.length; index++) {
-      cached.push(await cacheImage(files[index]));
+    for (let index = 0; index < batch.length; index++) {
+      const item = batch[index];
+      const cached = await cacheImage(item.file);
+      if (generation !== uploadGeneration) {
+        if (cached) URL.revokeObjectURL(cached.objectURL);
+        break;
+      }
+
+      pending = pending.filter((entry) => entry.id !== item.id);
+      if (cached) {
+        cached.id = item.id;
+        images.push(cached);
+        added++;
+        resolvePendingTile(item.id, cached);
+        renderPreview();
+      } else {
+        rejected++;
+        renderDropzone();
+      }
+      updateControls();
       if (onProgress) onProgress(index + 1, files.length);
       await new Promise((resolve) => setTimeout(resolve, 0));
     }
 
-    const valid = cached.filter(Boolean);
-    images.push(...valid);
-
     shuffleOrder = null;
-    renderDropzone();
     renderPreview();
     updateControls();
-    return { added: valid.length, rejected: cached.length - valid.length };
+    return { added, rejected };
   }
 
   function removeImage(index) {
@@ -509,8 +580,10 @@ KK.moodboard = (function () {
   }
 
   function cleanup() {
+    uploadGeneration++;
     images.forEach((img) => URL.revokeObjectURL(img.objectURL));
     images = [];
+    pending = [];
     shuffleOrder = null;
     if (gridEl) gridEl.innerHTML = '';
   }

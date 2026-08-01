@@ -11,7 +11,8 @@ Route: `#/order/:id/moodboard`, opened with **Create Moodboard** on an order.
 
 ## Current product flow
 
-1. Select images. Each file is decoded and retained only as a browser object
+1. Select images with **Add images** or any empty cell in the 4×4 upload grid.
+   Each file is decoded and retained only as a browser object
    URL. Blank MIME metadata is accepted, and an unsupported HEIC/HEIF image is
    converted locally to JPEG. An image that still cannot be decoded is skipped
    instead of appearing as a broken tile. Source images are never uploaded to
@@ -46,10 +47,12 @@ probed again. Removing an image, leaving the moodboard, or starting a fresh one
 revokes the corresponding URLs. There is deliberately no saved draft or edit
 flow; remaking a moodboard starts with a fresh upload.
 
-Selection immediately shows a blocking **Preparing X of Y photos…** indicator.
-Photos are decoded sequentially so several large phone images do not trigger
-simultaneous HEIC conversions or a large memory spike. The picker and Generate
-controls remain disabled until preparation finishes.
+Selection immediately reserves cells with a shimmer and circular progress
+indicator. Photos are decoded sequentially so several large phone images do
+not trigger simultaneous HEIC conversions or a large memory spike. Each image
+fades into its cell as it becomes ready and its progress indicator morphs into
+the remove control. The picker and Generate controls remain disabled until the
+batch finishes.
 
 ### Layout engine (`moodboard.js`)
 

@@ -5,144 +5,282 @@
    Moodboard generator — UI and document template
    ========================================================================= */
 
-/* ----------------------------- Dropzone --------------------------------- */
+/* ---------------------------- Editor page ------------------------------- */
 
-.mb-dropzone {
-  position: relative;
-  border: 2px dashed var(--line-2);
-  border-radius: var(--radius);
-  padding: 24px;
-  text-align: center;
-  cursor: pointer;
-  transition: border-color var(--motion-standard) var(--ease-standard), background-color var(--motion-standard) var(--ease-standard), box-shadow var(--motion-standard) var(--ease-standard);
-  min-height: 120px;
+body.is-moodboardpage { background: var(--home-black-light); overflow-x: hidden; }
+body.is-moodboardpage .appbar,
+body.is-moodboardpage .pagehead { display: none; }
+body.is-moodboardpage .page {
+  width: min(390px, 100%);
+  max-width: 390px;
+  min-height: 100svh;
+  margin: 0 auto;
+  padding: 0;
+  background: var(--home-black);
+}
+body.is-moodboardpage .view { gap: 0; }
+
+.moodboard-editor {
+  min-height: 100svh;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  background: var(--home-black);
 }
-.mb-dropzone:not(.has-images):not(.is-loading):hover {
-  border-color: var(--ink);
-  background: rgba(23, 21, 15, 0.025);
-  box-shadow: inset 0 0 0 1px rgba(23, 21, 15, .04);
+.moodboard-nav {
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 0;
+  background: var(--home-black);
 }
-.mb-dropzone.is-over {
-  border-color: var(--ink);
-  background: rgba(23, 21, 15, 0.04);
-}
-.mb-dropzone.has-images { cursor: default; }
-.mb-dropzone.has-images .mb-dropzone__empty { display: none; }
-.mb-dropzone.is-loading {
-  cursor: progress;
-  border-style: solid;
-}
-.mb-dropzone.is-loading > :not(.mb-loading) { opacity: 0.28; }
-
-.mb-dropzone__icon {
-  width: 48px;
-  height: 48px;
-  color: var(--faint);
-  margin-bottom: 8px;
-}
-.mb-dropzone__label {
-  font-size: 14px;
-  color: var(--muted);
+.moodboard-nav__back { width: 100%; }
+.moodboard-nav__back .order-nav-btn__face { justify-content: flex-start; }
+.moodboard-nav__back .order-nav-btn__face span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.mb-loading[hidden] { display: none; }
-.mb-loading {
+.moodboard-ledger { flex: 1; background: var(--home-black); }
+.moodboard-grid-spacer {
+  height: 24px;
+  margin: 0 24px;
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
+}
+.moodboard-grid-rule { height: 1px; background: var(--home-grid); }
+.moodboard-title-band {
+  padding: 12px 24px;
+  border-top: 1px solid var(--home-grid);
+  border-bottom: 1px solid var(--home-grid);
+}
+.moodboard-title {
+  margin: 0;
+  color: var(--home-white);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 40px;
+  letter-spacing: -.96px;
+}
+.moodboard-inset { margin: 0 24px; }
+.moodboard-card {
+  padding: 16px 16px 20px;
+  background: var(--home-white);
+  border-right: 1px solid var(--home-grid);
+  border-bottom: 1px solid var(--home-grid);
+  border-left: 1px solid var(--home-grid);
+}
+.moodboard-card__head { margin-bottom: 8px; }
+.moodboard-card__title {
+  margin: 0;
+  color: var(--home-black);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 24px;
+  letter-spacing: -.6px;
+}
+.moodboard-card__hint {
+  margin: 4px 0 0;
+  color: var(--home-grid);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: -.39px;
+}
+
+/* The 11px frame carries the short drafting ticks visible around the 4×4
+   board. The cells themselves stay square at every supported viewport. */
+.mb-upload-grid-wrap {
+  position: relative;
+  padding: 11px;
+  transition: background-color var(--motion-quick) ease;
+}
+.mb-upload-grid-wrap::before,
+.mb-upload-grid-wrap::after {
+  content: "";
+  position: absolute;
+  top: 11px;
+  bottom: 11px;
+  width: 12px;
+  pointer-events: none;
+  background: linear-gradient(var(--home-grid) 0 1px, transparent 1px) 0 0 / 100% 25% repeat-y;
+}
+.mb-upload-grid-wrap::before { left: 0; }
+.mb-upload-grid-wrap::after { right: 0; }
+.mb-upload-grid-wrap.is-over { background: rgba(76, 76, 76, .08); }
+.mb-upload-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--home-grid);
+  border-left: 1px solid var(--home-grid);
+}
+.mb-upload-grid::before,
+.mb-upload-grid::after {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  left: -1px;
+  right: -1px;
+  height: 12px;
+  pointer-events: none;
+  background: linear-gradient(90deg, var(--home-grid) 0 1px, transparent 1px) 0 0 / 25% 100% repeat-x;
+}
+.mb-upload-grid::before { top: -12px; }
+.mb-upload-grid::after { bottom: -12px; }
+.mb-upload-cell {
+  position: relative;
+  min-width: 0;
+  aspect-ratio: 1;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-right: 1px solid var(--home-grid);
+  border-bottom: 1px solid var(--home-grid);
+  border-radius: 0;
+  background: var(--home-white);
+}
+.mb-upload-cell--empty { cursor: pointer; }
+.mb-upload-cell--empty:hover,
+.mb-upload-cell--empty:focus-visible { background: var(--home-white-dark); }
+.mb-upload-cell--empty:focus-visible { z-index: 2; outline-offset: -3px; }
+.mb-upload-cell--uploading {
+  background: linear-gradient(105deg, #e3e3e3 18%, #fafafa 42%, #e3e3e3 66%);
+  background-size: 220% 100%;
+  animation: mb-cell-shimmer 1.2s linear infinite;
+}
+.mb-upload-cell > img {
   position: absolute;
   inset: 0;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 16px;
-  border-radius: calc(var(--radius) - 2px);
-  background: rgba(244, 243, 240, 0.88);
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: progress;
-  backdrop-filter: blur(4px);
-}
-.mb-loading__spinner {
-  width: 24px;
-  height: 24px;
-  border: 2px solid rgba(23, 21, 15, 0.18);
-  border-top-color: var(--ink);
-  border-radius: 50%;
-  animation: spin .7s linear infinite;
-}
-
-/* ----------------------------- Thumbnails -------------------------------- */
-
-.mb-thumbs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: flex-start;
-  width: 100%;
-}
-.mb-thumb {
-  position: relative;
-  width: 72px;
-  height: 72px;
-  border-radius: 8px;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-.mb-thumb img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
   display: block;
-  transition: transform var(--motion-enter) var(--ease-standard);
-}
-.mb-thumb__remove {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  width: 44px;
-  height: 44px;
-  border: none;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.55);
-  color: #fff;
-  font-size: 14px;
-  line-height: 44px;
-  text-align: center;
-  padding: 0;
-  cursor: pointer;
+  object-fit: cover;
   opacity: 0;
-  transform: scale(.88);
-  transition: opacity var(--motion-standard) var(--ease-standard), transform var(--motion-standard) var(--ease-standard), background-color var(--motion-standard) var(--ease-standard);
+  transform: scale(1.035);
+  transition: opacity 420ms var(--ease-standard), transform 520ms var(--ease-standard);
 }
-.mb-thumb:hover .mb-thumb__remove,
-.mb-thumb:focus-within .mb-thumb__remove { opacity: 1; transform: scale(1); }
-.mb-thumb__remove:active { transform: scale(.9); background: rgba(0, 0, 0, .75); }
-@media (hover: hover) and (pointer: fine) { .mb-thumb:hover img { transform: scale(1.04); } }
-@media (hover: none) { .mb-thumb__remove { opacity: 1; transform: scale(1); } }
+.mb-upload-cell.is-loaded > img { opacity: 1; transform: scale(1); }
+.mb-upload-cell__control {
+  position: absolute;
+  z-index: 2;
+  top: -6px;
+  right: -6px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.mb-upload-cell__control::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  border-radius: 0 0 999px 999px;
+  background: transparent;
+  transform: scale(.82);
+  transition: background-color 280ms var(--ease-standard), transform 360ms var(--ease-standard);
+}
+.mb-upload-cell.is-loaded .mb-upload-cell__control::before {
+  background: var(--home-grid);
+  transform: scale(1);
+}
+.mb-upload-cell__control::after {
+  content: "×";
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  color: var(--home-white);
+  font: 400 25px/27px Arial, sans-serif;
+  text-align: center;
+  opacity: 0;
+  transform: rotate(-70deg) scale(.7);
+  transition: opacity 180ms ease 80ms, transform 360ms var(--ease-standard);
+}
+.mb-upload-cell.is-loaded .mb-upload-cell__control::after {
+  opacity: 1;
+  transform: rotate(0) scale(1);
+}
+.mb-upload-cell__spinner {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 20px;
+  height: 20px;
+  border: 3px solid var(--home-grid);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  transition: opacity 150ms ease, transform 260ms var(--ease-standard);
+}
+.mb-upload-cell.is-loaded .mb-upload-cell__spinner { opacity: 0; transform: rotate(90deg) scale(.65); }
+.mb-upload-cell__control:focus-visible { outline-color: var(--home-white); outline-offset: -8px; }
 
-/* ----------------------------- Add row ---------------------------------- */
+/* ------------------------------ Actions --------------------------------- */
 
-.mb-addrow {
+.moodboard-actions { display: flex; }
+.moodboard-action {
+  flex: 1 1 0;
+  min-width: 0;
+  display: grid;
+  grid-template-rows: 52px 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--home-white);
+  cursor: pointer;
+  transition: grid-template-rows 120ms var(--ease-out-expo);
+}
+.moodboard-action__face {
+  min-width: 0;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-top: 12px;
+  gap: 12px;
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: -.42px;
+  text-align: left;
 }
-.mb-count {
-  font-size: 13px;
-  color: var(--muted);
+.moodboard-action__face img { flex: none; width: 20px; height: 20px; }
+.moodboard-action__rail { display: block; }
+.moodboard-action--add .moodboard-action__face { background: var(--home-grid); }
+.moodboard-action--add .moodboard-action__rail { background: var(--home-black-light); }
+.moodboard-action--generate .moodboard-action__face { background: var(--home-orange); }
+.moodboard-action--generate .moodboard-action__rail { background: #dd5d01; }
+.moodboard-action:not(:disabled):active { grid-template-rows: 57px 3px; }
+.moodboard-action:not(:disabled):active .moodboard-action__face { background-image: linear-gradient(180deg, transparent, rgba(0,0,0,.12)); }
+.moodboard-action:disabled { cursor: default; filter: grayscale(.55); opacity: .72; }
+
+.moodboard-footer {
+  padding: 24px;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  color: var(--home-grid);
+  font-size: 14px;
+  line-height: 24px;
+  letter-spacing: -.42px;
+  text-align: center;
 }
 
-/* ----------------------------- Generate button --------------------------- */
+@keyframes mb-cell-shimmer { to { background-position: -220% 0; } }
 
-#mbGenerate {
-  margin-top: 16px;
+@media (max-width: 340px) {
+  .moodboard-title { font-size: 29px; }
+  .moodboard-inset { margin: 0 16px; }
+  .moodboard-grid-spacer { margin: 0 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mb-upload-cell--uploading { animation: none; }
+  .mb-upload-cell > img,
+  .mb-upload-cell__control::before,
+  .mb-upload-cell__control::after,
+  .mb-upload-cell__spinner,
+  .moodboard-action { transition: none; }
 }
 
 /* -------------------------- Moodboard presentation ----------------------- */
