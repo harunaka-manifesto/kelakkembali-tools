@@ -131,3 +131,34 @@ test('moodboard stages are exact 16:9 counterparts', () => {
   assert.deepEqual([moodboard.stageWidth, moodboard.stageHeight], [1080, 1920]);
   assert.equal(moodboard.toggleOrientation(), 'landscape');
 });
+
+/* The fitting-log feed's request shaping is pure, and it is the layer that
+   keeps user-typed wildcards and PostgREST filter syntax apart. */
+require('../db.js');
+const { db } = global.KK;
+
+test('fitting feed queries are trimmed, collapsed, lowercased, and capped', () => {
+  assert.equal(db.normalizeFeedQuery('  Selena   Gomez  '), 'selena gomez');
+  assert.equal(db.normalizeFeedQuery('\tANYA\nGeraldine '), 'anya geraldine');
+  assert.equal(db.normalizeFeedQuery('   '), '');
+  assert.equal(db.normalizeFeedQuery(null), '');
+  assert.equal(db.normalizeFeedQuery('x'.repeat(500)).length, 200);
+});
+
+test('fitting feed search patterns neutralise every wildcard a user can type', () => {
+  assert.equal(db.likeLiteral('100% cotton'), '100\\% cotton');
+  assert.equal(db.likeLiteral('a_b'), 'a\\_b');
+  assert.equal(db.likeLiteral('back\\slash'), 'back\\\\slash');
+  // PostgREST rewrites * into %, so it degrades to the single-character
+  // wildcard rather than becoming a match-everything pattern.
+  assert.equal(db.likeLiteral('a*b'), 'a_b');
+  // PostgREST filter syntax characters are literal inside a single filter.
+  assert.equal(db.likeLiteral('Family (sisters, moms)'), 'Family (sisters, moms)');
+});
+
+test('fitting feed stages are restricted to the four normalized keys', () => {
+  assert.deepEqual(db.normalizeFeedStages(['fitting-2', 'sizing']), ['sizing', 'fitting-2']);
+  assert.deepEqual(db.normalizeFeedStages(['Final fitting', 'nope']), []);
+  assert.deepEqual(db.normalizeFeedStages(undefined), []);
+  assert.deepEqual(db.normalizeFeedStages(db.FITTING_STAGE_KEYS), db.FITTING_STAGE_KEYS);
+});

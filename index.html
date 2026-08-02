@@ -163,7 +163,7 @@
           <button type="button" class="home-action home-action--schedule" aria-disabled="true"><span class="home-action__face"><img src="assets/home-schedule-icon.svg" alt="">Schedule</span><span class="home-action__rail"></span></button>
           <button type="button" class="home-action home-action--quotation" aria-disabled="true"><span class="home-action__face"><img src="assets/home-quote-icon.svg" alt="">Quotation</span><span class="home-action__rail"></span></button>
           <button type="button" class="home-action home-action--invoice" aria-disabled="true"><span class="home-action__face"><img src="assets/home-invoice-icon.svg" alt="">Invoice</span><span class="home-action__rail"></span></button>
-          <button type="button" class="home-action home-action--fitting" aria-disabled="true"><span class="home-action__face"><img src="assets/home-fitting-icon.svg" alt="">Fitting</span><span class="home-action__rail"></span></button>
+          <a class="home-action home-action--fitting" href="#/fittings"><span class="home-action__face"><img src="assets/home-fitting-icon.svg" alt="">Fitting</span><span class="home-action__rail"></span></a>
         </section>
         <button type="button" class="home-alert" id="enquiriesCard" aria-disabled="true" hidden><span class="home-alert__face"><img class="home-alert__icon" src="assets/home-alert-icon.svg" alt=""><span id="enquiriesCount"></span><img class="home-alert__chevron" src="assets/home-chevron-icon.svg" alt=""></span><span class="home-alert__rail"></span></button>
         <section class="home-search-section" aria-label="Customer search"><label class="home-search" for="customerSearch"><img class="home-search__icon" src="assets/home-search-icon.svg" alt=""><input id="customerSearch" type="search" enterkeyhint="search" placeholder="Search customer name" autocapitalize="none" spellcheck="false"></label><div class="home-search__rail" aria-hidden="true"></div></section>
@@ -227,7 +227,10 @@
         <span class="cust-banner__rail" aria-hidden="true"></span>
       </div>
 
-      <div class="cust-banner cust-banner--fittings" id="custFittingBanner" aria-disabled="true">
+      <!-- The one banner that leads somewhere. Its href carries both the visible
+           search term and the customer id, and is written once the record has
+           loaded — see renderCustomerReadOnly. -->
+      <a class="cust-banner cust-banner--fittings" id="custFittingBanner" href="#/fittings">
         <span class="cust-banner__face">
           <span class="cust-banner__left">
             <img class="cust-banner__icon" src="assets/home-fitting-icon.svg" alt="">
@@ -235,7 +238,7 @@
           </span>
         </span>
         <span class="cust-banner__rail" aria-hidden="true"></span>
-      </div>
+      </a>
 
       <div class="cust-banner-split">
         <div class="cust-banner cust-banner--quotation" id="custQuotationBanner" aria-disabled="true">
@@ -270,6 +273,74 @@
     </section>
 
     <footer class="cust-footer">Made with love for Ichaku</footer>
+  </section>
+
+  <!-- ---------------------------- Fitting logs ---------------------------- -->
+  <!-- Figma nodes 218:1958 / 219:2547 / 219:2731. A read-only global feed of
+       every fitting session, in the same black ledger the homepage and the
+       customer page use, so a fitting record and a customer row are visibly
+       the same object. Reached from the homepage Fitting shortcut (unfiltered)
+       and from a customer's Fitting logs banner (name pre-filled).
+
+       The chrome below the nav is static on purpose: title, search, and the
+       four stage filters are painted before the first request resolves, so
+       nothing above the feed can move when data arrives. -->
+  <section class="view fitlog" id="viewFittingLogs" hidden>
+    <nav class="cust-nav" aria-label="Fitting logs navigation">
+      <a class="cust-nav-btn" id="fitlogBackBtn" href="#/customers">
+        <span class="cust-nav-btn__face">
+          <img src="assets/cust-back-icon.svg" alt="" width="24" height="24">
+          <span id="fitlogBackLabel">Home</span>
+        </span>
+        <span class="cust-nav-btn__rail" aria-hidden="true"></span>
+      </a>
+      <!-- Creating a fitting log from here is intentionally out of scope for
+           this release: the control matches Figma and presses, but there is no
+           handler and no order it could target. The missing action is the
+           design, not a bug. -->
+      <button type="button" class="cust-nav-btn cust-nav-btn--icon" id="fitlogNewBtn" aria-label="New fitting log" aria-disabled="true">
+        <span class="cust-nav-btn__face">
+          <img src="assets/fitting-new-icon.svg" alt="" width="24" height="24">
+        </span>
+        <span class="cust-nav-btn__rail" aria-hidden="true"></span>
+      </button>
+    </nav>
+
+    <header class="fitlog-head">
+      <div class="fitlog-grid-spacer" aria-hidden="true"></div>
+      <div class="fitlog-title"><h1 id="fitlogTitle">Fitting logs</h1></div>
+      <div class="fitlog-grid-spacer" aria-hidden="true"></div>
+    </header>
+
+    <section class="fitlog-search-section" id="fitlogSearchSection">
+      <label class="sr-only" for="fitlogSearch">Search fitting logs by customer, order, or date</label>
+      <div class="fitlog-search">
+        <img class="fitlog-search__icon" src="assets/home-search-icon.svg" alt="" width="20" height="20">
+        <input id="fitlogSearch" type="search" enterkeyhint="search" placeholder="Search customer, order, or date" autocapitalize="none" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="fitlog-search__rail" aria-hidden="true"></div>
+    </section>
+
+    <!-- Multi-select, not a tablist: any combination of the four is valid, so
+         each control carries its own aria-pressed. -->
+    <div class="fitlog-stages" id="fitlogStages" role="group" aria-label="Filter fitting logs by stage">
+      <button type="button" class="fitlog-stage fitlog-stage--sizing" data-stage="sizing" aria-pressed="false"><span class="fitlog-stage__face">Sizing</span><span class="fitlog-stage__rail" aria-hidden="true"></span></button>
+      <button type="button" class="fitlog-stage fitlog-stage--fitting-1" data-stage="fitting-1" aria-pressed="false"><span class="fitlog-stage__face">Fitting 1</span><span class="fitlog-stage__rail" aria-hidden="true"></span></button>
+      <button type="button" class="fitlog-stage fitlog-stage--fitting-2" data-stage="fitting-2" aria-pressed="false"><span class="fitlog-stage__face">Fitting 2</span><span class="fitlog-stage__rail" aria-hidden="true"></span></button>
+      <button type="button" class="fitlog-stage fitlog-stage--fitting-3" data-stage="fitting-3" aria-pressed="false"><span class="fitlog-stage__face">Fitting 3</span><span class="fitlog-stage__rail" aria-hidden="true"></span></button>
+    </div>
+
+    <div class="fitlog-feed" id="fitlogFeed" aria-busy="true">
+      <ol class="fitlog-list" id="fitlogList"></ol>
+      <!-- Skeletons, empty, no-match, and both failure states share this slot so
+           they all inherit the ledger rhythm and none of them can resize the
+           records already on screen. -->
+      <div class="fitlog-state" id="fitlogState"></div>
+      <div class="fitlog-sentinel" id="fitlogSentinel" aria-hidden="true"></div>
+    </div>
+    <p class="sr-only" id="fitlogStatus" role="status" aria-live="polite"></p>
+
+    <footer class="fitlog-footer">Made with love for Ichaku</footer>
   </section>
 
   <!-- --------------------------- Customer editor -------------------------- -->

@@ -58,6 +58,36 @@ KK.db = (function () {
   const PROJECTION_FITTING_PHOTOS = 'id,order_id,session_id,stage,caption,drive_file_id,drive_link,position,created_at';
   const PROJECTION_FITTING_SESSIONS = 'id,order_id,stage,status,created_at,completed_at';
   const PROJECTION_INTAKE = 'id,payload,name,phone,instagram,source,wedding_date,wedding_date_precision,notes,status,customer_id,created_at,reviewed_at';
+  const PROJECTION_FITTING_FEED = 'id,order_id,customer_id,customer_name,order_title,order_label,stage_key,stage_label,status,created_at,log_date,photo_count,preview_photos';
+
+  /* --------------------------- Fitting Log Feed --------------------------- */
+
+  /* The four stage keys public.fitting_log_feed normalizes its five stored
+     stages down to. Anything outside this list is not a filter this feed has. */
+  const FITTING_STAGE_KEYS = ['sizing', 'fitting-1', 'fitting-2', 'fitting-3'];
+
+  const FITTING_FEED_PAGE_SIZE = 10;
+  const FITTING_FEED_QUERY_MAX = 200;
+
+  /* Outer whitespace goes, repeated inner whitespace collapses, and the request
+     is capped so a pasted essay cannot become a pathological pattern. The
+     user's own field value is never touched — this is the request form only. */
+  function normalizeFeedQuery(raw) {
+    return String(raw == null ? '' : raw).trim().replace(/\s+/g, ' ').slice(0, FITTING_FEED_QUERY_MAX).toLowerCase();
+  }
+
+  /* PostgREST rewrites * into % before a pattern reaches SQL LIKE, so every
+     wildcard a user could type is neutralised here: % and _ take the SQL
+     escape, and * degrades to _ (match one character) because there is no wire
+     form for a literal asterisk. */
+  function likeLiteral(text) {
+    return String(text).replace(/[\\%_]/g, '\\$&').replace(/\*/g, '_');
+  }
+
+  function normalizeFeedStages(stages) {
+    const wanted = Array.isArray(stages) ? stages : [];
+    return FITTING_STAGE_KEYS.filter((key) => wanted.indexOf(key) !== -1);
+  }
 
   /* --------------------------- Edge Function Helpers ---------------------- */
 
@@ -293,6 +323,55 @@ KK.db = (function () {
 
     updateFittingSession: async function (id, record) {
       return unwrap(await init().from('fitting_sessions').update(record).eq('id', id).select(PROJECTION_FITTING_SESSIONS).single());
+    },
+
+    FITTING_STAGE_KEYS,
+    FITTING_FEED_PAGE_SIZE,
+    normalizeFeedQuery,
+    likeLiteral,
+    normalizeFeedStages,
+
+    /* One page of the global fitting-log feed, newest first.
+       -> { items, nextCursor: { createdAt, id } | null, hasMore }
+
+       Cursor paging rather than offsets: a session inserted while somebody is
+       scrolling cannot duplicate or skip a row in the pages already loaded.
+       limit + 1 is fetched so hasMore never costs a second count query. */
+    listFittingLogs: async function (options) {
+      const opts = options || {};
+      const limit = Math.max(1, Number(opts.limit) || FITTING_FEED_PAGE_SIZE);
+      const stages = normalizeFeedStages(opts.stages);
+      const search = normalizeFeedQuery(opts.query);
+
+      let request = init().from('fitting_log_feed').select(PROJECTION_FITTING_FEED);
+
+      if (stages.length) request = request.in('stage_key', stages);
+      if (search) request = request.ilike('search_text', '%' + likeLiteral(search) + '%');
+      if (opts.customerId) request = request.eq('customer_id', opts.customerId);
+
+      // Records strictly older than the cursor, with id breaking ties exactly
+      // the way the sort below does.
+      if (opts.before && opts.before.createdAt && opts.before.id) {
+        const at = new Date(opts.before.createdAt).toISOString();
+        request = request.or(
+          'created_at.lt.' + at + ',and(created_at.eq.' + at + ',id.lt.' + opts.before.id + ')'
+        );
+      }
+
+      const rows = unwrap(await request
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .limit(limit + 1)) || [];
+
+      const hasMore = rows.length > limit;
+      const items = rows.slice(0, limit);
+      const last = items[items.length - 1] || null;
+
+      return {
+        items,
+        hasMore,
+        nextCursor: hasMore && last ? { createdAt: last.created_at, id: last.id } : null
+      };
     },
 
     listFittingPhotos: async function (orderId) {

@@ -99,6 +99,20 @@ KK.app = (function () {
     custOrdersCount: $("#custOrdersCount"),
     custOrdersSum: $("#custOrdersSum"),
     custOrderList: $("#custOrderList"),
+    custFittingBanner: $("#custFittingBanner"),
+    viewFittingLogs: $("#viewFittingLogs"),
+    fitlogBackBtn: $("#fitlogBackBtn"),
+    fitlogBackLabel: $("#fitlogBackLabel"),
+    fitlogNewBtn: $("#fitlogNewBtn"),
+    fitlogTitle: $("#fitlogTitle"),
+    fitlogSearchSection: $("#fitlogSearchSection"),
+    fitlogSearch: $("#fitlogSearch"),
+    fitlogStages: $("#fitlogStages"),
+    fitlogFeed: $("#fitlogFeed"),
+    fitlogList: $("#fitlogList"),
+    fitlogState: $("#fitlogState"),
+    fitlogSentinel: $("#fitlogSentinel"),
+    fitlogStatus: $("#fitlogStatus"),
     viewCustomerEdit: $("#viewCustomerEdit"),
     custEditCancel: $("#custEditCancel"),
     custEditTitle: $("#custEditTitle"),
@@ -228,6 +242,28 @@ KK.app = (function () {
     saving: false,
     navigation: { token: 0 },
     homepage: { phase: "idle", visit: 0, loadToken: 0, popPlayedForVisit: 0 },
+    /* The fitting-log feed keeps its own island of state: it is a different
+       query with a different lifetime from state.customerOrders or the fitting
+       journal, and mixing them would let one page's stale rows render on the
+       other. */
+    fittingLogs: {
+      phase: "idle", // idle | initial-loading | ready | initial-error
+      items: [],
+      query: "",
+      selectedStages: [],
+      customerSeed: null, // { id, originalQuery } until the user edits the field
+      nextCursor: null,
+      hasMore: true,
+      loadingMore: false,
+      loadMoreError: null,
+      requestToken: 0,
+      renderedToken: 0,
+      observer: null,
+      searchTimer: null,
+      alignPending: false,
+      errorAnnounced: false,
+      lastStatus: ""
+    },
     orderDetail: {
       phase: "idle", // idle | loading | ready | error
       loadToken: 0,
@@ -314,6 +350,7 @@ KK.app = (function () {
     document.body.classList.toggle("is-custeditpage", !!cfg.custedit);
     document.body.classList.toggle("is-orderpage", !!cfg.orderpage);
     document.body.classList.toggle("is-moodboardpage", !!cfg.moodboardpage);
+    document.body.classList.toggle("is-fittinglogspage", !!cfg.fittinglogspage);
 
     elements.viewSub.innerHTML = cfg.sub || "";
     elements.viewSub.hidden = !cfg.sub;
@@ -391,7 +428,7 @@ KK.app = (function () {
     document.body.classList.remove("is-page-transitioning");
   }
 
-  const routeHasOwnLoader = (r) => "customers" === r.view || "order" === r.view;
+  const routeHasOwnLoader = (r) => "customers" === r.view || "order" === r.view || "fittingLogs" === r.view;
   const routeLoaderKind = (r) =>
     "customer" === r.view || "customerEdit" === r.view
       ? "ledger"
@@ -478,6 +515,8 @@ KK.app = (function () {
         ? elements.mbTitle
         : "moodboardPreview" === r.view
         ? elements.mbCanvasBack
+        : "fittingLogs" === r.view
+        ? elements.fitlogTitle
         : elements.viewTitle;
 
     if (focusTarget) {
@@ -698,6 +737,9 @@ KK.app = (function () {
       if (("order" === segments[0] && segments[1] && "fittings" === segments[2]) || ("order" === segments[0] && segments[1])) {
         return { view: "order", id: segments[1], query };
       }
+      if ("fittings" === segments[0]) {
+        return { view: "fittingLogs", query };
+      }
       if ("calendar" === segments[0]) {
         return { view: "calendar", query };
       }
@@ -747,8 +789,15 @@ KK.app = (function () {
     elements.viewFittingJournal.hidden = "fittingNew" !== targetRoute.view && "fittingJournal" !== targetRoute.view;
     elements.fittingJournalBar.hidden = "fittingJournal" !== targetRoute.view && "fittingNew" !== targetRoute.view;
     document.body.classList.toggle("has-fitting-journal-bar", !elements.fittingJournalBar.hidden);
+    elements.viewFittingLogs.hidden = "fittingLogs" !== targetRoute.view;
     elements.viewCalendar.hidden = "calendar" !== targetRoute.view;
     elements.viewEnquiry.hidden = "enquiry" !== targetRoute.view;
+
+    // Leaving the feed must take its observer, debounce, and in-flight page
+    // tokens with it, or a late response can render into a hidden view.
+    if (prevRoute && "fittingLogs" === prevRoute.view && "fittingLogs" !== targetRoute.view) {
+      cleanupFittingLogs();
+    }
 
     if (!prevRoute || ("fittingNew" !== prevRoute.view && "fittingJournal" !== prevRoute.view) ||
         (targetRoute.view === prevRoute.view && targetRoute.id === prevRoute.id && targetRoute.sessionId === prevRoute.sessionId)) {
@@ -924,6 +973,8 @@ KK.app = (function () {
             onToast: showToast
           });
         })(targetRoute.id, targetRoute.sessionId);
+      } else if ("fittingLogs" === targetRoute.view) {
+        await showFittingLogs(targetRoute.query);
       } else if ("calendar" === targetRoute.view) {
         await showCalendarSettings();
       } else if ("enquiry" === targetRoute.view) {
@@ -1226,13 +1277,15 @@ KK.app = (function () {
     if (target) {
       target.classList.add("is-pressed");
       if (target.matches(".home-action")) hapticTap();
-      if (target.matches(".home-action,.home-alert,.home-nav-btn")) e.preventDefault();
+      if (target.matches(".home-action,.home-alert,.home-nav-btn") && !target.matches(".home-action--fitting")) e.preventDefault();
     }
   });
 
   window.addEventListener("keyup", clearHomepagePresses);
+  // Fitting is the one shortcut that leads somewhere; its unfinished siblings
+  // stay inert.
   elements.homeReady.addEventListener("click", (e) => {
-    if (e.target.closest(".home-action,.home-alert")) e.preventDefault();
+    if (e.target.closest(".home-action,.home-alert") && !e.target.closest(".home-action--fitting")) e.preventDefault();
   });
 
   elements.viewCustomer.addEventListener("pointerdown", (e) => {
@@ -1245,7 +1298,7 @@ KK.app = (function () {
     const target = e.target.closest(".cust-banner,.cust-nav-btn,.cust-order-card");
     if (target) {
       target.classList.add("is-pressed");
-      if (target.matches(".cust-banner")) e.preventDefault();
+      if (target.matches(".cust-banner") && !target.matches(".cust-banner--fittings")) e.preventDefault();
     }
   });
 
@@ -1253,13 +1306,15 @@ KK.app = (function () {
     if (document.body.classList.contains("is-custpage") ||
         document.body.classList.contains("is-custeditpage") ||
         document.body.classList.contains("is-orderpage") ||
-        document.body.classList.contains("is-moodboardpage")) {
+        document.body.classList.contains("is-moodboardpage") ||
+        document.body.classList.contains("is-fittinglogspage")) {
       clearHomepagePresses();
     }
   }, { passive: true });
 
+  // Same rule on the customer page: only the Fitting logs banner navigates.
   elements.viewCustomer.addEventListener("click", (e) => {
-    if (e.target.closest(".cust-banner")) e.preventDefault();
+    if (e.target.closest(".cust-banner") && !e.target.closest(".cust-banner--fittings")) e.preventDefault();
   });
 
   elements.viewOrder.addEventListener("pointerdown", (e) => {
@@ -1295,6 +1350,487 @@ KK.app = (function () {
   elements.saveBtn.addEventListener("pointerdown", () => {
     if (document.body.classList.contains("is-custeditpage")) elements.saveBtn.classList.add("is-pressed");
   });
+
+  /* ------------------------- Fitting logs feed -------------------------- */
+
+  /* Figma nodes 218:1958 / 219:2547 / 219:2731. A read-only global feed: it
+     searches, filters, and pages, and does nothing else. Creating, opening, or
+     editing a fitting log is deliberately not reachable from here.
+
+     Everything the page can show — cards, skeletons, empty, no-match, and both
+     failure states — is inset in the same ledger rhythm, so the chrome above
+     the feed never moves between them. */
+
+  const FITTING_FEED_STAGES = [
+    { key: "sizing", label: "Sizing" },
+    { key: "fitting-1", label: "Fitting 1" },
+    { key: "fitting-2", label: "Fitting 2" },
+    { key: "fitting-3", label: "Fitting 3" }
+  ];
+
+  const FITTING_SEARCH_DEBOUNCE_MS = 250;
+  // Starts the next batch roughly a screen before the footer comes into view.
+  const FITTING_SENTINEL_MARGIN = "0px 0px 300px 0px";
+  const FITTING_SEARCH_GAP = 8;
+  const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  const feed = () => state.fittingLogs;
+  const isFittingRoute = () => !!state.route && "fittingLogs" === state.route.view;
+
+  function fittingStageLabel(key) {
+    const match = FITTING_FEED_STAGES.filter((s) => s.key === key)[0];
+    return match ? match.label : "";
+  }
+
+  function fittingStageListText(keys) {
+    const labels = (keys || []).map(fittingStageLabel).filter(Boolean);
+    if (labels.length < 2) return labels[0] || "";
+    return labels.slice(0, -1).join(", ") + " or " + labels[labels.length - 1];
+  }
+
+  const fittingPhotoText = (count) => count + (1 === count ? " photo" : " photos");
+
+  /* Every block in the feed — card, panel, or skeleton — is a 24px inset
+     between two full-width rules, preceded by a 24px tick row. */
+  function fittingBlockHtml(inner) {
+    return '<div class="fitlog-grid-spacer" aria-hidden="true"></div>' +
+      '<div class="fitlog-grid-rule" aria-hidden="true"></div>' +
+      '<div class="fitlog-inset">' + inner + '</div>' +
+      '<div class="fitlog-grid-rule" aria-hidden="true"></div>';
+  }
+
+  function fittingCardHtml(item) {
+    const stageKey = FITTING_FEED_STAGES.some((s) => s.key === item.stage_key) ? item.stage_key : "";
+    const previews = Array.isArray(item.preview_photos) ? item.preview_photos : [];
+    const count = Number(item.photo_count) || 0;
+
+    // Explicit dimensions and a colour behind the box, so a slow or dead Drive
+    // thumbnail can never resize the card or show a broken-image glyph. The
+    // count beside them already describes the set, so the images stay silent.
+    const thumbs = previews.slice(0, 3)
+      .map((p) => KK.fittings.thumbURL(p && p.drive_file_id, 100))
+      .filter(Boolean)
+      .map((url) => '<img class="fitlog-card__thumb" src="' + U.escapeHtml(url) + '" alt="" width="32" height="32" loading="lazy" decoding="async" onerror="this.removeAttribute(\'src\')">')
+      .join('');
+
+    return '<article class="fitlog-card' + (stageKey ? ' fitlog-card--' + stageKey : '') + '">' +
+      '<div class="fitlog-card__top">' +
+        '<div class="fitlog-card__names">' +
+          '<span class="fitlog-card__customer">' + U.escapeHtml((item.customer_name || "Unnamed customer") + ":") + '</span>' +
+          '<span class="fitlog-card__order">' + U.escapeHtml(item.order_label || "Empty order") + '</span>' +
+        '</div>' +
+        '<span class="fitlog-card__stage">' + U.escapeHtml(item.stage_label || "") + '</span>' +
+      '</div>' +
+      '<div class="fitlog-card__divider" aria-hidden="true"></div>' +
+      '<div class="fitlog-card__bottom">' +
+        '<span class="fitlog-card__thumbs">' + thumbs + '</span>' +
+        '<span class="fitlog-card__meta">' +
+          '<span>' + U.escapeHtml(U.formatShortDate(item.log_date)) + '</span>' +
+          '<span class="fitlog-card__dot" aria-hidden="true"></span>' +
+          '<span>' + U.escapeHtml(fittingPhotoText(count)) + '</span>' +
+        '</span>' +
+      '</div>' +
+    '</article>' +
+    '<span class="fitlog-card__rail" aria-hidden="true"></span>';
+  }
+
+  /* The card's exact outer geometry, so swapping a skeleton for a record moves
+     nothing: same padding, same 32px boxes, same divider, same rail. */
+  function fittingSkeletonHtml() {
+    return '<div class="fitlog-card fitlog-skel" aria-hidden="true">' +
+      '<div class="fitlog-card__top">' +
+        '<div class="fitlog-card__names">' +
+          '<span class="fitlog-skel__line"><i class="fitlog-skel__block" style="width:52%;height:14px"></i></span>' +
+          '<span class="fitlog-skel__line"><i class="fitlog-skel__block" style="width:74%;height:14px"></i></span>' +
+        '</div>' +
+        '<span class="fitlog-card__stage"><i class="fitlog-skel__block" style="width:64px;height:14px;margin-left:auto"></i></span>' +
+      '</div>' +
+      '<div class="fitlog-card__divider"></div>' +
+      '<div class="fitlog-card__bottom">' +
+        '<span class="fitlog-card__thumbs"><i class="fitlog-skel__thumb"></i><i class="fitlog-skel__thumb"></i><i class="fitlog-skel__thumb"></i></span>' +
+        '<span class="fitlog-card__meta"><i class="fitlog-skel__block" style="width:136px;height:14px"></i></span>' +
+      '</div>' +
+    '</div>' +
+    '<span class="fitlog-card__rail" aria-hidden="true"></span>';
+  }
+
+  function fittingPanelHtml(title, copyHtml, extraAttr, actionHtml) {
+    return '<div class="fitlog-panel"' + (extraAttr || '') + '>' +
+      '<p class="fitlog-panel__title">' + U.escapeHtml(title) + '</p>' +
+      '<p class="fitlog-panel__copy">' + copyHtml + '</p>' +
+      (actionHtml || '') +
+    '</div>';
+  }
+
+  /* Figma 219:2731 for the designed case — a query inside one stage. The other
+     combinations reuse the same panel with copy proposed in the plan; they are
+     not designer-authored and are flagged for review there. */
+  function fittingEmptyHtml() {
+    const fs = feed();
+    const typed = fs.customerSeed ? fs.customerSeed.originalQuery : fs.query.trim();
+    const stageText = fittingStageListText(fs.selectedStages);
+
+    if (!typed && !stageText) {
+      return fittingPanelHtml(
+        "No fitting logs yet",
+        "New fitting logs will appear here after a fitting is started."
+      );
+    }
+    if (typed && stageText) {
+      return fittingPanelHtml("Nothing matched your search",
+        "We couldn't find <b>" + U.escapeHtml(typed) + "</b> in <b>" + U.escapeHtml(stageText) +
+        "</b>. Check the spelling or search another stage.");
+    }
+    if (typed) {
+      return fittingPanelHtml("Nothing matched your search",
+        "We couldn't find <b>" + U.escapeHtml(typed) + "</b>. Check the spelling or try another search.");
+    }
+    return fittingPanelHtml("Nothing matched your search",
+      "No fitting logs in <b>" + U.escapeHtml(stageText) + "</b>. Choose another stage to see more logs.");
+  }
+
+  function fittingStateHtml() {
+    const fs = feed();
+
+    if ("initial-loading" === fs.phase) {
+      return fittingBlockHtml(fittingSkeletonHtml()) +
+        fittingBlockHtml(fittingSkeletonHtml()) +
+        fittingBlockHtml(fittingSkeletonHtml());
+    }
+    if ("initial-error" === fs.phase) {
+      // Alerted once; a retry that fails again must not shout a second time.
+      return fittingBlockHtml(fittingPanelHtml(
+        "Couldn't load fitting logs",
+        "Check your connection and try again.",
+        fs.errorAnnounced ? '' : ' role="alert"',
+        '<button type="button" class="fitlog-panel__retry js-fitlog-retry">Try again</button>'
+      ));
+    }
+    if (!fs.items.length) return fittingBlockHtml(fittingEmptyHtml());
+    if (fs.loadingMore) return fittingBlockHtml(fittingSkeletonHtml());
+    if (fs.loadMoreError) {
+      // Page 1 stays exactly where it is; only the bottom slot changes.
+      return fittingBlockHtml(fittingPanelHtml(
+        "Couldn't load more fitting logs",
+        "Check your connection and try again.",
+        '',
+        '<button type="button" class="fitlog-panel__retry js-fitlog-retry-more">Try again</button>'
+      ));
+    }
+    return '';
+  }
+
+  function announceFittingStatus(text) {
+    const fs = feed();
+    if (fs.lastStatus === text) return;
+    fs.lastStatus = text;
+    elements.fitlogStatus.textContent = text;
+  }
+
+  function renderFittingStages() {
+    const fs = feed();
+    $$(".fitlog-stage", elements.fitlogStages).forEach((btn) => {
+      btn.setAttribute("aria-pressed", fs.selectedStages.indexOf(btn.dataset.stage) !== -1 ? "true" : "false");
+    });
+  }
+
+  /* Append-only: rows already on screen are never re-rendered, so appending a
+     batch cannot move or reflow what the user is reading. The list is cleared
+     only when the request token changes, which is exactly when the results are
+     a different query. */
+  function renderFittingFeed() {
+    const fs = feed();
+
+    if (fs.renderedToken !== fs.requestToken) {
+      elements.fitlogList.innerHTML = "";
+      fs.renderedToken = fs.requestToken;
+    }
+    const rendered = elements.fitlogList.children.length;
+    if (rendered < fs.items.length) {
+      elements.fitlogList.insertAdjacentHTML("beforeend", fs.items.slice(rendered).map(
+        (item) => '<li class="fitlog-record">' + fittingBlockHtml(fittingCardHtml(item)) + '</li>'
+      ).join(''));
+    }
+
+    elements.fitlogState.innerHTML = fittingStateHtml();
+    elements.fitlogFeed.setAttribute("aria-busy", "initial-loading" === fs.phase ? "true" : "false");
+    elements.fitlogFeed.classList.toggle("fitlog-feed--initial", "initial-loading" === fs.phase);
+
+    if ("initial-loading" === fs.phase) announceFittingStatus("Loading fitting logs");
+    else if ("initial-error" === fs.phase) announceFittingStatus("");
+    else if (fs.loadingMore) announceFittingStatus("Loading more fitting logs");
+    else if (fs.items.length) announceFittingStatus(fs.items.length + fittingPhotoSuffix(fs.items.length));
+    else announceFittingStatus("No fitting logs matched");
+  }
+
+  const fittingPhotoSuffix = (count) => 1 === count ? " fitting log found" : " fitting logs found";
+
+  /* ------------------------- Feed requests & paging ------------------------ */
+
+  function fittingRequestArgs() {
+    const fs = feed();
+    return {
+      // An untouched Customer seed scopes by id instead of by text, so two
+      // customers with the same name cannot mix on the first render.
+      query: fs.customerSeed ? "" : fs.query,
+      stages: fs.selectedStages,
+      customerId: fs.customerSeed ? fs.customerSeed.id : null,
+      limit: db.FITTING_FEED_PAGE_SIZE
+    };
+  }
+
+  function ensureFittingObserver() {
+    const fs = feed();
+    if (fs.observer || !fs.hasMore || !window.IntersectionObserver) return;
+    fs.observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) loadMoreFittingLogs();
+    }, { root: null, rootMargin: FITTING_SENTINEL_MARGIN, threshold: 0 });
+    fs.observer.observe(elements.fitlogSentinel);
+  }
+
+  function stopFittingObserver() {
+    const fs = feed();
+    if (fs.observer) {
+      fs.observer.disconnect();
+      fs.observer = null;
+    }
+  }
+
+  async function startFittingFirstPage() {
+    const fs = feed();
+    // Bumping the token is what makes a slower earlier search unable to
+    // overwrite these results when it finally lands.
+    const token = ++fs.requestToken;
+
+    fs.phase = "initial-loading";
+    fs.items = [];
+    fs.nextCursor = null;
+    fs.hasMore = true;
+    fs.loadingMore = false;
+    fs.loadMoreError = null;
+    stopFittingObserver();
+    renderFittingFeed();
+
+    try {
+      const page = await db.listFittingLogs(fittingRequestArgs());
+      if (token !== fs.requestToken || !isFittingRoute()) return;
+      fs.items = page.items;
+      fs.nextCursor = page.nextCursor;
+      fs.hasMore = page.hasMore;
+      fs.phase = "ready";
+    } catch (err) {
+      console.error(err);
+      if (token !== fs.requestToken || !isFittingRoute()) return;
+      fs.phase = "initial-error";
+    }
+
+    renderFittingFeed();
+    if ("initial-error" === fs.phase) fs.errorAnnounced = true;
+    else ensureFittingObserver();
+  }
+
+  async function loadMoreFittingLogs() {
+    const fs = feed();
+    if (!isFittingRoute() || "ready" !== fs.phase) return;
+    if (fs.loadingMore || !fs.hasMore || fs.loadMoreError || !fs.nextCursor) return;
+
+    const token = fs.requestToken;
+    fs.loadingMore = true;
+    renderFittingFeed();
+
+    try {
+      const page = await db.listFittingLogs(Object.assign(fittingRequestArgs(), { before: fs.nextCursor }));
+      if (token !== fs.requestToken || !isFittingRoute()) return;
+
+      // Cursor paging already prevents overlap; this is a cheap guard against a
+      // repeated request ever doubling a row.
+      const seen = {};
+      fs.items.forEach((item) => { seen[item.id] = true; });
+      page.items.forEach((item) => {
+        if (!seen[item.id]) {
+          seen[item.id] = true;
+          fs.items.push(item);
+        }
+      });
+
+      fs.nextCursor = page.nextCursor;
+      fs.hasMore = page.hasMore;
+      fs.loadingMore = false;
+      // End of feed adds no banner: the footer already closes the page.
+      if (!fs.hasMore) stopFittingObserver();
+    } catch (err) {
+      console.error(err);
+      if (token !== fs.requestToken || !isFittingRoute()) return;
+      fs.loadingMore = false;
+      fs.loadMoreError = err;
+      // Paused until the explicit retry, so a failing page cannot spin.
+      stopFittingObserver();
+    }
+    renderFittingFeed();
+  }
+
+  function cleanupFittingLogs() {
+    const fs = feed();
+    stopFittingObserver();
+    clearTimeout(fs.searchTimer);
+    fs.searchTimer = null;
+    fs.requestToken++;
+    fs.phase = "idle";
+    fs.items = [];
+    fs.loadingMore = false;
+    fs.loadMoreError = null;
+    fs.alignPending = false;
+    fs.lastStatus = "";
+  }
+
+  /* --------------------------- Search focus space -------------------------- */
+
+  /* The document-wide focusin handler centres a focused field, which on this
+     page would bury the search under the software keyboard. Here the field is
+     scrolled to sit directly under the fixed navigation instead, measured from
+     the nav's own box rather than assumed from a keyboard height. */
+  function alignFittingSearch() {
+    if (!isFittingRoute() || document.activeElement !== elements.fitlogSearch) return;
+    const nav = $(".cust-nav", elements.viewFittingLogs);
+    if (!nav) return;
+
+    const delta = Math.round(
+      elements.fitlogSearchSection.getBoundingClientRect().top -
+      nav.getBoundingClientRect().bottom -
+      FITTING_SEARCH_GAP
+    );
+    if (Math.abs(delta) < 2) return;
+    window.scrollBy({ top: delta, left: 0, behavior: reducedMotion() ? "auto" : "smooth" });
+  }
+
+  /* One correction per settle. The pending flag is what stops the scroll this
+     causes from asking for another correction. */
+  function scheduleFittingSearchAlign() {
+    const fs = feed();
+    if (fs.alignPending) return;
+    fs.alignPending = true;
+    requestAnimationFrame(() => setTimeout(() => {
+      fs.alignPending = false;
+      alignFittingSearch();
+    }, 140));
+  }
+
+  /* ------------------------------ Feed events ------------------------------ */
+
+  elements.fitlogSearch.addEventListener("input", () => {
+    const fs = feed();
+    const value = elements.fitlogSearch.value;
+
+    // Editing the pre-filled name drops the hidden exact-customer scope, so a
+    // deep link can never trap the user inside one customer.
+    if (fs.customerSeed && value !== fs.customerSeed.originalQuery) fs.customerSeed = null;
+    fs.query = value;
+
+    clearTimeout(fs.searchTimer);
+    fs.searchTimer = setTimeout(() => {
+      fs.searchTimer = null;
+      startFittingFirstPage();
+    }, FITTING_SEARCH_DEBOUNCE_MS);
+  });
+
+  elements.fitlogSearch.addEventListener("focus", scheduleFittingSearchAlign);
+
+  elements.fitlogStages.addEventListener("pointerdown", (e) => {
+    const btn = e.target.closest(".fitlog-stage");
+    if (!btn) return;
+    btn.classList.add("is-pressed");
+    // Toggling a stage mid-query must not close the keyboard.
+    if (document.activeElement === elements.fitlogSearch) e.preventDefault();
+  });
+
+  elements.fitlogStages.addEventListener("click", (e) => {
+    const btn = e.target.closest(".fitlog-stage");
+    if (!btn) return;
+    const fs = feed();
+    const idx = fs.selectedStages.indexOf(btn.dataset.stage);
+    if (-1 === idx) fs.selectedStages.push(btn.dataset.stage);
+    else fs.selectedStages.splice(idx, 1);
+    renderFittingStages();
+    startFittingFirstPage();
+  });
+
+  elements.viewFittingLogs.addEventListener("pointerdown", (e) => {
+    const target = e.target.closest(".cust-nav-btn,.fitlog-record,.fitlog-panel__retry");
+    if (target) target.classList.add("is-pressed");
+  });
+
+  elements.viewFittingLogs.addEventListener("keydown", (e) => {
+    if (" " !== e.key && "Enter" !== e.key) return;
+    const target = e.target.closest(".cust-nav-btn,.fitlog-stage,.fitlog-panel__retry");
+    if (target) {
+      target.classList.add("is-pressed");
+      if (target === elements.fitlogNewBtn) e.preventDefault();
+    }
+  });
+
+  elements.viewFittingLogs.addEventListener("click", (e) => {
+    if (e.target.closest("#fitlogNewBtn")) {
+      e.preventDefault();
+      return;
+    }
+    if (e.target.closest(".js-fitlog-retry")) {
+      startFittingFirstPage();
+      return;
+    }
+    if (e.target.closest(".js-fitlog-retry-more")) {
+      const fs = feed();
+      fs.loadMoreError = null;
+      renderFittingFeed();
+      ensureFittingObserver();
+      loadMoreFittingLogs();
+    }
+  });
+
+  /* ------------------------------ Route entry ------------------------------ */
+
+  async function showFittingLogs(queryParams) {
+    const params = queryParams || new URLSearchParams("");
+    const seedName = String(params.get("q") || "");
+    const seedId = String(params.get("customerId") || "");
+    const hasSeed = "customer" === params.get("from") && UUID_PATTERN.test(seedId);
+
+    setChrome({ title: "Fitting logs", save: false, fittinglogspage: true });
+    setSaveBar(false);
+
+    const fs = feed();
+    fs.query = seedName;
+    fs.selectedStages = [];
+    fs.customerSeed = hasSeed ? { id: seedId, originalQuery: seedName } : null;
+    fs.errorAnnounced = false;
+    fs.lastStatus = "";
+    fs.loadMoreError = null;
+
+    elements.fitlogSearch.value = seedName;
+    setFittingBackControl(hasSeed ? { id: seedId, name: seedName } : null);
+    renderFittingStages();
+
+    // A customer deleted after the link was made falls back to an ordinary
+    // global search rather than failing the route; the check runs alongside
+    // the first page so it costs no visible time.
+    const seedCheck = hasSeed
+      ? db.getCustomer(seedId).then(() => true, () => false)
+      : Promise.resolve(true);
+
+    await startFittingFirstPage();
+
+    if (!(await seedCheck) && isFittingRoute() && fs.customerSeed && fs.customerSeed.id === seedId) {
+      fs.customerSeed = null;
+      setFittingBackControl(null);
+      await startFittingFirstPage();
+    }
+  }
+
+  function setFittingBackControl(origin) {
+    const label = origin && origin.name ? origin.name : "Home";
+    elements.fitlogBackLabel.textContent = label;
+    elements.fitlogBackBtn.href = origin ? "#/customer/" + encodeURIComponent(origin.id) : "#/customers";
+    elements.fitlogBackBtn.setAttribute("aria-label", "Back to " + label);
+  }
 
   function readableAnswer(fieldObj) {
     const val = fieldObj && fieldObj.value;
@@ -1566,6 +2102,14 @@ KK.app = (function () {
   function renderCustomerDetail(customerRecord, ordersList) {
     const orders = ordersList || [];
     elements.custHeroName.textContent = customerRecord.name || "Unnamed customer";
+
+    // The feed shows the name the way Figma does, and scopes exactly by id so
+    // two customers sharing a name cannot bleed into each other on first paint.
+    const fittingName = customerRecord.name || "";
+    elements.custFittingBanner.href = "#/fittings?q=" + encodeURIComponent(fittingName) +
+      "&from=customer&customerId=" + encodeURIComponent(customerRecord.id || "");
+    elements.custFittingBanner.setAttribute("aria-label", "Fitting logs for " + (fittingName || "this customer"));
+
     elements.custWeddingText.textContent = customerRecord.wedding_date
       ? (isApproximateWedding(customerRecord) ? weddingText(customerRecord) : U.formatShortDate(customerRecord.wedding_date)) + " (" + relativeToToday(customerRecord.wedding_date) + ")"
       : "Not set";
@@ -3653,6 +4197,9 @@ KK.app = (function () {
     if (window.visualViewport) {
       window.visualViewport.addEventListener("resize", syncVisualViewport);
       window.visualViewport.addEventListener("scroll", syncVisualViewport);
+      // The software keyboard changing the visual viewport is the only signal
+      // that the search field's position has actually settled.
+      window.visualViewport.addEventListener("resize", scheduleFittingSearchAlign);
     }
 
     window.addEventListener("offline", () => showToast("You're offline — changes won't save until you're back online"));
@@ -3660,6 +4207,9 @@ KK.app = (function () {
 
     document.addEventListener("focusin", (e) => {
       const target = e.target;
+      // The fitting-log search aligns itself to the fixed nav; centring it here
+      // would fight that and leave the field under the software keyboard.
+      if (target === elements.fitlogSearch) return;
       if (target.matches("input, select, textarea, button")) {
         requestAnimationFrame(() =>
           setTimeout(() => {

@@ -741,3 +741,122 @@ alter table public.fitting_photos
 
 create index if not exists fitting_photos_session_position_idx
   on public.fitting_photos (session_id, position);
+
+-- =========================================================================
+-- Migration — fitting log feed read model
+--
+-- The global Fitting logs page needs one flat, searchable, deterministically
+-- ordered row per fitting session.  Doing that in the browser would mean
+-- joining every customer, order, session, and photo collection in memory just
+-- to render ten cards, so the join, the stage vocabulary, the calendar date,
+-- and the search haystack are all resolved here instead.
+--
+-- Two stored stages collapse into one feed stage on purpose: 'Fitting 3' and
+-- 'Final fitting' are the same thing to the people reading this page, so the
+-- feed offers four filters rather than five.
+-- =========================================================================
+
+-- Newest-first paging over the whole workspace, with id as the tie-break the
+-- cursor also uses, so equal timestamps can never reorder between pages.
+create index if not exists fitting_sessions_created_id_idx
+  on public.fitting_sessions (created_at desc, id desc);
+
+drop view if exists public.fitting_log_feed;
+
+create view public.fitting_log_feed
+with (security_invoker = true) as
+with photo_rollup as (
+  -- Pre-aggregated so joining photos cannot duplicate a session row.  Legacy
+  -- photos with session_id is null belong to no particular log and are
+  -- deliberately invisible to this feed.
+  select
+    fp.session_id,
+    count(*)::int as photo_count,
+    (
+      select coalesce(jsonb_agg(preview order by preview.position, preview.created_at, preview.id), '[]'::jsonb)
+      from (
+        select inner_fp.id, inner_fp.drive_file_id, inner_fp.position, inner_fp.created_at
+        from public.fitting_photos inner_fp
+        where inner_fp.session_id = fp.session_id
+        order by inner_fp.position asc, inner_fp.created_at asc, inner_fp.id asc
+        limit 3
+      ) preview
+    ) as preview_photos
+  from public.fitting_photos fp
+  where fp.session_id is not null
+  group by fp.session_id
+),
+resolved as (
+  select
+    fs.id,
+    fs.order_id,
+    o.customer_id,
+    c.name as customer_name,
+    o.title as order_title,
+    -- Mirrors orderLabel() in app.js: a non-blank title wins, otherwise the
+    -- first item name plus a count of the rest, otherwise 'Empty order'.
+    case
+      when nullif(btrim(coalesce(o.title, '')), '') is not null then btrim(o.title)
+      when nullif(btrim(coalesce(o.items -> 0 ->> 'name', '')), '') is not null then
+        btrim(o.items -> 0 ->> 'name')
+        || case when jsonb_array_length(o.items) > 1
+                then ' + ' || (jsonb_array_length(o.items) - 1)::text || ' more'
+                else '' end
+      else 'Empty order'
+    end as order_label,
+    case fs.stage
+      when 'Body measurements' then 'sizing'
+      when 'Fitting 1'         then 'fitting-1'
+      when 'Fitting 2'         then 'fitting-2'
+      when 'Fitting 3'         then 'fitting-3'
+      when 'Final fitting'     then 'fitting-3'
+    end as stage_key,
+    case fs.stage
+      when 'Body measurements' then 'Sizing'
+      when 'Fitting 1'         then 'Fitting 1'
+      when 'Fitting 2'         then 'Fitting 2'
+      when 'Fitting 3'         then 'Fitting 3'
+      when 'Final fitting'     then 'Fitting 3'
+    end as stage_label,
+    fs.status,
+    fs.created_at,
+    -- The workshop's day, not UTC's: a log tapped at 1am Jakarta time must be
+    -- displayed and searched on the day the fitting actually happened.
+    (fs.created_at at time zone 'Asia/Jakarta')::date as log_date,
+    coalesce(pr.photo_count, 0) as photo_count,
+    coalesce(pr.preview_photos, '[]'::jsonb) as preview_photos
+  from public.fitting_sessions fs
+  join public.orders o    on o.id = fs.order_id
+  join public.customers c on c.id = o.customer_id
+  left join photo_rollup pr on pr.session_id = fs.id
+  -- An unrecognised stored stage has no feed label, so it stays out rather
+  -- than inventing a fifth vocabulary word.
+  where fs.stage in ('Body measurements', 'Fitting 1', 'Fitting 2', 'Fitting 3', 'Final fitting')
+)
+select
+  r.id,
+  r.order_id,
+  r.customer_id,
+  r.customer_name,
+  r.order_title,
+  r.order_label,
+  r.stage_key,
+  r.stage_label,
+  r.status,
+  r.created_at,
+  r.log_date,
+  r.photo_count,
+  r.preview_photos,
+  -- Exactly the three things the page says are searchable: the customer, the
+  -- resolved order label, and the date string printed on the card.  No ids,
+  -- captions, notes, status, or staff.
+  lower(
+    coalesce(r.customer_name, '') || ' ' ||
+    coalesce(r.order_label, '') || ' ' ||
+    to_char(r.log_date, 'FMDD Mon YYYY')
+  ) as search_text
+from resolved r;
+
+-- Same audience as the underlying tables; security_invoker keeps their RLS in
+-- force, so this grants no visibility anybody did not already have.
+grant select on public.fitting_log_feed to authenticated;

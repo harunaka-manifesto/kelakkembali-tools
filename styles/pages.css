@@ -705,9 +705,14 @@ body.is-custpage .view { gap: 0; }
   pointer-events: none;
 }
 .cust-nav-btn { pointer-events: auto; }
+/* This is an <a> on the customer pages and a <button> on the fitting-log feed,
+   so the UA button padding and font have to go: without them reset, the white
+   face stops short of the border and the black canvas shows through the sides. */
 .cust-nav-btn {
   min-width: 0;
   height: 55px;
+  padding: 0;
+  font: inherit;
   border: 1px solid var(--home-white-dark);
   border-radius: 4px;
   background: transparent;
@@ -2110,3 +2115,397 @@ body.is-orderpage .order-schedule-record:focus-visible {
   .order-schedule-record__face,
   .order-schedule-record__rail { transition: none; }
 }
+
+/* ----------------------------- Fitting logs ------------------------------ */
+
+/* Figma nodes 218:1958 / 219:2547 / 219:2731. Same 390px canvas, same black
+   ledger, same press-moves-the-rail-into-the-face rule as the homepage and the
+   customer page — a fitting record is the same object as a customer row.
+
+   The nav reuses .cust-nav / .cust-nav-btn wholesale rather than restating that
+   geometry, so the back control and the icon control here and on the customer
+   page can never drift apart. */
+body.is-fittinglogspage { background: #292929; overflow-x: hidden; }
+body.is-fittinglogspage .appbar,
+body.is-fittinglogspage .pagehead { display: none; }
+body.is-fittinglogspage .page {
+  width: min(390px, 100%);
+  max-width: 390px;
+  min-height: 100svh;
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: 0;
+  background: var(--home-black);
+}
+body.is-fittinglogspage .view { gap: 0; }
+
+.fitlog {
+  display: flex;
+  flex-direction: column;
+  background: var(--home-black);
+}
+
+/* The four stage colours as Figma names them. The existing --home-* hues are
+   the lighter faces used for banners; these are the dark text/fill pair the
+   feed needs, so they get their own names rather than shifting a shared one. */
+.fitlog {
+  --stage-sizing:    #1866da;
+  --stage-fitting-1: #19aa16;
+  --stage-fitting-2: #e72a90;
+  --stage-fitting-3: #ff6a00;
+}
+
+/* ------------------------------- Title band ------------------------------ */
+
+/* 147px of clearance for the fixed nav, exactly as the customer hero reserves
+   it, so the title lands in the same place on both pages. Painted before any
+   request resolves. */
+.fitlog-head { padding-top: 67px; background: var(--home-black); }
+.fitlog-title {
+  padding: 12px 24px;
+  border-top: 1px solid var(--home-grid);
+  border-bottom: 1px solid var(--home-grid);
+}
+.fitlog-title h1 {
+  margin: 0;
+  color: var(--home-white);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 40px;
+  letter-spacing: -.96px;
+}
+
+/* The vertical ticks are real elements, not a background pattern, so they stay
+   pixel-aligned whatever height a card ends up at. */
+.fitlog-grid-rule { height: 1px; background: var(--home-grid); }
+.fitlog-grid-spacer { height: 24px; position: relative; }
+.fitlog-grid-spacer::before,
+.fitlog-grid-spacer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 24px;
+  background: var(--home-grid);
+}
+.fitlog-grid-spacer::before { left: 24px; }
+.fitlog-grid-spacer::after  { right: 24px; }
+
+/* --------------------------------- Search -------------------------------- */
+
+.fitlog-search-section {
+  background: var(--home-white);
+  /* Focusing the field scrolls it to just under the fixed nav rather than to
+     the middle of the viewport; this is the fallback for browsers with no
+     visualViewport to measure against. */
+  scroll-margin-top: calc(67px + env(safe-area-inset-top, 0px) + 8px);
+}
+.fitlog-search {
+  height: 48px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.fitlog-search__icon { flex: none; display: block; width: 20px; height: 20px; }
+.fitlog-search input {
+  min-width: 0;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--home-black);
+  font: 400 16px/20px 'Plus Jakarta Sans', sans-serif;
+  letter-spacing: -.48px;
+}
+.fitlog-search input::placeholder { color: #b7b7b7; }
+/* Figma shows no clear button, and none is added. */
+.fitlog-search input::-webkit-search-cancel-button { -webkit-appearance: none; }
+.fitlog-search__rail {
+  height: 7px;
+  background: var(--home-white-dark);
+  border-bottom: 1px solid var(--home-grid);
+}
+
+/* ------------------------------ Stage filters ---------------------------- */
+
+/* Four equal columns that never wrap and never become a dropdown: the labels
+   are known and short enough to fit at every supported width. Face plus rail
+   is 44px, which is also the minimum touch target. */
+.fitlog-stages { display: grid; grid-template-columns: repeat(4, 1fr); }
+.fitlog-stage {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  display: grid;
+  grid-template-rows: 36px 8px;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: grid-template-rows 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.fitlog-stage + .fitlog-stage { border-left: 1px solid var(--home-grid); }
+.fitlog-stage__face {
+  min-width: 0;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--home-white);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: -.42px;
+  white-space: nowrap;
+}
+.fitlog-stage__rail { display: block; background: var(--home-white-dark); }
+
+.fitlog-stage--sizing    .fitlog-stage__face { color: var(--stage-sizing); }
+.fitlog-stage--fitting-1 .fitlog-stage__face { color: var(--stage-fitting-1); }
+.fitlog-stage--fitting-2 .fitlog-stage__face { color: var(--stage-fitting-2); }
+.fitlog-stage--fitting-3 .fitlog-stage__face { color: var(--stage-fitting-3); }
+
+/* Selected inverts to a filled face, applied independently to each control so
+   several can be on at once. */
+.fitlog-stage[aria-pressed="true"] .fitlog-stage__face { color: var(--home-white); }
+.fitlog-stage--sizing[aria-pressed="true"]    .fitlog-stage__face { background: var(--stage-sizing); }
+.fitlog-stage--fitting-1[aria-pressed="true"] .fitlog-stage__face { background: var(--stage-fitting-1); }
+.fitlog-stage--fitting-2[aria-pressed="true"] .fitlog-stage__face { background: var(--stage-fitting-2); }
+.fitlog-stage--fitting-3[aria-pressed="true"] .fitlog-stage__face { background: var(--stage-fitting-3); }
+/* Selected reads as permanently pressed: Figma gives the active control a
+   full-height face and no rail at all (node 219:2771), which is the same
+   gesture every other control on the page makes when you push it. */
+.fitlog-stage[aria-pressed="true"] { grid-template-rows: 44px 0; }
+
+/* Pressing moves 6px of rail into the face; the row's total height never
+   changes, so the feed below it cannot shift. */
+.fitlog-stage:active,
+.fitlog-stage.is-pressed { grid-template-rows: 42px 2px; }
+.fitlog-stage:active .fitlog-stage__face,
+.fitlog-stage.is-pressed .fitlog-stage__face {
+  background-image: linear-gradient(180deg, transparent, rgba(0,0,0,.1));
+}
+
+/* ---------------------------------- Feed --------------------------------- */
+
+.fitlog-feed { background: var(--home-black); }
+.fitlog-list { margin: 0; padding: 0; list-style: none; }
+.fitlog-record { display: block; }
+.fitlog-inset { padding: 0 24px; }
+
+.fitlog-card {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--home-white);
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
+  color: var(--home-black);
+  transition: padding 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.fitlog-card__top {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  font-size: 14px;
+  letter-spacing: -.42px;
+}
+.fitlog-card__names { flex: 1 1 0; min-width: 0; }
+.fitlog-card__customer,
+.fitlog-card__order {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+  line-height: 20px;
+}
+.fitlog-card__stage {
+  flex: none;
+  width: 100px;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  font-weight: 600;
+  line-height: 20px;
+}
+.fitlog-card--sizing    .fitlog-card__stage { color: var(--stage-sizing); }
+.fitlog-card--fitting-1 .fitlog-card__stage { color: var(--stage-fitting-1); }
+.fitlog-card--fitting-2 .fitlog-card__stage { color: var(--stage-fitting-2); }
+.fitlog-card--fitting-3 .fitlog-card__stage { color: var(--stage-fitting-3); }
+
+.fitlog-card__divider { height: 1px; background: var(--home-white-dark); }
+.fitlog-card__bottom {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.fitlog-card__thumbs { flex: none; display: flex; align-items: center; gap: 4px; }
+/* Explicit box and a colour underneath, so a slow or missing Drive thumbnail
+   never changes the card's height or shows a broken-image glyph. */
+.fitlog-card__thumb {
+  flex: none;
+  display: block;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  object-fit: cover;
+  background: var(--home-black);
+}
+.fitlog-card__meta {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  color: var(--home-grid);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 24px;
+  letter-spacing: -.42px;
+  text-align: right;
+  white-space: nowrap;
+}
+.fitlog-card__dot {
+  flex: none;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: var(--home-grid);
+}
+.fitlog-card__rail {
+  height: 8px;
+  display: block;
+  background: var(--home-white-dark);
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
+  transition: height 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+/* Cards press but do nothing: no handler, no href, no tab stop. The feedback
+   exists so the object still reads as the same card the other pages use. */
+.fitlog-record:active .fitlog-card,
+.fitlog-record.is-pressed .fitlog-card {
+  padding-top: 15px;
+  padding-bottom: 15px;
+  background: linear-gradient(180deg, transparent, rgba(0,0,0,.06)), var(--home-white);
+}
+.fitlog-record:active .fitlog-card__rail,
+.fitlog-record.is-pressed .fitlog-card__rail { height: 2px; }
+
+/* --------------------------- Feed message panels -------------------------- */
+
+/* No-match, empty, and both failures are the same inset white panel in the
+   same ledger rhythm, so switching between them cannot move the footer more
+   than the panel's own height. */
+.fitlog-panel {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--home-white);
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
+}
+.fitlog-panel__title {
+  margin: 0;
+  color: var(--home-black-light);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: -.28px;
+}
+.fitlog-panel__copy {
+  margin: 0;
+  color: var(--home-grid);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 18px;
+  letter-spacing: -.26px;
+}
+.fitlog-panel__copy b { font-weight: 700; }
+.fitlog-panel__retry {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 0;
+  background: var(--home-black);
+  color: var(--home-white);
+  font: 700 13px/18px 'Plus Jakarta Sans', sans-serif;
+  letter-spacing: -.26px;
+  cursor: pointer;
+}
+
+/* -------------------------------- Skeletons ------------------------------- */
+
+/* The card's exact outer geometry, so the switch from loading to loaded moves
+   nothing: same padding, same 32px thumbnail boxes, same divider, same rail. */
+.fitlog-skel__block {
+  display: block;
+  background: rgba(76,76,76,.18);
+  animation: home-shimmer 1.2s ease-in-out infinite;
+}
+.fitlog-skel__line { height: 20px; display: flex; align-items: center; }
+.fitlog-skel__thumb {
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  background: rgba(76,76,76,.18);
+  animation: home-shimmer 1.2s ease-in-out infinite;
+}
+/* Holds the footer down while the first page loads, so it cannot jump up and
+   then back down when three cards arrive. */
+.fitlog-feed--initial { min-height: 60svh; }
+
+.fitlog-sentinel { height: 1px; }
+
+.fitlog-footer {
+  height: 72px;
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--home-black);
+  color: var(--home-grid);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 24px;
+  letter-spacing: -.42px;
+}
+
+/* The ink focus ring vanishes on this canvas: paper over the black ledger, ink
+   over anything sitting on a white card. */
+body.is-fittinglogspage a:focus-visible,
+body.is-fittinglogspage button:focus-visible,
+body.is-fittinglogspage input:focus-visible {
+  outline: 2px solid var(--home-white);
+  outline-offset: 2px;
+}
+body.is-fittinglogspage .fitlog-stage:focus-visible,
+body.is-fittinglogspage .fitlog-panel__retry:focus-visible,
+body.is-fittinglogspage .cust-nav-btn:focus-visible {
+  outline-color: var(--home-black);
+  outline-offset: -2px;
+}
+body.is-fittinglogspage .fitlog-search input:focus-visible { outline: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fitlog-skel__block,
+  .fitlog-skel__thumb { animation: none; background-color: rgba(76,76,76,.25); }
+  .fitlog-stage,
+  .fitlog-card,
+  .fitlog-card__rail { transition: none; }
+}
+
+/* The two shortcuts that lead somewhere are anchors now, so they need the link
+   defaults removed that the button versions never had. */
+.home-action { text-decoration: none; }
