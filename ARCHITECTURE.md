@@ -66,6 +66,13 @@ Third-party Libraries (Supabase, html2canvas, jsPDF) + config.js
 
 The `google-drive` Edge Function's `get_fitting_photo { photo_id }` action is the byte source for individual image sharing and for PDF generation. It resolves the Drive id from the photo record server-side — an arbitrary Drive id can never be requested through it.
 
+Fitting logs use five canonical one-to-one stages: Sizing, Fitting 1, Fitting 2,
+Fitting 3, and Final fitting. An order can have at most one durable log per
+stage. Planned weeks are independent schedule metadata: users always select a
+stage explicitly, and a new log is not persisted until its first photo entry is
+confirmed. Order-origin detail/editor routes carry a trusted `source=order`
+marker; feed-origin routes return through the retained feed snapshot.
+
 ---
 
 ## How to Work in This Codebase (For Future AI Agents & Developers)

@@ -283,7 +283,7 @@
        and from a customer's Fitting logs banner (name pre-filled).
 
        The chrome below the nav is static on purpose: title, search, and the
-       four stage filters are painted before the first request resolves, so
+       five stage filters are painted before the first request resolves, so
        nothing above the feed can move when data arrives. -->
   <section class="view fitlog" id="viewFittingLogs" hidden>
     <nav class="cust-nav" aria-label="Fitting logs navigation">
@@ -320,13 +320,14 @@
       <div class="fitlog-search__rail" aria-hidden="true"></div>
     </section>
 
-    <!-- Multi-select, not a tablist: any combination of the four is valid, so
+    <!-- Multi-select, not a tablist: any combination of the five is valid, so
          each control carries its own aria-pressed. -->
     <div class="fitlog-stages" id="fitlogStages" role="group" aria-label="Filter fitting logs by stage">
       <button type="button" class="fitlog-stage fitlog-stage--sizing" data-stage="sizing" aria-pressed="false"><span class="fitlog-stage__face"><span>Sizing</span></span><span class="fitlog-stage__rail" aria-hidden="true"></span></button>
       <button type="button" class="fitlog-stage fitlog-stage--fitting-1" data-stage="fitting-1" aria-pressed="false"><span class="fitlog-stage__face"><span>Fitting 1</span></span><span class="fitlog-stage__rail" aria-hidden="true"></span></button>
       <button type="button" class="fitlog-stage fitlog-stage--fitting-2" data-stage="fitting-2" aria-pressed="false"><span class="fitlog-stage__face"><span>Fitting 2</span></span><span class="fitlog-stage__rail" aria-hidden="true"></span></button>
       <button type="button" class="fitlog-stage fitlog-stage--fitting-3" data-stage="fitting-3" aria-pressed="false"><span class="fitlog-stage__face"><span>Fitting 3</span></span><span class="fitlog-stage__rail" aria-hidden="true"></span></button>
+      <button type="button" class="fitlog-stage fitlog-stage--final-fitting" data-stage="final-fitting" aria-pressed="false"><span class="fitlog-stage__face"><span>Final fitting</span></span><span class="fitlog-stage__rail" aria-hidden="true"></span></button>
     </div>
 
     <div class="fitlog-feed" id="fitlogFeed" aria-busy="true">
@@ -390,6 +391,7 @@
       <ol class="fitdet-list" id="fitdetList"></ol>
       <div class="fitdet-state" id="fitdetState"></div>
     </div>
+    <div class="fitdet-inset"><button type="button" class="fitedit-delete" id="fitdetDeleteBtn">Delete fitting log</button></div>
     <p class="sr-only" id="fitdetStatus" role="status" aria-live="polite"></p>
 
     <footer class="fitlog-footer">Made with love for Ichaku</footer>
@@ -713,7 +715,7 @@
       <label class="field" for="oSecondPayment">
         <span class="field__label">Second payment</span>
         <input class="input js-ofield" id="oSecondPayment" type="date">
-        <span class="field__hint">Starts production. Body measurements and the fittings count from here.</span>
+        <span class="field__hint">Starts production. Sizing and the fittings count from here.</span>
       </label>
       <label class="field" for="oFinalPayment">
         <span class="field__label">Final payment</span>
@@ -1256,12 +1258,12 @@
   <p class="fitview__caption" id="fittingPhotoViewerCaption"></p>
 </section>
 
-<!-- Active sessions only: equal-width gray End session and orange Add photo,
+<!-- Saved and active logs can always add photos; active logs also show Save log,
      safe-area aware, its height published through --bottombar-h. -->
 <div class="fitdet-bar" id="fitdetBar" hidden>
   <div class="fitdet-bar__inner">
     <button type="button" class="fitdet-bar__btn fitdet-bar__btn--secondary" id="fitdetEndBtn">
-      <span class="fitdet-bar__face">End session</span>
+      <span class="fitdet-bar__face">Save log</span>
       <span class="fitdet-bar__rail" aria-hidden="true"></span>
     </button>
     <button type="button" class="fitdet-bar__btn fitdet-bar__btn--primary" id="fitdetAddBtn">

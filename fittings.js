@@ -18,6 +18,7 @@ KK.fittings = (function () {
      drive_file_id alone. */
   const pendingBySession = new Map();
   const pendingPhotoIds = new Set();
+  const failedBackupsBySession = new Map();
 
   let journalContainer = null;
   let activeSessionState = null;
@@ -268,7 +269,10 @@ KK.fittings = (function () {
     pendingBySession.set(sessionId, set);
     pendingPhotoIds.add(photoId);
 
-    const tracked = promise.finally(() => {
+    const tracked = promise.catch((err) => {
+      failedBackupsBySession.set(sessionId, (failedBackupsBySession.get(sessionId) || 0) + 1);
+      throw err;
+    }).finally(() => {
       set.delete(tracked);
       pendingPhotoIds.delete(photoId);
       if (!set.size) pendingBySession.delete(sessionId);
@@ -290,15 +294,34 @@ KK.fittings = (function () {
     });
   }
 
+  /* Reads and clears the failed-backup tally for a session, so a single save
+     reports its Drive failures once rather than on every later save. */
+  function consumeBackupFailures(sessionId) {
+    const count = failedBackupsBySession.get(sessionId) || 0;
+    failedBackupsBySession.delete(sessionId);
+    return count;
+  }
+
   /* ----------------------------- Save & Archival --------------------------- */
 
   async function saveCaptionAndPhoto() {
-    if (!pendingPhoto || !activeSessionState || !activeSessionState.session) return;
+    if (!pendingPhoto || !activeSessionState) return;
     const saveBtn = document.querySelector('#fittingCaptionSave');
     const captionVal = document.querySelector('#fittingCaption').value.trim();
     saveBtn.disabled = true;
 
     try {
+      /* A new stage is only a browser-side draft until its first confirmed
+         entry. The host resolves (or creates) the durable session here, so
+         cancelling capture never leaves an empty log behind. */
+      if (!activeSessionState.session && 'function' === typeof activeSessionState.ensureSession) {
+        activeSessionState.session = await activeSessionState.ensureSession();
+        if ('function' === typeof activeSessionState.onSession) {
+          activeSessionState.onSession(activeSessionState.session);
+        }
+      }
+      if (!activeSessionState.session) throw new Error('Could not start this fitting log.');
+
       if (pendingPhoto.replacePhoto) {
         const replacePhoto = pendingPhoto.replacePhoto;
         const currentPending = pendingPhoto;
@@ -412,7 +435,7 @@ KK.fittings = (function () {
         '<div class="fitting-card__body">' +
         '<p class="fitting-card__caption' + (photo.caption ? '' : ' fitting-card__caption--empty') + '">' + U.escapeHtml(photo.caption || 'No revision note') + '</p>' +
         '<div class="fitting-card__actions">' +
-        (activeSessionState.session.status === 'active' ? '<button type="button" class="fitting-card__icon js-fitting-edit" data-id="' + U.escapeHtml(photo.id) + '" aria-label="Edit photo">⋯</button>' : '') +
+        '<button type="button" class="fitting-card__icon js-fitting-edit" data-id="' + U.escapeHtml(photo.id) + '" aria-label="Edit photo">⋯</button>' +
         '<button type="button" class="fitting-card__icon js-fitting-share" data-id="' + U.escapeHtml(photo.id) + '" aria-label="Share photo">↗</button>' +
         '</div>' +
         '</div>' +
@@ -502,6 +525,7 @@ KK.fittings = (function () {
       const set = pendingBySession.get(sessionId);
       return !!(set && set.size);
     },
+    consumeBackupFailures,
 
     /* Lets a page that owns its own markup drive the shared capture flow: it
        supplies the session context plus an onChange callback and then calls
@@ -533,33 +557,14 @@ KK.fittings = (function () {
       else localURLs.delete(photoId);
     },
 
-    detectStage: function (scheduleEvents) {
-      const prodEvents = (scheduleEvents || []).filter((e) => KK.calendar.isProductionStage(e.stage) && e.event_date);
-      if (!prodEvents.length) return null;
-
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      const sortedByDistance = prodEvents.map((e) => ({
-        event: e,
-        distance: Math.abs(new Date(e.event_date + 'T00:00:00').getTime() - today.getTime())
-      })).sort((a, b) => a.distance - b.distance);
-
-      if (sortedByDistance.length > 1 && sortedByDistance[0].distance === sortedByDistance[1].distance) {
-        return null;
-      }
-      return sortedByDistance[0].event.stage;
-    },
-
-    showStagePicker: function (events, onSelectStage, onCancel) {
+    showStagePicker: function (_events, onSelectStage, onCancel) {
       const pickerEl = document.querySelector('#fittingPickerOptions');
       pickerCancelCallback = onCancel || null;
 
-      pickerEl.innerHTML = (events || [])
-        .filter((e) => KK.calendar.isProductionStage(e.stage))
-        .map((e) =>
-          '<button type="button" class="fitting-picker__option" data-stage="' + U.escapeHtml(e.stage) + '">' +
-          U.escapeHtml(e.stage) + (e.event_date ? ' · ' + U.escapeHtml(U.formatShortDate(e.event_date)) : '') +
+      pickerEl.innerHTML = KK.calendar.PRODUCTION_STAGES
+        .map((stage) =>
+          '<button type="button" class="fitting-picker__option" data-stage="' + U.escapeHtml(stage) + '">' +
+          U.escapeHtml(KK.util.fittingStage(stage).label) +
           '</button>'
         ).join('');
 
@@ -571,22 +576,28 @@ KK.fittings = (function () {
       }));
     },
 
-    startSession: function (sessionRecord, fullState, toastCallback) {
-      activeSessionState = Object.assign({}, fullState, { session: sessionRecord, onToast: toastCallback });
-      openCamera();
-    },
-
     endSession: async function (sessionRecord, onSuccess) {
       const count = (activeSessionState && activeSessionState.photos || []).length;
-      if (confirm('End fitting session? ' + count + ' photo' + (count === 1 ? '' : 's') + ' will be saved.')) {
+      if (!sessionRecord || !count) {
+        notify('Add at least one photo before saving the log.');
+        return;
+      }
+      if (confirm('Save this fitting log? ' + count + ' photo' + (count === 1 ? '' : 's') + ' will be saved.')) {
         try {
+          await waitForSessionBackups(sessionRecord.id);
+          const backupFailures = consumeBackupFailures(sessionRecord.id);
           await KK.db.updateFittingSession(sessionRecord.id, {
             status: 'completed',
             completed_at: new Date().toISOString()
           });
           onSuccess();
+          /* The database log is already durable: a failed Drive copy is
+             reported, never a reason to roll the saved log back. */
+          if (backupFailures) {
+            notify('Log saved, but ' + backupFailures + ' Drive backup' + (backupFailures === 1 ? '' : 's') + ' failed.');
+          }
         } catch (err) {
-          notify(err.message || 'Could not end fitting session.');
+          notify(err.message || 'Could not save fitting log.');
         }
       }
     },

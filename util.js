@@ -25,16 +25,16 @@ KK.util = (function () {
 
   /* --------------------------- Fitting stages ----------------------------- */
 
-  /* The five stored fitting stages collapse to the four the feed, the detail
-     page, and the PDF all speak. Kept here rather than in any one page so the
+  /* The five stored fitting stages map one-to-one to the vocabulary the feed,
+     detail page, schedule rows, and PDF all speak. Kept here so the
      label a card shows and the label a client-facing PDF prints can never
      drift apart. Mirrors public.fitting_log_feed in schema.sql. */
   const FITTING_STAGES = [
-    { stage: 'Body measurements', key: 'sizing', label: 'Sizing', color: '#1866da' },
+    { stage: 'Sizing', key: 'sizing', label: 'Sizing', color: '#1866da' },
     { stage: 'Fitting 1', key: 'fitting-1', label: 'Fitting 1', color: '#19aa16' },
     { stage: 'Fitting 2', key: 'fitting-2', label: 'Fitting 2', color: '#e72a90' },
     { stage: 'Fitting 3', key: 'fitting-3', label: 'Fitting 3', color: '#ff6a00' },
-    { stage: 'Final fitting', key: 'fitting-3', label: 'Fitting 3', color: '#ff6a00' }
+    { stage: 'Final fitting', key: 'final-fitting', label: 'Final fitting', color: '#17150f' }
   ];
 
   /* An unrecognised stored stage keeps its own text rather than inventing a

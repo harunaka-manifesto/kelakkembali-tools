@@ -16,7 +16,7 @@ KK.calendar = (function () {
   const STAGES = [
     'Design phase',
     'Design deadline',
-    'Body measurements',
+    'Sizing',
     'Fitting 1',
     'Fitting 2',
     'Fitting 3',
@@ -26,7 +26,7 @@ KK.calendar = (function () {
   const DESIGN_STAGES = STAGES.slice(0, 2);
   const PRODUCTION_STAGES = STAGES.slice(2);
 
-  const ANCHOR_FIRST = PRODUCTION_STAGES[0]; // "Body measurements"
+  const ANCHOR_FIRST = PRODUCTION_STAGES[0]; // "Sizing"
   const ANCHOR_LAST = PRODUCTION_STAGES[PRODUCTION_STAGES.length - 1]; // "Final fitting"
 
   const DROP_ORDER = ['Fitting 3', 'Fitting 2', 'Fitting 1'];
@@ -59,6 +59,15 @@ KK.calendar = (function () {
     const endDay = toDay(endIso);
     if (startDay === null || endDay === null) return null;
     return endDay - startDay;
+  }
+
+  /* A stored production date represents its planned week. ISO-day arithmetic
+     keeps this stable in every browser timezone. */
+  function plannedWeek(eventDate) {
+    const day = toDay(eventDate);
+    if (day === null) return null;
+    const monday = mondayOnOrBefore(day);
+    return { start: fromDay(monday), end: fromDay(monday + 6) };
   }
 
   const mondayOnOrBefore = (dayNumber) => dayNumber - ((dayNumber % 7 + 7 + 3) % 7);
@@ -116,7 +125,7 @@ KK.calendar = (function () {
     const absoluteDeadline = pinnedLast === null ? mondayOnOrBefore(weddingDay - 7) : pinnedLast;
 
     if (absoluteDeadline <= firstBound) {
-      return emptyResult('The production payment is too close to the wedding to schedule fittings — body measurements alone run past 7 days before the day.');
+      return emptyResult('The production payment is too close to the wedding to schedule fittings — sizing alone runs past 7 days before the day.');
     }
 
     let activeStages = PRODUCTION_STAGES.slice();
@@ -323,7 +332,7 @@ KK.calendar = (function () {
     SQUEEZE_GAP_WEEKS: 2,
     DROP_ORDER,
     DESIGN_PHASE_DAYS: 14,
-    MEASURE_DEADLINE_DAYS: 7,
+    SIZING_DEADLINE_DAYS: 7,
     FINAL_BUFFER_IDEAL: 21,
     FINAL_BUFFER_MIN: 7,
     FINAL_BUFFER_QUIET: 14,
@@ -341,6 +350,7 @@ KK.calendar = (function () {
     toDay,
     fromDay,
     daysBetween,
+    plannedWeek,
     mondayOnOrBefore
   };
 })();

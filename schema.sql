@@ -267,7 +267,7 @@ create table if not exists public.order_events (
   id              uuid primary key default gen_random_uuid(),
   order_id        uuid not null references public.orders (id) on delete cascade,
   stage           text not null check (stage in (
-                    'Body measurements', 'Fitting 1', 'Fitting 2', 'Fitting 3',
+                    'Sizing', 'Fitting 1', 'Fitting 2', 'Fitting 3',
                     'Final fitting')),
   event_date      date not null,
   google_event_id text,        -- null until the first successful sync
@@ -598,7 +598,7 @@ alter table public.order_events drop constraint if exists order_events_stage_che
 alter table public.order_events add constraint order_events_stage_check
   check (stage in (
     'Design phase', 'Design deadline',
-    'Body measurements', 'Fitting 1', 'Fitting 2', 'Fitting 3', 'Final fitting'));
+    'Sizing', 'Fitting 1', 'Fitting 2', 'Fitting 3', 'Final fitting'));
 
 -- --------------- Orders: backfill the other two payment dates ---------------
 
@@ -697,7 +697,7 @@ create table if not exists public.fitting_photos (
   id            uuid primary key default gen_random_uuid(),
   order_id      uuid not null references public.orders (id) on delete cascade,
   stage         text not null check (stage in (
-                  'Body measurements', 'Fitting 1', 'Fitting 2', 'Fitting 3',
+                  'Sizing', 'Fitting 1', 'Fitting 2', 'Fitting 3',
                   'Final fitting')),
   caption       text,
   drive_file_id text,
@@ -721,7 +721,7 @@ create table if not exists public.fitting_sessions (
   id           uuid primary key default gen_random_uuid(),
   order_id     uuid not null references public.orders (id) on delete cascade,
   stage        text not null check (stage in (
-               'Body measurements', 'Fitting 1', 'Fitting 2', 'Fitting 3',
+               'Sizing', 'Fitting 1', 'Fitting 2', 'Fitting 3',
                'Final fitting')),
   status       text not null default 'active' check (status in ('active', 'completed')),
   created_at   timestamptz not null default now(),
@@ -751,9 +751,7 @@ create index if not exists fitting_photos_session_position_idx
 -- to render ten cards, so the join, the stage vocabulary, the calendar date,
 -- and the search haystack are all resolved here instead.
 --
--- Two stored stages collapse into one feed stage on purpose: 'Fitting 3' and
--- 'Final fitting' are the same thing to the people reading this page, so the
--- feed offers four filters rather than five.
+-- Each stored stage keeps its own feed key and label, including Final fitting.
 -- =========================================================================
 
 -- Newest-first paging over the whole workspace, with id as the tie-break the
@@ -805,18 +803,18 @@ resolved as (
       else 'Empty order'
     end as order_label,
     case fs.stage
-      when 'Body measurements' then 'sizing'
+      when 'Sizing'            then 'sizing'
       when 'Fitting 1'         then 'fitting-1'
       when 'Fitting 2'         then 'fitting-2'
       when 'Fitting 3'         then 'fitting-3'
-      when 'Final fitting'     then 'fitting-3'
+      when 'Final fitting'     then 'final-fitting'
     end as stage_key,
     case fs.stage
-      when 'Body measurements' then 'Sizing'
+      when 'Sizing'            then 'Sizing'
       when 'Fitting 1'         then 'Fitting 1'
       when 'Fitting 2'         then 'Fitting 2'
       when 'Fitting 3'         then 'Fitting 3'
-      when 'Final fitting'     then 'Fitting 3'
+      when 'Final fitting'     then 'Final fitting'
     end as stage_label,
     fs.status,
     fs.created_at,
@@ -831,7 +829,7 @@ resolved as (
   left join photo_rollup pr on pr.session_id = fs.id
   -- An unrecognised stored stage has no feed label, so it stays out rather
   -- than inventing a fifth vocabulary word.
-  where fs.stage in ('Body measurements', 'Fitting 1', 'Fitting 2', 'Fitting 3', 'Final fitting')
+  where fs.stage in ('Sizing', 'Fitting 1', 'Fitting 2', 'Fitting 3', 'Final fitting')
 )
 select
   r.id,
@@ -859,4 +857,118 @@ from resolved r;
 
 -- Same audience as the underlying tables; security_invoker keeps their RLS in
 -- force, so this grants no visibility anybody did not already have.
+grant select on public.fitting_log_feed to authenticated;
+
+-- =========================================================================
+-- Migration — independent one-per-stage fitting logs
+-- =========================================================================
+
+-- Rename the first production stage in place. Existing calendar ids, pinned
+-- state and dates stay on the same rows; clearing synced_at makes the next
+-- sync update the remote title instead of inserting another event.
+alter table public.order_events drop constraint if exists order_events_stage_check;
+alter table public.fitting_sessions drop constraint if exists fitting_sessions_stage_check;
+alter table public.fitting_photos drop constraint if exists fitting_photos_stage_check;
+
+update public.order_events
+set stage = 'Sizing', synced_at = null
+where stage = 'Body measurements';
+update public.fitting_sessions set stage = 'Sizing' where stage = 'Body measurements';
+update public.fitting_photos set stage = 'Sizing' where stage = 'Body measurements';
+
+alter table public.order_events add constraint order_events_stage_check
+  check (stage in ('Design phase', 'Design deadline', 'Sizing', 'Fitting 1', 'Fitting 2', 'Fitting 3', 'Final fitting'));
+alter table public.fitting_sessions add constraint fitting_sessions_stage_check
+  check (stage in ('Sizing', 'Fitting 1', 'Fitting 2', 'Fitting 3', 'Final fitting'));
+alter table public.fitting_photos add constraint fitting_photos_stage_check
+  check (stage in ('Sizing', 'Fitting 1', 'Fitting 2', 'Fitting 3', 'Final fitting'));
+
+-- Merge historical duplicate sessions. Newest created_at/id wins; every photo
+-- moves to it and is then assigned a stable zero-based position.
+with ranked as (
+  select id, order_id, stage,
+         first_value(id) over (
+           partition by order_id, stage order by created_at desc, id desc
+         ) as keeper_id,
+         bool_or(status = 'completed') over (partition by order_id, stage) as any_completed,
+         max(completed_at) filter (where status = 'completed') over (partition by order_id, stage) as merged_completed_at
+  from public.fitting_sessions
+)
+update public.fitting_sessions fs
+set status = 'completed',
+    completed_at = coalesce(fs.completed_at, r.merged_completed_at, now())
+from ranked r
+where fs.id = r.keeper_id and r.any_completed and fs.status <> 'completed';
+
+with ranked_sessions as (
+  select id, first_value(id) over (
+    partition by order_id, stage order by created_at desc, id desc
+  ) as keeper_id
+  from public.fitting_sessions
+), ordered as (
+  select fp.id, rs.keeper_id,
+         row_number() over (
+           partition by rs.keeper_id
+           order by source_session.created_at, fp.position, fp.created_at, fp.id
+         ) - 1 as new_position
+  from public.fitting_photos fp
+  join public.fitting_sessions source_session on source_session.id = fp.session_id
+  join ranked_sessions rs on rs.id = source_session.id
+  where fp.session_id is not null
+)
+update public.fitting_photos fp
+set session_id = ordered.keeper_id,
+    position = ordered.new_position::smallint
+from ordered where ordered.id = fp.id;
+
+with ranked as (
+  select id, row_number() over (
+    partition by order_id, stage order by created_at desc, id desc
+  ) as duplicate_number
+  from public.fitting_sessions
+)
+delete from public.fitting_sessions fs
+using ranked r where fs.id = r.id and r.duplicate_number > 1;
+
+create unique index if not exists fitting_sessions_order_stage_uidx
+  on public.fitting_sessions (order_id, stage);
+
+alter table public.fitting_photos drop constraint if exists fitting_photos_session_id_fkey;
+alter table public.fitting_photos add constraint fitting_photos_session_id_fkey
+  foreign key (session_id) references public.fitting_sessions (id) on delete cascade;
+
+-- Five distinct stage keys in the feed; Final fitting is not Fitting 3.
+drop view if exists public.fitting_log_feed;
+create view public.fitting_log_feed
+with (security_invoker = true) as
+with photo_rollup as (
+  select fp.session_id, count(*)::int as photo_count,
+    (select coalesce(jsonb_agg(preview order by preview.position, preview.created_at, preview.id), '[]'::jsonb)
+     from (select p.id, p.drive_file_id, p.position, p.created_at
+           from public.fitting_photos p where p.session_id = fp.session_id
+           order by p.position, p.created_at, p.id limit 3) preview) as preview_photos
+  from public.fitting_photos fp where fp.session_id is not null group by fp.session_id
+), resolved as (
+  select fs.id, fs.order_id, o.customer_id, c.name as customer_name,
+    o.title as order_title,
+    case when nullif(btrim(coalesce(o.title, '')), '') is not null then btrim(o.title)
+         when nullif(btrim(coalesce(o.items -> 0 ->> 'name', '')), '') is not null then
+           btrim(o.items -> 0 ->> 'name') || case when jsonb_array_length(o.items) > 1 then ' + ' || (jsonb_array_length(o.items) - 1)::text || ' more' else '' end
+         else 'Empty order' end as order_label,
+    case fs.stage when 'Sizing' then 'sizing' when 'Fitting 1' then 'fitting-1'
+      when 'Fitting 2' then 'fitting-2' when 'Fitting 3' then 'fitting-3'
+      when 'Final fitting' then 'final-fitting' end as stage_key,
+    fs.stage as stage_label, fs.status, fs.created_at,
+    (fs.created_at at time zone 'Asia/Jakarta')::date as log_date,
+    coalesce(pr.photo_count, 0) as photo_count,
+    coalesce(pr.preview_photos, '[]'::jsonb) as preview_photos
+  from public.fitting_sessions fs
+  join public.orders o on o.id = fs.order_id
+  join public.customers c on c.id = o.customer_id
+  left join photo_rollup pr on pr.session_id = fs.id
+  where fs.stage in ('Sizing', 'Fitting 1', 'Fitting 2', 'Fitting 3', 'Final fitting')
+)
+select r.*,
+  lower(coalesce(r.customer_name, '') || ' ' || coalesce(r.order_label, '') || ' ' || to_char(r.log_date, 'FMDD Mon YYYY')) as search_text
+from resolved r;
 grant select on public.fitting_log_feed to authenticated;

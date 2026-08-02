@@ -62,9 +62,8 @@ KK.db = (function () {
 
   /* --------------------------- Fitting Log Feed --------------------------- */
 
-  /* The four stage keys public.fitting_log_feed normalizes its five stored
-     stages down to. Anything outside this list is not a filter this feed has. */
-  const FITTING_STAGE_KEYS = ['sizing', 'fitting-1', 'fitting-2', 'fitting-3'];
+  /* The feed exposes one key for each canonical stored stage. */
+  const FITTING_STAGE_KEYS = ['sizing', 'fitting-1', 'fitting-2', 'fitting-3', 'final-fitting'];
 
   const FITTING_FEED_PAGE_SIZE = 10;
   const FITTING_FEED_QUERY_MAX = 200;
@@ -317,12 +316,25 @@ KK.db = (function () {
       return unwrap(await init().from('fitting_sessions').select(PROJECTION_FITTING_SESSIONS).eq('id', id).single());
     },
 
+    getFittingSessionByStage: async function (orderId, stage) {
+      const rows = unwrap(await init().from('fitting_sessions')
+        .select(PROJECTION_FITTING_SESSIONS)
+        .eq('order_id', orderId)
+        .eq('stage', stage)
+        .limit(1));
+      return rows && rows[0] || null;
+    },
+
     createFittingSession: async function (record) {
       return unwrap(await init().from('fitting_sessions').insert(record).select(PROJECTION_FITTING_SESSIONS).single());
     },
 
     updateFittingSession: async function (id, record) {
       return unwrap(await init().from('fitting_sessions').update(record).eq('id', id).select(PROJECTION_FITTING_SESSIONS).single());
+    },
+
+    deleteFittingSession: async function (id) {
+      unwrap(await init().from('fitting_sessions').delete().eq('id', id));
     },
 
     FITTING_STAGE_KEYS,

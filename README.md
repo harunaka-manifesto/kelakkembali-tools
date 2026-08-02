@@ -395,13 +395,23 @@ reconnect Google once so the stored refresh token includes the new permission.
 
 ## Fitting log
 
-Each scheduled production stage has a photo-first revision log. Select a photo
-from the native camera/library chooser, add an optional note, and it appears in
-the timeline immediately. The browser compresses it to a 1600px JPEG before a
+Every order has at most one photo-first revision log per fitting stage —
+Sizing, Fitting 1, Fitting 2, Fitting 3, Final fitting — and each one is
+independent of whether that stage has a planned week. Staff always pick the
+stage explicitly; nothing is chosen from today's date. Select a photo from the
+native camera/library chooser, add an optional note, and it appears in the
+timeline immediately. The browser compresses it to a 1600px JPEG before a
 background archive upload to `Kelak Kembali Fittings/{customer}/{order}/{stage}`
 in Google Drive. A failed archive does not remove the log row; its captured
 photo remains available in the current browser session. Photos can be opened,
 shared as a Drive link, or removed from the app (the Drive copy is retained).
+
+A log is only written to the database when its first photo and note are
+confirmed, so an abandoned capture leaves nothing behind. **Save log** marks it
+saved and returns to the order; saved is a state, not a lock — photos can still
+be added, replaced, recaptioned, or deleted afterwards. **Delete fitting log**
+on the detail page removes the whole stage log and its photo records from the
+app; the Google Drive archive copies stay where they are.
 
 After applying the SQL migration, deploy the updated Drive function:
 
@@ -760,7 +770,7 @@ network.
 | Group | Anchored on | Needs the wedding date? |
 | --- | --- | --- |
 | Design phase, Design deadline | The **first payment** | No |
-| Body measurements, Fitting 1–3, Final fitting | The **production payment** and the **wedding date** | Yes |
+| Sizing, Fitting 1–3, Final fitting | The **production payment** and the **wedding date** | Yes |
 
 The design block needing nothing but the payment is the point of the split. A
 customer who has paid a deposit but is still arguing about the venue gets a
@@ -772,9 +782,15 @@ wedding date that arrives late — or moves — cannot take it away.
 | | |
 | --- | --- |
 | Design phase | The 14 days after the first payment, as one all-day block, with a deadline event on its last day: present the design, ask for the next payment |
-| Body measurements | Within 7 days of the production payment. A ceiling, not a target |
+| Sizing | Within 7 days of the production payment. A ceiling, not a target |
 | Minimum gap | 3 weeks — a fitting is only useful once the last one has been acted on, and that is cutting-and-sewing time, not calendar time |
 | Final fitting | 21 days before the wedding ideally, 7 at the very latest |
+
+Order detail always shows all five fitting stages. A stored appointment is
+displayed as its planned Monday–Sunday week; stages without an appointment say
+`Not scheduled` and can still start a log. Planned weeks never choose or create
+logs—staff select the stage explicitly, and the log becomes durable only when
+its first photo entry is confirmed.
 
 A full five-appointment programme wants **12 weeks** from measurements to the
 final fitting, plus the week before them and the three after: about **16 weeks**

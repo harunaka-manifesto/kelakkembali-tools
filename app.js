@@ -128,6 +128,7 @@ KK.app = (function () {
     fitdetBar: $("#fitdetBar"),
     fitdetEndBtn: $("#fitdetEndBtn"),
     fitdetAddBtn: $("#fitdetAddBtn"),
+    fitdetDeleteBtn: $("#fitdetDeleteBtn"),
     viewFittingPhotoEdit: $("#viewFittingPhotoEdit"),
     fiteditBackBtn: $("#fiteditBackBtn"),
     fiteditTitle: $("#fiteditTitle"),
@@ -315,7 +316,8 @@ KK.app = (function () {
       pdfBusy: false,
       sharingId: null,
       blobCache: new Map(), // photoId -> { blob, url } for this page lifetime
-      viewerReturn: null
+      viewerReturn: null,
+      source: "feed"
     },
     fittingEditor: {
       phase: "idle",
@@ -328,7 +330,8 @@ KK.app = (function () {
       customer: null,
       staged: null, // { blob, url } prepared replacement, not yet uploaded
       uploaded: null, // { drive_file_id, drive_link } kept for a retry
-      saving: false
+      saving: false,
+      source: "feed"
     },
     orderDetail: {
       phase: "idle", // idle | loading | ready | error
@@ -1018,76 +1021,70 @@ KK.app = (function () {
           document.body.classList.remove("has-fitting-journal-bar");
           syncBottomBar();
 
-          const res = await Promise.all([db.listOrderEvents(orderId), db.listFittingSessions(orderId)]);
-          const activeSess = res[1].find((s) => "active" === s.status);
-          if (activeSess) return go("#/order/" + orderId + "/fitting/" + activeSess.id);
-
-          const prodEvents = res[0].filter((e) => calendar.isProductionStage(e.stage));
-          const availableStages = prodEvents.length ? prodEvents : calendar.PRODUCTION_STAGES.map((s) => ({ stage: s }));
-
           const startSessionFn = async (stageName) => {
             try {
-              const newSess = await db.createFittingSession({ order_id: orderId, stage: stageName, status: "active" });
+              if (calendar.PRODUCTION_STAGES.indexOf(stageName) === -1) throw new Error("Choose a valid fitting stage");
+              const existing = await db.getFittingSessionByStage(orderId, stageName);
+              if (existing) return go("#/fittings/" + existing.id + "?source=order");
+
+              const draft = {
+                order: state.order,
+                customer: state.customer,
+                session: null,
+                stage: stageName,
+                photos: [],
+                onToast: showToast,
+                ensureSession: async () => {
+                  if (draft.session) return draft.session;
+                  try {
+                    draft.session = await db.createFittingSession({ order_id: orderId, stage: stageName, status: "active" });
+                  } catch (err) {
+                    if (!err || "23505" !== err.code) throw err;
+                    draft.session = await db.getFittingSessionByStage(orderId, stageName);
+                    if (!draft.session) throw err;
+                  }
+                  return draft.session;
+                },
+                onSession: (session) => { draft.session = session; },
+                onChange: () => {
+                  KK.fittings.renderJournal(elements.fittingJournal, draft);
+                  elements.pageAction.disabled = !draft.photos.length;
+                }
+              };
               setChrome({
-                title: stageName,
+                title: U.fittingStage(stageName).label,
                 up: { label: orderLabel(state.order), hash: "#/order/" + orderId },
-                action: { label: "Done", onClick: () => KK.fittings.endSession(newSess, () => go("#/order/" + orderId)) },
+                action: { label: "Save log", onClick: () => KK.fittings.endSession(draft.session, () => go("#/order/" + orderId)) },
                 save: false
               });
+              elements.pageAction.disabled = true;
               elements.fittingJournalBar.hidden = false;
               document.body.classList.add("has-fitting-journal-bar");
               syncBottomBar();
-              KK.fittings.renderJournal(elements.fittingJournal, {
-                order: state.order,
-                customer: state.customer,
-                session: newSess,
-                photos: [],
-                onToast: showToast
-              });
-              KK.fittings.startSession(newSess, { order: state.order, customer: state.customer, photos: [] }, showToast);
+              KK.fittings.renderJournal(elements.fittingJournal, draft);
+              KK.fittings.attachSession(draft);
+              KK.fittings.addPhoto();
             } catch (err) {
-              showToast(err.message || "Could not start fitting session");
+              showToast(err.message || "Could not start fitting log");
             }
           };
 
-          const detectedStage = KK.fittings.detectStage(prodEvents);
-          if (detectedStage) {
-            await startSessionFn(detectedStage);
+          const explicitStage = targetRoute.query.get("stage");
+          if (calendar.PRODUCTION_STAGES.indexOf(explicitStage) !== -1) {
+            await startSessionFn(explicitStage);
           } else {
-            KK.fittings.showStagePicker(availableStages, startSessionFn, () => go("#/order/" + orderId));
+            KK.fittings.showStagePicker([], startSessionFn, () => go("#/order/" + orderId));
           }
         })(targetRoute.id);
       } else if ("fittingJournal" === targetRoute.view) {
-        await (async function (orderId, sessionId) {
-          state.order = await db.getOrder(orderId);
-          state.customer = await db.getCustomer(state.order.customer_id);
-          const res = await Promise.all([db.getFittingSession(sessionId), db.listFittingPhotos(orderId)]);
-          const sessionRec = res[0];
-          const photoRecs = res[1].filter((p) => p.session_id === sessionRec.id);
-
-          setChrome({
-            title: sessionRec.stage,
-            up: { label: orderLabel(state.order), hash: "#/order/" + orderId },
-            action: "active" === sessionRec.status ? { label: "Done", onClick: () => KK.fittings.endSession(sessionRec, () => go("#/order/" + orderId)) } : null,
-            save: false
-          });
-          elements.fittingJournalBar.hidden = "active" !== sessionRec.status;
-          document.body.classList.toggle("has-fitting-journal-bar", !elements.fittingJournalBar.hidden);
-          syncBottomBar();
-          KK.fittings.renderJournal(elements.fittingJournal, {
-            order: state.order,
-            customer: state.customer,
-            session: sessionRec,
-            photos: photoRecs,
-            onToast: showToast
-          });
-        })(targetRoute.id, targetRoute.sessionId);
+        // Old order-scoped bookmarks join the canonical detail route.
+        return go("#/fittings/" + encodeURIComponent(targetRoute.sessionId) + "?source=order");
       } else if ("fittingLogs" === targetRoute.view) {
         await showFittingLogs(targetRoute.query);
       } else if ("fittingLogDetail" === targetRoute.view) {
-        await showFittingLogDetail(targetRoute.sessionId);
+        await showFittingLogDetail(targetRoute.sessionId, targetRoute.query);
       } else if ("fittingPhotoEdit" === targetRoute.view) {
-        await showFittingPhotoEditor(targetRoute.sessionId, targetRoute.photoId);
+        await showFittingPhotoEditor(targetRoute.sessionId, targetRoute.photoId, targetRoute.query);
       } else if ("calendar" === targetRoute.view) {
         await showCalendarSettings();
       } else if ("enquiry" === targetRoute.view) {
@@ -1443,9 +1440,23 @@ KK.app = (function () {
       if (" " === e.key && target.matches("#orderHistoryBtn,.order-schedule-record")) e.preventDefault();
     }
   });
+  elements.viewOrder.addEventListener("keyup", (e) => {
+    const target = e.target.closest(".order-schedule-record");
+    if (!target) return;
+    target.classList.remove("is-pressed");
+    if (" " === e.key && "A" === target.tagName) {
+      e.preventDefault();
+      target.click();
+    }
+  });
 
   elements.viewOrder.addEventListener("click", (e) => {
-    if (e.target.closest("#orderHistoryBtn,#uploadDesignBtn,.order-schedule-record")) e.preventDefault();
+    if (e.target.closest("#orderHistoryBtn,#uploadDesignBtn")) e.preventDefault();
+    const stageBtn = e.target.closest("button.order-schedule-record[data-stage]");
+    if (stageBtn && state.order) {
+      go("#/order/" + encodeURIComponent(state.order.id) + "/fitting/new?stage=" + encodeURIComponent(stageBtn.dataset.stage));
+      return;
+    }
     if (e.target.closest(".js-order-schedule-retry")) retryOrderSchedule();
   });
 
@@ -1478,7 +1489,8 @@ KK.app = (function () {
     { key: "sizing", label: "Sizing" },
     { key: "fitting-1", label: "Fitting 1" },
     { key: "fitting-2", label: "Fitting 2" },
-    { key: "fitting-3", label: "Fitting 3" }
+    { key: "fitting-3", label: "Fitting 3" },
+    { key: "final-fitting", label: "Final fitting" }
   ];
 
   const FITTING_SEARCH_DEBOUNCE_MS = 250;
@@ -1909,6 +1921,17 @@ KK.app = (function () {
     // Toggling a stage mid-query must not close the keyboard.
     if (document.activeElement === elements.fitlogSearch) e.preventDefault();
   });
+  ["pointerup", "pointercancel", "pointerleave", "scroll"].forEach((type) => {
+    elements.fitlogStages.addEventListener(type, () => {
+      elements.fitlogStages.querySelectorAll(".is-pressed").forEach((btn) => btn.classList.remove("is-pressed"));
+    }, "scroll" === type ? { passive: true } : undefined);
+  });
+  elements.fitlogStages.addEventListener("focusin", (e) => {
+    const btn = e.target.closest(".fitlog-stage");
+    if (btn) btn.scrollIntoView({ block: "nearest", inline: "nearest" });
+  });
+  elements.fitlogStages.addEventListener("focusout", (e) => e.target.classList.remove("is-pressed"));
+  elements.fitlogStages.addEventListener("keyup", (e) => e.target.classList.remove("is-pressed"));
 
   elements.fitlogStages.addEventListener("click", (e) => {
     const btn = e.target.closest(".fitlog-stage");
@@ -2051,6 +2074,14 @@ KK.app = (function () {
   const FITTING_IMAGE_MAX = 1600;
   const FITTING_IMAGE_QUALITY = 0.85;
 
+  function invalidateFittingFeed() {
+    const fs = feed();
+    fs.phase = "idle";
+    fs.items = [];
+    fs.requestToken++;
+    fs.renderedToken = -1;
+  }
+
   /* Deterministic even when two rows share a position and a timestamp, because
      the detail page, the share filename, and the PDF all number photos from
      this one order. */
@@ -2107,7 +2138,7 @@ KK.app = (function () {
       : "Share photo " + (index + 1);
 
     const editHref = "#/fittings/" + encodeURIComponent(d.sessionId) +
-      "/photo/" + encodeURIComponent(photo.id) + "/edit";
+      "/photo/" + encodeURIComponent(photo.id) + "/edit?source=" + d.source;
 
     return '<div class="fitlog-grid-spacer" aria-hidden="true"></div>' +
       '<div class="fitlog-grid-rule" aria-hidden="true"></div>' +
@@ -2136,9 +2167,7 @@ KK.app = (function () {
       '<div class="fitlog-inset">' +
         fittingPanelHtml(
           "No photos in this fitting log",
-          "active" === (d.session && d.session.status)
-            ? "Use Add photo below to start this session's record."
-            : "This session was completed without any photos."
+          "Use Add photo below to add the first entry."
         ) +
       '</div>' +
       '<div class="fitlog-grid-rule" aria-hidden="true"></div>';
@@ -2178,8 +2207,11 @@ KK.app = (function () {
       d.pdfBusy ? "Preparing the PDF" : photos.length ? "Download this fitting log as a PDF" : "Download PDF (this log has no photos)"
     );
 
-    elements.fitdetBar.hidden = !isActive;
-    document.body.classList.toggle("has-fitdet-bar", isActive);
+    elements.fitdetBar.hidden = false;
+    elements.fitdetBar.classList.toggle("fitdet-bar--single", !isActive);
+    elements.fitdetEndBtn.hidden = !isActive;
+    elements.fitdetEndBtn.disabled = isActive && !photos.length;
+    document.body.classList.add("has-fitdet-bar");
     syncBottomBar();
 
     announceDetailStatus(
@@ -2412,6 +2444,7 @@ KK.app = (function () {
         if (!isDetailRoute()) return;
         d.photos = sortFittingPhotos(sessionState.photos);
         sessionState.photos = d.photos;
+        invalidateFittingFeed();
         renderFittingDetail();
       }
     };
@@ -2419,7 +2452,7 @@ KK.app = (function () {
 
   function addFittingDetailPhoto() {
     const d = detail();
-    if (!d.session || "active" !== d.session.status) return;
+    if (!d.session) return;
     d.bridge = fittingDetailBridge();
     KK.fittings.attachSession(d.bridge);
     KK.fittings.addPhoto();
@@ -2442,9 +2475,34 @@ KK.app = (function () {
         });
       }
       d.bridge.session = d.session;
-      renderFittingDetail();
-      showToast("Session ended");
+      invalidateFittingFeed();
+      go("#/order/" + encodeURIComponent(d.order.id));
+      showToast("Fitting log saved");
     });
+  }
+
+  async function deleteFittingDetailLog() {
+    const d = detail();
+    if (!d.session || !d.order) return;
+    const stage = U.fittingStage(d.session.stage).label;
+    const name = orderLabel(d.order);
+    if (!confirm('Delete the ' + stage + ' log for ' + name + '?\n\nThe log and photo records will disappear from the app. Drive archive copies will remain.')) return;
+    elements.fitdetDeleteBtn.disabled = true;
+    try {
+      const retainedFeedHash = feed().retainHash;
+      await db.deleteFittingSession(d.session.id);
+      d.photos.forEach((photo) => KK.fittings.releaseLocalURL(photo.id));
+      feed().items = feed().items.filter((item) => item.id !== d.session.id);
+      invalidateFittingFeed();
+      const destination = "order" === d.source ? "#/order/" + encodeURIComponent(d.order.id) : (retainedFeedHash || "#/fittings");
+      cleanupFittingDetail();
+      go(destination);
+      showToast("Fitting log deleted");
+    } catch (err) {
+      console.error(err);
+      elements.fitdetDeleteBtn.disabled = false;
+      showToast((err && err.message) || "Could not delete fitting log");
+    }
   }
 
   function cleanupFittingDetail() {
@@ -2462,7 +2520,7 @@ KK.app = (function () {
 
   /* -------------------------------- Route entry ---------------------------- */
 
-  async function showFittingLogDetail(sessionId) {
+  async function showFittingLogDetail(sessionId, queryParams) {
     const d = detail();
     const token = ++d.loadToken;
 
@@ -2477,7 +2535,11 @@ KK.app = (function () {
     elements.fitdetList.innerHTML = "";
     elements.fitdetState.innerHTML = "";
     elements.fitdetBar.hidden = true;
+    elements.fitdetDeleteBtn.disabled = true;
     document.body.classList.remove("has-fitdet-bar");
+    d.source = queryParams && "order" === queryParams.get("source") ? "order" : "feed";
+    /* The originating order id only arrives with the session, so Back stays on
+       the always-reachable feed for as long as this page is still loading. */
     elements.fitdetBackBtn.href = feed().retainHash || "#/fittings";
 
     let session;
@@ -2509,6 +2571,8 @@ KK.app = (function () {
     d.photos = photos;
     d.phase = "ready";
     d.bridge = fittingDetailBridge();
+    elements.fitdetBackBtn.href = "order" === d.source ? "#/order/" + encodeURIComponent(order.id) : (feed().retainHash || "#/fittings");
+    elements.fitdetDeleteBtn.disabled = false;
     KK.fittings.attachSession(d.bridge);
 
     renderFittingDetail();
@@ -2623,6 +2687,7 @@ KK.app = (function () {
       }
       ed.photo = updated;
       ed.uploaded = null;
+      invalidateFittingFeed();
 
       // The detail page holds this record too; update it in place so returning
       // does not need a second round trip.
@@ -2636,7 +2701,7 @@ KK.app = (function () {
       ed.saving = false;
       setDirty(false);
       showToast("Photo updated");
-      leaveFormFor("#/fittings/" + encodeURIComponent(ed.sessionId));
+      leaveFormFor("#/fittings/" + encodeURIComponent(ed.sessionId) + "?source=" + ed.source);
     } catch (err) {
       console.error(err);
       ed.saving = false;
@@ -2663,11 +2728,12 @@ KK.app = (function () {
       d.photos = d.photos.filter((p) => p.id !== ed.photo.id);
       d.blobCache.delete(ed.photo.id);
       if (d.bridge) d.bridge.photos = d.photos;
+      invalidateFittingFeed();
 
       ed.saving = false;
       setDirty(false);
       showToast("Photo deleted");
-      leaveFormFor("#/fittings/" + encodeURIComponent(ed.sessionId));
+      leaveFormFor("#/fittings/" + encodeURIComponent(ed.sessionId) + "?source=" + ed.source);
     } catch (err) {
       console.error(err);
       ed.saving = false;
@@ -2688,10 +2754,11 @@ KK.app = (function () {
     setDirty(false);
   }
 
-  async function showFittingPhotoEditor(sessionId, photoId) {
+  async function showFittingPhotoEditor(sessionId, photoId, queryParams) {
     const ed = editor();
     const token = ++ed.loadToken;
-    const detailHash = "#/fittings/" + encodeURIComponent(sessionId);
+    const source = queryParams && "order" === queryParams.get("source") ? "order" : "feed";
+    const detailHash = "#/fittings/" + encodeURIComponent(sessionId) + "?source=" + source;
 
     setChrome({ title: "Edit photo", save: false, fitdetailpage: true });
     setSaveBar(false);
@@ -2701,6 +2768,7 @@ KK.app = (function () {
     ed.uploaded = null;
     ed.saving = false;
     ed.sessionId = sessionId;
+    ed.source = source;
     ed.photoId = photoId;
     ed.photo = null;
     elements.fiteditStatus.textContent = "";
@@ -2773,17 +2841,20 @@ KK.app = (function () {
        so its retained list and offset are restored instead of rebuilt. */
     elements.fitdetBackBtn.addEventListener("click", (e) => {
       e.preventDefault();
-      leaveFormFor(feed().retainHash || "#/fittings");
+      const d = detail();
+      leaveFormFor("order" === d.source && d.order ? "#/order/" + encodeURIComponent(d.order.id) : (feed().retainHash || "#/fittings"));
     });
 
     elements.fiteditBackBtn.addEventListener("click", (e) => {
       e.preventDefault();
-      leaveFormFor("#/fittings/" + encodeURIComponent(editor().sessionId || ""));
+      const ed = editor();
+      leaveFormFor("#/fittings/" + encodeURIComponent(ed.sessionId || "") + "?source=" + ed.source);
     });
 
     elements.fitdetPdfBtn.addEventListener("click", downloadFittingPdf);
     elements.fitdetAddBtn.addEventListener("click", addFittingDetailPhoto);
     elements.fitdetEndBtn.addEventListener("click", endFittingDetailSession);
+    elements.fitdetDeleteBtn.addEventListener("click", deleteFittingDetailLog);
 
     elements.viewFittingDetail.addEventListener("click", (e) => {
       const opener = e.target.closest(".js-fitdet-open");
@@ -3318,15 +3389,6 @@ KK.app = (function () {
     return fName ? "(" + fName + ")" : "Back";
   };
 
-  function relativeDateLabel(isoDate, todayIso) {
-    const diff = calendar.daysBetween(todayIso, isoDate);
-    if (null === diff) return "";
-    if (0 === diff) return "today";
-    if (1 === diff) return "tomorrow";
-    if (-1 === diff) return "yesterday";
-    return diff > 0 ? "in " + diff + " days" : -diff + " days ago";
-  }
-
   function orderDateLabel(isoDate) {
     const fmt = U.formatShortDate(isoDate);
     if (!fmt) return "";
@@ -3350,15 +3412,13 @@ KK.app = (function () {
   }
 
   function orderScheduleModel(orderDetailObj) {
-    const prodEvents = (orderDetailObj.events || [])
-      .filter((e) => calendar.isProductionStage(e.stage))
-      .slice()
-      .sort((a, b) => calendar.stageOrder(a.stage) - calendar.stageOrder(b.stage));
+    const eventMap = new Map();
+    (orderDetailObj.events || []).filter((e) => calendar.isProductionStage(e.stage))
+      .forEach((e) => eventMap.set(e.stage, e));
 
     const stageSessionMap = new Map();
     const sessionListMap = new Map();
     const photoListMap = new Map();
-    const today = U.todayISO();
 
     (orderDetailObj.sessions || []).forEach((s) => {
       stageSessionMap.set(s.id, s.stage);
@@ -3370,14 +3430,19 @@ KK.app = (function () {
       if (stageName) pushInto(photoListMap, stageName, p);
     });
 
-    const records = prodEvents.map((e) => {
-      const sessions = sessionListMap.get(e.stage) || [];
-      const photos = photoListMap.get(e.stage) || [];
+    const records = calendar.PRODUCTION_STAGES.map((stageName) => {
+      const e = eventMap.get(stageName) || null;
+      const sessions = (sessionListMap.get(stageName) || []).slice().sort((a, b) =>
+        String(b.created_at).localeCompare(String(a.created_at)) || String(b.id).localeCompare(String(a.id))
+      );
+      const session = sessions[0] || null;
+      const photos = (photoListMap.get(stageName) || []).filter((p) => !session || p.session_id === session.id);
+      const week = e && calendar.plannedWeek(e.event_date);
       return {
-        stage: e.stage,
-        dateLabel: orderDateLabel(e.event_date),
-        relativeLabel: relativeDateLabel(e.event_date, today),
-        completed: sessions.some((s) => "completed" === s.status),
+        stage: stageName,
+        sessionId: session && session.id,
+        dateLabel: week ? U.formatShortDate(week.start) + " – " + U.formatShortDate(week.end) : "Not scheduled",
+        completed: !!session && "completed" === session.status,
         photoCount: photos.length,
         thumbnails: photos.slice(0, 3).map((p) => KK.fittings.imageURL(p, 100)).filter(Boolean)
       };
@@ -3386,8 +3451,8 @@ KK.app = (function () {
     const sched = scheduleFor(orderDetailObj.order, orderDetailObj.customer, orderDetailObj.events || []);
     return {
       records,
-      message: records.length ? "" : sched.production.reason || sched.reason || "No fittings scheduled yet.",
-      warning: records.length && isApproximateWedding(orderDetailObj.customer) ? "These dates are estimates until the exact wedding date is confirmed." : ""
+      message: sched.production.reason || sched.reason || "",
+      warning: eventMap.size && isApproximateWedding(orderDetailObj.customer) ? "These dates are estimates until the exact wedding date is confirmed." : ""
     };
   }
 
@@ -3505,25 +3570,26 @@ KK.app = (function () {
   }
 
   function renderOrderSchedule(vm) {
-    if (state.orderDetail.sectionErrors.schedule) {
-      elements.scheduleList.innerHTML = '<div class="order-schedule__record"><div class="order-schedule__message">Could not load the schedule.<br><button type="button" class="order-schedule__retry js-order-schedule-retry">Retry</button></div></div>';
-      return;
-    }
-
     const sched = vm.schedule || { records: [], message: "", warning: "" };
-    if (!sched.records.length) {
-      elements.scheduleList.innerHTML = '<div class="order-schedule__record"><div class="order-schedule__message">' + U.escapeHtml(sched.message || "No fittings scheduled yet.") + '</div></div><div class="order-schedule__spacer" aria-hidden="true"></div>';
-      return;
-    }
+    const errors = state.orderDetail.sectionErrors || {};
+    const errorHtml = (errors.events || errors.logs)
+      ? '<div class="order-schedule__record"><div class="order-schedule__message" role="status">' +
+        U.escapeHtml(errors.events && errors.logs ? "Could not load planned weeks or fitting logs." : errors.events ? "Could not load planned weeks; fitting logs are still shown." : "Could not load fitting logs; planned weeks are still shown.") +
+        '<br><button type="button" class="order-schedule__retry js-order-schedule-retry">Retry</button></div></div><div class="order-schedule__spacer" aria-hidden="true"></div>'
+      : '';
 
     elements.scheduleList.innerHTML =
-      (sched.warning ? '<p class="order-schedule__warning">' + U.escapeHtml(sched.warning) + '</p>' : '') +
+      errorHtml + (sched.warning ? '<p class="order-schedule__warning">' + U.escapeHtml(sched.warning) + '</p>' : '') +
       sched.records.map((r) => {
-        const dateStr = r.dateLabel ? r.dateLabel + (r.relativeLabel ? " (" + r.relativeLabel + ")" : "") : "";
+        const dateStr = r.dateLabel || "Not scheduled";
         const noteStr = r.photoCount ? r.photoCount + " photo" + (1 === r.photoCount ? "" : "s") + " & notes logged" : "";
-        const ariaLbl = [r.stage, dateStr, r.completed ? "completed" : "", noteStr, "coming soon"].filter(Boolean).join(", ");
+        const ariaLbl = [r.stage, dateStr, r.completed ? "saved" : "", noteStr, r.sessionId ? "Open fitting log" : "Start fitting log"].filter(Boolean).join(", ");
+        const tag = r.sessionId ? "a" : "button";
+        const target = r.sessionId
+          ? ' href="#/fittings/' + encodeURIComponent(r.sessionId) + '?source=order"'
+          : ' type="button" data-stage="' + U.escapeHtml(r.stage) + '"';
 
-        return '<div class="order-schedule__record"><button type="button" class="order-schedule-record' + (r.photoCount ? ' order-schedule-record--photos' : '') + '" aria-disabled="true" aria-label="' + U.escapeHtml(ariaLbl) + '"><span class="order-schedule-record__face"><span class="order-schedule-record__head"><span class="order-schedule-record__stage">' + U.escapeHtml(r.stage) + (r.completed ? '<img class="order-schedule-record__tick" src="assets/order-tick-icon.svg" alt="" width="16" height="16">' : '') + '</span>' + (dateStr ? '<span class="order-schedule-record__date">' + U.escapeHtml(dateStr) + '</span>' : '') + '</span>' + (r.photoCount ? '<span class="order-schedule-record__rule" aria-hidden="true"></span><span class="order-schedule-record__photos"><span class="order-schedule-record__thumbs">' + r.thumbnails.map((t) => '<img class="order-schedule-record__thumb" src="' + U.escapeHtml(t) + '" alt="" width="32" height="32" loading="lazy" onerror="this.style.visibility=\'hidden\'">').join('') + '</span><span class="order-schedule-record__count">' + U.escapeHtml(noteStr) + '</span></span>' : '') + '</span><span class="order-schedule-record__rail" aria-hidden="true"></span></button></div>';
+        return '<div class="order-schedule__record"><' + tag + target + ' class="order-schedule-record' + (r.photoCount ? ' order-schedule-record--photos' : '') + '" aria-label="' + U.escapeHtml(ariaLbl) + '"><span class="order-schedule-record__face"><span class="order-schedule-record__head"><span class="order-schedule-record__stage">' + U.escapeHtml(U.fittingStage(r.stage).label) + (r.completed ? '<img class="order-schedule-record__tick" src="assets/order-tick-icon.svg" alt="" width="16" height="16">' : '') + '</span><span class="order-schedule-record__date">' + U.escapeHtml(dateStr) + '</span></span>' + (r.photoCount ? '<span class="order-schedule-record__rule" aria-hidden="true"></span><span class="order-schedule-record__photos"><span class="order-schedule-record__thumbs">' + r.thumbnails.map((t) => '<img class="order-schedule-record__thumb" src="' + U.escapeHtml(t) + '" alt="" width="32" height="32" loading="lazy" onerror="this.style.visibility=\'hidden\'">').join('') + '</span><span class="order-schedule-record__count">' + U.escapeHtml(noteStr) + '</span></span>' : '') + '</span><span class="order-schedule-record__rail" aria-hidden="true"></span></' + tag + '></div>';
       }).join('<div class="order-schedule__spacer" aria-hidden="true"></div>') +
       '<div class="order-schedule__spacer" aria-hidden="true"></div>';
   }
@@ -3608,24 +3674,22 @@ KK.app = (function () {
     let eventsList = [];
     let sessionsList = [];
     let photosList = [];
-    let schedErr = false;
-
-    try {
-      const res = await Promise.all([db.listOrderEvents(orderId), db.listFittingSessions(orderId), db.listFittingPhotos(orderId)]);
-      eventsList = res[0];
-      sessionsList = res[1];
-      photosList = res[2];
-    } catch (err) {
-      if (db.isStaleToken(err)) throw err;
-      console.error(err);
-      schedErr = true;
-    }
+    const fittingParts = await Promise.allSettled([
+      db.listOrderEvents(orderId), db.listFittingSessions(orderId), db.listFittingPhotos(orderId)
+    ]);
+    fittingParts.forEach((part) => { if ("rejected" === part.status) console.error(part.reason); });
+    if ("fulfilled" === fittingParts[0].status) eventsList = fittingParts[0].value;
+    if ("fulfilled" === fittingParts[1].status) sessionsList = fittingParts[1].value;
+    if ("fulfilled" === fittingParts[1].status && "fulfilled" === fittingParts[2].status) photosList = fittingParts[2].value;
 
     if (!isCurrentOrderLoad(token, orderId)) return;
 
     state.loggedDeposits = deriveLoggedDeposits(historyList);
     state.schedule = { computed: scheduleFor(ordRec, custRec, eventsList), rows: eventsList };
-    state.orderDetail.sectionErrors = { schedule: schedErr };
+    state.orderDetail.sectionErrors = {
+      events: "rejected" === fittingParts[0].status,
+      logs: "rejected" === fittingParts[1].status || "rejected" === fittingParts[2].status
+    };
     elements.paymentError.textContent = "";
 
     renderOrderReady(
@@ -3681,18 +3745,25 @@ KK.app = (function () {
     if (!currentOrderId || !state.order || state.order.id !== currentOrderId) return;
 
     try {
-      const res = await Promise.all([db.listOrderEvents(currentOrderId), db.listFittingSessions(currentOrderId), db.listFittingPhotos(currentOrderId)]);
+      const settled = await Promise.allSettled([db.listOrderEvents(currentOrderId), db.listFittingSessions(currentOrderId), db.listFittingPhotos(currentOrderId)]);
       if (state.orderDetail.orderId !== currentOrderId) return;
-
-      state.orderDetail.sectionErrors.schedule = false;
-      state.schedule = { computed: scheduleFor(state.order, state.customer, res[0]), rows: res[0] };
+      settled.forEach((part) => { if ("rejected" === part.status) console.error(part.reason); });
+      const previous = state.orderDetail.vm && state.orderDetail.vm.schedule;
+      const events = "fulfilled" === settled[0].status ? settled[0].value : [];
+      const sessions = "fulfilled" === settled[1].status ? settled[1].value : [];
+      const photos = "fulfilled" === settled[1].status && "fulfilled" === settled[2].status ? settled[2].value : [];
+      state.orderDetail.sectionErrors = {
+        events: "rejected" === settled[0].status,
+        logs: "rejected" === settled[1].status || "rejected" === settled[2].status
+      };
+      state.schedule = { computed: scheduleFor(state.order, state.customer, events), rows: events };
 
       const schedModel = orderScheduleModel({
         order: state.order,
         customer: state.customer,
-        events: res[0],
-        sessions: res[1],
-        photos: res[2]
+        events: state.orderDetail.sectionErrors.events && previous ? [] : events,
+        sessions,
+        photos
       });
 
       if (state.orderDetail.vm) {
@@ -3703,14 +3774,14 @@ KK.app = (function () {
       }
     } catch (err) {
       console.error(err);
-      state.orderDetail.sectionErrors.schedule = true;
+      state.orderDetail.sectionErrors = { events: true, logs: true };
       renderOrderSchedule(state.orderDetail.vm || {});
     }
   }
 
   function retryOrderSchedule() {
     elements.scheduleList.innerHTML = '<div class="order-schedule__record"><div class="order-schedule__message">Loading the schedule…</div></div>';
-    state.orderDetail.sectionErrors.schedule = false;
+    state.orderDetail.sectionErrors = {};
     refreshOrderSchedule();
   }
 

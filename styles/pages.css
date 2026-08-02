@@ -1788,6 +1788,7 @@ body.is-orderpage .view { gap: 0; }
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
+  text-decoration: none;
 }
 .order-schedule-record__face {
   display: flex;
@@ -1796,7 +1797,6 @@ body.is-orderpage .view { gap: 0; }
   padding: 16px 12px;
   background: var(--home-white);
   border: 1px solid var(--home-grid);
-  transition: padding 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
 }
 .order-schedule-record--photos .order-schedule-record__face { padding: 12px; }
 .order-schedule-record__head {
@@ -1856,22 +1856,12 @@ body.is-orderpage .view { gap: 0; }
   border-left: 1px solid var(--home-grid);
   border-right: 1px solid var(--home-grid);
   border-bottom: 1px solid var(--home-grid);
-  transition: height 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
 }
-/* Five pixels move from the rail into the face, so the record's total height
-   is the same pressed as it is at rest. */
-.order-schedule-record:active,
-.order-schedule-record.is-pressed { grid-template-rows: auto 3px; }
+/* Press feedback never changes padding, grid tracks, borders, or height. */
 .order-schedule-record:active .order-schedule-record__face,
 .order-schedule-record.is-pressed .order-schedule-record__face {
-  padding-top: 18px;
-  padding-bottom: 19px;
   background-image: linear-gradient(180deg, transparent, rgba(0,0,0,.05));
-}
-.order-schedule-record--photos:active .order-schedule-record__face,
-.order-schedule-record--photos.is-pressed .order-schedule-record__face {
-  padding-top: 14px;
-  padding-bottom: 15px;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.12);
 }
 .order-schedule__message {
   margin: 0;
@@ -2149,7 +2139,7 @@ body.is-fittinglogspage .view { gap: 0; }
   background: var(--home-black);
 }
 
-/* The four stage colours as Figma names them. The existing --home-* hues are
+/* The five canonical stage colours. The existing --home-* hues are
    the lighter faces used for banners; these are the dark text/fill pair the
    feed needs, so they get their own names rather than shifting a shared one. */
 .fitlog {
@@ -2157,6 +2147,7 @@ body.is-fittinglogspage .view { gap: 0; }
   --stage-fitting-1: #19aa16;
   --stage-fitting-2: #e72a90;
   --stage-fitting-3: #ff6a00;
+  --stage-final-fitting: var(--home-black);
 }
 
 /* ------------------------------- Title band ------------------------------ */
@@ -2257,13 +2248,18 @@ body.is-fittinglogspage .view { gap: 0; }
 
 /* ------------------------------ Stage filters ---------------------------- */
 
-/* Four equal columns that never wrap and never become a dropdown: the labels
-   are known and short enough to fit at every supported width. Face plus rail
-   is 44px, which is also the minimum touch target. */
-.fitlog-stages { display: grid; grid-template-columns: repeat(4, 1fr); }
+/* One keyboard- and touch-scrollable row. Face plus rail remains a fixed 44px
+   touch target while compact layouts overflow horizontally. */
+.fitlog-stages {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.fitlog-stages::-webkit-scrollbar { display: none; }
 .fitlog-stage {
   --fitlog-stage-color: var(--home-grid);
-  min-width: 0;
+  flex: 1 0 108px;
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -2273,7 +2269,6 @@ body.is-fittinglogspage .view { gap: 0; }
   cursor: pointer;
   -webkit-appearance: none;
   appearance: none;
-  transition: grid-template-rows var(--motion-standard) var(--ease-standard);
 }
 .fitlog-stage + .fitlog-stage { border-left: 1px solid var(--home-grid); }
 .fitlog-stage__face {
@@ -2289,7 +2284,6 @@ body.is-fittinglogspage .view { gap: 0; }
   line-height: 20px;
   letter-spacing: -.42px;
   white-space: nowrap;
-  transition: background-color var(--motion-standard) var(--ease-standard), color var(--motion-standard) var(--ease-standard), box-shadow var(--motion-standard) var(--ease-standard);
 }
 .fitlog-stage__face::before {
   content: '';
@@ -2297,9 +2291,6 @@ body.is-fittinglogspage .view { gap: 0; }
   inset: 0;
   background: var(--fitlog-stage-color);
   opacity: 0;
-  transform: scaleX(.72);
-  transform-origin: center;
-  transition: opacity var(--motion-standard) var(--ease-standard), transform var(--motion-standard) var(--ease-standard);
   z-index: 0;
 }
 .fitlog-stage__face { position: relative; isolation: isolate; }
@@ -2307,29 +2298,24 @@ body.is-fittinglogspage .view { gap: 0; }
 .fitlog-stage__rail {
   display: block;
   background: var(--home-white-dark);
-  transition: background-color var(--motion-standard) var(--ease-standard);
 }
 
 .fitlog-stage--sizing    { --fitlog-stage-color: var(--stage-sizing); }
 .fitlog-stage--fitting-1 { --fitlog-stage-color: var(--stage-fitting-1); }
 .fitlog-stage--fitting-2 { --fitlog-stage-color: var(--stage-fitting-2); }
 .fitlog-stage--fitting-3 { --fitlog-stage-color: var(--stage-fitting-3); }
+.fitlog-stage--final-fitting { --fitlog-stage-color: var(--stage-final-fitting); }
 .fitlog-stage .fitlog-stage__face { color: var(--fitlog-stage-color); }
 
 /* Selected inverts to a filled face, applied independently to each control so
    several can be on at once. */
 .fitlog-stage[aria-pressed="true"] .fitlog-stage__face { color: var(--home-white); }
-.fitlog-stage[aria-pressed="true"] .fitlog-stage__face::before { opacity: 1; transform: scaleX(1); }
+.fitlog-stage[aria-pressed="true"] .fitlog-stage__face::before { opacity: 1; }
 .fitlog-stage[aria-pressed="true"] .fitlog-stage__rail { background: var(--fitlog-stage-color); }
-/* Selected reads as permanently pressed: Figma gives the active control a
-   full-height face and no rail at all (node 219:2771), which is the same
-   gesture every other control on the page makes when you push it. */
-.fitlog-stage[aria-pressed="true"] { grid-template-rows: 44px 0; }
 
-/* Pressing moves 6px of rail into the face; the row's total height never
-   changes, so the feed below it cannot shift. */
-.fitlog-stage:active,
-.fitlog-stage.is-pressed { grid-template-rows: 42px 2px; }
+/* Press paints the face and nothing else. No transition, no track change: the
+   feedback is on screen in the same frame as the touch, and the 44px outer
+   footprint is identical at rest, pressed, and selected. */
 .fitlog-stage:active .fitlog-stage__face,
 .fitlog-stage.is-pressed .fitlog-stage__face {
   background-image: linear-gradient(180deg, transparent, rgba(0,0,0,.1));
@@ -2391,6 +2377,7 @@ body.is-fittinglogspage .view { gap: 0; }
 .fitlog-card--fitting-1 .fitlog-card__stage { color: var(--stage-fitting-1); }
 .fitlog-card--fitting-2 .fitlog-card__stage { color: var(--stage-fitting-2); }
 .fitlog-card--fitting-3 .fitlog-card__stage { color: var(--stage-fitting-3); }
+.fitlog-card--final-fitting .fitlog-card__stage { color: var(--stage-final-fitting); }
 
 .fitlog-card__divider { height: 1px; background: var(--home-white-dark); }
 .fitlog-card__bottom {
@@ -2554,10 +2541,8 @@ body.is-fittinglogspage #fitlogNewBtn:disabled {
   .fitlog-skel__thumb { animation: none; background-color: rgba(76,76,76,.25); }
   .fitlog-record,
   .fitlog-state:not(:empty) { animation: none; }
-  .fitlog-stage,
-  .fitlog-stage__face,
-  .fitlog-stage__face::before,
-  .fitlog-stage__rail,
+  /* The stage filters carry no transition at any width — press feedback is
+     deliberately instantaneous — so they need no reduced-motion override. */
   .fitlog-search,
   .fitlog-search__clear,
   .fitlog-card,
@@ -2581,7 +2566,7 @@ body.is-fittinglogspage #fitlogNewBtn:disabled {
 
 /* ============================ Fitting log detail ========================== */
 
-/* Figma 229:2847. Same ledger as the feed, one session deep. The four stage
+/* Figma 229:2847. Same ledger as the feed, one session deep. The five stage
    colours are redeclared here rather than inherited, because .fitlog is a
    sibling view and not an ancestor of this one. */
 .fitdet,
@@ -2593,6 +2578,7 @@ body.is-fittinglogspage #fitlogNewBtn:disabled {
   --stage-fitting-1: #19aa16;
   --stage-fitting-2: #e72a90;
   --stage-fitting-3: #ff6a00;
+  --stage-final-fitting: var(--home-black);
 }
 
 .fitdet-head { padding-top: 67px; background: var(--home-black); }
@@ -2639,6 +2625,7 @@ body.is-fittinglogspage #fitlogNewBtn:disabled {
 .fitdet-stage--fitting-1 { --fitdet-stage-color: var(--stage-fitting-1); }
 .fitdet-stage--fitting-2 { --fitdet-stage-color: var(--stage-fitting-2); }
 .fitdet-stage--fitting-3 { --fitdet-stage-color: var(--stage-fitting-3); }
+.fitdet-stage--final-fitting { --fitdet-stage-color: var(--stage-final-fitting); }
 
 .fitdet-meta {
   display: flex;

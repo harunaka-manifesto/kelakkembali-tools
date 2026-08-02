@@ -47,6 +47,39 @@ test('ISO day arithmetic rejects rolled dates and round-trips valid ones', () =>
   assert.equal(calendar.daysBetween('2026-12-31', '2027-01-02'), 2);
 });
 
+test('planned fitting weeks are timezone-safe Monday-Sunday ranges', () => {
+  assert.deepEqual(calendar.plannedWeek('2026-08-27'), { start: '2026-08-24', end: '2026-08-30' });
+  assert.equal(calendar.plannedWeek('not-a-date'), null);
+});
+
+test('Sizing anchors the five canonical production stages', () => {
+  assert.deepEqual(
+    calendar.PRODUCTION_STAGES,
+    ['Sizing', 'Fitting 1', 'Fitting 2', 'Fitting 3', 'Final fitting'],
+  );
+  // Every stored production stage has its own feed key and its own label.
+  const keys = calendar.PRODUCTION_STAGES.map(stage => util.fittingStage(stage).key);
+  assert.equal(new Set(keys).size, 5);
+  assert.equal(new Set(calendar.PRODUCTION_STAGES.map(s => util.fittingStage(s).label)).size, 5);
+});
+
+test('no shipped source still speaks the retired Body measurements stage', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const root = path.join(__dirname, '..');
+  const shipped = [
+    'app.js', 'db.js', 'util.js', 'calendar.js', 'config.js', 'docs.js',
+    'fittings.js', 'fitting-pdf.js', 'moodboard.js', 'index.html', 'styles/pages.css',
+  ];
+  shipped.forEach((file) => {
+    assert.equal(
+      fs.readFileSync(path.join(root, file), 'utf8').includes('Body measurements'),
+      false,
+      file + ' still mentions the retired stage name',
+    );
+  });
+});
+
 test('design schedule keeps the established payment offsets', () => {
   assert.deepEqual(calendar.computeDesign('2026-08-03'), {
     events: [
@@ -156,7 +189,7 @@ test('fitting feed search patterns neutralise every wildcard a user can type', (
   assert.equal(db.likeLiteral('Family (sisters, moms)'), 'Family (sisters, moms)');
 });
 
-test('fitting feed stages are restricted to the four normalized keys', () => {
+test('fitting feed stages are restricted to the five canonical keys', () => {
   assert.deepEqual(db.normalizeFeedStages(['fitting-2', 'sizing']), ['sizing', 'fitting-2']);
   assert.deepEqual(db.normalizeFeedStages(['Final fitting', 'nope']), []);
   assert.deepEqual(db.normalizeFeedStages(undefined), []);
@@ -165,18 +198,17 @@ test('fitting feed stages are restricted to the four normalized keys', () => {
 
 /* ------------------- Fitting log detail, sharing, and PDF ----------------- */
 
-test('the five stored stages collapse to the four the feed and PDF speak', () => {
+test('the five stored stages map one-to-one across the feed and PDF', () => {
   assert.deepEqual(
-    ['Body measurements', 'Fitting 1', 'Fitting 2', 'Fitting 3', 'Final fitting']
+    ['Sizing', 'Fitting 1', 'Fitting 2', 'Fitting 3', 'Final fitting']
       .map(stage => util.fittingStage(stage).label),
-    ['Sizing', 'Fitting 1', 'Fitting 2', 'Fitting 3', 'Fitting 3'],
+    ['Sizing', 'Fitting 1', 'Fitting 2', 'Fitting 3', 'Final fitting'],
   );
   assert.deepEqual(
-    ['Body measurements', 'Final fitting'].map(stage => util.fittingStage(stage).key),
-    ['sizing', 'fitting-3'],
+    ['Sizing', 'Final fitting'].map(stage => util.fittingStage(stage).key),
+    ['sizing', 'final-fitting'],
   );
-  // Final fitting prints as Fitting 3, so the two must also agree on colour.
-  assert.equal(util.fittingStage('Final fitting').color, util.fittingStage('Fitting 3').color);
+  assert.notEqual(util.fittingStage('Final fitting').color, util.fittingStage('Fitting 3').color);
   // An unrecognised stage keeps its own text rather than inventing a fifth word.
   assert.deepEqual(util.fittingStage('Toile check'), {
     stage: 'Toile check', key: '', label: 'Toile check', color: '#4c4c4c',
@@ -204,7 +236,7 @@ test('PDF filenames survive Unicode, punctuation, and reserved characters', () =
       session: { stage: 'Final fitting', created_at: '2026-08-24T23:30:00Z' },
       customer: { name: 'Nadia & Rizky' },
     }),
-    'Nadia-Rizky-Fitting-3-2026-08-25.pdf',
+    'Nadia-Rizky-Final-fitting-2026-08-25.pdf',
   );
   // Path separators and Windows-reserved characters never reach the filename.
   assert.equal(
