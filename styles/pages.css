@@ -2587,7 +2587,7 @@ body.is-fittinglogspage #fitlogNewBtn:disabled {
   display: flex;
   align-items: stretch;
   gap: 10px;
-  padding-left: 24px;
+  padding: 0 24px 0 24px;
   border-top: 1px solid var(--home-grid);
 }
 .fitdet-title {
@@ -2603,14 +2603,15 @@ body.is-fittinglogspage #fitlogNewBtn:disabled {
   letter-spacing: -.96px;
   overflow-wrap: anywhere;
 }
-/* Full-bleed to the right edge exactly as Figma draws it, so the badge reads as
-   part of the ledger rule rather than a chip floating on it. */
+/* Figma 229:2945 — a solid stage block flush with the 24px ledger inset, the
+   full height of the title row, no border of its own: the colour is the whole
+   signal, and it is the same colour the feed filter uses for that stage. */
 .fitdet-stage {
   flex: none;
   display: flex;
   align-items: center;
-  padding: 20px 12px;
-  border: 1px solid var(--home-grid);
+  padding: 20px 24px;
+  border: 0;
   background: var(--fitdet-stage-color, var(--home-grid));
   color: var(--home-white);
   font-size: 14px;
@@ -2625,7 +2626,12 @@ body.is-fittinglogspage #fitlogNewBtn:disabled {
 .fitdet-stage--fitting-1 { --fitdet-stage-color: var(--stage-fitting-1); }
 .fitdet-stage--fitting-2 { --fitdet-stage-color: var(--stage-fitting-2); }
 .fitdet-stage--fitting-3 { --fitdet-stage-color: var(--stage-fitting-3); }
-.fitdet-stage--final-fitting { --fitdet-stage-color: var(--stage-final-fitting); }
+/* Final fitting is the page's own black, so on this dark ledger it needs the
+   grid rule to be visible at all. Every other stage carries its own colour. */
+.fitdet-stage--final-fitting {
+  --fitdet-stage-color: var(--stage-final-fitting);
+  box-shadow: inset 0 0 0 1px var(--home-grid);
+}
 
 .fitdet-meta {
   display: flex;
@@ -2838,6 +2844,9 @@ button.fitdet-card__frame { appearance: none; -webkit-appearance: none; }
 .fitdet-bar__btn--secondary .fitdet-bar__rail { background: #2f2f2f; }
 .fitdet-bar__btn--primary .fitdet-bar__face { background: var(--home-orange); color: var(--home-white); }
 .fitdet-bar__btn--primary .fitdet-bar__rail { background: #b34a00; }
+/* `display: grid` above outranks the UA's [hidden] rule, so a saved log kept
+   drawing its withdrawn Save log button and the pair fell into one column. */
+.fitdet-bar__btn[hidden] { display: none; }
 .fitdet-bar__btn:active,
 .fitdet-bar__btn.is-pressed { grid-template-rows: 46px 2px; }
 .fitdet-bar__btn:disabled { cursor: default; opacity: .55; }
@@ -2869,19 +2878,43 @@ button.fitdet-card__frame { appearance: none; -webkit-appearance: none; }
   /* Keeps the field clear of the fixed Save bar when the keyboard opens. */
   scroll-margin-bottom: calc(var(--bottombar-h) + 24px);
 }
+/* Same face-over-rail block every other control on the black pages uses, in the
+   destructive palette: the deletion reads as part of the ledger, not as a
+   foreign outlined chip. */
 .fitedit-delete {
   width: 100%;
-  min-height: 44px;
   margin: 16px 0 24px;
-  padding: 12px;
+  padding: 0;
   border: 1px solid #7a1f11;
   border-radius: 4px;
   background: transparent;
-  color: #ff8a72;
-  font: 600 15px/20px 'Plus Jakarta Sans', sans-serif;
-  letter-spacing: -.3px;
+  font: inherit;
+  color: inherit;
+  display: grid;
+  grid-template-rows: 41px 7px;
+  overflow: hidden;
   cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: grid-template-rows var(--motion-quick) var(--ease-standard);
 }
+.fitedit-delete__face {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #2a0f09;
+  color: #ff8a72;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: -.3px;
+  white-space: nowrap;
+}
+.fitedit-delete__rail { display: block; background: #7a1f11; }
+.fitedit-delete:active,
+.fitedit-delete.is-pressed { grid-template-rows: 46px 2px; }
 .fitedit-delete:disabled { opacity: .5; cursor: default; }
 
 /* ------------------------------- Photo viewer ----------------------------- */

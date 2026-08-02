@@ -391,7 +391,12 @@
       <ol class="fitdet-list" id="fitdetList"></ol>
       <div class="fitdet-state" id="fitdetState"></div>
     </div>
-    <div class="fitdet-inset"><button type="button" class="fitedit-delete" id="fitdetDeleteBtn">Delete fitting log</button></div>
+    <div class="fitdet-inset">
+      <button type="button" class="fitedit-delete" id="fitdetDeleteBtn">
+        <span class="fitedit-delete__face">Delete fitting log</span>
+        <span class="fitedit-delete__rail" aria-hidden="true"></span>
+      </button>
+    </div>
     <p class="sr-only" id="fitdetStatus" role="status" aria-live="polite"></p>
 
     <footer class="fitlog-footer">Made with love for Ichaku</footer>
@@ -447,7 +452,10 @@
           <label class="fitedit-label" for="fiteditCaption">Caption</label>
           <textarea class="fitedit-caption" id="fiteditCaption" rows="4" placeholder="What changed in this fitting?" enterkeyhint="done"></textarea>
         </div>
-        <button type="button" class="fitedit-delete" id="fiteditDeleteBtn">Delete photo</button>
+        <button type="button" class="fitedit-delete" id="fiteditDeleteBtn">
+          <span class="fitedit-delete__face">Delete photo</span>
+          <span class="fitedit-delete__rail" aria-hidden="true"></span>
+        </button>
       </div>
       <div class="fitlog-grid-rule" aria-hidden="true"></div>
       <div class="fitlog-grid-spacer" aria-hidden="true"></div>
