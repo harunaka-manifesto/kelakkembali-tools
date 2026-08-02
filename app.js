@@ -107,6 +107,7 @@ KK.app = (function () {
     fitlogTitle: $("#fitlogTitle"),
     fitlogSearchSection: $("#fitlogSearchSection"),
     fitlogSearch: $("#fitlogSearch"),
+    fitlogSearchClear: $("#fitlogSearchClear"),
     fitlogStages: $("#fitlogStages"),
     fitlogFeed: $("#fitlogFeed"),
     fitlogList: $("#fitlogList"),
@@ -1534,6 +1535,10 @@ KK.app = (function () {
     });
   }
 
+  function renderFittingSearchClear() {
+    elements.fitlogSearchClear.hidden = !elements.fitlogSearch.value;
+  }
+
   /* Append-only: rows already on screen are never re-rendered, so appending a
      batch cannot move or reflow what the user is reading. The list is cleared
      only when the request token changes, which is exactly when the results are
@@ -1553,7 +1558,9 @@ KK.app = (function () {
     }
 
     elements.fitlogState.innerHTML = fittingStateHtml();
-    elements.fitlogFeed.setAttribute("aria-busy", "initial-loading" === fs.phase ? "true" : "false");
+    const busy = "initial-loading" === fs.phase || fs.loadingMore;
+    elements.fitlogFeed.setAttribute("aria-busy", busy ? "true" : "false");
+    elements.fitlogStages.setAttribute("aria-busy", "initial-loading" === fs.phase ? "true" : "false");
     elements.fitlogFeed.classList.toggle("fitlog-feed--initial", "initial-loading" === fs.phase);
 
     if ("initial-loading" === fs.phase) announceFittingStatus("Loading fitting logs");
@@ -1725,12 +1732,25 @@ KK.app = (function () {
     // deep link can never trap the user inside one customer.
     if (fs.customerSeed && value !== fs.customerSeed.originalQuery) fs.customerSeed = null;
     fs.query = value;
+    renderFittingSearchClear();
 
     clearTimeout(fs.searchTimer);
     fs.searchTimer = setTimeout(() => {
       fs.searchTimer = null;
       startFittingFirstPage();
     }, FITTING_SEARCH_DEBOUNCE_MS);
+  });
+
+  elements.fitlogSearchClear.addEventListener("click", () => {
+    const fs = feed();
+    clearTimeout(fs.searchTimer);
+    fs.searchTimer = null;
+    fs.customerSeed = null;
+    fs.query = "";
+    elements.fitlogSearch.value = "";
+    renderFittingSearchClear();
+    elements.fitlogSearch.focus({ preventScroll: true });
+    startFittingFirstPage();
   });
 
   elements.fitlogSearch.addEventListener("focus", scheduleFittingSearchAlign);
@@ -1755,16 +1775,15 @@ KK.app = (function () {
   });
 
   elements.viewFittingLogs.addEventListener("pointerdown", (e) => {
-    const target = e.target.closest(".cust-nav-btn,.fitlog-record,.fitlog-panel__retry");
-    if (target) target.classList.add("is-pressed");
+    const target = e.target.closest(".cust-nav-btn,.fitlog-panel__retry");
+    if (target && !target.disabled) target.classList.add("is-pressed");
   });
 
   elements.viewFittingLogs.addEventListener("keydown", (e) => {
     if (" " !== e.key && "Enter" !== e.key) return;
     const target = e.target.closest(".cust-nav-btn,.fitlog-stage,.fitlog-panel__retry");
-    if (target) {
+    if (target && !target.disabled) {
       target.classList.add("is-pressed");
-      if (target === elements.fitlogNewBtn) e.preventDefault();
     }
   });
 
@@ -1806,6 +1825,7 @@ KK.app = (function () {
     fs.loadMoreError = null;
 
     elements.fitlogSearch.value = seedName;
+    renderFittingSearchClear();
     setFittingBackControl(hasSeed ? { id: seedId, name: seedName } : null);
     renderFittingStages();
 

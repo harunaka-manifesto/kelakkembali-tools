@@ -2206,6 +2206,11 @@ body.is-fittinglogspage .view { gap: 0; }
   display: flex;
   align-items: center;
   gap: 10px;
+  transition: background-color var(--motion-standard) var(--ease-standard), box-shadow var(--motion-standard) var(--ease-standard);
+}
+.fitlog-search:focus-within {
+  background: #fffdf8;
+  box-shadow: inset 0 -2px 0 var(--home-black);
 }
 .fitlog-search__icon { flex: none; display: block; width: 20px; height: 20px; }
 .fitlog-search input {
@@ -2220,8 +2225,26 @@ body.is-fittinglogspage .view { gap: 0; }
   letter-spacing: -.48px;
 }
 .fitlog-search input::placeholder { color: #b7b7b7; }
-/* Figma shows no clear button, and none is added. */
+/* Replace the inconsistent browser cancel icon with one predictable 44px
+   target that works the same way on touch and desktop. */
 .fitlog-search input::-webkit-search-cancel-button { -webkit-appearance: none; }
+.fitlog-search__clear {
+  flex: none;
+  align-self: center;
+  width: 44px;
+  height: 48px;
+  margin: -12px -16px -12px 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--home-grid);
+  cursor: pointer;
+  font: 400 27px/1 'Plus Jakarta Sans', sans-serif;
+  transition: color var(--motion-quick) var(--ease-standard), transform var(--motion-quick) var(--ease-standard);
+}
+.fitlog-search__clear:hover { color: var(--home-black); }
+.fitlog-search__clear:active { transform: scale(.86); }
+.fitlog-search__clear[hidden] { display: none; }
 .fitlog-search__rail {
   height: 7px;
   background: var(--home-white-dark);
@@ -2235,6 +2258,7 @@ body.is-fittinglogspage .view { gap: 0; }
    is 44px, which is also the minimum touch target. */
 .fitlog-stages { display: grid; grid-template-columns: repeat(4, 1fr); }
 .fitlog-stage {
+  --fitlog-stage-color: var(--home-grid);
   min-width: 0;
   padding: 0;
   border: 0;
@@ -2245,7 +2269,7 @@ body.is-fittinglogspage .view { gap: 0; }
   cursor: pointer;
   -webkit-appearance: none;
   appearance: none;
-  transition: grid-template-rows 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+  transition: grid-template-rows var(--motion-standard) var(--ease-standard);
 }
 .fitlog-stage + .fitlog-stage { border-left: 1px solid var(--home-grid); }
 .fitlog-stage__face {
@@ -2261,21 +2285,38 @@ body.is-fittinglogspage .view { gap: 0; }
   line-height: 20px;
   letter-spacing: -.42px;
   white-space: nowrap;
+  transition: background-color var(--motion-standard) var(--ease-standard), color var(--motion-standard) var(--ease-standard), box-shadow var(--motion-standard) var(--ease-standard);
 }
-.fitlog-stage__rail { display: block; background: var(--home-white-dark); }
+.fitlog-stage__face::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--fitlog-stage-color);
+  opacity: 0;
+  transform: scaleX(.72);
+  transform-origin: center;
+  transition: opacity var(--motion-standard) var(--ease-standard), transform var(--motion-standard) var(--ease-standard);
+  z-index: 0;
+}
+.fitlog-stage__face { position: relative; isolation: isolate; }
+.fitlog-stage__face > * { position: relative; z-index: 1; }
+.fitlog-stage__rail {
+  display: block;
+  background: var(--home-white-dark);
+  transition: background-color var(--motion-standard) var(--ease-standard);
+}
 
-.fitlog-stage--sizing    .fitlog-stage__face { color: var(--stage-sizing); }
-.fitlog-stage--fitting-1 .fitlog-stage__face { color: var(--stage-fitting-1); }
-.fitlog-stage--fitting-2 .fitlog-stage__face { color: var(--stage-fitting-2); }
-.fitlog-stage--fitting-3 .fitlog-stage__face { color: var(--stage-fitting-3); }
+.fitlog-stage--sizing    { --fitlog-stage-color: var(--stage-sizing); }
+.fitlog-stage--fitting-1 { --fitlog-stage-color: var(--stage-fitting-1); }
+.fitlog-stage--fitting-2 { --fitlog-stage-color: var(--stage-fitting-2); }
+.fitlog-stage--fitting-3 { --fitlog-stage-color: var(--stage-fitting-3); }
+.fitlog-stage .fitlog-stage__face { color: var(--fitlog-stage-color); }
 
 /* Selected inverts to a filled face, applied independently to each control so
    several can be on at once. */
 .fitlog-stage[aria-pressed="true"] .fitlog-stage__face { color: var(--home-white); }
-.fitlog-stage--sizing[aria-pressed="true"]    .fitlog-stage__face { background: var(--stage-sizing); }
-.fitlog-stage--fitting-1[aria-pressed="true"] .fitlog-stage__face { background: var(--stage-fitting-1); }
-.fitlog-stage--fitting-2[aria-pressed="true"] .fitlog-stage__face { background: var(--stage-fitting-2); }
-.fitlog-stage--fitting-3[aria-pressed="true"] .fitlog-stage__face { background: var(--stage-fitting-3); }
+.fitlog-stage[aria-pressed="true"] .fitlog-stage__face::before { opacity: 1; transform: scaleX(1); }
+.fitlog-stage[aria-pressed="true"] .fitlog-stage__rail { background: var(--fitlog-stage-color); }
 /* Selected reads as permanently pressed: Figma gives the active control a
    full-height face and no rail at all (node 219:2771), which is the same
    gesture every other control on the page makes when you push it. */
@@ -2295,6 +2336,12 @@ body.is-fittinglogspage .view { gap: 0; }
 .fitlog-feed { background: var(--home-black); }
 .fitlog-list { margin: 0; padding: 0; list-style: none; }
 .fitlog-record { display: block; }
+.fitlog-record,
+.fitlog-state:not(:empty) { animation: fitlog-result-in var(--motion-enter) var(--ease-standard) both; }
+@keyframes fitlog-result-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 .fitlog-inset { padding: 0 24px; }
 
 .fitlog-card {
@@ -2390,16 +2437,8 @@ body.is-fittinglogspage .view { gap: 0; }
   border-right: 1px solid var(--home-grid);
   transition: height 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
 }
-/* Cards press but do nothing: no handler, no href, no tab stop. The feedback
-   exists so the object still reads as the same card the other pages use. */
-.fitlog-record:active .fitlog-card,
-.fitlog-record.is-pressed .fitlog-card {
-  padding-top: 15px;
-  padding-bottom: 15px;
-  background: linear-gradient(180deg, transparent, rgba(0,0,0,.06)), var(--home-white);
-}
-.fitlog-record:active .fitlog-card__rail,
-.fitlog-record.is-pressed .fitlog-card__rail { height: 2px; }
+/* Records are read-only on this feed, so they deliberately do not imitate a
+   tappable card. Navigation feedback belongs only to real controls. */
 
 /* --------------------------- Feed message panels -------------------------- */
 
@@ -2497,11 +2536,26 @@ body.is-fittinglogspage .cust-nav-btn:focus-visible {
   outline-offset: -2px;
 }
 body.is-fittinglogspage .fitlog-search input:focus-visible { outline: 0; }
+body.is-fittinglogspage .fitlog-search__clear:focus-visible {
+  outline-color: var(--home-black);
+  outline-offset: -5px;
+}
+body.is-fittinglogspage #fitlogNewBtn:disabled {
+  opacity: .48;
+  filter: saturate(0);
+}
 
 @media (prefers-reduced-motion: reduce) {
   .fitlog-skel__block,
   .fitlog-skel__thumb { animation: none; background-color: rgba(76,76,76,.25); }
+  .fitlog-record,
+  .fitlog-state:not(:empty) { animation: none; }
   .fitlog-stage,
+  .fitlog-stage__face,
+  .fitlog-stage__face::before,
+  .fitlog-stage__rail,
+  .fitlog-search,
+  .fitlog-search__clear,
   .fitlog-card,
   .fitlog-card__rail { transition: none; }
 }

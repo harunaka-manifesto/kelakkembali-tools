@@ -294,11 +294,9 @@
         </span>
         <span class="cust-nav-btn__rail" aria-hidden="true"></span>
       </a>
-      <!-- Creating a fitting log from here is intentionally out of scope for
-           this release: the control matches Figma and presses, but there is no
-           handler and no order it could target. The missing action is the
-           design, not a bug. -->
-      <button type="button" class="cust-nav-btn cust-nav-btn--icon" id="fitlogNewBtn" aria-label="New fitting log" aria-disabled="true">
+      <!-- A fitting needs an order context, so this affordance stays visible to
+           preserve the designed nav balance but is honestly disabled. -->
+      <button type="button" class="cust-nav-btn cust-nav-btn--icon" id="fitlogNewBtn" aria-label="New fitting log (start from an order)" title="Start a fitting from an order" disabled>
         <span class="cust-nav-btn__face">
           <img src="assets/fitting-new-icon.svg" alt="" width="24" height="24">
         </span>
@@ -317,6 +315,7 @@
       <div class="fitlog-search">
         <img class="fitlog-search__icon" src="assets/home-search-icon.svg" alt="" width="20" height="20">
         <input id="fitlogSearch" type="search" enterkeyhint="search" placeholder="Search customer, order, or date" autocapitalize="none" autocomplete="off" spellcheck="false">
+        <button type="button" class="fitlog-search__clear" id="fitlogSearchClear" aria-label="Clear search" hidden><span aria-hidden="true">&times;</span></button>
       </div>
       <div class="fitlog-search__rail" aria-hidden="true"></div>
     </section>
@@ -324,10 +323,10 @@
     <!-- Multi-select, not a tablist: any combination of the four is valid, so
          each control carries its own aria-pressed. -->
     <div class="fitlog-stages" id="fitlogStages" role="group" aria-label="Filter fitting logs by stage">
-      <button type="button" class="fitlog-stage fitlog-stage--sizing" data-stage="sizing" aria-pressed="false"><span class="fitlog-stage__face">Sizing</span><span class="fitlog-stage__rail" aria-hidden="true"></span></button>
-      <button type="button" class="fitlog-stage fitlog-stage--fitting-1" data-stage="fitting-1" aria-pressed="false"><span class="fitlog-stage__face">Fitting 1</span><span class="fitlog-stage__rail" aria-hidden="true"></span></button>
-      <button type="button" class="fitlog-stage fitlog-stage--fitting-2" data-stage="fitting-2" aria-pressed="false"><span class="fitlog-stage__face">Fitting 2</span><span class="fitlog-stage__rail" aria-hidden="true"></span></button>
-      <button type="button" class="fitlog-stage fitlog-stage--fitting-3" data-stage="fitting-3" aria-pressed="false"><span class="fitlog-stage__face">Fitting 3</span><span class="fitlog-stage__rail" aria-hidden="true"></span></button>
+      <button type="button" class="fitlog-stage fitlog-stage--sizing" data-stage="sizing" aria-pressed="false"><span class="fitlog-stage__face"><span>Sizing</span></span><span class="fitlog-stage__rail" aria-hidden="true"></span></button>
+      <button type="button" class="fitlog-stage fitlog-stage--fitting-1" data-stage="fitting-1" aria-pressed="false"><span class="fitlog-stage__face"><span>Fitting 1</span></span><span class="fitlog-stage__rail" aria-hidden="true"></span></button>
+      <button type="button" class="fitlog-stage fitlog-stage--fitting-2" data-stage="fitting-2" aria-pressed="false"><span class="fitlog-stage__face"><span>Fitting 2</span></span><span class="fitlog-stage__rail" aria-hidden="true"></span></button>
+      <button type="button" class="fitlog-stage fitlog-stage--fitting-3" data-stage="fitting-3" aria-pressed="false"><span class="fitlog-stage__face"><span>Fitting 3</span></span><span class="fitlog-stage__rail" aria-hidden="true"></span></button>
     </div>
 
     <div class="fitlog-feed" id="fitlogFeed" aria-busy="true">
