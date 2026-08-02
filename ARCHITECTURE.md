@@ -1,5 +1,15 @@
 # Architecture & Codebase Map
 
+> **Agents: start at [AGENTS.md](AGENTS.md), not here.** This file is the rationale layer.
+> For navigation use the maps — they are cheaper and more precise:
+> [docs/FEATURES.md](docs/FEATURES.md) (feature → files) ·
+> [docs/MAP-app.md](docs/MAP-app.md) (app.js regions + function index) ·
+> [docs/MAP-html-css.md](docs/MAP-html-css.md) (views, overlays, CSS sections) ·
+> [docs/DATABASE.md](docs/DATABASE.md) (tables, db.js API, edge actions) ·
+> [docs/MODULES.md](docs/MODULES.md) (export surfaces) ·
+> [docs/CONVENTIONS.md](docs/CONVENTIONS.md) (how to write code here) ·
+> [docs/README-INDEX.md](docs/README-INDEX.md) (seek into README.md by line).
+
 Kelak Kembali is a zero-build, native Vanilla JS Single Page Application (SPA) backed by Supabase PostgREST and Deno Edge Functions. `index.html` loads global `window.KK` modules in explicit dependency order.
 
 ---
@@ -50,7 +60,7 @@ Third-party Libraries (Supabase, html2canvas, jsPDF) + config.js
 ## Module Boundaries & Ownership Rules
 
 1. **`index.html`**: Owns static HTML structure, SPA route views, modal/drawer markup, and offscreen PDF canvas templates.
-2. **`styles/`**: Load order is fixed (`shared.css` → `pages.css` → `documents.css` → `moodboard.css`).
+2. **`styles/`**: Load order is fixed and set in `index.html` lines 18–22: `fonts.css` → `pages.css` → `shared.css` → `documents.css` → `moodboard.css`. `shared.css` loads *after* `pages.css`, so shared rules win ties at equal specificity — put page overrides in `pages.css` with higher specificity, never later in `shared.css`.
 3. **`util.js`**: Dependency-free pure formatting functions (`formatRupiah`, `formatLongDate`, `escapeHtml`), HEIC image decoder, and SVG icon constants.
 4. **`calendar.js`**: Pure date arithmetic and schedule generation algorithms for production and design phases.
 5. **`docs.js`**: Pure document layout rendering, watermark generation, and PDF export via html2canvas & jsPDF.
@@ -77,7 +87,8 @@ marker; feed-origin routes return through the retained feed snapshot.
 
 ## How to Work in This Codebase (For Future AI Agents & Developers)
 
-1. **Targeted Reading**: To fix or add a feature, consult the **Start Here: Feature Entry-Point Map** and load ONLY the 1-2 relevant files listed in the entry map.
+0. **Read [AGENTS.md](AGENTS.md) first.** It carries the reading budgets, edit budgets, search order, and invariants. Then take one row from [docs/FEATURES.md](docs/FEATURES.md), which expands each entry below into exact line ranges.
+1. **Targeted Reading**: To fix or add a feature, consult the **Start Here: Feature Entry-Point Map** and load ONLY the 1-2 relevant files listed in the entry map. Never read `app.js`, `index.html`, `schema.sql`, `README.md`, or `styles/pages.css` whole — go through the maps in `docs/`.
 2. **Verification Gate**: After making structural modifications, ALWAYS run the syntax validation check and unit test suite before declaring completion:
 
    ```bash

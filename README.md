@@ -4,6 +4,12 @@ A single-page, mobile-first studio workflow for enquiries, customers, orders,
 fittings, schedules, moodboards, quotations, and invoices. The generated
 documents match the Kelak Kembali designs 1:1.
 
+> **AI agents: do not read this file top to bottom.** It is 950+ lines of design
+> rationale. Start at [AGENTS.md](AGENTS.md), then take one row from
+> [docs/FEATURES.md](docs/FEATURES.md). Seek into this file by line range using
+> [docs/README-INDEX.md](docs/README-INDEX.md) only when you need the *why*
+> behind a rule the code does not explain.
+
 Customers and their orders are kept in **Supabase**, behind a shared password.
 There is still no build step: the whole thing is static files plus four CDN
 scripts, deployed exactly as-is.
