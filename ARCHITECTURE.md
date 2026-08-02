@@ -15,6 +15,8 @@ To make a change safely without reading unnecessary files, use this map to targe
 | **Order Detail & Item Costing** | [app.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/app.js) (`showOrderDetail`, `saveOrder`) | `#viewOrder`, `#viewOrderEdit` in [index.html](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/index.html) | [db.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/db.js) (`updateOrder`, `logOrderHistory`) |
 | **Fitting Schedule Rules** | [calendar.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/calendar.js) (`computeSchedule`) | `orderScheduleModel` in [app.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/app.js) | [db.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/db.js) (`replaceOrderEvents`) |
 | **Fitting Logs Feed (global)** | [app.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/app.js) (`showFittingLogs`, `startFittingFirstPage`) | `#viewFittingLogs` in [index.html](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/index.html), `.fitlog-*` in [styles/pages.css](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/styles/pages.css) | [db.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/db.js) (`listFittingLogs`), `fitting_log_feed` view in [schema.sql](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/schema.sql) |
+| **Fitting Log Detail & Photo Editor** | [app.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/app.js) (`showFittingLogDetail`, `showFittingPhotoEditor`) | `#viewFittingDetail`, `#viewFittingPhotoEdit`, `#fittingPhotoViewer` in [index.html](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/index.html), `.fitdet-*` / `.fitedit-*` in [styles/pages.css](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/styles/pages.css) | [db.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/db.js) (`listFittingPhotosBySession`, `getFittingPhoto`, `driveGetFittingPhoto`) |
+| **Fitting Log PDF Snapshot** | [fitting-pdf.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/fitting-pdf.js) | orchestrated by `downloadFittingPdf` in [app.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/app.js) | `get_fitting_photo` action of the `google-drive` Edge Function |
 | **Fitting Journal & Camera Overlay** | [fittings.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/fittings.js) | `#viewFittingJournal` & overlays in [index.html](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/index.html) | `google-drive` Edge Function via [db.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/db.js) |
 | **Moodboard Generator & Export** | [moodboard.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/moodboard.js) | `#viewMoodboard` in [index.html](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/index.html), [styles/moodboard.css](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/styles/moodboard.css) | `google-drive` Edge Function via [db.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/db.js) |
 | **PDF Quotations & Invoices** | [docs.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/docs.js) | `#quotation`, `#invoice` in [index.html](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/index.html), [styles/documents.css](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/styles/documents.css) | [db.js](file:///Users/nikanakamanifesto/Documents/GitHub/kelakkembali-tools/db.js) (`logDocument`) |
@@ -30,10 +32,10 @@ The script loading sequence in [index.html](file:///Users/nikanakamanifesto/Docu
 ```text
 Third-party Libraries (Supabase, html2canvas, jsPDF) + config.js
                      │
-                  util.js (Pure helper functions & shared icons)
-           ┌─────────┼─────────┬──────────────┐
-        docs.js  moodboard.js fittings.js  calendar.js (Pure schedule rules)
-           └─────────┼─────────┴──────────────┘
+                  util.js (Pure helpers, shared icons, fitting-stage vocabulary)
+           ┌─────────┼─────────┬──────────────┬────────────────┐
+        docs.js  moodboard.js fittings.js  calendar.js   fitting-pdf.js
+           └─────────┼─────────┴──────────────┴────────────────┘
                      │
                   db.js (Supabase Client & Edge Function invocations)
                      │
@@ -53,9 +55,16 @@ Third-party Libraries (Supabase, html2canvas, jsPDF) + config.js
 4. **`calendar.js`**: Pure date arithmetic and schedule generation algorithms for production and design phases.
 5. **`docs.js`**: Pure document layout rendering, watermark generation, and PDF export via html2canvas & jsPDF.
 6. **`moodboard.js`**: Canvas layout solver (16:9 / 9:16), mosaic grid engine, photo caching, and PDF snapshot generator.
-7. **`fittings.js`**: Fitting journal UI adapter, camera/gallery overlay handlers, and image compression.
-8. **`db.js`**: Sole browser module owning the Supabase PostgREST client and Deno Edge Function invocations.
-9. **`schema.sql`**: PostgreSQL database schema, tables, triggers, and RLS security policies.
+7. **`fittings.js`**: Fitting journal UI adapter, camera/gallery overlay handlers, image compression, Drive archival, and the pending-backup registry (`waitForSessionBackups`). A host page that owns its own markup attaches through `attachSession({ …, onChange })` instead of using `renderJournal`.
+8. **`fitting-pdf.js`**: Pure A4 page geometry for the client-ready fitting-log snapshot — natural-ratio fitting, caption flow and overflow, cover layout, filenames. It never touches the database, Drive, toasts, or saving; `app.js` resolves every image and owns the busy UI and the final save.
+9. **`db.js`**: Sole browser module owning the Supabase PostgREST client and Deno Edge Function invocations.
+10. **`schema.sql`**: PostgreSQL database schema, tables, triggers, and RLS security policies.
+
+### Fitting-log route family
+
+`#/fittings`, `#/fittings/:sessionId`, and `#/fittings/:sessionId/photo/:photoId/edit` are one experience. Moving between them parks the feed's search, filters, loaded pages, DOM, and scroll offset so Back restores the exact list; leaving the family (or reloading) clears the snapshot and rebuilds from the URL. Both detail routes fetch and validate their own records, so a pasted URL behaves exactly like a tapped card.
+
+The `google-drive` Edge Function's `get_fitting_photo { photo_id }` action is the byte source for individual image sharing and for PDF generation. It resolves the Drive id from the photo record server-side — an arbitrary Drive id can never be requested through it.
 
 ---
 
@@ -65,6 +74,6 @@ Third-party Libraries (Supabase, html2canvas, jsPDF) + config.js
 2. **Verification Gate**: After making structural modifications, ALWAYS run the syntax validation check and unit test suite before declaring completion:
 
    ```bash
-   node --check app.js db.js util.js calendar.js config.js docs.js fittings.js moodboard.js tests/pure-modules.test.cjs
+   node --check app.js db.js util.js calendar.js config.js docs.js fittings.js fitting-pdf.js moodboard.js tests/pure-modules.test.cjs
    node --test tests/pure-modules.test.cjs
    ```

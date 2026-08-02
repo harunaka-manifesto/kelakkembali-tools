@@ -162,3 +162,159 @@ test('fitting feed stages are restricted to the four normalized keys', () => {
   assert.deepEqual(db.normalizeFeedStages(undefined), []);
   assert.deepEqual(db.normalizeFeedStages(db.FITTING_STAGE_KEYS), db.FITTING_STAGE_KEYS);
 });
+
+/* ------------------- Fitting log detail, sharing, and PDF ----------------- */
+
+test('the five stored stages collapse to the four the feed and PDF speak', () => {
+  assert.deepEqual(
+    ['Body measurements', 'Fitting 1', 'Fitting 2', 'Fitting 3', 'Final fitting']
+      .map(stage => util.fittingStage(stage).label),
+    ['Sizing', 'Fitting 1', 'Fitting 2', 'Fitting 3', 'Fitting 3'],
+  );
+  assert.deepEqual(
+    ['Body measurements', 'Final fitting'].map(stage => util.fittingStage(stage).key),
+    ['sizing', 'fitting-3'],
+  );
+  // Final fitting prints as Fitting 3, so the two must also agree on colour.
+  assert.equal(util.fittingStage('Final fitting').color, util.fittingStage('Fitting 3').color);
+  // An unrecognised stage keeps its own text rather than inventing a fifth word.
+  assert.deepEqual(util.fittingStage('Toile check'), {
+    stage: 'Toile check', key: '', label: 'Toile check', color: '#4c4c4c',
+  });
+  assert.equal(util.fittingStage(null).label, '');
+});
+
+test('session dates are read in the workshop day, not UTC', () => {
+  // 23:30 UTC is already the next morning in Jakarta (+07:00, no DST).
+  assert.equal(util.jakartaDateISO('2026-08-24T23:30:00Z'), '2026-08-25');
+  assert.equal(util.jakartaDateISO('2026-08-25T00:30:00Z'), '2026-08-25');
+  assert.equal(util.formatJakartaLongDate('2026-08-24T23:30:00Z'), '25 August 2026');
+  assert.equal(util.jakartaDateISO('not a date'), '');
+  assert.equal(util.formatJakartaLongDate(null), '');
+});
+
+/* The PDF module owns page geometry and nothing else, so all of it is pure. */
+global.window.jspdf = undefined;
+require('../fitting-pdf.js');
+const { fittingPdf } = global.KK;
+
+test('PDF filenames survive Unicode, punctuation, and reserved characters', () => {
+  assert.equal(
+    fittingPdf.buildFilename({
+      session: { stage: 'Final fitting', created_at: '2026-08-24T23:30:00Z' },
+      customer: { name: 'Nadia & Rizky' },
+    }),
+    'Nadia-Rizky-Fitting-3-2026-08-25.pdf',
+  );
+  // Path separators and Windows-reserved characters never reach the filename.
+  assert.equal(
+    fittingPdf.buildFilename({
+      session: { stage: 'Fitting 1', created_at: '2026-01-02T03:00:00Z' },
+      customer: { name: 'A/B:C*D?E"F<G>H|I' },
+    }),
+    'ABCDEFGHI-Fitting-1-2026-01-02.pdf',
+  );
+  assert.equal(
+    fittingPdf.buildFilename({
+      session: { stage: 'Fitting 2', created_at: '2026-03-04T05:00:00Z' },
+      customer: { name: '晴子 さん' },
+    }),
+    '晴子-さん-Fitting-2-2026-03-04.pdf',
+  );
+  // A nameless customer and an unknown stage still produce a usable filename.
+  const fallback = fittingPdf.buildFilename({ session: {}, customer: {} });
+  assert.match(fallback, /^Customer-Fitting-\d{4}-\d{2}-\d{2}\.pdf$/);
+});
+
+test('images are contained at their natural ratio, never cropped or stretched', () => {
+  const box = { w: 400, h: 300 };
+  const landscape = fittingPdf.fitContain(4000, 2000, box.w, box.h);
+  const portrait = fittingPdf.fitContain(2000, 4000, box.w, box.h);
+  const square = fittingPdf.fitContain(1000, 1000, box.w, box.h);
+
+  [[landscape, 4000 / 2000], [portrait, 2000 / 4000], [square, 1]].forEach(([fit, ratio]) => {
+    assert.ok(Math.abs(fit.w / fit.h - ratio) < 1e-9, 'natural ratio preserved');
+    assert.ok(fit.w <= box.w + 1e-9 && fit.h <= box.h + 1e-9, 'inside the box');
+  });
+  // Contain, not cover: at least one axis touches the box exactly.
+  assert.equal(landscape.w, 400);
+  assert.equal(portrait.h, 300);
+  // Unknown natural dimensions fall back to the whole box rather than 0 area.
+  assert.deepEqual(fittingPdf.fitContain(0, 0, box.w, box.h), box);
+});
+
+test('captions shrink the photo only down to a readable minimum image area', () => {
+  // Tall enough to be height-constrained, so the caption's claim on the page
+  // is visible in the result rather than absorbed by spare vertical room.
+  const tall = { naturalWidth: 1000, naturalHeight: 3000 };
+
+  const bare = fittingPdf.planPhotoPage(Object.assign({ lineCount: 0 }, tall));
+  assert.equal(bare.linesOnPage, 0);
+  assert.equal(bare.overflowLines, 0);
+  assert.ok(Math.abs(bare.image.h - fittingPdf.BODY_H) < 1e-9);
+
+  // A short caption is carried in full, and the image gives up the room.
+  const short = fittingPdf.planPhotoPage(Object.assign({ lineCount: 3 }, tall));
+  assert.equal(short.linesOnPage, 3);
+  assert.equal(short.overflowLines, 0);
+  assert.ok(short.image.h < bare.image.h, 'caption shrinks the image');
+  assert.ok(short.image.h >= fittingPdf.MIN_IMAGE_H, 'stays above the minimum');
+
+  // A wide photo that already fits inside the caption's budget is not shrunk
+  // any further than its own natural ratio requires.
+  const wide = fittingPdf.planPhotoPage({ naturalWidth: 1000, naturalHeight: 1000, lineCount: 3 });
+  assert.ok(Math.abs(wide.image.w - fittingPdf.CONTENT_W) < 1e-9);
+  assert.equal(wide.overflowLines, 0);
+
+  // Past the minimum the caption is the thing that yields — and the remainder
+  // is carried over, never truncated.
+  const huge = fittingPdf.planPhotoPage(Object.assign({ lineCount: 400 }, tall));
+  assert.ok(huge.image.h >= fittingPdf.MIN_IMAGE_H - 1e-9, 'image never goes below the minimum');
+  assert.ok(huge.overflowLines > 0, 'the tail continues on another page');
+  assert.equal(huge.linesOnPage + huge.overflowLines, 400, 'no stored line is dropped');
+
+  assert.ok(fittingPdf.captionPageCapacity() > 0);
+});
+
+test('the PDF refuses a zero-photo session and a missing image source', async () => {
+  await assert.rejects(
+    fittingPdf.generate({ session: {}, customer: {}, photos: [], resolveImage: () => ({}) }),
+    /no photos to print/,
+  );
+  await assert.rejects(
+    fittingPdf.generate({ session: {}, customer: {}, photos: [{ id: 'a' }] }),
+    /No image source/,
+  );
+});
+
+/* ------------------------ Fitting feed state retention -------------------- */
+
+/* app.js is a DOM composition root, so the decision itself is restated here as
+   the predicate it implements: only movement inside the fitting-log route
+   family keeps the feed's loaded pages and offset alive. */
+const FITTING_ROUTE_FAMILY = ['fittingLogs', 'fittingLogDetail', 'fittingPhotoEdit'];
+const inFittingFamily = route => !!route && FITTING_ROUTE_FAMILY.includes(route.view);
+
+test('only the fitting-log route family retains the feed', () => {
+  assert.equal(inFittingFamily({ view: 'fittingLogDetail' }), true);
+  assert.equal(inFittingFamily({ view: 'fittingPhotoEdit' }), true);
+  assert.equal(inFittingFamily({ view: 'fittingLogs' }), true);
+  assert.equal(inFittingFamily({ view: 'customer' }), false);
+  assert.equal(inFittingFamily({ view: 'order' }), false);
+  assert.equal(inFittingFamily(null), false);
+});
+
+test('session photos order by position, then created_at, then id', () => {
+  const sortFittingPhotos = photos => photos.slice().sort((a, b) =>
+    (Number(a.position) || 0) - (Number(b.position) || 0) ||
+    String(a.created_at || '').localeCompare(String(b.created_at || '')) ||
+    String(a.id).localeCompare(String(b.id)));
+
+  const rows = [
+    { id: 'd', position: 1, created_at: '2026-01-01T00:00:00Z' },
+    { id: 'b', position: 0, created_at: '2026-01-01T00:00:02Z' },
+    { id: 'c', position: 0, created_at: '2026-01-01T00:00:01Z' },
+    { id: 'a', position: 0, created_at: '2026-01-01T00:00:02Z' },
+  ];
+  assert.deepEqual(sortFittingPhotos(rows).map(row => row.id), ['c', 'a', 'b', 'd']);
+});

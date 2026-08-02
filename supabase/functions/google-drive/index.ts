@@ -12,6 +12,10 @@
  *        Kelak Kembali Moodboards/{customer}/{order}/Moodboard/ and returns a
  *        shareable link. Source images never reach Drive.
  *   save_fitting_photo  -> writes a compressed fitting photo by client/order/stage.
+ *   get_fitting_photo    { photo_id }
+ *     -> reads back the original bytes of an app-created fitting photo as
+ *        { image_base64, mime_type, file_name }. The Drive id is resolved from
+ *        the photo record here, never accepted from the caller.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
@@ -261,6 +265,66 @@ async function saveFittingPhoto(
   };
 }
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/* Drive responses can be several megabytes; String.fromCharCode is applied in
+   chunks because spreading the whole array overflows the argument stack. */
+function toBase64(bytes: Uint8Array) {
+  let binary = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
+}
+
+async function getFittingPhoto(token: string, photoId: string) {
+  if (!UUID_PATTERN.test(String(photoId || ''))) {
+    throw new Told('photo_id must be a fitting photo id.');
+  }
+
+  const db = serviceClient();
+  const { data, error } = await db
+    .from('fitting_photos')
+    .select('id,drive_file_id')
+    .eq('id', photoId)
+    .maybeSingle();
+  if (error) throw new Told('Could not read that fitting photo: ' + error.message, 500);
+  if (!data) throw new Told('That fitting photo no longer exists.', 404);
+  if (!data.drive_file_id) {
+    throw new Told('That photo has not finished backing up to Drive yet.', 409);
+  }
+
+  const fileId = encodeURIComponent(String(data.drive_file_id));
+  const meta = await driveRequest(token, `/files/${fileId}`, 'GET', undefined, {
+    fields: 'id,name,mimeType'
+  });
+
+  /* alt=media returns bytes, not JSON, so it bypasses driveRequest. */
+  const res = await fetch(`${DRIVE_API}/files/${fileId}?alt=media`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) {
+    throw new Told(
+      'Google Drive: could not download that photo (' + res.status + ')',
+      res.status === 401 || res.status === 403 ? 401 : 502
+    );
+  }
+
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  const safeName = String(meta?.name || 'fitting-photo.jpg')
+    .split(/[\\/]/).pop()!
+    .replace(/[^\p{L}\p{N} ._-]/gu, '')
+    .trim() || 'fitting-photo.jpg';
+
+  return {
+    image_base64: toBase64(bytes),
+    mime_type: String(meta?.mimeType || 'image/jpeg'),
+    file_name: safeName
+  };
+}
+
 /* -------------------------------- Handler --------------------------------- */
 
 Deno.serve(async (req) => {
@@ -290,6 +354,12 @@ Deno.serve(async (req) => {
       return json(await saveFittingPhoto(
         token, image_base64, mime_type, file_name || '', customer_name || '', order_title || '', stage || ''
       ));
+    }
+
+    if (action === 'get_fitting_photo') {
+      const { photo_id } = payload;
+      if (!photo_id) throw new Told('photo_id is required.');
+      return json(await getFittingPhoto(token, photo_id));
     }
 
     throw new Told(`Unknown action: ${action}`);

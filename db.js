@@ -378,6 +378,20 @@ KK.db = (function () {
       return unwrap(await init().from('fitting_photos').select(PROJECTION_FITTING_PHOTOS).eq('order_id', orderId).order('position', { ascending: true }));
     },
 
+    /* One fitting session's photos in their stored order. The detail page and
+       the PDF both read this, so the tie-break is spelled out rather than left
+       to whatever PostgREST returns for equal positions. */
+    listFittingPhotosBySession: async function (sessionId) {
+      return unwrap(await init().from('fitting_photos').select(PROJECTION_FITTING_PHOTOS).eq('session_id', sessionId)
+        .order('position', { ascending: true })
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true }));
+    },
+
+    getFittingPhoto: async function (id) {
+      return unwrap(await init().from('fitting_photos').select(PROJECTION_FITTING_PHOTOS).eq('id', id).single());
+    },
+
     createFittingPhoto: async function (record) {
       return unwrap(await init().from('fitting_photos').insert(record).select(PROJECTION_FITTING_PHOTOS).single());
     },
@@ -423,6 +437,10 @@ KK.db = (function () {
       callDrive('save_moodboard_pdf', { file_name: fileName, pdf_base64: pdfBase64, customer_name: customerName, order_title: orderTitle }),
     driveSaveFittingPhoto: (imageBase64, mimeType, fileName, customerName, orderTitle, stage) =>
       callDrive('save_fitting_photo', { image_base64: imageBase64, mime_type: mimeType, file_name: fileName, customer_name: customerName, order_title: orderTitle, stage }),
+    /* Original bytes of an app-created Drive photo, for sharing a real file and
+       for PDF generation. The Drive id is resolved server-side from the photo
+       record, so no arbitrary Drive id can be requested through this. */
+    driveGetFittingPhoto: (photoId) => callDrive('get_fitting_photo', { photo_id: photoId }),
 
     logMoodboard: async function (orderId, driveLink) {
       unwrap(await init().from('document_log').insert({ order_id: orderId, kind: 'moodboard', total: null, drive_link: driveLink || null }));

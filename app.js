@@ -114,6 +114,35 @@ KK.app = (function () {
     fitlogState: $("#fitlogState"),
     fitlogSentinel: $("#fitlogSentinel"),
     fitlogStatus: $("#fitlogStatus"),
+    viewFittingDetail: $("#viewFittingDetail"),
+    fitdetBackBtn: $("#fitdetBackBtn"),
+    fitdetPdfBtn: $("#fitdetPdfBtn"),
+    fitdetTitle: $("#fitdetTitle"),
+    fitdetStage: $("#fitdetStage"),
+    fitdetCustomer: $("#fitdetCustomer"),
+    fitdetDate: $("#fitdetDate"),
+    fitdetBody: $("#fitdetBody"),
+    fitdetList: $("#fitdetList"),
+    fitdetState: $("#fitdetState"),
+    fitdetStatus: $("#fitdetStatus"),
+    fitdetBar: $("#fitdetBar"),
+    fitdetEndBtn: $("#fitdetEndBtn"),
+    fitdetAddBtn: $("#fitdetAddBtn"),
+    viewFittingPhotoEdit: $("#viewFittingPhotoEdit"),
+    fiteditBackBtn: $("#fiteditBackBtn"),
+    fiteditTitle: $("#fiteditTitle"),
+    fiteditPreview: $("#fiteditPreview"),
+    fiteditReplaceBtn: $("#fiteditReplaceBtn"),
+    fiteditCaption: $("#fiteditCaption"),
+    fiteditDeleteBtn: $("#fiteditDeleteBtn"),
+    fiteditFileInput: $("#fiteditFileInput"),
+    fiteditStatus: $("#fiteditStatus"),
+    fiteditBar: $("#fiteditBar"),
+    fiteditSaveBtn: $("#fiteditSaveBtn"),
+    fittingPhotoViewer: $("#fittingPhotoViewer"),
+    fittingPhotoViewerImage: $("#fittingPhotoViewerImage"),
+    fittingPhotoViewerCaption: $("#fittingPhotoViewerCaption"),
+    fittingPhotoViewerClose: $("#fittingPhotoViewerClose"),
     viewCustomerEdit: $("#viewCustomerEdit"),
     custEditCancel: $("#custEditCancel"),
     custEditTitle: $("#custEditTitle"),
@@ -263,7 +292,43 @@ KK.app = (function () {
       searchTimer: null,
       alignPending: false,
       errorAnnounced: false,
-      lastStatus: ""
+      lastStatus: "",
+      /* Set when a card is tapped and consumed by the next visit to the feed
+         route, which is what makes Back land on the same list and offset. Any
+         exit from the fitting-log route family clears it, and a reload never
+         sees it at all. */
+      retainHash: "",
+      retainScroll: 0
+    },
+    /* One fitting_sessions record and everything its page needs. Kept apart
+       from the journal's own session state so a stale journal render can never
+       paint into this page. */
+    fittingDetail: {
+      phase: "idle", // idle | loading | ready
+      loadToken: 0,
+      sessionId: null,
+      session: null,
+      order: null,
+      customer: null,
+      photos: [],
+      bridge: null, // shared object handed to KK.fittings for Add photo
+      pdfBusy: false,
+      sharingId: null,
+      blobCache: new Map(), // photoId -> { blob, url } for this page lifetime
+      viewerReturn: null
+    },
+    fittingEditor: {
+      phase: "idle",
+      loadToken: 0,
+      sessionId: null,
+      photoId: null,
+      photo: null,
+      session: null,
+      order: null,
+      customer: null,
+      staged: null, // { blob, url } prepared replacement, not yet uploaded
+      uploaded: null, // { drive_file_id, drive_link } kept for a retry
+      saving: false
     },
     orderDetail: {
       phase: "idle", // idle | loading | ready | error
@@ -295,9 +360,14 @@ KK.app = (function () {
   }
 
   function syncBottomBar() {
-    const activeBar = elements.savebar.hidden
-      ? (elements.fittingJournalBar.hidden ? null : elements.fittingJournalBar)
-      : elements.savebar;
+    // Whichever fixed bar is actually showing publishes its height, so content,
+    // toasts, and focus targets clear exactly one of them.
+    const activeBar = [
+      elements.savebar,
+      elements.fittingJournalBar,
+      elements.fitdetBar,
+      elements.fiteditBar
+    ].filter((bar) => bar && !bar.hidden)[0] || null;
     document.documentElement.style.setProperty(
       "--bottombar-h",
       activeBar ? Math.round(activeBar.getBoundingClientRect().height) + "px" : "0px"
@@ -352,6 +422,7 @@ KK.app = (function () {
     document.body.classList.toggle("is-orderpage", !!cfg.orderpage);
     document.body.classList.toggle("is-moodboardpage", !!cfg.moodboardpage);
     document.body.classList.toggle("is-fittinglogspage", !!cfg.fittinglogspage);
+    document.body.classList.toggle("is-fitdetailpage", !!cfg.fitdetailpage);
 
     elements.viewSub.innerHTML = cfg.sub || "";
     elements.viewSub.hidden = !cfg.sub;
@@ -431,7 +502,7 @@ KK.app = (function () {
 
   const routeHasOwnLoader = (r) => "customers" === r.view || "order" === r.view || "fittingLogs" === r.view;
   const routeLoaderKind = (r) =>
-    "customer" === r.view || "customerEdit" === r.view
+    "customer" === r.view || "customerEdit" === r.view || "fittingLogDetail" === r.view || "fittingPhotoEdit" === r.view
       ? "ledger"
       : "moodboard" === r.view || "moodboardPreview" === r.view
       ? "moodboard"
@@ -453,6 +524,8 @@ KK.app = (function () {
       moodboard: "moodboard",
       fittingNew: "fitting journal",
       fittingJournal: "fitting journal",
+      fittingLogDetail: "fitting log",
+      fittingPhotoEdit: "photo editor",
       calendar: "calendar settings",
       enquiry: "enquiry"
     };
@@ -518,6 +591,10 @@ KK.app = (function () {
         ? elements.mbCanvasBack
         : "fittingLogs" === r.view
         ? elements.fitlogTitle
+        : "fittingLogDetail" === r.view
+        ? elements.fitdetTitle
+        : "fittingPhotoEdit" === r.view
+        ? elements.fiteditTitle
         : elements.viewTitle;
 
     if (focusTarget) {
@@ -738,6 +815,15 @@ KK.app = (function () {
       if (("order" === segments[0] && segments[1] && "fittings" === segments[2]) || ("order" === segments[0] && segments[1])) {
         return { view: "order", id: segments[1], query };
       }
+      // Both fitting-log detail routes are matched before the general feed, and
+      // each carries only ids: they fetch and validate their own records so a
+      // pasted URL behaves exactly like a tapped card.
+      if ("fittings" === segments[0] && segments[1] && "photo" === segments[2] && segments[3] && "edit" === segments[4]) {
+        return { view: "fittingPhotoEdit", sessionId: segments[1], photoId: segments[3], query };
+      }
+      if ("fittings" === segments[0] && segments[1]) {
+        return { view: "fittingLogDetail", sessionId: segments[1], query };
+      }
       if ("fittings" === segments[0]) {
         return { view: "fittingLogs", query };
       }
@@ -791,13 +877,33 @@ KK.app = (function () {
     elements.fittingJournalBar.hidden = "fittingJournal" !== targetRoute.view && "fittingNew" !== targetRoute.view;
     document.body.classList.toggle("has-fitting-journal-bar", !elements.fittingJournalBar.hidden);
     elements.viewFittingLogs.hidden = "fittingLogs" !== targetRoute.view;
+    elements.viewFittingDetail.hidden = "fittingLogDetail" !== targetRoute.view;
+    elements.viewFittingPhotoEdit.hidden = "fittingPhotoEdit" !== targetRoute.view;
     elements.viewCalendar.hidden = "calendar" !== targetRoute.view;
     elements.viewEnquiry.hidden = "enquiry" !== targetRoute.view;
 
     // Leaving the feed must take its observer, debounce, and in-flight page
-    // tokens with it, or a late response can render into a hidden view.
+    // tokens with it, or a late response can render into a hidden view. Moving
+    // deeper into the fitting-log family instead parks the feed intact so Back
+    // can restore the same list, the same pages, and the same offset.
     if (prevRoute && "fittingLogs" === prevRoute.view && "fittingLogs" !== targetRoute.view) {
-      cleanupFittingLogs();
+      if (inFittingFamily(targetRoute)) parkFittingLogs();
+      else cleanupFittingLogs();
+    }
+    if (prevRoute && "fittingLogDetail" === prevRoute.view && !inFittingFamily(targetRoute)) {
+      cleanupFittingDetail();
+    }
+    if (prevRoute && "fittingPhotoEdit" === prevRoute.view && "fittingPhotoEdit" !== targetRoute.view) {
+      cleanupFittingEditor();
+    }
+    if (prevRoute && "fittingLogDetail" === prevRoute.view && "fittingLogDetail" !== targetRoute.view) {
+      closeFittingPhotoViewer();
+      elements.fitdetBar.hidden = true;
+      document.body.classList.remove("has-fitdet-bar");
+    }
+    if ("fittingPhotoEdit" !== targetRoute.view) {
+      elements.fiteditBar.hidden = true;
+      document.body.classList.remove("has-fitedit-bar");
     }
 
     if (!prevRoute || ("fittingNew" !== prevRoute.view && "fittingJournal" !== prevRoute.view) ||
@@ -976,6 +1082,10 @@ KK.app = (function () {
         })(targetRoute.id, targetRoute.sessionId);
       } else if ("fittingLogs" === targetRoute.view) {
         await showFittingLogs(targetRoute.query);
+      } else if ("fittingLogDetail" === targetRoute.view) {
+        await showFittingLogDetail(targetRoute.sessionId);
+      } else if ("fittingPhotoEdit" === targetRoute.view) {
+        await showFittingPhotoEditor(targetRoute.sessionId, targetRoute.photoId);
       } else if ("calendar" === targetRoute.view) {
         await showCalendarSettings();
       } else if ("enquiry" === targetRoute.view) {
@@ -1414,7 +1524,19 @@ KK.app = (function () {
       .map((url) => '<img class="fitlog-card__thumb" src="' + U.escapeHtml(url) + '" alt="" width="32" height="32" loading="lazy" decoding="async" onerror="this.removeAttribute(\'src\')">')
       .join('');
 
-    return '<article class="fitlog-card' + (stageKey ? ' fitlog-card--' + stageKey : '') + '">' +
+    // The whole record is one link and holds nothing else interactive, so it
+    // stays a single target for touch, keyboard, and assistive technology.
+    const label = [
+      item.customer_name || "Unnamed customer",
+      item.order_label || "Empty order",
+      item.stage_label || "",
+      U.formatShortDate(item.log_date),
+      fittingPhotoText(count)
+    ].filter(Boolean).join(", ");
+
+    return '<a class="fitlog-card-link" href="#/fittings/' + U.escapeHtml(encodeURIComponent(item.id)) +
+      '" aria-label="' + U.escapeHtml(label) + '">' +
+    '<article class="fitlog-card' + (stageKey ? ' fitlog-card--' + stageKey : '') + '">' +
       '<div class="fitlog-card__top">' +
         '<div class="fitlog-card__names">' +
           '<span class="fitlog-card__customer">' + U.escapeHtml((item.customer_name || "Unnamed customer") + ":") + '</span>' +
@@ -1432,7 +1554,8 @@ KK.app = (function () {
         '</span>' +
       '</div>' +
     '</article>' +
-    '<span class="fitlog-card__rail" aria-hidden="true"></span>';
+    '<span class="fitlog-card__rail" aria-hidden="true"></span>' +
+    '</a>';
   }
 
   /* The card's exact outer geometry, so swapping a skeleton for a record moves
@@ -1688,6 +1811,28 @@ KK.app = (function () {
     fs.loadMoreError = null;
     fs.alignPending = false;
     fs.lastStatus = "";
+    fs.retainHash = "";
+    fs.retainScroll = 0;
+    elements.fitlogList.innerHTML = "";
+    fs.renderedToken = -1;
+  }
+
+  /* The three routes that are one experience. Moving between them keeps the
+     feed's search, filters, loaded pages, DOM, and offset alive; leaving them
+     for anything else is an ordinary teardown. */
+  const FITTING_ROUTE_FAMILY = ["fittingLogs", "fittingLogDetail", "fittingPhotoEdit"];
+  const inFittingFamily = (r) => !!r && FITTING_ROUTE_FAMILY.indexOf(r.view) !== -1;
+
+  /* Everything with a timer or a callback stops; everything with a result
+     stays. lastVisitedHash is still the feed's own hash at this point, which is
+     what a later visit compares against before trusting the snapshot. */
+  function parkFittingLogs() {
+    const fs = feed();
+    stopFittingObserver();
+    clearTimeout(fs.searchTimer);
+    fs.searchTimer = null;
+    fs.alignPending = false;
+    fs.retainHash = "ready" === fs.phase && fs.items.length ? lastVisitedHash : "";
   }
 
   /* --------------------------- Search focus space -------------------------- */
@@ -1775,7 +1920,7 @@ KK.app = (function () {
   });
 
   elements.viewFittingLogs.addEventListener("pointerdown", (e) => {
-    const target = e.target.closest(".cust-nav-btn,.fitlog-panel__retry");
+    const target = e.target.closest(".cust-nav-btn,.fitlog-panel__retry,.fitlog-card-link");
     if (target && !target.disabled) target.classList.add("is-pressed");
   });
 
@@ -1790,6 +1935,12 @@ KK.app = (function () {
   elements.viewFittingLogs.addEventListener("click", (e) => {
     if (e.target.closest("#fitlogNewBtn")) {
       e.preventDefault();
+      return;
+    }
+    // Recorded before the hash changes, because after navigation the feed is
+    // no longer the scrolling document.
+    if (e.target.closest(".fitlog-card-link")) {
+      feed().retainScroll = window.scrollY || window.pageYOffset || 0;
       return;
     }
     if (e.target.closest(".js-fitlog-retry")) {
@@ -1817,6 +1968,23 @@ KK.app = (function () {
     setSaveBar(false);
 
     const fs = feed();
+
+    /* Returning from a detail or editor page inside the same history visit:
+       the rows, the cursor, the DOM, and the offset are all still here, so the
+       first page is deliberately not requested again. Any other arrival — a
+       fresh link, a reload, a different query — falls through and rebuilds. */
+    if (fs.retainHash && fs.retainHash === location.hash && "ready" === fs.phase && fs.items.length) {
+      fs.retainHash = "";
+      renderFittingStages();
+      renderFittingSearchClear();
+      renderFittingFeed();
+      ensureFittingObserver();
+      restoreFittingScroll(fs.retainScroll);
+      return;
+    }
+    fs.retainHash = "";
+    fs.retainScroll = 0;
+
     fs.query = seedName;
     fs.selectedStages = [];
     fs.customerSeed = hasSeed ? { id: seedId, originalQuery: seedName } : null;
@@ -1845,11 +2013,801 @@ KK.app = (function () {
     }
   }
 
+  /* The router scrolls to the top before any view renders, and the curtain
+     reveal runs after it, so the offset is reapplied once layout has settled
+     rather than in the same frame. */
+  function restoreFittingScroll(offset) {
+    const target = Math.max(0, Number(offset) || 0);
+    if (!target) return;
+    const apply = () => {
+      if (!isFittingRoute()) return;
+      window.scrollTo(0, target);
+    };
+    requestAnimationFrame(() => requestAnimationFrame(apply));
+    setTimeout(apply, 120);
+  }
+
   function setFittingBackControl(origin) {
     const label = origin && origin.name ? origin.name : "Home";
     elements.fitlogBackLabel.textContent = label;
     elements.fitlogBackBtn.href = origin ? "#/customer/" + encodeURIComponent(origin.id) : "#/customers";
     elements.fitlogBackBtn.setAttribute("aria-label", "Back to " + label);
+  }
+
+  /* ====================== Fitting log session detail ====================== */
+
+  /* Figma 229:2847. Exactly one fitting_sessions record — never a stage, never
+     an order, never a merge of several sessions. Both this page and the photo
+     editor fetch their own records, so a pasted URL and a tapped card produce
+     identical state. */
+
+  const detail = () => state.fittingDetail;
+  const editor = () => state.fittingEditor;
+  const isDetailRoute = () => !!state.route && "fittingLogDetail" === state.route.view;
+  const isEditorRoute = () => !!state.route && "fittingPhotoEdit" === state.route.view;
+
+  const FITTING_IMAGE_MAX = 1600;
+  const FITTING_IMAGE_QUALITY = 0.85;
+
+  /* Deterministic even when two rows share a position and a timestamp, because
+     the detail page, the share filename, and the PDF all number photos from
+     this one order. */
+  function sortFittingPhotos(photos) {
+    return (photos || []).slice().sort((a, b) =>
+      (Number(a.position) || 0) - (Number(b.position) || 0) ||
+      String(a.created_at || "").localeCompare(String(b.created_at || "")) ||
+      String(a.id).localeCompare(String(b.id))
+    );
+  }
+
+  function fittingPhotoState(photo) {
+    if (KK.fittings.localURLs.get(photo.id)) {
+      return KK.fittings.isBackingUp(photo.id) ? "backing-up" : "ready-local";
+    }
+    if (photo.drive_file_id) return "ready-drive";
+    return "unavailable";
+  }
+
+  const fittingPhotoDisplayURL = (photo) =>
+    KK.fittings.localURLs.get(photo.id) || KK.fittings.thumbURL(photo.drive_file_id, FITTING_IMAGE_MAX);
+
+  /* ------------------------------ Detail render ---------------------------- */
+
+  function fittingDetailCardHtml(photo, index) {
+    const d = detail();
+    const displayState = fittingPhotoState(photo);
+    const url = fittingPhotoDisplayURL(photo);
+    const alt = photo.caption ? "Fitting photo: " + photo.caption : "Fitting photo " + (index + 1);
+
+    const frame = "unavailable" === displayState
+      ? '<div class="fitdet-missing">' +
+          '<p class="fitdet-missing__title">Photo unavailable</p>' +
+          '<p class="fitdet-missing__copy">This record has no image on this device or in Drive. Its note is kept below.</p>' +
+        '</div>'
+      : '<button type="button" class="fitdet-card__frame js-fitdet-open" data-id="' + U.escapeHtml(photo.id) + '" ' +
+          'aria-label="Open photo ' + (index + 1) + ' full screen">' +
+          '<img class="fitdet-card__image" src="' + U.escapeHtml(url) + '" alt="' + U.escapeHtml(alt) + '" loading="lazy" decoding="async">' +
+        '</button>';
+
+    const pending = "backing-up" === displayState
+      ? '<p class="fitdet-pending"><span class="fitdet-pending__dot" aria-hidden="true"></span>Backing up to Drive…</p>'
+      : '';
+
+    // An empty caption removes its region entirely rather than printing a
+    // placeholder sentence a client-facing PDF would then have to carry.
+    const caption = photo.caption
+      ? '<p class="fitdet-card__caption">' + U.escapeHtml(photo.caption) + '</p>'
+      : '';
+
+    const shareDisabled = "unavailable" === displayState;
+    const shareLabel = shareDisabled
+      ? "Share photo " + (index + 1) + " (unavailable — this photo has no image to share)"
+      : "Share photo " + (index + 1);
+
+    const editHref = "#/fittings/" + encodeURIComponent(d.sessionId) +
+      "/photo/" + encodeURIComponent(photo.id) + "/edit";
+
+    return '<div class="fitlog-grid-spacer" aria-hidden="true"></div>' +
+      '<div class="fitlog-grid-rule" aria-hidden="true"></div>' +
+      '<div class="fitdet-inset">' +
+        '<article class="fitdet-card">' + frame + pending + caption + '</article>' +
+        '<div class="fitdet-actions">' +
+          '<a class="fitdet-action" href="' + U.escapeHtml(editHref) + '" aria-label="Edit photo ' + (index + 1) + '">' +
+            '<span class="fitdet-action__face"><img src="assets/fitlog-edit-icon.svg" alt="" width="20" height="20"><span>Edit</span></span>' +
+            '<span class="fitdet-action__rail" aria-hidden="true"></span>' +
+          '</a>' +
+          '<span class="fitdet-actions__rule" aria-hidden="true"></span>' +
+          '<button type="button" class="fitdet-action js-fitdet-share" data-id="' + U.escapeHtml(photo.id) + '"' +
+            (shareDisabled ? ' disabled' : '') + ' aria-label="' + U.escapeHtml(shareLabel) + '">' +
+            '<span class="fitdet-action__face"><img src="assets/fitlog-share-icon.svg" alt="" width="20" height="20"><span>Share</span></span>' +
+            '<span class="fitdet-action__rail" aria-hidden="true"></span>' +
+          '</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="fitlog-grid-rule" aria-hidden="true"></div>';
+  }
+
+  function fittingDetailEmptyHtml() {
+    const d = detail();
+    return '<div class="fitlog-grid-spacer" aria-hidden="true"></div>' +
+      '<div class="fitlog-grid-rule" aria-hidden="true"></div>' +
+      '<div class="fitlog-inset">' +
+        fittingPanelHtml(
+          "No photos in this fitting log",
+          "active" === (d.session && d.session.status)
+            ? "Use Add photo below to start this session's record."
+            : "This session was completed without any photos."
+        ) +
+      '</div>' +
+      '<div class="fitlog-grid-rule" aria-hidden="true"></div>';
+  }
+
+  function announceDetailStatus(text) {
+    if (elements.fitdetStatus.textContent === text) return;
+    elements.fitdetStatus.textContent = text;
+  }
+
+  function renderFittingDetail() {
+    const d = detail();
+    if (!d.session) return;
+
+    const stage = U.fittingStage(d.session.stage);
+    const isActive = "active" === d.session.status;
+
+    elements.fitdetTitle.textContent = d.order ? orderLabel(d.order) : "Fitting log";
+    elements.fitdetStage.textContent = stage.label;
+    elements.fitdetStage.hidden = !stage.label;
+    elements.fitdetStage.className = "fitdet-stage" + (stage.key ? " fitdet-stage--" + stage.key : "");
+    elements.fitdetCustomer.textContent = (d.customer && d.customer.name) || "Unnamed customer";
+    elements.fitdetDate.textContent = U.formatJakartaLongDate(d.session.created_at);
+
+    const photos = d.photos;
+    elements.fitdetList.innerHTML = photos.map(
+      (photo, index) => '<li class="fitdet-record">' + fittingDetailCardHtml(photo, index) + '</li>'
+    ).join('');
+    elements.fitdetState.innerHTML = photos.length ? '' : fittingDetailEmptyHtml();
+    elements.fitdetBody.setAttribute("aria-busy", "false");
+
+    // Nothing to print is not an error state; the control simply cannot act.
+    elements.fitdetPdfBtn.disabled = !photos.length || d.pdfBusy;
+    elements.fitdetPdfBtn.setAttribute("aria-busy", d.pdfBusy ? "true" : "false");
+    elements.fitdetPdfBtn.setAttribute(
+      "aria-label",
+      d.pdfBusy ? "Preparing the PDF" : photos.length ? "Download this fitting log as a PDF" : "Download PDF (this log has no photos)"
+    );
+
+    elements.fitdetBar.hidden = !isActive;
+    document.body.classList.toggle("has-fitdet-bar", isActive);
+    syncBottomBar();
+
+    announceDetailStatus(
+      photos.length ? photos.length + (1 === photos.length ? " photo in this fitting log" : " photos in this fitting log")
+        : "This fitting log has no photos"
+    );
+  }
+
+  /* ------------------------------- Photo bytes ----------------------------- */
+
+  /* Local first, Drive second, and cached only for as long as this page is
+     open. The Drive read resolves its own file id server-side, so nothing here
+     can ask for a file this app did not create. */
+  async function fittingPhotoBlob(photo) {
+    const d = detail();
+    const cached = d.blobCache.get(photo.id);
+    if (cached) return cached;
+
+    const localUrl = KK.fittings.localURLs.get(photo.id);
+    if (localUrl) {
+      const blob = await fetch(localUrl).then((res) => res.blob());
+      d.blobCache.set(photo.id, blob);
+      return blob;
+    }
+
+    if (!photo.drive_file_id) throw new Error("This photo has no image to use.");
+
+    const result = await db.driveGetFittingPhoto(photo.id);
+    const raw = atob(String(result.image_base64 || ""));
+    const bytes = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+    const blob = new Blob([bytes], { type: result.mime_type || "image/jpeg" });
+    d.blobCache.set(photo.id, blob);
+    return blob;
+  }
+
+  function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(new Error("Could not read that image."));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  function measureImage(dataUrl) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+      img.onerror = () => reject(new Error("Could not decode that image."));
+      img.src = dataUrl;
+    });
+  }
+
+  function fittingShareFilename(photo, index) {
+    const d = detail();
+    const parts = [
+      U.sanitizeForFilename((d.customer && d.customer.name) || "") || "Customer",
+      U.sanitizeForFilename(U.fittingStage(d.session.stage).label) || "Fitting",
+      String(index + 1).padStart(2, "0")
+    ];
+    return parts.join("-") + ".jpg";
+  }
+
+  /* -------------------------------- Sharing -------------------------------- */
+
+  /* An actual image file plus the caption, or a clear explanation. No Drive
+     link, no WhatsApp, no clipboard, and no silent download: those are
+     different actions wearing this one's label. */
+  async function shareFittingPhoto(photoId, button) {
+    const d = detail();
+    if (d.sharingId) return;
+
+    const index = d.photos.findIndex((p) => p.id === photoId);
+    const photo = d.photos[index];
+    if (!photo) return;
+
+    if ("unavailable" === fittingPhotoState(photo)) {
+      showToast("This photo has no image to share");
+      return;
+    }
+    if (!navigator.share || !navigator.canShare) {
+      showToast("This browser cannot share image files");
+      return;
+    }
+
+    d.sharingId = photoId;
+    if (button) {
+      button.disabled = true;
+      button.setAttribute("aria-busy", "true");
+    }
+
+    try {
+      const blob = await fittingPhotoBlob(photo);
+      const file = new File([blob], fittingShareFilename(photo, index), {
+        type: blob.type || "image/jpeg"
+      });
+
+      if (!navigator.canShare({ files: [file] })) {
+        showToast("This browser cannot share image files");
+        return;
+      }
+
+      const payload = { files: [file] };
+      if (photo.caption) payload.text = photo.caption;
+      await navigator.share(payload);
+    } catch (err) {
+      // Dismissing the native sheet is a decision, not a failure.
+      if (!err || "AbortError" !== err.name) {
+        console.error(err);
+        showToast((err && err.message) || "Could not share that photo");
+      }
+    } finally {
+      d.sharingId = null;
+      if (button && document.contains(button)) {
+        button.disabled = false;
+        button.setAttribute("aria-busy", "false");
+      }
+    }
+  }
+
+  /* ------------------------------ PDF download ----------------------------- */
+
+  async function downloadFittingPdf() {
+    const d = detail();
+    if (d.pdfBusy || !d.photos.length || !d.session) return;
+
+    d.pdfBusy = true;
+    renderFittingDetail();
+    announceDetailStatus("Preparing the PDF");
+
+    try {
+      // A photo still uploading has usable local bytes; waiting keeps the
+      // document and the archive describing the same session.
+      if (KK.fittings.hasPendingBackups(d.sessionId)) {
+        announceDetailStatus("Waiting for photo backups to finish");
+        await KK.fittings.waitForSessionBackups(d.sessionId);
+        if (!isDetailRoute()) return;
+      }
+
+      const resolved = [];
+      const failed = [];
+      for (let i = 0; i < d.photos.length; i++) {
+        try {
+          const blob = await fittingPhotoBlob(d.photos[i]);
+          const dataUrl = await blobToDataUrl(blob);
+          const size = await measureImage(dataUrl);
+          resolved.push({
+            dataUrl,
+            width: size.width,
+            height: size.height,
+            format: /png/i.test(blob.type || "") ? "PNG" : "JPEG"
+          });
+        } catch (err) {
+          console.error(err);
+          resolved.push(null);
+          failed.push(i + 1);
+        }
+      }
+
+      // All or nothing: a client document that quietly omits a photo is worse
+      // than one that was never produced.
+      if (failed.length) {
+        throw new Error(
+          "Photo " + failed.join(", ") + " could not be prepared, so no PDF was saved."
+        );
+      }
+      if (!isDetailRoute()) return;
+
+      const doc = await KK.fittingPdf.generate({
+        session: d.session,
+        customer: d.customer || {},
+        photos: d.photos,
+        resolveImage: (photo) => resolved[d.photos.indexOf(photo)]
+      });
+
+      doc.save(KK.fittingPdf.buildFilename({ session: d.session, customer: d.customer || {} }));
+      announceDetailStatus("PDF saved");
+      showToast("PDF saved");
+    } catch (err) {
+      console.error(err);
+      announceDetailStatus("PDF failed");
+      showToast((err && err.message) || "Could not create the PDF");
+    } finally {
+      d.pdfBusy = false;
+      if (isDetailRoute()) renderFittingDetail();
+    }
+  }
+
+  /* ------------------------------ Photo viewer ----------------------------- */
+
+  function openFittingPhotoViewer(photoId, originButton) {
+    const d = detail();
+    const photo = d.photos.filter((p) => p.id === photoId)[0];
+    if (!photo || "unavailable" === fittingPhotoState(photo)) return;
+
+    d.viewerReturn = originButton || null;
+    elements.fittingPhotoViewerImage.src = fittingPhotoDisplayURL(photo);
+    elements.fittingPhotoViewerImage.alt = photo.caption || "Fitting photo";
+    elements.fittingPhotoViewerCaption.textContent = photo.caption || "";
+    elements.fittingPhotoViewer.hidden = false;
+    document.body.classList.add("has-modal");
+    requestAnimationFrame(() => elements.fittingPhotoViewerClose.focus());
+  }
+
+  function closeFittingPhotoViewer() {
+    if (elements.fittingPhotoViewer.hidden) return;
+    const d = detail();
+    elements.fittingPhotoViewer.hidden = true;
+    elements.fittingPhotoViewerImage.removeAttribute("src");
+    document.body.classList.remove("has-modal");
+    if (d.viewerReturn && document.contains(d.viewerReturn)) d.viewerReturn.focus();
+    d.viewerReturn = null;
+  }
+
+  /* --------------------------- Active-session actions ---------------------- */
+
+  /* The capture, compression, and Drive archival path is the journal's; only
+     the surface it renders into is this page's. */
+  function fittingDetailBridge() {
+    const d = detail();
+    return {
+      order: d.order,
+      customer: d.customer,
+      session: d.session,
+      photos: d.photos,
+      onToast: showToast,
+      onChange: (sessionState) => {
+        if (!isDetailRoute()) return;
+        d.photos = sortFittingPhotos(sessionState.photos);
+        sessionState.photos = d.photos;
+        renderFittingDetail();
+      }
+    };
+  }
+
+  function addFittingDetailPhoto() {
+    const d = detail();
+    if (!d.session || "active" !== d.session.status) return;
+    d.bridge = fittingDetailBridge();
+    KK.fittings.attachSession(d.bridge);
+    KK.fittings.addPhoto();
+  }
+
+  async function endFittingDetailSession() {
+    const d = detail();
+    if (!d.session || "active" !== d.session.status) return;
+    d.bridge = d.bridge || fittingDetailBridge();
+    KK.fittings.attachSession(d.bridge);
+
+    await KK.fittings.endSession(d.session, async () => {
+      if (!isDetailRoute()) return;
+      try {
+        d.session = await db.getFittingSession(d.sessionId);
+      } catch (_) {
+        d.session = Object.assign({}, d.session, {
+          status: "completed",
+          completed_at: new Date().toISOString()
+        });
+      }
+      d.bridge.session = d.session;
+      renderFittingDetail();
+      showToast("Session ended");
+    });
+  }
+
+  function cleanupFittingDetail() {
+    const d = detail();
+    d.loadToken++;
+    d.phase = "idle";
+    d.blobCache.clear();
+    d.pdfBusy = false;
+    d.sharingId = null;
+    if (d.bridge) KK.fittings.detachSession(d.bridge);
+    d.bridge = null;
+    KK.fittings.closeAll();
+    closeFittingPhotoViewer();
+  }
+
+  /* -------------------------------- Route entry ---------------------------- */
+
+  async function showFittingLogDetail(sessionId) {
+    const d = detail();
+    const token = ++d.loadToken;
+
+    setChrome({ title: "Fitting log", save: false, fitdetailpage: true });
+    setSaveBar(false);
+    setDirty(false);
+
+    d.phase = "loading";
+    d.sessionId = sessionId;
+    d.blobCache.clear();
+    elements.fitdetBody.setAttribute("aria-busy", "true");
+    elements.fitdetList.innerHTML = "";
+    elements.fitdetState.innerHTML = "";
+    elements.fitdetBar.hidden = true;
+    document.body.classList.remove("has-fitdet-bar");
+    elements.fitdetBackBtn.href = feed().retainHash || "#/fittings";
+
+    let session;
+    try {
+      session = await db.getFittingSession(sessionId);
+    } catch (err) {
+      console.error(err);
+      if (token !== d.loadToken) return;
+      // No broken shell is left behind: the route that cannot resolve returns
+      // to the one that always can.
+      showToast("That fitting log is no longer available");
+      return go("#/fittings");
+    }
+    if (token !== d.loadToken || !isDetailRoute()) return;
+
+    const order = await db.getOrder(session.order_id);
+    const res = await Promise.all([
+      db.getCustomer(order.customer_id),
+      db.listFittingPhotosBySession(sessionId)
+    ]);
+    if (token !== d.loadToken || !isDetailRoute()) return;
+
+    d.session = session;
+    d.order = order;
+    d.customer = res[0];
+    d.photos = sortFittingPhotos(res[1]);
+    d.phase = "ready";
+    d.bridge = fittingDetailBridge();
+    KK.fittings.attachSession(d.bridge);
+
+    renderFittingDetail();
+  }
+
+  /* ========================= Fitting photo editor ========================== */
+
+  /* Temporary layout, permanent contract: caption, replacement, and deletion
+     behave the same however this page is later redrawn. */
+
+  function fittingEditorDirty() {
+    const ed = editor();
+    if (!ed.photo) return false;
+    if (ed.staged || ed.uploaded) return true;
+    return elements.fiteditCaption.value !== String(ed.photo.caption || "");
+  }
+
+  function syncFittingEditorDirty() {
+    setDirty(fittingEditorDirty());
+  }
+
+  function renderFittingEditor() {
+    const ed = editor();
+    if (!ed.photo) return;
+
+    const url = ed.staged ? ed.staged.url : fittingPhotoDisplayURL(ed.photo);
+    if (url) {
+      elements.fiteditPreview.src = url;
+      elements.fiteditPreview.hidden = false;
+    } else {
+      elements.fiteditPreview.removeAttribute("src");
+      elements.fiteditPreview.hidden = true;
+    }
+
+    const busy = ed.saving;
+    elements.fiteditSaveBtn.disabled = busy;
+    elements.fiteditSaveBtn.setAttribute("aria-busy", busy ? "true" : "false");
+    $(".fitdet-bar__face", elements.fiteditSaveBtn).textContent = busy ? "Saving…" : "Save changes";
+    elements.fiteditReplaceBtn.disabled = busy;
+    elements.fiteditDeleteBtn.disabled = busy;
+    elements.fiteditCaption.disabled = busy;
+  }
+
+  function clearStagedReplacement() {
+    const ed = editor();
+    if (ed.staged && ed.staged.url) URL.revokeObjectURL(ed.staged.url);
+    ed.staged = null;
+  }
+
+  async function stageFittingReplacement(file) {
+    const ed = editor();
+    try {
+      const prepared = await KK.fittings.compressImage(
+        await KK.fittings.usableBlob(file), FITTING_IMAGE_MAX, FITTING_IMAGE_QUALITY
+      );
+      if (!isEditorRoute()) return;
+      clearStagedReplacement();
+      // A staged replacement is only a picture on screen until Save succeeds;
+      // the stored record and its Drive file are untouched until then.
+      ed.staged = { blob: prepared, url: URL.createObjectURL(prepared) };
+      ed.uploaded = null;
+      renderFittingEditor();
+      syncFittingEditorDirty();
+      elements.fiteditStatus.textContent = "Replacement ready. Save changes to keep it.";
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || "Could not prepare that photo");
+    }
+  }
+
+  /* Upload first, write once. The old record and its image stay usable until
+     the single update lands, so a failed upload costs nothing, and a failed
+     update can be retried without uploading a second copy. */
+  async function saveFittingEditor() {
+    const ed = editor();
+    if (ed.saving || !ed.photo) return;
+
+    const caption = elements.fiteditCaption.value.trim();
+    if (!fittingEditorDirty()) {
+      elements.fiteditStatus.textContent = "Nothing to save.";
+      return;
+    }
+
+    ed.saving = true;
+    renderFittingEditor();
+    elements.fiteditStatus.textContent = ed.staged ? "Uploading the replacement…" : "Saving…";
+
+    try {
+      if (ed.staged && !ed.uploaded) {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+        const result = await KK.db.driveSaveFittingPhoto(
+          await KK.fittings.base64(ed.staged.blob),
+          "image/jpeg",
+          "Fitting-" + ed.photo.stage + "-" + timestamp + ".jpg",
+          (ed.customer && ed.customer.name) || "Unnamed customer",
+          (ed.order && (ed.order.title || ed.order.doc_name)) || "Untitled order",
+          ed.photo.stage
+        );
+        ed.uploaded = { drive_file_id: result.file_id, drive_link: result.drive_link };
+      }
+
+      const patch = { caption: caption || null };
+      if (ed.uploaded) {
+        patch.drive_file_id = ed.uploaded.drive_file_id;
+        patch.drive_link = ed.uploaded.drive_link;
+      }
+      const updated = await KK.db.updateFittingPhoto(ed.photo.id, patch);
+
+      if (ed.staged) {
+        KK.fittings.adoptLocalURL(updated.id, ed.staged.url);
+        ed.staged = null; // ownership moved to the shared local-URL map
+      }
+      ed.photo = updated;
+      ed.uploaded = null;
+
+      // The detail page holds this record too; update it in place so returning
+      // does not need a second round trip.
+      const d = detail();
+      const idx = d.photos.findIndex((p) => p.id === updated.id);
+      if (idx !== -1) {
+        d.photos[idx] = updated;
+        d.blobCache.delete(updated.id);
+      }
+
+      ed.saving = false;
+      setDirty(false);
+      showToast("Photo updated");
+      leaveFormFor("#/fittings/" + encodeURIComponent(ed.sessionId));
+    } catch (err) {
+      console.error(err);
+      ed.saving = false;
+      renderFittingEditor();
+      elements.fiteditStatus.textContent = "";
+      showToast((err && err.message) || "Could not save those changes");
+    }
+  }
+
+  async function deleteFittingEditorPhoto() {
+    const ed = editor();
+    if (ed.saving || !ed.photo) return;
+    if (!window.confirm("Delete this photo from the fitting log? It disappears from the log, and its Google Drive archive copy is kept.")) return;
+
+    ed.saving = true;
+    renderFittingEditor();
+
+    try {
+      await db.deleteFittingPhoto(ed.photo.id);
+      KK.fittings.releaseLocalURL(ed.photo.id);
+      clearStagedReplacement();
+
+      const d = detail();
+      d.photos = d.photos.filter((p) => p.id !== ed.photo.id);
+      d.blobCache.delete(ed.photo.id);
+      if (d.bridge) d.bridge.photos = d.photos;
+
+      ed.saving = false;
+      setDirty(false);
+      showToast("Photo deleted");
+      leaveFormFor("#/fittings/" + encodeURIComponent(ed.sessionId));
+    } catch (err) {
+      console.error(err);
+      ed.saving = false;
+      renderFittingEditor();
+      showToast((err && err.message) || "Could not delete that photo");
+    }
+  }
+
+  function cleanupFittingEditor() {
+    const ed = editor();
+    ed.loadToken++;
+    clearStagedReplacement();
+    ed.uploaded = null;
+    ed.saving = false;
+    ed.phase = "idle";
+    ed.photo = null;
+    elements.fiteditStatus.textContent = "";
+    setDirty(false);
+  }
+
+  async function showFittingPhotoEditor(sessionId, photoId) {
+    const ed = editor();
+    const token = ++ed.loadToken;
+    const detailHash = "#/fittings/" + encodeURIComponent(sessionId);
+
+    setChrome({ title: "Edit photo", save: false, fitdetailpage: true });
+    setSaveBar(false);
+    setDirty(false);
+
+    clearStagedReplacement();
+    ed.uploaded = null;
+    ed.saving = false;
+    ed.sessionId = sessionId;
+    ed.photoId = photoId;
+    ed.photo = null;
+    elements.fiteditStatus.textContent = "";
+    elements.fiteditBackBtn.href = detailHash;
+
+    let session;
+    let photo;
+    try {
+      const res = await Promise.all([db.getFittingSession(sessionId), db.getFittingPhoto(photoId)]);
+      session = res[0];
+      photo = res[1];
+    } catch (err) {
+      console.error(err);
+      if (token !== ed.loadToken) return;
+      showToast("That photo is no longer available");
+      return go(detailHash);
+    }
+    if (token !== ed.loadToken || !isEditorRoute()) return;
+
+    // A photo id from another session is a wrong URL, not a permission story.
+    if (photo.session_id !== session.id) {
+      showToast("That photo belongs to a different fitting log");
+      return go(detailHash);
+    }
+
+    const order = await db.getOrder(session.order_id);
+    const customer = await db.getCustomer(order.customer_id);
+    if (token !== ed.loadToken || !isEditorRoute()) return;
+
+    ed.session = session;
+    ed.photo = photo;
+    ed.order = order;
+    ed.customer = customer;
+    ed.phase = "ready";
+
+    elements.fiteditTitle.textContent = "Edit photo";
+    elements.fiteditCaption.value = String(photo.caption || "");
+    elements.fiteditBar.hidden = false;
+    document.body.classList.add("has-fitedit-bar");
+    renderFittingEditor();
+    syncBottomBar();
+  }
+
+  /* ---------------------- Detail & editor event wiring --------------------- */
+
+  function setupFittingDetailListeners() {
+    const pressable = ".cust-nav-btn,.fitdet-action,.fitdet-bar__btn,.fitedit-delete";
+
+    [elements.viewFittingDetail, elements.viewFittingPhotoEdit].forEach((view) => {
+      view.addEventListener("pointerdown", (e) => {
+        const target = e.target.closest(pressable);
+        if (target && !target.disabled) target.classList.add("is-pressed");
+      });
+      view.addEventListener("keydown", (e) => {
+        if (" " !== e.key && "Enter" !== e.key) return;
+        const target = e.target.closest(pressable);
+        if (target && !target.disabled) target.classList.add("is-pressed");
+      });
+    });
+
+    [elements.fitdetBar, elements.fiteditBar].forEach((bar) => {
+      bar.addEventListener("pointerdown", (e) => {
+        const target = e.target.closest(".fitdet-bar__btn");
+        if (target && !target.disabled) target.classList.add("is-pressed");
+      });
+    });
+
+    /* Back returns through history when the feed is the page behind this one,
+       so its retained list and offset are restored instead of rebuilt. */
+    elements.fitdetBackBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      leaveFormFor(feed().retainHash || "#/fittings");
+    });
+
+    elements.fiteditBackBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      leaveFormFor("#/fittings/" + encodeURIComponent(editor().sessionId || ""));
+    });
+
+    elements.fitdetPdfBtn.addEventListener("click", downloadFittingPdf);
+    elements.fitdetAddBtn.addEventListener("click", addFittingDetailPhoto);
+    elements.fitdetEndBtn.addEventListener("click", endFittingDetailSession);
+
+    elements.viewFittingDetail.addEventListener("click", (e) => {
+      const opener = e.target.closest(".js-fitdet-open");
+      if (opener) {
+        openFittingPhotoViewer(opener.dataset.id, opener);
+        return;
+      }
+      const sharer = e.target.closest(".js-fitdet-share");
+      if (sharer && !sharer.disabled) shareFittingPhoto(sharer.dataset.id, sharer);
+    });
+
+    elements.fittingPhotoViewerClose.addEventListener("click", closeFittingPhotoViewer);
+
+    elements.fiteditReplaceBtn.addEventListener("click", () => elements.fiteditFileInput.click());
+    elements.fiteditFileInput.addEventListener("change", (e) => {
+      const file = e.target.files && e.target.files[0];
+      e.target.value = "";
+      if (file) stageFittingReplacement(file);
+    });
+    elements.fiteditCaption.addEventListener("input", syncFittingEditorDirty);
+    elements.fiteditSaveBtn.addEventListener("click", saveFittingEditor);
+    elements.fiteditDeleteBtn.addEventListener("click", deleteFittingEditorPhoto);
+
+    document.addEventListener("keydown", (e) => {
+      if (elements.fittingPhotoViewer.hidden) return;
+      trapModalFocus(e, elements.fittingPhotoViewer);
+      if ("Escape" === e.key) {
+        e.preventDefault();
+        closeFittingPhotoViewer();
+      }
+    });
   }
 
   function readableAnswer(fieldObj) {
@@ -4057,6 +5015,7 @@ KK.app = (function () {
 
     elements.fittingJournalAdd.addEventListener("click", () => KK.fittings.openCamera());
     KK.fittings.bindOverlays();
+    setupFittingDetailListeners();
     setupMoodboardListeners();
 
     elements.gcalConnect.addEventListener("click", connectGoogle);

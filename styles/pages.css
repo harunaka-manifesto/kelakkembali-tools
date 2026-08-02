@@ -1397,17 +1397,28 @@ body.is-orderpage .view { gap: 0; }
 
 /* ------------------------------ Navigation ------------------------------ */
 
-/* In flow rather than fixed: the title band below it is the page's own
-   heading, so nothing needs to scroll under the buttons. */
-.order-nav {
-  padding: calc(12px + env(safe-area-inset-top)) 16px 0;
+/* Fixed and transparent, like the homepage/customer nav: the buttons ride
+   above the page and content scrolls under them. */
+.order-nav,
+.order-skel__nav {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 390px;
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 0;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  background: var(--home-black);
+  z-index: 100;
+  background: none;
+  pointer-events: none;
 }
 .order-nav__actions { display: flex; align-items: flex-start; justify-content: flex-end; gap: 12px; }
+.order-nav-btn,
+.order-skel__navbtn { pointer-events: auto; }
 .order-nav-btn {
   min-width: 0;
   height: 55px;
@@ -1456,7 +1467,7 @@ body.is-orderpage .view { gap: 0; }
 
 /* ------------------------------- Ledger --------------------------------- */
 
-.order-ledger { flex: 1; background: var(--home-black); }
+.order-ledger { flex: 1; background: var(--home-black); padding-top: 67px; }
 .order-grid-rule { height: 1px; background: var(--home-grid); }
 .order-grid-spacer { height: 24px; position: relative; }
 .order-grid-spacer::before,
@@ -1993,13 +2004,6 @@ body.is-orderpage .view { gap: 0; }
 
 /* ---------------------------- Loading skeleton --------------------------- */
 
-.order-skel__nav {
-  padding: calc(12px + env(safe-area-inset-top)) 16px 0;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
 .order-skel__navgroup { display: flex; gap: 12px; }
 .order-skel__navbtn {
   display: block;
@@ -2010,7 +2014,7 @@ body.is-orderpage .view { gap: 0; }
   animation: home-shimmer-dark 1.2s ease-in-out infinite;
 }
 .order-skel__navbtn--back { width: 116px; }
-.order-skel__ledger { background: var(--home-black); }
+.order-skel__ledger { background: var(--home-black); padding-top: 67px; }
 .order-skel__title {
   padding: 12px 24px;
   display: flex;
@@ -2558,6 +2562,436 @@ body.is-fittinglogspage #fitlogNewBtn:disabled {
   .fitlog-search__clear,
   .fitlog-card,
   .fitlog-card__rail { transition: none; }
+}
+
+/* --------------------------- Feed card as a link -------------------------- */
+
+/* The whole record is one target and contains nothing else clickable, so the
+   card can be an anchor without producing a nested-interactive trap. */
+.fitlog-card-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.fitlog-card-link:active .fitlog-card,
+.fitlog-card-link.is-pressed .fitlog-card { padding-top: 14px; padding-bottom: 10px; }
+.fitlog-card-link:active .fitlog-card__rail,
+.fitlog-card-link.is-pressed .fitlog-card__rail { height: 4px; }
+
+/* ============================ Fitting log detail ========================== */
+
+/* Figma 229:2847. Same ledger as the feed, one session deep. The four stage
+   colours are redeclared here rather than inherited, because .fitlog is a
+   sibling view and not an ancestor of this one. */
+.fitdet,
+.fitedit {
+  display: flex;
+  flex-direction: column;
+  background: var(--home-black);
+  --stage-sizing:    #1866da;
+  --stage-fitting-1: #19aa16;
+  --stage-fitting-2: #e72a90;
+  --stage-fitting-3: #ff6a00;
+}
+
+.fitdet-head { padding-top: 67px; background: var(--home-black); }
+
+.fitdet-identity {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  padding-left: 24px;
+  border-top: 1px solid var(--home-grid);
+}
+.fitdet-title {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  align-self: center;
+  padding: 10px 0;
+  color: var(--home-white);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 40px;
+  letter-spacing: -.96px;
+  overflow-wrap: anywhere;
+}
+/* Full-bleed to the right edge exactly as Figma draws it, so the badge reads as
+   part of the ledger rule rather than a chip floating on it. */
+.fitdet-stage {
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 20px 12px;
+  border: 1px solid var(--home-grid);
+  background: var(--fitdet-stage-color, var(--home-grid));
+  color: var(--home-white);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: -.42px;
+  text-align: center;
+  white-space: nowrap;
+}
+.fitdet-stage[hidden] { display: none; }
+.fitdet-stage--sizing    { --fitdet-stage-color: var(--stage-sizing); }
+.fitdet-stage--fitting-1 { --fitdet-stage-color: var(--stage-fitting-1); }
+.fitdet-stage--fitting-2 { --fitdet-stage-color: var(--stage-fitting-2); }
+.fitdet-stage--fitting-3 { --fitdet-stage-color: var(--stage-fitting-3); }
+
+.fitdet-meta {
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  border-top: 1px solid var(--home-grid);
+  border-bottom: 1px solid var(--home-grid);
+}
+.fitdet-meta__rule { flex: none; width: 1px; height: 32px; background: var(--home-grid); }
+.fitdet-meta__cell {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 6px 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: -.42px;
+}
+.fitdet-meta__cell--end { text-align: right; }
+
+/* ------------------------------- Photo cards ------------------------------ */
+
+.fitdet-body { background: var(--home-black); }
+.fitdet-list { margin: 0; padding: 0; list-style: none; }
+.fitdet-record { display: block; }
+.fitdet-record,
+.fitdet-state:not(:empty) { animation: fitlog-result-in var(--motion-enter) var(--ease-standard) both; }
+.fitdet-inset { padding: 0 24px; }
+
+.fitdet-card {
+  padding: 12px 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--home-white);
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
+  border-bottom: 1px solid var(--home-grid);
+  color: var(--home-black);
+}
+/* No forced ratio: the frame takes whatever height the natural image needs, and
+   stays black until the bytes arrive so nothing flashes cream then dark. */
+.fitdet-card__frame {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: #000;
+  line-height: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+button.fitdet-card__frame { appearance: none; -webkit-appearance: none; }
+.fitdet-card__image {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #000;
+}
+.fitdet-card__caption {
+  margin: 0;
+  color: var(--home-black-light);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 18px;
+  letter-spacing: -.26px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* A record whose image is gone keeps its caption and its Edit route; only the
+   picture and Share are withdrawn. */
+.fitdet-missing {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+  padding: 24px 16px;
+  background: var(--home-black-light);
+  color: var(--home-white);
+  text-align: center;
+}
+.fitdet-missing__title { margin: 0; font-size: 14px; font-weight: 600; line-height: 20px; }
+.fitdet-missing__copy { margin: 0; color: #b7b7b7; font-size: 13px; line-height: 18px; }
+
+.fitdet-pending {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--home-grid);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  letter-spacing: -.24px;
+}
+.fitdet-pending__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--home-orange);
+  animation: home-shimmer 1.2s ease-in-out infinite;
+}
+
+/* ------------------------------ Card actions ------------------------------ */
+
+/* Two equal halves split by one rule, each a 48px face over a 7px indicator —
+   the same tactile rail every other control on the black pages uses. */
+.fitdet-actions {
+  display: grid;
+  grid-template-columns: 1fr 1px 1fr;
+  background: var(--home-white);
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
+}
+.fitdet-actions--single { grid-template-columns: 1fr; }
+.fitdet-actions__rule { background: var(--home-grid); }
+.fitdet-action {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  display: grid;
+  grid-template-rows: 41px 7px;
+  cursor: pointer;
+  color: inherit;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: grid-template-rows var(--motion-quick) var(--ease-standard);
+}
+.fitdet-action__face {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  overflow: hidden;
+  background: var(--home-white);
+  color: var(--home-black);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: -.48px;
+  white-space: nowrap;
+}
+.fitdet-action__face img { display: block; width: 20px; height: 20px; }
+.fitdet-action__rail { display: block; background: var(--home-white-dark); }
+.fitdet-action:active,
+.fitdet-action.is-pressed { grid-template-rows: 46px 2px; }
+.fitdet-action:disabled { cursor: default; }
+.fitdet-action:disabled .fitdet-action__face { opacity: .4; }
+
+/* ------------------------------ Fixed bottom bar -------------------------- */
+
+.fitdet-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  background: var(--home-black);
+  border-top: 1px solid var(--home-grid);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.fitdet-bar[hidden] { display: none; }
+.fitdet-bar__inner {
+  max-width: 390px;
+  margin: 0 auto;
+  padding: 12px 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.fitdet-bar--single .fitdet-bar__inner { grid-template-columns: 1fr; }
+.fitdet-bar__btn {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  display: grid;
+  grid-template-rows: 41px 7px;
+  overflow: hidden;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: grid-template-rows var(--motion-quick) var(--ease-standard);
+}
+.fitdet-bar__face {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: -.48px;
+  white-space: nowrap;
+}
+.fitdet-bar__rail { display: block; }
+.fitdet-bar__btn--secondary .fitdet-bar__face { background: var(--home-grid); color: var(--home-white); }
+.fitdet-bar__btn--secondary .fitdet-bar__rail { background: #2f2f2f; }
+.fitdet-bar__btn--primary .fitdet-bar__face { background: var(--home-orange); color: var(--home-white); }
+.fitdet-bar__btn--primary .fitdet-bar__rail { background: #b34a00; }
+.fitdet-bar__btn:active,
+.fitdet-bar__btn.is-pressed { grid-template-rows: 46px 2px; }
+.fitdet-bar__btn:disabled { cursor: default; opacity: .55; }
+
+/* --------------------------------- Editor -------------------------------- */
+
+.fitedit-field { padding: 16px 0 8px; }
+.fitedit-label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--home-grid);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.fitedit-caption {
+  width: 100%;
+  min-height: 120px;
+  padding: 12px;
+  border: 1px solid var(--home-grid);
+  border-radius: 0;
+  background: var(--home-white);
+  color: var(--home-black);
+  font: 400 16px/22px 'Plus Jakarta Sans', sans-serif;
+  letter-spacing: -.32px;
+  resize: vertical;
+  /* Keeps the field clear of the fixed Save bar when the keyboard opens. */
+  scroll-margin-bottom: calc(var(--bottombar-h) + 24px);
+}
+.fitedit-delete {
+  width: 100%;
+  min-height: 44px;
+  margin: 16px 0 24px;
+  padding: 12px;
+  border: 1px solid #7a1f11;
+  border-radius: 4px;
+  background: transparent;
+  color: #ff8a72;
+  font: 600 15px/20px 'Plus Jakarta Sans', sans-serif;
+  letter-spacing: -.3px;
+  cursor: pointer;
+}
+.fitedit-delete:disabled { opacity: .5; cursor: default; }
+
+/* ------------------------------- Photo viewer ----------------------------- */
+
+.fitview {
+  position: fixed;
+  inset: 0;
+  /* Above the page's own fixed navigation, which sits at 100. */
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+  padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
+}
+.fitview[hidden] { display: none; }
+.fitview__stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.fitview__stage img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.fitview__caption {
+  flex: none;
+  max-height: 30vh;
+  overflow: auto;
+  margin: 0;
+  padding: 16px 24px 24px;
+  color: var(--home-white);
+  font-size: 14px;
+  line-height: 20px;
+  white-space: pre-wrap;
+}
+.fitview__caption:empty { display: none; }
+.fitview__close {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  right: 12px;
+  z-index: 1;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255,255,255,.14);
+  color: #fff;
+  font: 400 28px/1 'Plus Jakarta Sans', sans-serif;
+  cursor: pointer;
+}
+
+/* ------------------------- Detail page focus rings ------------------------ */
+
+body.is-fitdetailpage a:focus-visible,
+body.is-fitdetailpage button:focus-visible,
+body.is-fitdetailpage textarea:focus-visible {
+  outline: 2px solid var(--home-white);
+  outline-offset: 2px;
+}
+body.is-fitdetailpage .cust-nav-btn:focus-visible,
+body.is-fitdetailpage .fitdet-action:focus-visible,
+body.is-fitdetailpage .fitdet-card__frame:focus-visible {
+  outline-color: var(--home-black);
+  outline-offset: -2px;
+}
+/* Same centred 390px canvas as the feed and the customer page: on a wide
+   screen the ledger keeps its width instead of becoming a grid. */
+body.is-fitdetailpage { background: #292929; overflow-x: hidden; }
+body.is-fitdetailpage .appbar,
+body.is-fitdetailpage .pagehead { display: none; }
+body.is-fitdetailpage .page {
+  width: min(390px, 100%);
+  max-width: 390px;
+  min-height: 100svh;
+  margin: 0 auto;
+  padding: 0;
+  background: var(--home-black);
+}
+body.is-fitdetailpage .view { gap: 0; }
+/* A log with no photos cannot be printed, and the control says so rather than
+   failing after it is pressed. */
+body.is-fitdetailpage .cust-nav-btn:disabled { opacity: .48; filter: saturate(0); cursor: default; }
+/* Content clears whichever fixed bar is showing, published by app.js. */
+body.has-fitdet-bar .fitdet-body,
+body.has-fitedit-bar .fitdet-body { padding-bottom: calc(var(--bottombar-h) + 8px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .fitdet-record,
+  .fitdet-state:not(:empty) { animation: none; }
+  .fitdet-action,
+  .fitdet-bar__btn,
+  .fitlog-card-link .fitlog-card,
+  .fitlog-card-link .fitlog-card__rail { transition: none; }
+  .fitdet-pending__dot { animation: none; }
 }
 
 /* The two shortcuts that lead somewhere are anchors now, so they need the link

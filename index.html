@@ -342,6 +342,120 @@
     <footer class="fitlog-footer">Made with love for Ichaku</footer>
   </section>
 
+  <!-- ------------------------ Fitting log detail -------------------------- -->
+  <!-- Figma node 229:2847. Exactly one fitting_sessions record: its photos in
+       stored order, at their natural ratio, each with its own Edit and Share.
+       Reached by tapping a feed card, and equally valid as a pasted URL, so it
+       fetches and validates its own records rather than trusting feed state.
+
+       Same black ledger vocabulary as the feed above it — 24px insets between
+       full-width rules — so a feed card and the page it opens read as one
+       object seen at two distances. -->
+  <section class="view fitdet" id="viewFittingDetail" hidden>
+    <nav class="cust-nav" aria-label="Fitting log navigation">
+      <a class="cust-nav-btn" id="fitdetBackBtn" href="#/fittings">
+        <span class="cust-nav-btn__face">
+          <img src="assets/cust-back-icon.svg" alt="" width="24" height="24">
+          <span>Fitting logs</span>
+        </span>
+        <span class="cust-nav-btn__rail" aria-hidden="true"></span>
+      </a>
+      <button type="button" class="cust-nav-btn cust-nav-btn--icon" id="fitdetPdfBtn" aria-label="Download this fitting log as a PDF">
+        <span class="cust-nav-btn__face">
+          <img src="assets/fitlog-download-icon.svg" alt="" width="24" height="24">
+        </span>
+        <span class="cust-nav-btn__rail" aria-hidden="true"></span>
+      </button>
+    </nav>
+
+    <header class="fitdet-head">
+      <div class="fitlog-grid-spacer" aria-hidden="true"></div>
+      <div class="fitdet-identity">
+        <h1 class="fitdet-title" id="fitdetTitle">Fitting log</h1>
+        <span class="fitdet-stage" id="fitdetStage" hidden></span>
+      </div>
+      <!-- Customer and date share one rule-divided row exactly as Figma draws
+           it; the vertical rules are elements so they stay pixel-aligned. -->
+      <div class="fitdet-meta">
+        <span class="fitdet-meta__rule" aria-hidden="true"></span>
+        <span class="fitdet-meta__cell"><span id="fitdetCustomer"></span></span>
+        <span class="fitdet-meta__rule" aria-hidden="true"></span>
+        <span class="fitdet-meta__cell fitdet-meta__cell--end"><span id="fitdetDate"></span></span>
+        <span class="fitdet-meta__rule" aria-hidden="true"></span>
+      </div>
+      <div class="fitlog-grid-spacer" aria-hidden="true"></div>
+    </header>
+
+    <div class="fitdet-body" id="fitdetBody" aria-busy="true">
+      <ol class="fitdet-list" id="fitdetList"></ol>
+      <div class="fitdet-state" id="fitdetState"></div>
+    </div>
+    <p class="sr-only" id="fitdetStatus" role="status" aria-live="polite"></p>
+
+    <footer class="fitlog-footer">Made with love for Ichaku</footer>
+  </section>
+
+  <!-- ------------------------ Fitting photo editor ------------------------ -->
+  <!-- Deliberately temporary layout built from the current black-ledger/cream
+       vocabulary: caption, replacement, and deletion are the contract, and the
+       visual design is expected to be replaced without touching either. -->
+  <section class="view fitedit" id="viewFittingPhotoEdit" hidden>
+    <nav class="cust-nav" aria-label="Photo editor navigation">
+      <a class="cust-nav-btn" id="fiteditBackBtn" href="#/fittings">
+        <span class="cust-nav-btn__face">
+          <img src="assets/cust-back-icon.svg" alt="" width="24" height="24">
+          <span>Fitting log</span>
+        </span>
+        <span class="cust-nav-btn__rail" aria-hidden="true"></span>
+      </a>
+    </nav>
+
+    <header class="fitdet-head">
+      <div class="fitlog-grid-spacer" aria-hidden="true"></div>
+      <div class="fitdet-identity">
+        <h1 class="fitdet-title" id="fiteditTitle">Edit photo</h1>
+      </div>
+      <div class="fitlog-grid-spacer" aria-hidden="true"></div>
+    </header>
+
+    <div class="fitdet-body">
+      <div class="fitlog-grid-rule" aria-hidden="true"></div>
+      <div class="fitdet-inset">
+        <div class="fitdet-card">
+          <div class="fitdet-card__frame">
+            <img class="fitdet-card__image" id="fiteditPreview" alt="Photo being edited">
+          </div>
+        </div>
+        <div class="fitdet-actions fitdet-actions--single">
+          <button type="button" class="fitdet-action" id="fiteditReplaceBtn">
+            <span class="fitdet-action__face">
+              <img src="assets/fitlog-edit-icon.svg" alt="" width="20" height="20">
+              <span>Replace photo</span>
+            </span>
+            <span class="fitdet-action__rail" aria-hidden="true"></span>
+          </button>
+        </div>
+      </div>
+      <div class="fitlog-grid-rule" aria-hidden="true"></div>
+      <div class="fitlog-grid-spacer" aria-hidden="true"></div>
+      <div class="fitlog-grid-rule" aria-hidden="true"></div>
+
+      <div class="fitdet-inset">
+        <div class="fitedit-field">
+          <label class="fitedit-label" for="fiteditCaption">Caption</label>
+          <textarea class="fitedit-caption" id="fiteditCaption" rows="4" placeholder="What changed in this fitting?" enterkeyhint="done"></textarea>
+        </div>
+        <button type="button" class="fitedit-delete" id="fiteditDeleteBtn">Delete photo</button>
+      </div>
+      <div class="fitlog-grid-rule" aria-hidden="true"></div>
+      <div class="fitlog-grid-spacer" aria-hidden="true"></div>
+    </div>
+    <p class="sr-only" id="fiteditStatus" role="status" aria-live="polite"></p>
+
+    <input id="fiteditFileInput" type="file" accept="image/png, image/jpeg, image/webp, image/heic, image/heif" hidden>
+    <footer class="fitlog-footer">Made with love for Ichaku</footer>
+  </section>
+
   <!-- --------------------------- Customer editor -------------------------- -->
   <!-- Everything writable about a customer, on its own route so the detail page
        stays a thing you read. Also where a customer is created, and where the
@@ -1134,6 +1248,38 @@
 
 <section class="fitting-edit-sheet" id="fittingEditSheet" hidden aria-label="Edit fitting photo" role="dialog" aria-modal="true"><div class="fitting-edit-sheet__backdrop"></div><div class="fitting-edit-sheet__sheet"><button type="button" class="btn btn--outline btn--block" id="fittingEditCaption">Edit caption</button><button type="button" class="btn btn--outline btn--block" id="fittingRetakePhoto">Retake photo</button><button type="button" class="btn btn--danger btn--block" id="fittingDeletePhoto">Delete</button><button type="button" class="btn btn--outline btn--block" id="fittingEditCancel">Cancel</button></div></section>
 
+<!-- One selected photo, full screen. Deliberately not a gallery: no swipe, no
+     next/previous, nothing to get lost inside. -->
+<section class="fitview" id="fittingPhotoViewer" hidden role="dialog" aria-modal="true" aria-label="Fitting photo">
+  <button type="button" class="fitview__close" id="fittingPhotoViewerClose" aria-label="Close photo">×</button>
+  <div class="fitview__stage"><img id="fittingPhotoViewerImage" alt=""></div>
+  <p class="fitview__caption" id="fittingPhotoViewerCaption"></p>
+</section>
+
+<!-- Active sessions only: equal-width gray End session and orange Add photo,
+     safe-area aware, its height published through --bottombar-h. -->
+<div class="fitdet-bar" id="fitdetBar" hidden>
+  <div class="fitdet-bar__inner">
+    <button type="button" class="fitdet-bar__btn fitdet-bar__btn--secondary" id="fitdetEndBtn">
+      <span class="fitdet-bar__face">End session</span>
+      <span class="fitdet-bar__rail" aria-hidden="true"></span>
+    </button>
+    <button type="button" class="fitdet-bar__btn fitdet-bar__btn--primary" id="fitdetAddBtn">
+      <span class="fitdet-bar__face">Add photo</span>
+      <span class="fitdet-bar__rail" aria-hidden="true"></span>
+    </button>
+  </div>
+</div>
+
+<div class="fitdet-bar fitdet-bar--single" id="fiteditBar" hidden>
+  <div class="fitdet-bar__inner">
+    <button type="button" class="fitdet-bar__btn fitdet-bar__btn--primary" id="fiteditSaveBtn">
+      <span class="fitdet-bar__face">Save changes</span>
+      <span class="fitdet-bar__rail" aria-hidden="true"></span>
+    </button>
+  </div>
+</div>
+
 <div class="fitting-journal__bar" id="fittingJournalBar" hidden><div class="fitting-journal__bar-inner"><button type="button" class="btn btn--primary btn--block" id="fittingJournalAdd">Add Photo</button></div></div>
 
 <!-- Editing views only. Save is the primary action, so it sits in the thumb
@@ -1458,6 +1604,7 @@
 <script src="docs.js"></script>
 <script src="moodboard.js"></script>
 <script src="fittings.js"></script>
+<script src="fitting-pdf.js"></script>
 <script src="db.js"></script>
 <script src="calendar.js"></script>
 <script src="app.js"></script>

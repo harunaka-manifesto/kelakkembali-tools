@@ -12,6 +12,13 @@ KK.fittings = (function () {
   const U = KK.util;
   const localURLs = new Map();
 
+  /* Drive backups run after the record already exists, so the pages that need
+     to know whether a session is fully archived — the detail card states and
+     PDF generation — track them here by session id rather than guessing from
+     drive_file_id alone. */
+  const pendingBySession = new Map();
+  const pendingPhotoIds = new Set();
+
   let journalContainer = null;
   let activeSessionState = null;
   let pendingPhoto = null;
@@ -243,6 +250,46 @@ KK.fittings = (function () {
     return (activeSessionState.photos || []).find((p) => p.id === id);
   }
 
+  /* The journal renders itself; a host page that owns its own markup — the
+     fitting-log detail page — supplies onChange instead and is told to
+     re-render its own cards. */
+  function refreshUI() {
+    if (!activeSessionState) return;
+    if ('function' === typeof activeSessionState.onChange) {
+      activeSessionState.onChange(activeSessionState);
+      return;
+    }
+    if (journalContainer) renderJournal(journalContainer, activeSessionState);
+  }
+
+  function trackBackup(sessionId, photoId, promise) {
+    if (!sessionId) return promise;
+    const set = pendingBySession.get(sessionId) || new Set();
+    pendingBySession.set(sessionId, set);
+    pendingPhotoIds.add(photoId);
+
+    const tracked = promise.finally(() => {
+      set.delete(tracked);
+      pendingPhotoIds.delete(photoId);
+      if (!set.size) pendingBySession.delete(sessionId);
+    });
+    set.add(tracked);
+    return tracked;
+  }
+
+  /* Settles when every in-flight backup for this session has either finished
+     or failed — never rejects, because the caller decides what a failed
+     backup means for it. */
+  function waitForSessionBackups(sessionId) {
+    const set = pendingBySession.get(sessionId);
+    if (!set || !set.size) return Promise.resolve();
+    return Promise.all(Array.from(set).map((p) => p.catch(() => null))).then(() => {
+      // A backup started while we waited still counts as pending.
+      const still = pendingBySession.get(sessionId);
+      return still && still.size ? waitForSessionBackups(sessionId) : undefined;
+    });
+  }
+
   /* ----------------------------- Save & Archival --------------------------- */
 
   async function saveCaptionAndPhoto() {
@@ -271,10 +318,10 @@ KK.fittings = (function () {
         clearPending(false);
         editingPhoto = null;
         closeCaptionStep(false);
-        renderJournal(journalContainer, activeSessionState);
+        refreshUI();
         notify('Photo replaced');
 
-        archivePhoto(updated, currentPending, activeSessionState).catch((err) => {
+        trackBackup(updated.session_id, updated.id, archivePhoto(updated, currentPending, activeSessionState)).catch((err) => {
           console.error(err);
           notify('Photo saved locally; Drive backup failed');
         });
@@ -288,7 +335,7 @@ KK.fittings = (function () {
 
         editingPhoto = null;
         closeCaptionStep(true);
-        renderJournal(journalContainer, activeSessionState);
+        refreshUI();
         notify('Caption updated');
         return;
       }
@@ -307,10 +354,10 @@ KK.fittings = (function () {
 
       clearPending(false);
       closeCaptionStep(false);
-      renderJournal(journalContainer, activeSessionState);
+      refreshUI();
       notify('Photo saved');
 
-      archivePhoto(created, currentPending, activeSessionState).catch((err) => {
+      trackBackup(created.session_id, created.id, archivePhoto(created, currentPending, activeSessionState)).catch((err) => {
         console.error(err);
         notify('Photo saved locally; Drive backup failed');
       });
@@ -343,7 +390,10 @@ KK.fittings = (function () {
     if (activeSessionState === sessionState) {
       const idx = activeSessionState.photos.findIndex((p) => p.id === photoRecord.id);
       if (idx !== -1) activeSessionState.photos[idx] = updated;
+      // Backing-up becomes ready-drive without the page being reloaded.
+      refreshUI();
     }
+    return updated;
   }
 
   /* ------------------------------ UI Rendering ----------------------------- */
@@ -427,7 +477,7 @@ KK.fittings = (function () {
       activeSessionState.photos = activeSessionState.photos.filter((p) => p.id !== editingPhoto.id);
       closeEditSheet();
       editingPhoto = null;
-      renderJournal(journalContainer, activeSessionState);
+      refreshUI();
       notify('Photo deleted');
     } catch (err) {
       notify(err.message || 'Could not delete photo.');
@@ -445,6 +495,43 @@ KK.fittings = (function () {
     imageURL,
     localURLs,
     archivePhoto,
+    waitForSessionBackups,
+
+    isBackingUp: (photoId) => pendingPhotoIds.has(photoId),
+    hasPendingBackups: (sessionId) => {
+      const set = pendingBySession.get(sessionId);
+      return !!(set && set.size);
+    },
+
+    /* Lets a page that owns its own markup drive the shared capture flow: it
+       supplies the session context plus an onChange callback and then calls
+       addPhoto() to open the camera. */
+    attachSession: function (sessionState) {
+      activeSessionState = sessionState;
+      journalContainer = null;
+      return activeSessionState;
+    },
+
+    detachSession: function (sessionState) {
+      if (!sessionState || activeSessionState === sessionState) activeSessionState = null;
+    },
+
+    addPhoto: function () {
+      openCamera();
+    },
+
+    releaseLocalURL: function (photoId) {
+      const url = localURLs.get(photoId);
+      if (url) URL.revokeObjectURL(url);
+      localURLs.delete(photoId);
+    },
+
+    adoptLocalURL: function (photoId, url) {
+      const previous = localURLs.get(photoId);
+      if (previous && previous !== url) URL.revokeObjectURL(previous);
+      if (url) localURLs.set(photoId, url);
+      else localURLs.delete(photoId);
+    },
 
     detectStage: function (scheduleEvents) {
       const prodEvents = (scheduleEvents || []).filter((e) => KK.calendar.isProductionStage(e.stage) && e.event_date);

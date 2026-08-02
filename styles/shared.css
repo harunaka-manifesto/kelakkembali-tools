@@ -158,18 +158,26 @@ body.is-page-transitioning { overflow: hidden; pointer-events: none; }
   max-width: 390px;
   min-height: 100svh;
   margin: 0 auto;
-  padding: 0;
+  padding: 67px 0 0;
   background: var(--home-black);
   display: flex;
   flex-direction: column;
 }
 .route-loader[data-kind="moodboard"] .moodboard-nav {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 390px;
   padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 0;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  background: var(--home-black);
+  z-index: 100;
+  background: none;
+  pointer-events: none;
 }
 .route-loader__skel-btn--back {
   flex: 1 1 auto;
