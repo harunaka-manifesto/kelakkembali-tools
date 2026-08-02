@@ -224,6 +224,9 @@ test('PDF filenames survive Unicode, punctuation, and reserved characters', () =
   // A nameless customer and an unknown stage still produce a usable filename.
   const fallback = fittingPdf.buildFilename({ session: {}, customer: {} });
   assert.match(fallback, /^Customer-Fitting-\d{4}-\d{2}-\d{2}\.pdf$/);
+
+  const emptyFallback = fittingPdf.buildFilename(null);
+  assert.match(emptyFallback, /^Customer-Fitting-\d{4}-\d{2}-\d{2}\.pdf$/);
 });
 
 test('images are contained at their natural ratio, never cropped or stretched', () => {

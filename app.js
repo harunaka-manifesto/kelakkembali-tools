@@ -886,15 +886,17 @@ KK.app = (function () {
     // tokens with it, or a late response can render into a hidden view. Moving
     // deeper into the fitting-log family instead parks the feed intact so Back
     // can restore the same list, the same pages, and the same offset.
-    if (prevRoute && "fittingLogs" === prevRoute.view && "fittingLogs" !== targetRoute.view) {
-      if (inFittingFamily(targetRoute)) parkFittingLogs();
-      else cleanupFittingLogs();
-    }
-    if (prevRoute && "fittingLogDetail" === prevRoute.view && !inFittingFamily(targetRoute)) {
+    if (!inFittingFamily(targetRoute)) {
+      if (prevRoute && "fittingLogs" === prevRoute.view) cleanupFittingLogs();
       cleanupFittingDetail();
-    }
-    if (prevRoute && "fittingPhotoEdit" === prevRoute.view && "fittingPhotoEdit" !== targetRoute.view) {
       cleanupFittingEditor();
+    } else {
+      if (prevRoute && "fittingLogs" === prevRoute.view && "fittingLogs" !== targetRoute.view) {
+        parkFittingLogs();
+      }
+      if (prevRoute && "fittingPhotoEdit" === prevRoute.view && "fittingPhotoEdit" !== targetRoute.view) {
+        cleanupFittingEditor();
+      }
     }
     if (prevRoute && "fittingLogDetail" === prevRoute.view && "fittingLogDetail" !== targetRoute.view) {
       closeFittingPhotoViewer();
@@ -2236,7 +2238,7 @@ KK.app = (function () {
     const d = detail();
     const parts = [
       U.sanitizeForFilename((d.customer && d.customer.name) || "") || "Customer",
-      U.sanitizeForFilename(U.fittingStage(d.session.stage).label) || "Fitting",
+      U.sanitizeForFilename(U.fittingStage(d.session && d.session.stage).label) || "Fitting",
       String(index + 1).padStart(2, "0")
     ];
     return parts.join("-") + ".jpg";
@@ -2304,6 +2306,7 @@ KK.app = (function () {
   async function downloadFittingPdf() {
     const d = detail();
     if (d.pdfBusy || !d.photos.length || !d.session) return;
+    const targetSessionId = d.sessionId;
 
     d.pdfBusy = true;
     renderFittingDetail();
@@ -2315,7 +2318,7 @@ KK.app = (function () {
       if (KK.fittings.hasPendingBackups(d.sessionId)) {
         announceDetailStatus("Waiting for photo backups to finish");
         await KK.fittings.waitForSessionBackups(d.sessionId);
-        if (!isDetailRoute()) return;
+        if (!isDetailRoute() || d.sessionId !== targetSessionId) return;
       }
 
       const resolved = [];
@@ -2478,8 +2481,18 @@ KK.app = (function () {
     elements.fitdetBackBtn.href = feed().retainHash || "#/fittings";
 
     let session;
+    let order;
+    let customer;
+    let photos;
     try {
       session = await db.getFittingSession(sessionId);
+      order = await db.getOrder(session.order_id);
+      const res = await Promise.all([
+        db.getCustomer(order.customer_id),
+        db.listFittingPhotosBySession(sessionId)
+      ]);
+      customer = res[0];
+      photos = sortFittingPhotos(res[1]);
     } catch (err) {
       console.error(err);
       if (token !== d.loadToken) return;
@@ -2490,17 +2503,10 @@ KK.app = (function () {
     }
     if (token !== d.loadToken || !isDetailRoute()) return;
 
-    const order = await db.getOrder(session.order_id);
-    const res = await Promise.all([
-      db.getCustomer(order.customer_id),
-      db.listFittingPhotosBySession(sessionId)
-    ]);
-    if (token !== d.loadToken || !isDetailRoute()) return;
-
     d.session = session;
     d.order = order;
-    d.customer = res[0];
-    d.photos = sortFittingPhotos(res[1]);
+    d.customer = customer;
+    d.photos = photos;
     d.phase = "ready";
     d.bridge = fittingDetailBridge();
     KK.fittings.attachSession(d.bridge);
@@ -2702,26 +2708,27 @@ KK.app = (function () {
 
     let session;
     let photo;
+    let order;
+    let customer;
     try {
       const res = await Promise.all([db.getFittingSession(sessionId), db.getFittingPhoto(photoId)]);
       session = res[0];
       photo = res[1];
+
+      // A photo id from another session is a wrong URL, not a permission story.
+      if (photo.session_id !== session.id) {
+        showToast("That photo belongs to a different fitting log");
+        return go(detailHash);
+      }
+
+      order = await db.getOrder(session.order_id);
+      customer = await db.getCustomer(order.customer_id);
     } catch (err) {
       console.error(err);
       if (token !== ed.loadToken) return;
       showToast("That photo is no longer available");
       return go(detailHash);
     }
-    if (token !== ed.loadToken || !isEditorRoute()) return;
-
-    // A photo id from another session is a wrong URL, not a permission story.
-    if (photo.session_id !== session.id) {
-      showToast("That photo belongs to a different fitting log");
-      return go(detailHash);
-    }
-
-    const order = await db.getOrder(session.order_id);
-    const customer = await db.getCustomer(order.customer_id);
     if (token !== ed.loadToken || !isEditorRoute()) return;
 
     ed.session = session;

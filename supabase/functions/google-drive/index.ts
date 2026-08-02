@@ -247,9 +247,9 @@ async function saveFittingPhoto(
   stage: string
 ) {
   const rootId = await findOrCreateFolder(token, FITTINGS_FOLDER_NAME);
-  const customerId = await findOrCreateFolder(token, String(customerName || 'Unnamed customer'), rootId);
-  const orderId = await findOrCreateFolder(token, String(orderTitle || 'Untitled order'), customerId);
-  const stageId = await findOrCreateFolder(token, String(stage || 'Fitting'), orderId);
+  const customerId = await findOrCreateFolder(token, folderSegment(customerName, 'Unnamed customer'), rootId);
+  const orderId = await findOrCreateFolder(token, folderSegment(orderTitle, 'Untitled order'), customerId);
+  const stageId = await findOrCreateFolder(token, folderSegment(stage, 'Fitting'), orderId);
   const safeName = String(requestedName || 'fitting-photo.jpg')
     .split(/[\\/]/).pop()!
     .replace(/[^\p{L}\p{N} ._-]/gu, '')
