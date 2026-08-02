@@ -505,7 +505,9 @@ KK.app = (function () {
 
   const routeHasOwnLoader = (r) => "customers" === r.view || "order" === r.view || "fittingLogs" === r.view;
   const routeLoaderKind = (r) =>
-    "customer" === r.view || "customerEdit" === r.view || "fittingLogDetail" === r.view || "fittingPhotoEdit" === r.view
+    "fittingLogDetail" === r.view
+      ? "fitdet"
+      : "customer" === r.view || "customerEdit" === r.view || "fittingPhotoEdit" === r.view
       ? "ledger"
       : "moodboard" === r.view || "moodboardPreview" === r.view
       ? "moodboard"
@@ -2816,7 +2818,7 @@ KK.app = (function () {
   /* ---------------------- Detail & editor event wiring --------------------- */
 
   function setupFittingDetailListeners() {
-    const pressable = ".cust-nav-btn,.fitdet-action,.fitdet-bar__btn,.fitedit-delete";
+    const pressable = ".cust-nav-btn,.fitdet-action,.fitdet-bar__btn,.fitdet-delete,.fitedit-delete";
 
     [elements.viewFittingDetail, elements.viewFittingPhotoEdit].forEach((view) => {
       view.addEventListener("pointerdown", (e) => {

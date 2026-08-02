@@ -371,17 +371,17 @@
 
     <header class="fitdet-head">
       <div class="fitlog-grid-spacer" aria-hidden="true"></div>
-      <div class="fitdet-identity">
+      <div class="fitdet-titleband">
         <h1 class="fitdet-title" id="fitdetTitle">Fitting log</h1>
-        <span class="fitdet-stage" id="fitdetStage" hidden></span>
       </div>
-      <!-- Customer and date share one rule-divided row exactly as Figma draws
-           it; the vertical rules are elements so they stay pixel-aligned. -->
+      <!-- Stage, customer and date share one 40px rule-divided row exactly as
+           Figma draws it; the vertical rules are elements so they stay
+           pixel-aligned, and the stage keeps its colour as the leading cell. -->
       <div class="fitdet-meta">
-        <span class="fitdet-meta__rule" aria-hidden="true"></span>
+        <span class="fitdet-stage" id="fitdetStage" hidden></span>
         <span class="fitdet-meta__cell"><span id="fitdetCustomer"></span></span>
         <span class="fitdet-meta__rule" aria-hidden="true"></span>
-        <span class="fitdet-meta__cell fitdet-meta__cell--end"><span id="fitdetDate"></span></span>
+        <span class="fitdet-meta__cell"><span id="fitdetDate"></span></span>
         <span class="fitdet-meta__rule" aria-hidden="true"></span>
       </div>
       <div class="fitlog-grid-spacer" aria-hidden="true"></div>
@@ -391,12 +391,16 @@
       <ol class="fitdet-list" id="fitdetList"></ol>
       <div class="fitdet-state" id="fitdetState"></div>
     </div>
-    <div class="fitdet-inset">
-      <button type="button" class="fitedit-delete" id="fitdetDeleteBtn">
-        <span class="fitedit-delete__face">Delete fitting log</span>
-        <span class="fitedit-delete__rail" aria-hidden="true"></span>
+    <div class="fitlog-grid-spacer" aria-hidden="true"></div>
+    <!-- Figma draws deletion as a full-bleed red block inside the 24px ledger
+         inset, banded by the same rules every other section carries. -->
+    <div class="fitdet-delete-band">
+      <button type="button" class="fitdet-delete" id="fitdetDeleteBtn">
+        <span class="fitdet-delete__face">Delete fitting log</span>
+        <span class="fitdet-delete__rail" aria-hidden="true"></span>
       </button>
     </div>
+    <div class="fitlog-grid-spacer" aria-hidden="true"></div>
     <p class="sr-only" id="fitdetStatus" role="status" aria-live="polite"></p>
 
     <footer class="fitlog-footer">Made with love for Ichaku</footer>
@@ -1271,11 +1275,12 @@
 <div class="fitdet-bar" id="fitdetBar" hidden>
   <div class="fitdet-bar__inner">
     <button type="button" class="fitdet-bar__btn fitdet-bar__btn--secondary" id="fitdetEndBtn">
-      <span class="fitdet-bar__face">Save log</span>
+      <span class="fitdet-bar__face"><img src="assets/fitlog-save-icon.svg" alt="" width="20" height="20"><span>Save log</span></span>
       <span class="fitdet-bar__rail" aria-hidden="true"></span>
     </button>
+    <span class="fitdet-bar__rule" aria-hidden="true"></span>
     <button type="button" class="fitdet-bar__btn fitdet-bar__btn--primary" id="fitdetAddBtn">
-      <span class="fitdet-bar__face">Add photo</span>
+      <span class="fitdet-bar__face"><img src="assets/fitlog-add-icon.svg" alt="" width="20" height="20"><span>Add photos</span></span>
       <span class="fitdet-bar__rail" aria-hidden="true"></span>
     </button>
   </div>
@@ -1410,6 +1415,59 @@
     <div class="moodboard-footer">
       <div class="route-loader__skel-line route-loader__skel-line--footer"><i></i></div>
     </div>
+  </div>
+  <!-- Fitting log detail. Built from the page's own ledger classes so the
+       skeleton and the loaded page share one silhouette: nav, title band, the
+       40px stage/customer/date row, then photo records. -->
+  <div class="route-loader__canvas route-loader__canvas--fitdet" aria-hidden="true">
+    <div class="cust-nav">
+      <div class="route-loader__skel-nav"><i></i></div>
+      <div class="route-loader__skel-nav route-loader__skel-nav--icon"><i></i></div>
+    </div>
+    <div class="fitdet-head">
+      <div class="fitlog-grid-spacer"></div>
+      <div class="fitdet-titleband"><i class="route-loader__skel-heading"></i></div>
+      <div class="fitdet-meta">
+        <span class="fitdet-stage"></span>
+        <span class="fitdet-meta__cell"><i></i></span>
+        <span class="fitdet-meta__rule"></span>
+        <span class="fitdet-meta__cell"><i></i></span>
+        <span class="fitdet-meta__rule"></span>
+      </div>
+      <div class="fitlog-grid-spacer"></div>
+    </div>
+    <div class="fitlog-grid-rule"></div>
+    <div class="fitdet-inset">
+      <div class="fitdet-card">
+        <i class="route-loader__skel-photo"></i>
+        <div class="route-loader__skel-caption"><i></i><i></i></div>
+      </div>
+      <div class="fitdet-actions">
+        <div class="fitdet-action"><span class="fitdet-action__face"><i></i></span><span class="fitdet-action__rail"></span></div>
+        <span class="fitdet-actions__rule"></span>
+        <div class="fitdet-action"><span class="fitdet-action__face"><i></i></span><span class="fitdet-action__rail"></span></div>
+      </div>
+    </div>
+    <div class="fitlog-grid-rule"></div>
+    <div class="fitlog-grid-spacer"></div>
+    <div class="fitlog-grid-rule"></div>
+    <div class="fitdet-inset">
+      <div class="fitdet-card">
+        <i class="route-loader__skel-photo"></i>
+        <div class="route-loader__skel-caption"><i></i><i></i></div>
+      </div>
+      <div class="fitdet-actions">
+        <div class="fitdet-action"><span class="fitdet-action__face"><i></i></span><span class="fitdet-action__rail"></span></div>
+        <span class="fitdet-actions__rule"></span>
+        <div class="fitdet-action"><span class="fitdet-action__face"><i></i></span><span class="fitdet-action__rail"></span></div>
+      </div>
+    </div>
+    <div class="fitlog-grid-rule"></div>
+    <div class="fitlog-grid-spacer"></div>
+    <div class="fitdet-delete-band">
+      <div class="fitdet-delete"><span class="fitdet-delete__face"></span><span class="fitdet-delete__rail"></span></div>
+    </div>
+    <div class="fitlog-grid-spacer"></div>
   </div>
   <div class="route-loader__error" id="routeLoaderError" role="alert" hidden></div>
   <span class="sr-only" id="routeLoaderStatus" role="status"></span>

@@ -2583,19 +2583,16 @@ body.is-fittinglogspage #fitlogNewBtn:disabled {
 
 .fitdet-head { padding-top: 67px; background: var(--home-black); }
 
-.fitdet-identity {
+.fitdet-titleband {
   display: flex;
-  align-items: stretch;
-  gap: 10px;
-  padding: 0 24px 0 24px;
+  align-items: center;
+  padding: 12px 24px;
   border-top: 1px solid var(--home-grid);
 }
 .fitdet-title {
   flex: 1 1 0;
   min-width: 0;
   margin: 0;
-  align-self: center;
-  padding: 10px 0;
   color: var(--home-white);
   font-size: 32px;
   font-weight: 700;
@@ -2603,15 +2600,18 @@ body.is-fittinglogspage #fitlogNewBtn:disabled {
   letter-spacing: -.96px;
   overflow-wrap: anywhere;
 }
-/* Figma 229:2945 — a solid stage block flush with the 24px ledger inset, the
-   full height of the title row, no border of its own: the colour is the whole
-   signal, and it is the same colour the feed filter uses for that stage. */
+/* Figma 249:3121 — the stage is the leading cell of the meta row, an equal
+   third alongside customer and date, carrying the same colour the feed filter
+   uses for that stage. */
 .fitdet-stage {
-  flex: none;
+  flex: 1 1 0;
+  min-width: 0;
   display: flex;
   align-items: center;
-  padding: 20px 24px;
-  border: 0;
+  justify-content: center;
+  align-self: stretch;
+  padding: 0 12px;
+  border: 1px solid var(--home-grid);
   background: var(--fitdet-stage-color, var(--home-grid));
   color: var(--home-white);
   font-size: 14px;
@@ -2634,27 +2634,34 @@ body.is-fittinglogspage #fitlogNewBtn:disabled {
 }
 
 .fitdet-meta {
+  height: 40px;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   padding: 0 24px;
+  overflow: hidden;
   border-top: 1px solid var(--home-grid);
   border-bottom: 1px solid var(--home-grid);
 }
-.fitdet-meta__rule { flex: none; width: 1px; height: 32px; background: var(--home-grid); }
+.fitdet-meta__rule { flex: none; width: 1px; background: var(--home-grid); }
 .fitdet-meta__cell {
   flex: 1 1 0;
   min-width: 0;
-  padding: 6px 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
   color: #fff;
   font-size: 14px;
   font-weight: 400;
   line-height: 20px;
   letter-spacing: -.42px;
 }
-.fitdet-meta__cell--end { text-align: right; }
+.fitdet-meta__cell > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* ------------------------------- Photo cards ------------------------------ */
 
@@ -2802,27 +2809,28 @@ button.fitdet-card__frame { appearance: none; -webkit-appearance: none; }
   bottom: 0;
   z-index: 40;
   background: var(--home-black);
-  border-top: 1px solid var(--home-grid);
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 .fitdet-bar[hidden] { display: none; }
+/* Figma 249:3094 — the pair is full-bleed and flush: no bar padding, no gap,
+   one hairline between the two halves, each face over its own 8px shadow. */
 .fitdet-bar__inner {
   max-width: 390px;
   margin: 0 auto;
-  padding: 12px 16px;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  grid-template-columns: 1fr 1px 1fr;
 }
 .fitdet-bar--single .fitdet-bar__inner { grid-template-columns: 1fr; }
+.fitdet-bar--single .fitdet-bar__rule { display: none; }
+.fitdet-bar__rule { display: block; background: var(--home-black-light); }
 .fitdet-bar__btn {
   min-width: 0;
   padding: 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: 0;
   background: none;
   display: grid;
-  grid-template-rows: 41px 7px;
+  grid-template-rows: 52px 8px;
   overflow: hidden;
   cursor: pointer;
   -webkit-appearance: none;
@@ -2830,26 +2838,75 @@ button.fitdet-card__frame { appearance: none; -webkit-appearance: none; }
   transition: grid-template-rows var(--motion-quick) var(--ease-standard);
 }
 .fitdet-bar__face {
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  gap: 8px;
+  overflow: hidden;
+  border-top: 1px solid var(--home-black-light);
+  font-size: 14px;
   font-weight: 600;
   line-height: 20px;
-  letter-spacing: -.48px;
+  letter-spacing: -.42px;
   white-space: nowrap;
 }
+.fitdet-bar__face img { flex: none; display: block; width: 20px; height: 20px; }
 .fitdet-bar__rail { display: block; }
 .fitdet-bar__btn--secondary .fitdet-bar__face { background: var(--home-grid); color: var(--home-white); }
-.fitdet-bar__btn--secondary .fitdet-bar__rail { background: #2f2f2f; }
+.fitdet-bar__btn--secondary .fitdet-bar__rail { background: var(--home-black-light); }
 .fitdet-bar__btn--primary .fitdet-bar__face { background: var(--home-orange); color: var(--home-white); }
-.fitdet-bar__btn--primary .fitdet-bar__rail { background: #b34a00; }
+.fitdet-bar__btn--primary .fitdet-bar__rail { background: #dd5d01; }
 /* `display: grid` above outranks the UA's [hidden] rule, so a saved log kept
    drawing its withdrawn Save log button and the pair fell into one column. */
 .fitdet-bar__btn[hidden] { display: none; }
 .fitdet-bar__btn:active,
-.fitdet-bar__btn.is-pressed { grid-template-rows: 46px 2px; }
+.fitdet-bar__btn.is-pressed { grid-template-rows: 57px 3px; }
 .fitdet-bar__btn:disabled { cursor: default; opacity: .55; }
+
+/* ------------------------------ Delete block ------------------------------ */
+
+/* Figma 249:3151 — the same face-over-rail block the rest of the ledger uses,
+   in the destructive palette, banded top and bottom like any other section. */
+.fitdet-delete-band {
+  padding: 0 24px;
+  border-top: 1px solid var(--home-grid);
+  border-bottom: 1px solid var(--home-grid);
+}
+.fitdet-delete {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  display: grid;
+  grid-template-rows: 52px 8px;
+  overflow: hidden;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: grid-template-rows var(--motion-quick) var(--ease-standard);
+}
+.fitdet-delete__face {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #fc3636;
+  color: var(--home-white);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: -.42px;
+  white-space: nowrap;
+}
+.fitdet-delete__rail { display: block; background: #c92323; }
+.fitdet-delete:active,
+.fitdet-delete.is-pressed { grid-template-rows: 57px 3px; }
+.fitdet-delete:disabled { opacity: .5; cursor: default; }
 
 /* --------------------------------- Editor -------------------------------- */
 
@@ -3000,15 +3057,72 @@ body.is-fitdetailpage .view { gap: 0; }
 /* A log with no photos cannot be printed, and the control says so rather than
    failing after it is pressed. */
 body.is-fitdetailpage .cust-nav-btn:disabled { opacity: .48; filter: saturate(0); cursor: default; }
-/* Content clears whichever fixed bar is showing, published by app.js. */
-body.has-fitdet-bar .fitdet-body,
-body.has-fitedit-bar .fitdet-body { padding-bottom: calc(var(--bottombar-h) + 8px); }
+/* Content clears whichever fixed bar is showing, published by app.js. The
+   clearance sits on the view rather than the photo list so the footer below the
+   delete block clears the bar too. */
+body.has-fitdet-bar .fitdet,
+body.has-fitdet-bar .fitedit,
+body.has-fitedit-bar .fitdet,
+body.has-fitedit-bar .fitedit { padding-bottom: calc(var(--bottombar-h) + 8px); }
+
+/* --------------------------- Detail route skeleton ------------------------ */
+
+/* The loader borrows the page's own ledger classes, so what shimmers is the
+   shape that is about to arrive rather than a generic card stack. */
+.route-loader:not([data-kind="fitdet"]) .route-loader__canvas--fitdet { display: none; }
+.route-loader[data-kind="fitdet"] { background: #292929; }
+.route-loader[data-kind="fitdet"] .route-loader__canvas--default { display: none; }
+.route-loader[data-kind="fitdet"] .route-loader__canvas--fitdet {
+  width: min(390px, 100%);
+  max-width: 390px;
+  min-height: 100svh;
+  margin: 0 auto;
+  padding: 0;
+  gap: 0;
+  background: var(--home-black);
+}
+.route-loader__canvas--fitdet i {
+  display: block;
+  background: rgba(255,255,255,.14);
+  border-radius: 4px;
+  animation: route-loader-shimmer 1.2s ease-in-out infinite;
+}
+.route-loader__skel-nav {
+  width: 132px;
+  height: 55px;
+  border: 1px solid var(--home-white-dark);
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--home-white);
+}
+.route-loader__skel-nav--icon { width: 56px; }
+.route-loader__skel-nav i { width: 100%; height: 100%; border-radius: 0; background: rgba(13,13,13,.10); }
+.route-loader__canvas--fitdet .fitdet-head { padding-top: 67px; }
+.route-loader__skel-heading { width: 72%; height: 32px; margin: 4px 0; }
+.route-loader__canvas--fitdet .fitdet-stage { border-color: var(--home-grid); background: rgba(255,255,255,.14); }
+.route-loader__canvas--fitdet .fitdet-meta__cell i { width: 78%; height: 12px; }
+/* The real frame stays black until the bytes arrive, so its placeholder is
+   black too — the card does not change weight when the photo lands. */
+.route-loader__canvas--fitdet .route-loader__skel-photo {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 0;
+  background: rgba(13,13,13,.82);
+}
+.route-loader__skel-caption { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+.route-loader__skel-caption i { height: 12px; background: rgba(13,13,13,.08); }
+.route-loader__skel-caption i:last-child { width: 62%; }
+.route-loader__canvas--fitdet .fitdet-action__face i { width: 48px; height: 12px; background: rgba(13,13,13,.08); }
+.route-loader__canvas--fitdet .fitdet-delete__face { background: rgba(252,54,54,.55); }
+.route-loader__canvas--fitdet .fitdet-delete__rail { background: rgba(201,35,35,.55); }
 
 @media (prefers-reduced-motion: reduce) {
   .fitdet-record,
   .fitdet-state:not(:empty) { animation: none; }
+  .route-loader__canvas--fitdet i { animation: none; }
   .fitdet-action,
   .fitdet-bar__btn,
+  .fitdet-delete,
   .fitlog-card-link .fitlog-card,
   .fitlog-card-link .fitlog-card__rail { transition: none; }
   .fitdet-pending__dot { animation: none; }
