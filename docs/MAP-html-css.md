@@ -4,7 +4,7 @@ Presentation layer. **Never read any of these files whole.** Jump to the range.
 
 ---
 
-## index.html (1614 lines)
+## index.html (1743 lines)
 
 Structure: boot gate → auth gate → app shell (bar + header + all views) → overlays → locked PDF templates → scripts.
 
@@ -16,45 +16,48 @@ Structure: boot gate → auth gate → app shell (bar + header + all views) → 
 | 27–33 | `#boot` — held until `db.js` resolves the session | Boot/auth |
 | 34–56 | `#gate` — shared-password sign-in | Auth UI |
 | 57–115 | `#app` shell: `.appbar`, overflow menu, `.pagehead` | App bar, title, page action |
-| 116–1225 | **Routed views** (table below) | Feature work |
-| 1226–1298 | Overlays: camera, confirm, caption, stage picker, edit sheet, photo viewer, bottom bars, savebar | Fitting capture flow, bottom bars |
-| 1299–1340 | `#calcSheet` — cost calculator scratchpad | Pricing UI |
-| 1341–1411 | `#routeLoader` shared fallback, `#toast` | Loading/toast |
-| 1412–1599 | **Locked spec** PDF templates | Only on explicit request |
-| 1600–1613 | CDN scripts + module load order | Adding a module |
+| 116–1276 | **Routed views** (table below) | Feature work |
+| 1277–1374 | Overlays: camera, confirm, caption, stage picker, edit sheet, photo viewer, undo toast, bottom bars, savebar | Fitting capture flow, bottom bars |
+| 1375–1416 | `#calcSheet` — cost calculator scratchpad | Pricing UI |
+| 1417–1542 | `#routeLoader` shared fallback, `#toast` | Loading/toast |
+| 1543–1727 | **Locked spec** PDF templates | Only on explicit request |
+| 1728–1743 | CDN scripts + module load order | Adding a module |
 
 ### Views — id → line range
 
 | Lines | View id | CSS class | Owner in app.js |
 | ---: | :--- | :--- | :--- |
-| 117–175 | `#viewCustomers` | `.view.home` | `showCustomers` 1339 |
-| 183–277 | `#viewCustomer` | `.view.cust` | `showCustomerDetail` 3049 |
-| 288–345 | `#viewFittingLogs` | `.view.fitlog` | `showFittingLogs` 1986 |
-| 355–399 | `#viewFittingDetail` | `.view.fitdet` | `showFittingLogDetail` 2523 |
-| 404–460 | `#viewFittingPhotoEdit` | `.view.fitedit` | `showFittingPhotoEditor` 2757 |
-| 470–679 | `#viewCustomerEdit` | `.view.custedit` | `showCustomerEdit` 3074 |
-| 681–774 | `#viewOrderEdit` | `.view` | order editor region 3881 |
-| 780–1017 | `#viewOrder` | `.view.order` | `showOrderDetail` 3644 |
-| 1019–1051 | `#viewCalendar` | `.view` | `showCalendarSettings` 3909 |
-| 1053–1193 | `#viewMoodboard` | `.view.moodboard-page` | `setupMoodboardListeners` 4298 |
-| 1195–1198 | `#viewFittingJournal` | `.view` | `KK.fittings.renderJournal` |
-| 1200–1225 | `#viewEnquiry` | `.view` | `acceptEnquiry` 2902 |
+| 117–175 | `#viewCustomers` | `.view.home` | `showCustomers` 1414 |
+| 183–277 | `#viewCustomer` | `.view.cust` | `showCustomerDetail` 4106 |
+| 288–345 | `#viewFittingLogs` | `.view.fitlog` | `showFittingLogs` 2061 |
+| 355–411 | `#viewFittingDetail` | `.view.fitdet` | `showFittingLogDetail` 2611 |
+| 416–474 | `#viewFittingPhotoEdit` | `.view.fitedit` | `showFittingPhotoEditor` 2843 |
+| 482–516 | `#viewFittingPhotoAdd` | `.view.fitadd` | `showFittingPhotoAdd` 3821 |
+| 521–730 | `#viewCustomerEdit` | `.view.custedit` | `showCustomerEdit` 4131 |
+| 732–825 | `#viewOrderEdit` | `.view` | order editor region 4938 |
+| 831–1068 | `#viewOrder` | `.view.order` | `showOrderDetail` 4701 |
+| 1070–1102 | `#viewCalendar` | `.view` | `showCalendarSettings` 4966 |
+| 1104–1244 | `#viewMoodboard` | `.view.moodboard-page` | `setupMoodboardListeners` 5355 |
+| 1246–1249 | `#viewFittingJournal` | `.view` | `KK.fittings.renderJournal` |
+| 1251–1276 | `#viewEnquiry` | `.view` | `acceptEnquiry` 3959 |
 
 ### Overlays & bars — id → line
 
-`#fittingCamera` 1227 · `#fittingConfirm` 1239 · `#fittingCaptionStep` 1244 · `#fittingPicker` 1249 · `#fittingEditSheet` 1251 · `#fittingPhotoViewer` 1255 · `#fitdetBar` 1263 · `#fiteditBar` 1276 · `#fittingJournalBar` 1285 · `#savebar` 1289 · `#calcSheet` 1302 · `#routeLoader` 1341 · `#toast` 1410
+`#fittingCamera` 1278 · `#fittingConfirm` 1290 · `#fittingCaptionStep` 1295 · `#fittingPicker` 1300 · `#fittingEditSheet` 1302 · `#fittingPhotoViewer` 1306 · `#fitdetBar` 1314 · `#fiteditBar` 1328 · `#fitaddUndo` 1340 · `#fitaddBar` 1347 · `#fittingJournalBar` 1361 · `#savebar` 1365 · `#calcSheet` 1378 · `#routeLoader` 1417 · `#toast` 1539
+
+Hidden file inputs: `#fitdetPhotoInput` 408 (multi-select entry from detail) · `#fitaddFileInput` 513 (append on the review page) · `#fiteditFileInput` 472 · `#fittingFileInput` 1288
 
 ### Locked PDF templates — do not edit without explicit request
 
 | Lines | Template | Rendered by |
 | ---: | :--- | :--- |
-| 1412–1500 | `#quotation` | `docs.js` → `render` |
-| 1501–1577 | `#invoice` | `docs.js` → `render` |
-| 1578–1599 | moodboard document | `moodboard.js` → `generatePDF` |
+| 1544–1634 | `#quotation` | `docs.js` → `render` |
+| 1635–1711 | `#invoice` | `docs.js` → `render` |
+| 1712–1727 | moodboard document | `moodboard.js` → `generatePDF` |
 
 Rendered off-screen at exact Figma dimensions, snapshotted by html2canvas. Any pixel change breaks the design contract.
 
-### Script load order (1604–1612) — this is the dependency graph
+### Script load order (1733–1741) — this is the dependency graph
 
 `config.js` → `util.js` → `docs.js` → `moodboard.js` → `fittings.js` → `fitting-pdf.js` → `db.js` → `calendar.js` → `app.js`
 
@@ -78,7 +81,7 @@ Preceded by CDN: html2canvas 1.4.1, jsPDF 2.5.2, heic2any 0.0.4, supabase-js 2.4
 | Moodboard editor, canvas, overlay, journal | `moodboard.css` |
 | Fonts | `fonts.css` — never open, base64 only |
 
-### styles/pages.css (2986 lines) — section → line
+### styles/pages.css (3319 lines) — section → line
 
 **Homepage:** Customers homepage 76 · Stage and layers 106 · Hero 133 · Fixed nav bar 177 · Shortcut row 240 · Submissions bar 294 · Search 342 · Customer ledger 367 · Footer 518 · Loading skeleton 534 · Error state 614
 
@@ -88,7 +91,7 @@ Preceded by CDN: html2canvas 1.4.1, jsPDF 2.5.2, heic2any 0.0.4, supabase-js 2.4
 
 **Order detail:** 1350 · Stage and layers 1368 · Navigation 1398 · Ledger 1468 · Cards 1501 · Designs 1534 · Items table 1614 · Payments 1665 · Schedules 1743 · Actions 1897 · Footer 1978 · Loading skeleton 1995 · Error state 2042
 
-**Fitting logs:** 2113 · Title band 2153 · Search 2189 · Stage filters 2249 · Feed 2324 · Feed message panels 2434 · Skeletons 2478 · Feed card as link 2552 · Photo cards 2653 · Card actions 2739 · Fixed bottom bar 2790 · Editor 2845 · Photo viewer 2887 · Detail focus rings 2939
+**Fitting logs:** 2113 · Title band 2153 · Search 2189 · Stage filters 2249 · Feed 2324 · Feed message panels 2434 · Skeletons 2478 · Feed card as link 2553 · Photo cards 2667 · Card actions 2753 · Fixed bottom bar 2804 · Delete block 2868 · Editor 2912 · **Add fitting photos 2978** · Inline caption editor 3049 · Undo toast 3081 · Add-page skeletons 3127 · Photo viewer 3163 · Detail focus rings 3215 · Detail route skeleton 3254
 
 ### styles/shared.css (2277 lines) — section → line
 
@@ -107,9 +110,10 @@ Editor page 8 · Generated canvas 264 · Actions 352 · Full-screen overlay 437 
 | Prefix | Feature | File |
 | :--- | :--- | :--- |
 | `.fitlog-*` | Fitting logs feed | `pages.css` 2113+ |
-| `.fitdet-*` | Fitting log detail | `pages.css` 2653+ |
-| `.fitedit-*` | Fitting photo editor | `pages.css` 2845+ |
-| `.fitview*` | Photo viewer overlay | `pages.css` 2887+ |
+| `.fitdet-*` | Fitting log detail (reused by the editor and add pages) | `pages.css` 2667+ |
+| `.fitedit-*` | Fitting photo editor | `pages.css` 2912+ |
+| `.fitadd-*` | Add fitting photos: 4:3 stage, inline caption editor, undo toast | `pages.css` 2978+ |
+| `.fitview*` | Photo viewer overlay | `pages.css` 3163+ |
 | `.fitting-*` | Journal, camera, picker overlays | `moodboard.css` 502+ |
 | `.cust*` / `.custedit*` | Customer pages | `pages.css` 661+, 994+ |
 | `.order*` | Order detail | `pages.css` 1350+ |

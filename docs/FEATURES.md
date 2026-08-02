@@ -18,133 +18,143 @@ Column key: **app.js** = entry function + line ([MAP-app.md](MAP-app.md)) · **H
 | fitting feed, filters, infinite scroll | [7](#7-fitting-logs-feed) |
 | one fitting log, photo cards, share, log PDF | [8](#8-fitting-log-detail), [9](#9-fitting-log-pdf) |
 | caption edit, replace photo, delete photo | [10](#10-fitting-photo-editor) |
-| camera, capture, journal, Drive upload | [11](#11-fitting-journal--camera) |
-| moodboard, mosaic, canvas, zoom | [12](#12-moodboard) |
-| quotation, invoice, watermark, PDF layout | [13](#13-quotation--invoice-documents) |
-| Tally, enquiry, intake | [14](#14-intake--enquiry-review) |
-| Google Calendar, sync, connect | [15](#15-google-calendar) |
-| sign in, gate, boot, session | [16](#16-auth-gate--boot) |
-| app bar, toast, save bar, route loader | [17](#17-shared-chrome) |
+| add photos, batch captions, staged delete, undo, 20-photo cap | [11](#11-add-fitting-photos-batch-review) |
+| camera, capture, journal, Drive upload | [12](#12-fitting-journal--camera) |
+| moodboard, mosaic, canvas, zoom | [13](#13-moodboard) |
+| quotation, invoice, watermark, PDF layout | [14](#14-quotation--invoice-documents) |
+| Tally, enquiry, intake | [15](#15-intake--enquiry-review) |
+| Google Calendar, sync, connect | [16](#16-google-calendar) |
+| sign in, gate, boot, session | [17](#17-auth-gate--boot) |
+| app bar, toast, save bar, route loader | [18](#18-shared-chrome) |
 
 ---
 
 ## 1. Homepage & customer ledger
 - **Route** `#/`
-- **app.js** `showCustomers` **1339**; region **1165–1477**. Also `renderCustomerList` 2947, `homepageStatus` 2971, `compareHomepageCustomers` 2991, `nextDeadline` 3011
+- **app.js** `showCustomers` **1414**; region **1240–1552**. Also `renderCustomerList` 4004, `homepageStatus` 4028, `compareHomepageCustomers` 4048, `nextDeadline` 4068
 - **HTML** `#viewCustomers` **117–175**
 - **CSS** `pages.css` 76–660 (hero 133, nav bar 177, shortcuts 240, submissions bar 294, search 342, ledger 367, skeleton 534, error 614)
 - **Data** `db.listCustomers`, `db.listAllOrders`, `db.listAllOrderEvents`, `db.listIntake('new')` · tables `customers`, `orders`, `order_events`, `intake_submissions`
 
 ## 2. Customer detail
-- **Route** `#/c/:id`
-- **app.js** `showCustomerDetail` **3049**, `renderCustomerDetail` 3158, `renderCustomerReadOnly` 3118, `custNextEvent` 3128, `custOrderStatus` 3150
+- **Route** `#/customer/:id`
+- **app.js** `showCustomerDetail` **4106**, `renderCustomerDetail` 4215, `renderCustomerReadOnly` 4175, `custNextEvent` 4185, `custOrderStatus` 4207
 - **HTML** `#viewCustomer` **183–277**
 - **CSS** `pages.css` 661–993 (hero 753, banners 771, order ledger 851)
 - **Data** `db.getCustomer`, `db.listOrders` · tables `customers`, `orders`, `order_events`
 
 ## 3. Customer editor
-- **Route** `#/c/:id/edit`
-- **app.js** `showCustomerEdit` **3074**, `fillCustomerForm` 3195, `saveCustomer` **3240**, `setWeddingPrecision` 3220, `setNameError` 3212, `lastDayOfMonth` 3233. Lifecycle helpers 640–762: `setFollowUp` 681, `pushFollowUp` 691, `cancelCustomer` 705, `deleteCustomerRecord` 725, `reopenCustomer` 742
-- **HTML** `#viewCustomerEdit` **470–679**
+- **Route** `#/customer/:id/edit`
+- **app.js** `showCustomerEdit` **4131**, `fillCustomerForm` 4252, `saveCustomer` **4297**, `setWeddingPrecision` 4277, `setNameError` 4269, `lastDayOfMonth` 4290. Lifecycle helpers 640–762: `setFollowUp` 741, `pushFollowUp` 751, `cancelCustomer` 765, `deleteCustomerRecord` 785, `reopenCustomer` 802
+- **HTML** `#viewCustomerEdit` **521–730**
 - **CSS** `pages.css` 994–1349 (error 1157, status actions 1193, save bar 1250); fields/chips in `shared.css` 1474, 1753
 - **Data** `db.updateCustomer`, `db.createCustomer`, `db.deleteCustomer`, `db.syncFollowUp` · table `customers`
 
 ## 4. Order detail
-- **Route** `#/o/:id`
-- **app.js** `showOrderDetail` **3644**; region **3312–3880**. `buildOrderDetailViewModel` 3459, `renderOrderPayments` 3538, `renderOrderSchedule` 3572, `refreshOrderPayments` 3709, `refreshOrderSchedule` 3743, `logDeposit` 4857, `deriveLoggedDeposits` 3404
-- **HTML** `#viewOrder` **780–1017**
+- **Route** `#/order/:id`
+- **app.js** `showOrderDetail` **4701**; region **4369–4937**. `buildOrderDetailViewModel` 4516, `renderOrderPayments` 4595, `renderOrderSchedule` 4629, `refreshOrderPayments` 4766, `refreshOrderSchedule` 4800, `logDeposit` 5914, `deriveLoggedDeposits` 4461
+- **HTML** `#viewOrder` **831–1068**
 - **CSS** `pages.css` 1350–2112 (ledger 1468, cards 1501, designs 1534, items 1614, payments 1665, schedules 1743, actions 1897, skeleton 1995, error 2042)
 - **Data** `db.getOrder`, `db.listOrderEvents`, `db.listDocumentLog`, `db.listOrderHistory`, `db.logOrderHistory`, `db.listFittingSessions`, `db.listFittingPhotos` · tables `orders`, `order_events`, `document_log`, `order_history`
 
 ## 5. Order editor & cost calculator
-- **Route** `#/o/:id/edit`
-- **app.js** region **3881–4277**. `saveOrder` **3951**, `readItems` 4074, `addItemRow` 4010, `refreshItemTotals` 4039, `readTerms` 4159, `buildTerms` 4184, `validateTerms` 3996, `syncSchemeCard` 4194, `applyCostCalc` 4269, `closeCostCalc` 4253
+- **Route** `#/order/:id/edit`
+- **app.js** region **3881–4277**. `saveOrder` **5008**, `readItems` 5131, `addItemRow` 5067, `refreshItemTotals` 5096, `readTerms` 5216, `buildTerms` 5241, `validateTerms` 5053, `syncSchemeCard` 5251, `applyCostCalc` 5326, `closeCostCalc` 5310
 - **HTML** `#viewOrderEdit` **681–774**, `#calcSheet` **1302–1340**
 - **CSS** `shared.css` item rows 1586, payment terms 1689, chips 1753, cost sheet 2052, cost calc trigger 2158
 - **Data** `db.updateOrder`, `db.createOrder`, `db.logOrderHistory` · table `orders` (`items`, `includes`, `payment_terms`, `payment_scheme` jsonb)
 
 ## 6. Fitting schedule computation
 - **Entry** `calendar.js` — `computeSchedule`, `computeDesign`, `computeProduction`, `DROP_ORDER`, `plannedWeek` (whole file, 356 lines — **pure, tested**)
-- **app.js** `orderScheduleModel` **3414**, `rescheduleOrder` **3844**, `renderScheduleHint` 3809, `retryOrderSchedule` 3782
+- **app.js** `orderScheduleModel` **4471**, `rescheduleOrder` **4901**, `renderScheduleHint` 4866, `retryOrderSchedule` 4839
 - **CSS** `shared.css` schedule 1117; `pages.css` schedules 1743
 - **Data** `db.replaceOrderEvents` (preserves `google_event_id` per stage), `db.syncOrderCalendar` · table `order_events`
 - **Gate** changes here must pass `node --test tests/pure-modules.test.cjs`
 
 ## 7. Fitting logs feed
 - **Route** `#/fittings`
-- **app.js** `showFittingLogs` **1986**; region **1478–2061**. `fittingCardHtml` 1527, `renderFittingFeed` 1683, `startFittingFirstPage` 1743, `loadMoreFittingLogs` 1776, `fittingRequestArgs` 1714, `parkFittingLogs` 1843, `cleanupFittingLogs` 1816
+- **app.js** `showFittingLogs` **2061**; region **1553–2136**. `fittingCardHtml` 1602, `renderFittingFeed` 1758, `startFittingFirstPage` 1818, `loadMoreFittingLogs` 1851, `fittingRequestArgs` 1789, `parkFittingLogs` 1918, `cleanupFittingLogs` 1891
 - **HTML** `#viewFittingLogs` **288–345**
-- **CSS** `pages.css` 2113–2652 (`.fitlog-*`: title band 2153, search 2189, stage filters 2249, feed 2324, panels 2434, skeletons 2478, card link 2552)
+- **CSS** `pages.css` 2113–2666 (`.fitlog-*`: title band 2153, search 2189, stage filters 2249, feed 2324, panels 2434, skeletons 2478, card link 2553)
 - **Data** `db.listFittingLogs(options)` (cursor paging) · view `fitting_log_feed` — search and stage filtering happen in the view, never client-side
 
 ## 8. Fitting log detail
 - **Route** `#/fittings/:sessionId`
-- **app.js** `showFittingLogDetail` **2523**; region **2062–2580**. `renderFittingDetail` 2181, `fittingDetailCardHtml` 2109, `shareFittingPhoto` 2284, `fittingPhotoBlob` 2228, `openFittingPhotoViewer` 2407, `addFittingDetailPhoto` 2453, `endFittingDetailSession` 2461, `deleteFittingDetailLog` 2484, `setupFittingDetailListeners` 2818
-- **HTML** `#viewFittingDetail` **355–399**, `#fittingPhotoViewer` 1255, `#fitdetBar` 1263
-- **CSS** `pages.css` `.fitdet-*` 2653–2938 (photo cards 2653, actions 2739, bottom bar 2790, viewer 2887)
+- **app.js** `showFittingLogDetail` **2611**; region **2137–2668**. `renderFittingDetail` 2258, `fittingDetailCardHtml` 2186, `shareFittingPhoto` 2361, `fittingPhotoBlob` 2305, `openFittingPhotoViewer` 2484, `addFittingDetailPhoto` 2533, `endFittingDetailSession` 2549, `deleteFittingDetailLog` 2572, `setupFittingDetailListeners` 2904
+- **HTML** `#viewFittingDetail` **355–411**, `#fittingPhotoViewer` 1306, `#fitdetBar` 1314, `#fitdetPhotoInput` 408
+- **CSS** `pages.css` `.fitdet-*` 2667–2977 (photo cards 2667, actions 2753, bottom bar 2804, delete block 2868, viewer 3163)
 - **Data** `db.getFittingSession`, `db.listFittingPhotosBySession`, `db.driveGetFittingPhoto`, `db.updateFittingSession`, `db.deleteFittingSession` · tables `fitting_sessions`, `fitting_photos`
 
 ## 9. Fitting log PDF
 - **Entry** `fitting-pdf.js` (whole file, 290 lines — **pure geometry**)
-- **app.js** `downloadFittingPdf` **2338** (resolves images, owns busy UI and save), `measureImage` 2260, `blobToDataUrl` 2251, `fittingShareFilename` 2269
+- **app.js** `downloadFittingPdf` **2415** (resolves images, owns busy UI and save), `measureImage` 2337, `blobToDataUrl` 2328, `fittingShareFilename` 2346
 - **Data** `google-drive` action `get_fitting_photo { photo_id }` — resolves the Drive id server-side
 - **Do not** add DB, Drive, toast, or save calls to `fitting-pdf.js`
 
 ## 10. Fitting photo editor
 - **Route** `#/fittings/:sessionId/photo/:photoId/edit`
-- **app.js** `showFittingPhotoEditor` **2757**; region **2581–2890**. `renderFittingEditor` 2597, `stageFittingReplacement` 2625, `saveFittingEditor` 2649, `deleteFittingEditorPhoto` 2714, `fittingEditorDirty` 2586, `cleanupFittingEditor` 2745
-- **HTML** `#viewFittingPhotoEdit` **404–460**, `#fiteditBar` 1276
-- **CSS** `pages.css` `.fitedit-*` 2845–2938
+- **app.js** `showFittingPhotoEditor` **2843**; region **2669–2983**. `renderFittingEditor` 2685, `stageFittingReplacement` 2713, `saveFittingEditor` 2735, `deleteFittingEditorPhoto` 2800, `fittingEditorDirty` 2674, `cleanupFittingEditor` 2831
+- **HTML** `#viewFittingPhotoEdit` **416–474**, `#fiteditBar` 1328
+- **CSS** `pages.css` `.fitedit-*` 2912–2977
 - **Data** `db.updateFittingPhoto`, `db.deleteFittingPhoto`, `db.driveSaveFittingPhoto` · table `fitting_photos`
 - **Note** upload first, write once — the old record and image stay usable until the new one lands
 
-## 11. Fitting journal & camera
-- **Routes** `#/o/:id/fitting/new`, `#/o/:id/fitting/:sessionId` (dispatch at `handleRoute` 813/816)
-- **Entry** `fittings.js` (whole file, 696 lines)
-- **HTML** `#viewFittingJournal` **1195–1198**, overlays **1227–1298** (`#fittingCamera`, `#fittingConfirm`, `#fittingCaptionStep`, `#fittingPicker`, `#fittingEditSheet`)
+## 11. Add fitting photos (batch review)
+- **Route** `#/fittings/:sessionId/photos/add?source=feed|order` — reached from Add photos on fitting-log detail, which opens the native multi-select gallery sheet first and only navigates once a file comes back
+- **app.js** `showFittingPhotoAdd` **3821**; region **2984–3947**. `renderFittingPhotoAdd` 3383, `runAddPreparationQueue` 3115, `patchAddDraftCard` 3453, `openAddEditor` 3504, `saveAddEditor` 3535, `deleteAddCard` 3551, `undoAddDeletion` 3208, `saveFittingPhotoAdd` **3615**, `startAddBackups` 3736, `seedFittingPhotoAdd` 3803, `cleanupFittingPhotoAdd` 3793, `setupFittingPhotoAddListeners` 3893
+- **HTML** `#viewFittingPhotoAdd` **482–516**, `#fitaddFileInput` 513, `#fitaddUndo` 1340, `#fitaddBar` 1347, and `#fitdetPhotoInput` 408 on the detail page
+- **CSS** `pages.css` `.fitadd-*` 2978–3162 (4:3 stage 2985, inline caption editor 3049, undo toast 3081, skeletons 3127); cards, actions and the bottom bar reuse `.fitdet-*` 2667+
+- **Data** **`db.saveFittingPhotoBatch(sessionId, captionUpdates, deleteIds, newPhotos)`** → RPC `save_fitting_photo_batch` · table `fitting_photos`. Also `db.getFittingSession`, `db.getOrder`, `db.getCustomer`, `db.listFittingPhotosBySession` on direct entry
+- **Image prep** `KK.fittings.prepareImage` — 2560px longest edge, quality 0.90, one file at a time
+- **Invariants** nothing is written until Save changes; captions, deletions and additions apply in **one transaction**; a staged existing-photo deletion offers a 5s Undo and never touches its Drive archive copy; the log caps at **20** photos, enforced again in the RPC; Drive backup runs **after** the commit through `KK.fittings.backupPhoto`, never before
+
+## 12. Fitting journal & camera
+- **Routes** `#/order/:id/fitting/new`, `#/order/:id/fitting/:sessionId` (dispatch at `handleRoute` 874/877)
+- **Entry** `fittings.js` (whole file, 731 lines)
+- **HTML** `#viewFittingJournal` **1246–1249**, overlays **1278–1374** (`#fittingCamera`, `#fittingConfirm`, `#fittingCaptionStep`, `#fittingPicker`, `#fittingEditSheet`)
 - **CSS** `moodboard.css` fitting journal 502–581
 - **Data** `db.createFittingSession`, `db.createFittingPhoto`, `db.driveSaveFittingPhoto` · tables `fitting_sessions`, `fitting_photos`
 - **Invariant** never complete a session without awaiting `fittings.waitForSessionBackups`
 
-## 12. Moodboard
-- **Routes** `#/m/:id`, `#/m/:id/preview`
+## 13. Moodboard
+- **Routes** `#/order/:id/moodboard`, `#/order/:id/moodboard/preview`
 - **Entry** `moodboard.js` (whole file, 724 lines)
-- **app.js** region **4278–4687**: `setupMoodboardListeners` 4298, `addMoodboardFiles` 4395, `openMoodboardCanvas` 4430, `openMoodboardOverlay` 4487, `bindMoodboardOverlayGestures` 4592, `moodboardZoomAt` 4548; export `exportMoodboard` **4755**, `recordMoodboardExport` 4723
-- **HTML** `#viewMoodboard` **1053–1193**, moodboard document **1578–1599** (locked spec)
+- **app.js** region **5335–5744**: `setupMoodboardListeners` 5355, `addMoodboardFiles` 5452, `openMoodboardCanvas` 5487, `openMoodboardOverlay` 5544, `bindMoodboardOverlayGestures` 5649, `moodboardZoomAt` 5605; export `exportMoodboard` **5812**, `recordMoodboardExport` 5780
+- **HTML** `#viewMoodboard` **1104–1244**, moodboard document **1712–1727** (locked spec)
 - **CSS** `moodboard.css` (editor 8, canvas 264, actions 352, overlay 437, document 582)
 - **Data** `db.driveSaveMoodboardPdf`, `db.logMoodboard`, `db.countMoodboards` · table `document_log` (kind `moodboard`)
 
-## 13. Quotation & invoice documents
+## 14. Quotation & invoice documents
 - **Entry** `docs.js` (whole file, 353 lines)
-- **app.js** `downloadDocument` **4825**, `setDocumentBusy` 4808
-- **HTML** `#quotation` **1412–1500**, `#invoice` **1501–1577** — **locked spec, 1:1 with Figma, do not edit without an explicit request**
+- **app.js** `downloadDocument` **5882**, `setDocumentBusy` 5865
+- **HTML** `#quotation` **1544–1634**, `#invoice` **1635–1711** — **locked spec, 1:1 with Figma, do not edit without an explicit request**
 - **CSS** `documents.css` (header 84, items 182, includes/excludes 254, terms 298, signature 351, invoice 378)
 - **Data** `db.logDocument(orderId, kind, total)` · table `document_log`
 - **Background** rationale lives in `README.md` §"The design contract" — seek via [README-INDEX.md](README-INDEX.md), do not read the file
 
-## 14. Intake / enquiry review
-- **Route** `#/e/:id`
+## 15. Intake / enquiry review
+- **Route** `#/enquiry/:id`
 - **Entry** `supabase/functions/intake/index.ts` (211 lines) for the webhook
-- **app.js** `readableAnswer` **2891**, `acceptEnquiry` 2902, `dismissEnquiry` 2933
-- **HTML** `#viewEnquiry` **1200–1225**
+- **app.js** `readableAnswer` **3948**, `acceptEnquiry` 3959, `dismissEnquiry` 3990
+- **HTML** `#viewEnquiry` **1251–1276**
 - **Data** `db.listIntake`, `db.getIntake`, `db.resolveIntake` · table `intake_submissions`
 - **Invariant** `payload` is the record; the columns are convenience. `source` is unconstrained so a stranger's answer can never reject the insert
 
-## 15. Google Calendar
+## 16. Google Calendar
 - **Route** `#/calendar`
 - **Entry** `supabase/functions/google-calendar/index.ts` (550 lines, actions at 517–539)
-- **app.js** `showCalendarSettings` **3909**, `connectGoogle` 3890, `disconnectGoogle` 3937, `googleRedirectUri` 3888, `offerGoogleReconnect` 4748
-- **HTML** `#viewCalendar` **1019–1051**
+- **app.js** `showCalendarSettings` **4966**, `connectGoogle` 4947, `disconnectGoogle` 4994, `googleRedirectUri` 4945, `offerGoogleReconnect` 5805
+- **HTML** `#viewCalendar` **1070–1102**
 - **Data** `db.googleStatus/Exchange/Disconnect/Forget`, `db.syncOrderCalendar`, `db.syncFollowUp` · tables `google_credentials` (service-role only), `order_events.google_event_id`
 
-## 16. Auth gate & boot
-- **app.js** `showGate` **5305**, `showApp` 5322, boot region **5352–5402**
+## 17. Auth gate & boot
+- **app.js** `showGate` **6363**, `showApp` 6380, boot region **6410–6460**
 - **HTML** `#boot` **27–33**, `#gate` **34–56**
 - **CSS** `shared.css` boot 5, gate 300
 - **Data** `db.init`, `db.currentSession`, `db.signIn`, `db.signOut`, `db.refreshSession`, `db.isStaleToken`, `db.savedPassword`; `config.js`
 
-## 17. Shared chrome
-- **app.js** region **350–609**: `showToast` 352, `setDirty` 359, `setSaveBar` 406, `setPageAction` 412, `setChrome` 420, `closeMenu` 455, `beginRouteLoader` 514, `showRouteError` 558, `focusRoute` 581. All listeners in `bindEvents` **4960**
-- **HTML** app bar **60–115**, `#savebar` 1289, `#routeLoader` 1341, `#toast` 1410
+## 18. Shared chrome
+- **app.js** region **401–669**: `showToast` 403, `setDirty` 410, `setSaveBar` 458, `setPageAction` 464, `setChrome` 472, `closeMenu` 507, `beginRouteLoader` 572, `showRouteError` 616, `focusRoute` 639. All listeners in `bindEvents` **6017**
+- **HTML** app bar **60–115**, `#savebar` 1365, `#routeLoader` 1417, `#toast` 1539
 - **CSS** `shared.css` app bar 361, overflow menu 466, page header 514, buttons 1851, bottom bars 1964, toast 2192, motion 2223
 - **Warning** this region is shared by every page. Changing it is a repo-wide edit — justify it before starting.

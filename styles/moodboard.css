@@ -55,7 +55,6 @@ body.is-moodboardpage .view { gap: 0; }
 .moodboard-nav__file,
 .moodboard-nav__rotate { flex: none; }
 .moodboard-nav__rotate:disabled { cursor: progress; opacity: .55; }
-.moodboard-nav__back .order-nav-btn__face { justify-content: flex-start; }
 .moodboard-nav__back .order-nav-btn__face span {
   min-width: 0;
   overflow: hidden;
@@ -368,13 +367,14 @@ body.is-moodboardpage .view { gap: 0; }
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  gap: 8px;
   padding: 0 16px;
   font-size: 14px;
   font-weight: 600;
   line-height: 20px;
   letter-spacing: -.42px;
-  text-align: left;
+  text-align: center;
 }
 .moodboard-action__face img { flex: none; width: 20px; height: 20px; }
 .moodboard-action__rail { display: block; }

@@ -121,17 +121,18 @@ KK.util = (function () {
   function formatLongDate(dateStr) {
     const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(dateStr || ''));
     if (!match) return '';
-    const day = Number(match[3]);
-    const month = MONTHS[Number(match[2]) - 1];
-    const year = match[1];
-    return month && day ? day + ' ' + month + ' ' + year : '';
+    const dayNum = Number(match[3]);
+    const monthName = MONTHS[Number(match[2]) - 1];
+    const yearStr = match[1];
+    if (!monthName || !dayNum) return '';
+    const day = String(dayNum).padStart(2, '0');
+    const mon = monthName.slice(0, 3);
+    const yy = yearStr.slice(2);
+    return day + ' ' + mon + " '" + yy;
   }
 
   function formatShortDate(dateStr) {
-    const longFormatted = formatLongDate(dateStr);
-    if (!longFormatted) return '';
-    const parts = longFormatted.split(' ');
-    return parts[0] + ' ' + parts[1].slice(0, 3) + ' ' + parts[2];
+    return formatLongDate(dateStr);
   }
 
   function todayISO() {

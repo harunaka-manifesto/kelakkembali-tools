@@ -1,4 +1,4 @@
-# MAP — app.js (5402 lines, ~217 KB)
+# MAP — app.js (6460 lines, ~258 KB)
 
 **Never read this file whole.** It costs ~60k tokens. Jump to a region below, read ≤400 lines.
 
@@ -14,58 +14,61 @@ One IIFE. Everything is file-scoped; there is no class, no module, no split. Reg
 | 12–21 | Dependency aliases (`db`, `util`, `cal`, `docs`…) | `Core Dependencies & Helper Aliases` | Resolving what `u.` / `cal.` mean |
 | 22–38 | Domain constants (statuses, stages, copy) | `Domain Constants` | Adding a status/stage value |
 | 39–44 | SVG icon aliases | `SVG Icons` | Adding an icon |
-| 45–258 | **Element registry** — every `$("#id")` handle | `Element Registry` | You added DOM to `index.html` and need a handle |
-| 259–349 | **Application state** object | `Application State` | Adding page state; read 259–349 in full |
-| 350–462 | UI chrome: toast, dirty flag, save bar, app bar, menu | `UI Utilities & Chrome` | Changing bars, toasts, page actions |
-| 463–609 | **Router**: curtain, route loader, error, focus | `Routing & View Transition` | Adding a route |
-| 610–1164 | Status derivation, lifecycle, follow-up, `handleRoute` dispatch | `Status Helpers & Data Transformations` | Status/pipeline logic, route dispatch |
-| 1165–1477 | Homepage / customer ledger render + reveal | (starts at `orderLabel`) | Homepage work |
-| 1478–2061 | **Fitting logs feed** (list, paging, filters, parking) | `Fitting logs feed` | Feed work |
-| 2062–2580 | **Fitting log detail** (photos, share, PDF, viewer) | `Fitting log session detail` | Detail page work |
-| 2581–2890 | **Fitting photo editor** (caption, replace, delete) | `Fitting photo editor` | Editor work |
-| 2891–2946 | Enquiry review (accept / dismiss intake) | (starts at `readableAnswer`) | Tally intake UI |
-| 2947–3311 | **Customer detail + editor** | `Customer Detail & Edit Controller` | Customer pages |
-| 3312–3880 | **Order detail** view model, render, schedule, payments | `Order Detail ViewModel & UI` | Order detail page |
-| 3881–4277 | **Order editor + cost calculator** (items, terms, chips) | `Order Editor & Cost Calculator` | Order editing, pricing |
-| 4278–4687 | **Moodboard integration** (canvas, overlay, gestures) | `Moodboard Integration` | Moodboard page glue |
-| 4688–4957 | **Exports**: PDFs, deposit logging, Drive reconnect | `Exports` | Document/PDF export flows |
-| 4958–5351 | **`bindEvents`** — every listener, one function | `Boot & Event Listeners` | Wiring a new control |
-| 5352–5402 | Gate, boot, session restore | `App Boot` | Auth/boot changes |
+| 45–275 | **Element registry** — every `$("#id")` handle | `Element Registry` | You added DOM to `index.html` and need a handle |
+| 276–400 | **Application state** object | `Application State` | Adding page state; read 276–400 in full |
+| 401–514 | UI chrome: toast, dirty flag, save bar, app bar, menu | `UI Utilities & Chrome` | Changing bars, toasts, page actions |
+| 515–669 | **Router**: curtain, route loader, error, focus | `Routing & View Transition` | Adding a route |
+| 670–1239 | Status derivation, lifecycle, follow-up, `handleRoute` dispatch | `Status Helpers & Data Transformations` | Status/pipeline logic, route dispatch |
+| 1240–1552 | Homepage / customer ledger render + reveal | (starts at `orderLabel`) | Homepage work |
+| 1553–2136 | **Fitting logs feed** (list, paging, filters, parking) | `Fitting logs feed` | Feed work |
+| 2137–2668 | **Fitting log detail** (photos, share, PDF, viewer) | `Fitting log session detail` | Detail page work |
+| 2669–2983 | **Fitting photo editor** (caption, replace, delete) | `Fitting photo editor` | Editor work |
+| 2984–3947 | **Add fitting photos** (batch review, captions, staged deletes, atomic save) | `Add fitting photos` | Batch add/edit page work |
+| 3948–4103 | Enquiry review (accept / dismiss intake) | (starts at `readableAnswer`) | Tally intake UI |
+| 4104–4368 | **Customer detail + editor** | `Customer Detail & Edit Controller` | Customer pages |
+| 4369–4937 | **Order detail** view model, render, schedule, payments | `Order Detail ViewModel & UI` | Order detail page |
+| 4938–5334 | **Order editor + cost calculator** (items, terms, chips) | `Order Editor & Cost Calculator` | Order editing, pricing |
+| 5335–5744 | **Moodboard integration** (canvas, overlay, gestures) | `Moodboard Integration` | Moodboard page glue |
+| 5745–6014 | **Exports**: PDFs, deposit logging, Drive reconnect | `Exports` | Document/PDF export flows |
+| 6015–6409 | **`bindEvents`** — every listener, one function | `Boot & Event Listeners` | Wiring a new control |
+| 6410–6460 | Gate, boot, session restore | `App Boot` | Auth/boot changes |
 
 ### Region read recipes
 
 ```
-Read app.js offset=45   limit=214   # element registry
-Read app.js offset=259  limit=91    # state shape
-Read app.js offset=463  limit=147   # router
-Read app.js offset=3312 limit=400   # order detail (first half)
-Read app.js offset=4958 limit=394   # bindEvents
+Read app.js offset=45   limit=231   # element registry
+Read app.js offset=276  limit=125   # state shape
+Read app.js offset=515  limit=155   # router
+Read app.js offset=2984 limit=400   # add fitting photos (first half)
+Read app.js offset=4369 limit=400   # order detail (first half)
+Read app.js offset=6015 limit=395   # bindEvents
 ```
 
 ---
 
 ## 2. Routes → handler
 
-Parsed in `handleRoute` at **789** (hash segments, lines 789–840). Each returns `{ view, id?, sessionId?, photoId?, query }`.
+Parsed in `handleRoute` at **849** (hash segments, lines 849–900). Each returns `{ view, id?, sessionId?, photoId?, query }`.
 
 | Hash | `view` | Entry function | Line |
 | :--- | :--- | :--- | ---: |
-| `#/` | `customers` | `showCustomers` | 1339 |
-| `#/c/:id` | `customer` | `showCustomerDetail` | 3049 |
-| `#/c/:id/edit` | `customerEdit` | `showCustomerEdit` | 3074 |
-| `#/o/:id` | `order` | `showOrderDetail` | 3644 |
-| `#/o/:id/edit` | `orderEdit` | (order editor region 3881+) | 3881 |
-| `#/m/:id` | `moodboard` | `setupMoodboardListeners` | 4298 |
-| `#/m/:id/preview` | `moodboardPreview` | `openMoodboardCanvas` | 4430 |
-| `#/fittings` | `fittingLogs` | `showFittingLogs` | 1986 |
-| `#/fittings/:sessionId` | `fittingLogDetail` | `showFittingLogDetail` | 2523 |
-| `#/fittings/:sessionId/photo/:photoId/edit` | `fittingPhotoEdit` | `showFittingPhotoEditor` | 2757 |
-| `#/o/:id/fitting/new` | `fittingNew` | (dispatch in `handleRoute`) | 813 |
-| `#/o/:id/fitting/:sessionId` | `fittingJournal` | (dispatch in `handleRoute`) | 816 |
-| `#/calendar` | `calendar` | `showCalendarSettings` | 3909 |
-| `#/e/:id` | `enquiry` | `readableAnswer` / `acceptEnquiry` | 2891 / 2902 |
+| `#/` | `customers` | `showCustomers` | 1414 |
+| `#/customer/:id` | `customer` | `showCustomerDetail` | 4106 |
+| `#/customer/:id/edit` | `customerEdit` | `showCustomerEdit` | 4131 |
+| `#/order/:id` | `order` | `showOrderDetail` | 4701 |
+| `#/order/:id/edit` | `orderEdit` | (dispatch in `handleRoute`) | 1005 |
+| `#/order/:id/moodboard` | `moodboard` | `setupMoodboardListeners` | 5355 |
+| `#/order/:id/moodboard/preview` | `moodboardPreview` | `openMoodboardCanvas` | 5487 |
+| `#/fittings` | `fittingLogs` | `showFittingLogs` | 2061 |
+| `#/fittings/:sessionId` | `fittingLogDetail` | `showFittingLogDetail` | 2611 |
+| `#/fittings/:sessionId/photo/:photoId/edit` | `fittingPhotoEdit` | `showFittingPhotoEditor` | 2843 |
+| `#/fittings/:sessionId/photos/add` | `fittingPhotoAdd` | `showFittingPhotoAdd` | 3821 |
+| `#/order/:id/fitting/new` | `fittingNew` | (dispatch in `handleRoute`) | 874 |
+| `#/order/:id/fitting/:sessionId` | `fittingJournal` | (dispatch in `handleRoute`) | 877 |
+| `#/calendar` | `calendar` | `showCalendarSettings` | 4966 |
+| `#/enquiry/:id` | `enquiry` | `readableAnswer` / `acceptEnquiry` | 3948 / 3959 |
 
-**Adding a route:** add a segment case near 789–839, add a `showX` entry function in the matching region, add the `<section class="view" id="viewX" hidden>` to `index.html`, register its elements at 45–258, add state at 259–349 if it needs any. That is the whole checklist.
+**Adding a route:** add a segment case near 855–900, add a `showX` entry function in the matching region, add the `<section class="view" id="viewX" hidden>` to `index.html`, register its elements at 45–275, add state at 276–400 if it needs any. Then check the five other route surfaces the same edit touches: view toggling, `routeHasOwnLoader`/`routeLoaderKind`, `focusRoute`, `syncBottomBar`, and cleanup on leaving. That is the whole checklist.
 
 ---
 
@@ -73,47 +76,50 @@ Parsed in `handleRoute` at **789** (hash segments, lines 789–840). Each return
 
 Look up here instead of grepping. Arrow-function helpers are marked `→`.
 
-### Chrome & router (350–609)
-`showToast` 352 · `setDirty` 359 · `syncBottomBar` 365 · `syncVisualViewport` 380 · `trapModalFocus` 387 · `setSaveBar` 406 · `setPageAction` 412 · `setChrome` 420 · `closeMenu` 455 · `wait` →470 · `coverCurtain` →472 · `revealCurtain` →494 · `routeHasOwnLoader` →506 · `routeLoaderKind` →507 · `beginRouteLoader` 514 · `hideRouteLoader` →540 · `showRouteError` 558 · `focusRoute` 581
+### Chrome & router (401–669)
+`showToast` 403 · `setDirty` 410 · `syncBottomBar` 416 · `syncVisualViewport` 432 · `trapModalFocus` 439 · `setSaveBar` 458 · `setPageAction` 464 · `setChrome` 472 · `closeMenu` 507 · `wait` →522 · `coverCurtain` →524 · `revealCurtain` →546 · `routeHasOwnLoader` →561 · `routeLoaderKind` →563 · `beginRouteLoader` 572 · `hideRouteLoader` →598 · `showRouteError` 616 · `focusRoute` 639
 
-### Status, lifecycle, dispatch (610–1164)
-`badgeClass` →612 · `effectiveStatus` 614 · `bumpStatus` →619 · `renderOrderStatus` 634 · `customerStatus` 640 · `orderIsPaid` →650 · `designAnchor` →651 · `productionAnchor` →652 · `openCustomerOrders` →653 · `dateOnly` →654 · `followUpPatch` 656 · `consultNudgeFor` 671 · `setFollowUp` →681 · `pushFollowUp` →691 · `canCancel` →703 · `cancelCustomer` →705 · `deleteCustomerRecord` →725 · `reopenCustomer` →742 · `go` 763 · `leaveFormFor` 768 · `confirmLeave` 782 · **`handleRoute` 789** · `renderFn` →925 · `startSessionFn` →1024 · `loadTask` →1124
+### Status, lifecycle, dispatch (670–1239)
+`badgeClass` →672 · `effectiveStatus` 674 · `bumpStatus` →679 · `renderOrderStatus` 694 · `customerStatus` 700 · `orderIsPaid` →710 · `designAnchor` →711 · `productionAnchor` →712 · `openCustomerOrders` →713 · `dateOnly` →714 · `followUpPatch` 716 · `consultNudgeFor` 731 · `setFollowUp` →741 · `pushFollowUp` →751 · `canCancel` →763 · `cancelCustomer` →765 · `deleteCustomerRecord` →785 · `reopenCustomer` →802 · `go` 823 · `leaveFormFor` 828 · `confirmLeave` 842 · **`handleRoute` 849** · `renderFn` →998 · `startSessionFn` →1097 · `loadTask` →1199
 
-### Homepage (1165–1477)
-`orderLabel` 1165 · `isCosted` →1171 · `isNamed` →1172 · `greetingForClock` 1174 · `homepageOverview` 1179 · `clearHomepagePops` 1202 · `clearHomepagePresses` 1207 · `isCurrentHomepageLoad` 1211 · `beginHomepageLoad` 1215 · `renderHomepageError` 1233 · `renderHomepageHero` 1253 · `renderHomepageAlert` 1274 · `renderHomepageSummary` 1281 · `renderHomepageReady` 1287 · `prepareShortcutAppearState` 1296 · `playShortcutAppear` 1301 · `revealHomepage` →1309 · **`showCustomers` 1339** · `hapticTap` 1362
+### Homepage (1240–1552)
+`orderLabel` 1240 · `isCosted` →1246 · `isNamed` →1247 · `greetingForClock` 1249 · `homepageOverview` 1254 · `clearHomepagePops` 1277 · `clearHomepagePresses` 1282 · `isCurrentHomepageLoad` 1286 · `beginHomepageLoad` 1290 · `renderHomepageError` 1308 · `renderHomepageHero` 1328 · `renderHomepageAlert` 1349 · `renderHomepageSummary` 1356 · `renderHomepageReady` 1362 · `prepareShortcutAppearState` 1371 · `playShortcutAppear` 1376 · `revealHomepage` →1384 · **`showCustomers` 1414** · `hapticTap` 1437
 
-### Fitting logs feed (1478–2061)
-`isFittingRoute` →1503 · `fittingStageLabel` 1505 · `fittingStageListText` 1510 · `fittingBlockHtml` 1520 · `fittingCardHtml` 1527 · `fittingSkeletonHtml` 1577 · `fittingPanelHtml` 1595 · `fittingEmptyHtml` 1606 · `fittingStateHtml` 1630 · `announceFittingStatus` 1661 · `renderFittingStages` 1668 · `renderFittingSearchClear` 1675 · `renderFittingFeed` 1683 · `fittingRequestArgs` 1714 · `ensureFittingObserver` 1726 · `stopFittingObserver` 1735 · `startFittingFirstPage` →1743 · `loadMoreFittingLogs` →1776 · `cleanupFittingLogs` 1816 · `parkFittingLogs` 1843 · `alignFittingSearch` 1858 · `scheduleFittingSearchAlign` 1874 · **`showFittingLogs` 1986** · `restoreFittingScroll` 2044 · `setFittingBackControl` 2055
+### Fitting logs feed (1553–2136)
+`isFittingRoute` →1578 · `fittingStageLabel` 1580 · `fittingStageListText` 1585 · `fittingBlockHtml` 1595 · `fittingCardHtml` 1602 · `fittingSkeletonHtml` 1652 · `fittingPanelHtml` 1670 · `fittingEmptyHtml` 1681 · `fittingStateHtml` 1705 · `announceFittingStatus` 1736 · `renderFittingStages` 1743 · `renderFittingSearchClear` 1750 · `renderFittingFeed` 1758 · `fittingRequestArgs` 1789 · `ensureFittingObserver` 1801 · `stopFittingObserver` 1810 · `startFittingFirstPage` →1818 · `loadMoreFittingLogs` →1851 · `cleanupFittingLogs` 1891 · `parkFittingLogs` 1918 · `alignFittingSearch` 1933 · `scheduleFittingSearchAlign` 1949 · **`showFittingLogs` 2061** · `restoreFittingScroll` 2119 · `setFittingBackControl` 2130
 
-### Fitting log detail (2062–2580)
-`isDetailRoute` →2071 · `isEditorRoute` →2072 · `invalidateFittingFeed` 2077 · `sortFittingPhotos` 2088 · `fittingPhotoState` 2096 · `fittingPhotoDisplayURL` →2104 · `fittingDetailCardHtml` 2109 · `fittingDetailEmptyHtml` 2163 · `announceDetailStatus` 2176 · `renderFittingDetail` 2181 · `fittingPhotoBlob` 2228 · `blobToDataUrl` 2251 · `measureImage` 2260 · `fittingShareFilename` 2269 · `shareFittingPhoto` →2284 · **`downloadFittingPdf` 2338** · `openFittingPhotoViewer` 2407 · `closeFittingPhotoViewer` 2421 · `fittingDetailBridge` 2435 · `addFittingDetailPhoto` 2453 · `endFittingDetailSession` →2461 · `deleteFittingDetailLog` →2484 · `cleanupFittingDetail` 2508 · **`showFittingLogDetail` 2523**
+### Fitting log detail (2137–2668)
+`isDetailRoute` →2146 · `isEditorRoute` →2147 · `invalidateFittingFeed` 2154 · `sortFittingPhotos` 2165 · `fittingPhotoState` 2173 · `fittingPhotoDisplayURL` →2181 · `fittingDetailCardHtml` 2186 · `fittingDetailEmptyHtml` 2240 · `announceDetailStatus` 2253 · `renderFittingDetail` 2258 · `fittingPhotoBlob` 2305 · `blobToDataUrl` 2328 · `measureImage` 2337 · `fittingShareFilename` 2346 · `shareFittingPhoto` →2361 · **`downloadFittingPdf` 2415** · `openFittingPhotoViewer` 2484 · `closeFittingPhotoViewer` 2498 · `fittingDetailBridge` 2512 · `addFittingDetailPhoto` 2533 · `endFittingDetailSession` →2549 · `deleteFittingDetailLog` →2572 · `cleanupFittingDetail` 2596 · **`showFittingLogDetail` 2611**
 
-### Fitting photo editor (2581–2890)
-`fittingEditorDirty` 2586 · `syncFittingEditorDirty` 2593 · `renderFittingEditor` 2597 · `clearStagedReplacement` 2619 · `stageFittingReplacement` →2625 · `saveFittingEditor` →2649 · `deleteFittingEditorPhoto` →2714 · `cleanupFittingEditor` 2745 · **`showFittingPhotoEditor` 2757** · `setupFittingDetailListeners` 2818
+### Fitting photo editor (2669–2983)
+`fittingEditorDirty` 2674 · `syncFittingEditorDirty` 2681 · `renderFittingEditor` 2685 · `clearStagedReplacement` 2707 · `stageFittingReplacement` →2713 · `saveFittingEditor` →2735 · `deleteFittingEditorPhoto` →2800 · `cleanupFittingEditor` 2831 · **`showFittingPhotoEditor` 2843** · `setupFittingDetailListeners` 2904
 
-### Enquiry (2891–2946)
-`readableAnswer` 2891 · `acceptEnquiry` →2902 · `dismissEnquiry` →2933
+### Add fitting photos (2984–3947)
+`addVisibleExisting` →3002 · `addVisibleCount` →3003 · `addRemainingSlots` →3004 · `addCaptionFor` 3006 · `addSavedCaptionForKey` 3015 · `addDirty` 3022 · `announceAddStatus` 3041 · `makeAddDraft` 3053 · `releaseAddDraft` 3074 · `removeAddDraft` 3081 · `admitAddFiles` 3091 · **`runAddPreparationQueue` 3115** · `reportAddPreparationFailures` 3167 · `clearAddUndo` 3188 · `showAddUndo` 3197 · `undoAddDeletion` 3208 · `fitaddStageHtml` 3239 · `fitaddActionHtml` 3255 · `fitaddCardHtml` 3267 · `fitaddDraftStatusHtml` 3312 · `fitaddSkeletonHtml` 3320 · `fitaddStateHtml` 3330 · `captureAddFocus` 3355 · `restoreAddFocus` 3361 · **`renderFittingPhotoAdd` 3374** · `patchAddDraftCard` 3442 · `renderAddBar` 3474 · `growAddTextarea` 3499 · `openAddEditor` 3504 · `closeAddEditor` 3523 · `saveAddEditor` 3534 · `deleteAddCard` 3550 · `focusFirstOpenAddEditor` 3577 · `addPhotosFromReview` 3589 · `addPhotosPicked` 3595 · **`saveFittingPhotoAdd` 3615** · `applyAddBackupResult` 3727 · `startAddBackups` 3736 · `resetFittingPhotoAdd` 3766 · `cleanupFittingPhotoAdd` 3794 · `seedFittingPhotoAdd` 3804 · **`showFittingPhotoAdd` 3821** · `setupFittingPhotoAddListeners` 3893
 
-### Customer detail & editor (2947–3311)
-`renderCustomerList` 2947 · `sumTotal` →2963 · `homepageStatus` 2971 · `compareHomepageCustomers` 2991 · `nextDeadline` 3011 · `weddingText` 3040 · **`showCustomerDetail` 3049** · **`showCustomerEdit` 3074** · `renderCustomerReadOnly` 3118 · `custNextEvent` 3128 · `custOrderStatus` 3150 · `renderCustomerDetail` 3158 · `relativeToToday` 3188 · `fillCustomerForm` 3195 · `setNameError` 3212 · `setWeddingPrecision` 3220 · `lastDayOfMonth` 3233 · **`saveCustomer` →3240**
+### Enquiry (3948–4103)
+`readableAnswer` 3948 · `acceptEnquiry` →3959 · `dismissEnquiry` →3990
 
-### Order detail (3312–3880)
-`isCurrentOrderLoad` 3314 · `clearOrderPresses` 3318 · `closeOrderPaymentChooser` 3322 · `beginOrderLoad` 3328 · `orderErrorCopy` 3354 · `renderOrderError` 3361 · `orderDateLabel` 3392 · `pushInto` 3398 · `deriveLoggedDeposits` 3404 · **`orderScheduleModel` 3414** · `buildOrderDetailViewModel` 3459 · `renderOrderItems` 3515 · `renderOrderDocumentState` 3530 · `renderOrderPayments` 3538 · `renderOrderPaymentChoices` 3564 · `renderOrderSchedule` 3572 · `renderOrderReady` 3597 · `revealOrder` 3614 · **`showOrderDetail` 3644** · `refreshOrderPayments` 3709 · `refreshOrderSchedule` 3743 · `retryOrderSchedule` 3782 · `toggleOrderPaymentChooser` 3788 · `setOrderPaymentBusy` 3799 · `renderScheduleHint` 3809 · **`rescheduleOrder` 3844**
+### Customer detail & editor (4104–4368)
+`renderCustomerList` 4004 · `sumTotal` →4020 · `homepageStatus` 4028 · `compareHomepageCustomers` 4048 · `nextDeadline` 4068 · `weddingText` 4097 · **`showCustomerDetail` 4106** · **`showCustomerEdit` 4131** · `renderCustomerReadOnly` 4175 · `custNextEvent` 4185 · `custOrderStatus` 4207 · `renderCustomerDetail` 4215 · `relativeToToday` 4245 · `fillCustomerForm` 4252 · `setNameError` 4269 · `setWeddingPrecision` 4277 · `lastDayOfMonth` 4290 · **`saveCustomer` →4297**
 
-### Order editor & cost calculator (3881–4277)
-`googleRedirectUri` →3888 · `connectGoogle` →3890 · `showCalendarSettings` 3909 · `disconnectGoogle` →3937 · **`saveOrder` →3951** · `validateTerms` 3996 · `addItemRow` 4010 · `refreshItemTotals` 4039 · `refreshRemoveButtons` 4067 · `readItems` 4074 · `customChip` 4087 · `addCustomInclude` 4098 · `addTermRow` 4122 · `refreshTermRemoveButtons` 4147 · `readTerms` 4159 · `refreshTermsSum` 4170 · `showTermsError` 4177 · `buildTerms` 4184 · `syncSchemeCard` 4194 · `addCalcRow` 4205 · `refreshCalcRemoveButtons` 4228 · `readCalcRows` 4235 · `refreshCalcTotal` 4243 · `closeCostCalc` 4253 · `applyCostCalc` 4269
+### Order detail (4369–4937)
+`isCurrentOrderLoad` 4371 · `clearOrderPresses` 4375 · `closeOrderPaymentChooser` 4379 · `beginOrderLoad` 4385 · `orderErrorCopy` 4411 · `renderOrderError` 4418 · `orderDateLabel` 4449 · `pushInto` 4455 · `deriveLoggedDeposits` 4461 · **`orderScheduleModel` 4471** · `buildOrderDetailViewModel` 4516 · `renderOrderItems` 4572 · `renderOrderDocumentState` 4587 · `renderOrderPayments` 4595 · `renderOrderPaymentChoices` 4621 · `renderOrderSchedule` 4629 · `renderOrderReady` 4654 · `revealOrder` 4671 · **`showOrderDetail` 4701** · `refreshOrderPayments` 4766 · `refreshOrderSchedule` 4800 · `retryOrderSchedule` 4839 · `toggleOrderPaymentChooser` 4845 · `setOrderPaymentBusy` 4856 · `renderScheduleHint` 4866 · **`rescheduleOrder` 4901**
 
-### Moodboard (4278–4687)
-**`setupMoodboardListeners` 4298** · `addMoodboardFiles` →4395 · `openMoodboardCanvas` 4430 · `moodboardStageClone` 4436 · `syncMoodboardCanvas` 4446 · `fitMoodboardBoard` 4474 · `openMoodboardOverlay` 4487 · `closeMoodboardOverlay` 4512 · `renderMoodboardOverlay` 4528 · `moodboardZoomAt` 4548 · `clampMoodboardPan` 4573 · `applyMoodboardTransform` 4585 · `bindMoodboardOverlayGestures` 4592 · `handleMoodboardOverlayKey` 4663
+### Order editor & cost calculator (4938–5334)
+`googleRedirectUri` →4945 · `connectGoogle` →4947 · `showCalendarSettings` 4966 · `disconnectGoogle` →4994 · **`saveOrder` →5008** · `validateTerms` 5053 · `addItemRow` 5067 · `refreshItemTotals` 5096 · `refreshRemoveButtons` 5124 · `readItems` 5131 · `customChip` 5144 · `addCustomInclude` 5155 · `addTermRow` 5179 · `refreshTermRemoveButtons` 5204 · `readTerms` 5216 · `refreshTermsSum` 5227 · `showTermsError` 5234 · `buildTerms` 5241 · `syncSchemeCard` 5251 · `addCalcRow` 5262 · `refreshCalcRemoveButtons` 5285 · `readCalcRows` 5292 · `refreshCalcTotal` 5300 · `closeCostCalc` 5310 · `applyCostCalc` 5326
 
-### Exports & boot (4688–5402)
-`setMoodboardExportBusy` 4690 · `setMoodboardExportState` 4697 · `flashMoodboardExportState` 4709 · `resetMoodboardExports` 4715 · `recordMoodboardExport` 4723 · `offerGoogleReconnect` 4748 · **`exportMoodboard` →4755** · `setDocumentBusy` 4808 · **`downloadDocument` →4825** · `logDeposit` →4857 · `logDepositRequest` →4870 · `signOutFromMenu` →4943 · **`bindEvents` 4960** · `showGate` 5305 · `showApp` 5322
+### Moodboard (5335–5744)
+**`setupMoodboardListeners` 5355** · `addMoodboardFiles` →5452 · `openMoodboardCanvas` 5487 · `moodboardStageClone` 5493 · `syncMoodboardCanvas` 5503 · `fitMoodboardBoard` 5531 · `openMoodboardOverlay` 5544 · `closeMoodboardOverlay` 5569 · `renderMoodboardOverlay` 5585 · `moodboardZoomAt` 5605 · `clampMoodboardPan` 5630 · `applyMoodboardTransform` 5642 · `bindMoodboardOverlayGestures` 5649 · `handleMoodboardOverlayKey` 5720
+
+### Exports & boot (5745–6460)
+`setMoodboardExportBusy` 5747 · `setMoodboardExportState` 5754 · `flashMoodboardExportState` 5766 · `resetMoodboardExports` 5772 · `recordMoodboardExport` 5780 · `offerGoogleReconnect` 5805 · **`exportMoodboard` →5812** · `setDocumentBusy` 5865 · **`downloadDocument` →5882** · `logDeposit` →5914 · `logDepositRequest` →5927 · `signOutFromMenu` →6000 · **`bindEvents` 6017** · `showGate` 6363 · `showApp` 6380
 
 ---
 
 ## 4. Coupling notes (read before a broad refactor)
 
-- `bindEvents` (4960–5304) is one 344-line function holding every listener. Adding a control means adding one block here — do not split it.
-- The element registry (45–258) and `state` (259–349) are the two shared surfaces every region touches. A change here is repo-wide; treat it as a >5-file edit.
-- The three fitting routes (feed / detail / editor) share `state.fittingLogs` parking. Changing one usually means checking `parkFittingLogs` 1843, `cleanupFittingLogs` 1816, and `setFittingBackControl` 2055.
+- `bindEvents` (6017–6361) is one function holding every listener. Adding a control means adding one block here — do not split it. The fitting pages keep their own wiring in `setupFittingDetailListeners` 2904 and `setupFittingPhotoAddListeners` 3893, both called from it.
+- The element registry (45–275) and `state` (276–400) are the two shared surfaces every region touches. A change here is repo-wide; treat it as a >5-file edit.
+- The four fitting routes (feed / detail / editor / add) share `state.fittingLogs` parking, and detail + add share photo records through `state.fittingDetail.photos`. Changing one usually means checking `parkFittingLogs` 1918, `cleanupFittingLogs` 1891, and `setFittingBackControl` 2130.
 - Order detail and order editor share nothing but `db.getOrder`. Editing one does not require reading the other.

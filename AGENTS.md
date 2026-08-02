@@ -25,9 +25,9 @@ Target: **1 feature map + 1 file map + 2 ranged reads.** If you have opened more
 
 | Rule | Limit |
 | :--- | :--- |
-| Never read whole | `app.js` (5402 lines), `index.html` (1614), `README.md` (958), `schema.sql` (974), `styles/pages.css` (2986), `styles/shared.css` (2277), `fonts.css` |
+| Never read whole | `app.js` (6460 lines), `index.html` (1743), `README.md` (958), `schema.sql` (1143), `styles/pages.css` (3319), `styles/shared.css` (2277), `fonts.css` |
 | Ranged read from `app.js` | ≤400 lines per call; use `offset`/`limit` from [docs/MAP-app.md](docs/MAP-app.md) |
-| Whole-file reads allowed | `util.js`, `calendar.js`, `config.js`, `docs.js`, `fitting-pdf.js`, `db.js` (467 lines, prefer ranged) |
+| Whole-file reads allowed | `util.js`, `calendar.js`, `config.js`, `docs.js`, `fitting-pdf.js`, `db.js` (482 lines, prefer ranged) |
 | Never read unless the task is literally about them | `plans/`, `PLAN-*.md`, `MOODBOARD-BUILD.md`, `.agents/`, `.claude/worktrees/`, `assets/`, `fonts.css` |
 | `README.md` | Seek by heading via [docs/README-INDEX.md](docs/README-INDEX.md). Never read start-to-finish. |
 

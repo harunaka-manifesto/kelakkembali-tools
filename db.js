@@ -416,6 +416,21 @@ KK.db = (function () {
       unwrap(await init().from('fitting_photos').delete().eq('id', id));
     },
 
+    /* One fitting log's caption edits, deletions and additions as a single
+       transaction. Three separate PostgREST calls could leave a log half
+       edited if the connection drops between them; the RPC either applies the
+       whole batch or none of it, and derives order_id/stage/position from the
+       locked session rather than from anything sent here.
+       -> { photos: [row], created: [{ client_key, photo }] } */
+    saveFittingPhotoBatch: async function (sessionId, captionUpdates, deleteIds, newPhotos) {
+      return unwrap(await init().rpc('save_fitting_photo_batch', {
+        p_session_id: sessionId,
+        p_caption_updates: captionUpdates || [],
+        p_delete_ids: deleteIds || [],
+        p_new_photos: newPhotos || []
+      }));
+    },
+
     /* ----------------------------- Intake Enquiries ------------------------- */
 
     listIntake: async function (statusFilter) {

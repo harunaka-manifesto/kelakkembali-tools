@@ -403,6 +403,9 @@
     <div class="fitlog-grid-spacer" aria-hidden="true"></div>
     <p class="sr-only" id="fitdetStatus" role="status" aria-live="polite"></p>
 
+    <!-- Add photos opens the native gallery sheet from this page and only then
+         navigates, so a cancelled picker never lands on an empty review page. -->
+    <input id="fitdetPhotoInput" type="file" accept="image/*" multiple hidden>
     <footer class="fitlog-footer">Made with love for Ichaku</footer>
   </section>
 
@@ -467,6 +470,42 @@
     <p class="sr-only" id="fiteditStatus" role="status" aria-live="polite"></p>
 
     <input id="fiteditFileInput" type="file" accept="image/png, image/jpeg, image/webp, image/heic, image/heif" hidden>
+    <footer class="fitlog-footer">Made with love for Ichaku</footer>
+  </section>
+
+  <!-- ----------------------- Add fitting photos (review) ------------------- -->
+  <!-- Figma 266:3522. A staging page, not a writer: every caption edit, every
+       deletion and every selected file lives in local state until one atomic
+       Save changes applies the whole batch. The Figma frame also drew a delete
+       block for the whole log; that was design debris and is deliberately not
+       built here — the log itself is only deletable from its detail page. -->
+  <section class="view fitadd" id="viewFittingPhotoAdd" hidden>
+    <nav class="cust-nav" aria-label="Add fitting photos navigation">
+      <a class="cust-nav-btn" id="fitaddBackBtn" href="#/fittings">
+        <span class="cust-nav-btn__face">
+          <img src="assets/cust-back-icon.svg" alt="" width="24" height="24">
+          <span id="fitaddBackLabel">Fitting log</span>
+        </span>
+        <span class="cust-nav-btn__rail" aria-hidden="true"></span>
+      </a>
+    </nav>
+
+    <header class="fitdet-head">
+      <div class="fitlog-grid-spacer" aria-hidden="true"></div>
+      <div class="fitdet-titleband">
+        <h1 class="fitdet-title" id="fitaddTitle">Add fitting photos</h1>
+      </div>
+      <div class="fitlog-grid-spacer" aria-hidden="true"></div>
+    </header>
+
+    <div class="fitdet-body" id="fitaddBody" aria-busy="true">
+      <ol class="fitdet-list" id="fitaddList"></ol>
+      <div class="fitdet-state" id="fitaddState"></div>
+    </div>
+    <div class="fitlog-grid-spacer" aria-hidden="true"></div>
+    <p class="sr-only" id="fitaddStatus" role="status" aria-live="polite"></p>
+
+    <input id="fitaddFileInput" type="file" accept="image/*" multiple hidden>
     <footer class="fitlog-footer">Made with love for Ichaku</footer>
   </section>
 
@@ -1290,6 +1329,30 @@
   <div class="fitdet-bar__inner">
     <button type="button" class="fitdet-bar__btn fitdet-bar__btn--primary" id="fiteditSaveBtn">
       <span class="fitdet-bar__face">Save changes</span>
+      <span class="fitdet-bar__rail" aria-hidden="true"></span>
+    </button>
+  </div>
+</div>
+
+<!-- The staged-deletion Undo lives on this page rather than in the global toast,
+     because it needs a real focusable button and the shared toast is plain
+     text everywhere else in the app. -->
+<div class="fitadd-undo" id="fitaddUndo" hidden>
+  <div class="fitadd-undo__inner">
+    <p class="fitadd-undo__copy" id="fitaddUndoCopy"></p>
+    <button type="button" class="fitadd-undo__btn" id="fitaddUndoBtn">Undo</button>
+  </div>
+</div>
+
+<div class="fitdet-bar" id="fitaddBar" hidden>
+  <div class="fitdet-bar__inner">
+    <button type="button" class="fitdet-bar__btn fitdet-bar__btn--secondary" id="fitaddPickBtn">
+      <span class="fitdet-bar__face"><img src="assets/fitlog-add-icon.svg" alt="" width="20" height="20"><span>Add photos</span></span>
+      <span class="fitdet-bar__rail" aria-hidden="true"></span>
+    </button>
+    <span class="fitdet-bar__rule" aria-hidden="true"></span>
+    <button type="button" class="fitdet-bar__btn fitdet-bar__btn--primary" id="fitaddSaveBtn">
+      <span class="fitdet-bar__face" id="fitaddSaveFace">Save changes</span>
       <span class="fitdet-bar__rail" aria-hidden="true"></span>
     </button>
   </div>

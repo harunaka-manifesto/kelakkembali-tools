@@ -70,6 +70,12 @@ KK.fittings = (function () {
 
   /* --------------------------- Image Compression --------------------------- */
 
+  /* One preparation contract for every fitting path — journal capture, gallery
+     selection, the batch review page, and individual replacement — so a photo's
+     quality never depends on which door it came through. */
+  const FITTING_IMAGE_MAX_DIMENSION = 2560;
+  const FITTING_IMAGE_QUALITY = 0.90;
+
   async function usableBlob(file) {
     return U.isHeic(file) ? U.convertHeicToJpeg(file) : file;
   }
@@ -79,7 +85,9 @@ KK.fittings = (function () {
       const objectUrl = URL.createObjectURL(file);
       const img = new Image();
       img.onload = () => {
-        const scale = Math.min(1, maxDimension / img.naturalWidth);
+        // The longest edge is what the ceiling describes: scaling by width
+        // alone left a tall portrait photo far above the intended size.
+        const scale = Math.min(1, maxDimension / Math.max(img.naturalWidth, img.naturalHeight));
         const targetW = Math.max(1, Math.round(img.naturalWidth * scale));
         const targetH = Math.max(1, Math.round(img.naturalHeight * scale));
         const canvas = document.createElement('canvas');
@@ -95,6 +103,13 @@ KK.fittings = (function () {
       };
       img.src = objectUrl;
     });
+  }
+
+  /* HEIC in, standard-sized JPEG out. Throws the user-safe messages
+     compressImage already raises; the only URL it revokes is the decoder's
+     own. */
+  async function prepareImage(fileOrBlob) {
+    return compressImage(await usableBlob(fileOrBlob), FITTING_IMAGE_MAX_DIMENSION, FITTING_IMAGE_QUALITY);
   }
 
   function base64(file) {
@@ -167,7 +182,12 @@ KK.fittings = (function () {
     canvas.width = videoEl.videoWidth;
     canvas.height = videoEl.videoHeight;
     canvas.getContext('2d').drawImage(videoEl, 0, 0);
-    canvas.toBlob((blob) => { if (blob) openConfirmation(blob); }, 'image/jpeg', 0.9);
+    const oversized = Math.max(canvas.width, canvas.height) > FITTING_IMAGE_MAX_DIMENSION;
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      if (!oversized) return openConfirmation(blob);
+      prepareImage(blob).then(openConfirmation, (err) => notify(err.message || 'Could not prepare that photo.'));
+    }, 'image/jpeg', FITTING_IMAGE_QUALITY);
   }
 
   async function flipCamera() {
@@ -184,8 +204,7 @@ KK.fittings = (function () {
     event.target.value = '';
     if (file) {
       try {
-        const prepared = await compressImage(await usableBlob(file), 1600, 0.85);
-        openConfirmation(prepared);
+        openConfirmation(await prepareImage(file));
       } catch (err) {
         notify(err.message || 'Could not prepare that photo.');
       }
@@ -513,12 +532,28 @@ KK.fittings = (function () {
     isHeic: U.isHeic,
     usableBlob,
     compressImage,
+    prepareImage,
+    FITTING_IMAGE_MAX_DIMENSION,
+    FITTING_IMAGE_QUALITY,
     base64,
     thumbURL,
     imageURL,
     localURLs,
     archivePhoto,
     waitForSessionBackups,
+
+    /* The archival half of the journal's save path, for a page that already
+       owns the record: registers the upload with the pending set so
+       isBackingUp/hasPendingBackups/consumeBackupFailures keep telling the
+       truth, and hands the tracked promise back so the caller can patch its
+       own copy of the row when it settles. */
+    backupPhoto: function (photoRecord, pendingRecord, sessionState) {
+      return trackBackup(
+        photoRecord.session_id,
+        photoRecord.id,
+        archivePhoto(photoRecord, pendingRecord, sessionState)
+      );
+    },
 
     isBackingUp: (photoId) => pendingPhotoIds.has(photoId),
     hasPendingBackups: (sessionId) => {

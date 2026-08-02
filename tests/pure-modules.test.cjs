@@ -15,8 +15,8 @@ test('shared formatters preserve document-facing output', () => {
   assert.equal(util.escapeHtml('<p title="x">A&B</p>'), '&lt;p title=&quot;x&quot;&gt;A&amp;B&lt;/p&gt;');
   assert.equal(util.formatRupiah(1250000), 'Rp1.250.000');
   assert.equal(util.groupDigits('001250000'), '1.250.000');
-  assert.equal(util.formatLongDate('2026-08-24'), '24 August 2026');
-  assert.equal(util.formatShortDate('2026-08-24'), '24 Aug 2026');
+  assert.equal(util.formatLongDate('2026-08-24'), "24 Aug '26");
+  assert.equal(util.formatShortDate('2026-08-24'), "24 Aug '26");
   assert.equal(util.sanitizeForFilename('  Nadia & Rizky!  '), 'Nadia-Rizky');
 });
 
@@ -220,7 +220,7 @@ test('session dates are read in the workshop day, not UTC', () => {
   // 23:30 UTC is already the next morning in Jakarta (+07:00, no DST).
   assert.equal(util.jakartaDateISO('2026-08-24T23:30:00Z'), '2026-08-25');
   assert.equal(util.jakartaDateISO('2026-08-25T00:30:00Z'), '2026-08-25');
-  assert.equal(util.formatJakartaLongDate('2026-08-24T23:30:00Z'), '25 August 2026');
+  assert.equal(util.formatJakartaLongDate('2026-08-24T23:30:00Z'), "25 Aug '26");
   assert.equal(util.jakartaDateISO('not a date'), '');
   assert.equal(util.formatJakartaLongDate(null), '');
 });
@@ -327,12 +327,13 @@ test('the PDF refuses a zero-photo session and a missing image source', async ()
 /* app.js is a DOM composition root, so the decision itself is restated here as
    the predicate it implements: only movement inside the fitting-log route
    family keeps the feed's loaded pages and offset alive. */
-const FITTING_ROUTE_FAMILY = ['fittingLogs', 'fittingLogDetail', 'fittingPhotoEdit'];
+const FITTING_ROUTE_FAMILY = ['fittingLogs', 'fittingLogDetail', 'fittingPhotoEdit', 'fittingPhotoAdd'];
 const inFittingFamily = route => !!route && FITTING_ROUTE_FAMILY.includes(route.view);
 
 test('only the fitting-log route family retains the feed', () => {
   assert.equal(inFittingFamily({ view: 'fittingLogDetail' }), true);
   assert.equal(inFittingFamily({ view: 'fittingPhotoEdit' }), true);
+  assert.equal(inFittingFamily({ view: 'fittingPhotoAdd' }), true);
   assert.equal(inFittingFamily({ view: 'fittingLogs' }), true);
   assert.equal(inFittingFamily({ view: 'customer' }), false);
   assert.equal(inFittingFamily({ view: 'order' }), false);

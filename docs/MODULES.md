@@ -11,10 +11,10 @@ Every file is an IIFE assigning one `window.KK.<name>` object at the bottom.
 | `calendar.js` | `cal` | 356 | Pure date arithmetic and schedule generation | DOM, network |
 | `docs.js` | `docs` | 353 | Quotation/invoice layout, watermark, PDF export | Touch the database |
 | `moodboard.js` | `moodboard` | 724 | Canvas layout solver, mosaic engine, PDF snapshot | Routing |
-| `fittings.js` | `fittings` | 696 | Journal UI adapter, camera overlays, compression, Drive archival | Own a route |
+| `fittings.js` | `fittings` | 731 | Journal UI adapter, camera overlays, image preparation, Drive archival | Own a route |
 | `fitting-pdf.js` | `fittingPdf` | 290 | Pure A4 page geometry for the fitting-log snapshot | DB, Drive, toast, save |
-| `db.js` | `db` | 467 | **Sole** Supabase + Edge Function gateway | Render |
-| `app.js` | (composition root) | 5402 | Router, state, all controllers, all listeners | — see [MAP-app.md](MAP-app.md) |
+| `db.js` | `db` | 482 | **Sole** Supabase + Edge Function gateway | Render |
+| `app.js` | (composition root) | 6460 | Router, state, all controllers, all listeners | — see [MAP-app.md](MAP-app.md) |
 
 ---
 
@@ -53,9 +53,13 @@ Pure. Given image dimensions and captions it returns a page plan. `app.js` `down
 
 Layout solver for 16:9 and 9:16 mosaics; both orientations are exact counterparts (asserted in tests). `app.js` moodboard region (4278–4687) owns the route, gestures, and export.
 
-## fittings.js — `KK.fittings` (696 lines)
+## fittings.js — `KK.fittings` (731 lines)
 
-`compressImage` · `base64` · `thumbURL` · `imageURL` · `localURLs` · `archivePhoto` · **`waitForSessionBackups`** · `isBackingUp(photoId)` · `hasPendingBackups(sessionId)` · `consumeBackupFailures` · **`attachSession(state)`** · `detachSession` · `addPhoto` · `releaseLocalURL` · `adoptLocalURL` · `showStagePicker` · `endSession` · `renderJournal` · `renderHistoryList` · `bindOverlays` · `openCamera` · `closeCamera` · `closeAll`
+`usableBlob` · `compressImage` · **`prepareImage`** · `FITTING_IMAGE_MAX_DIMENSION` · `FITTING_IMAGE_QUALITY` · `base64` · `thumbURL` · `imageURL` · `localURLs` · `archivePhoto` · **`backupPhoto`** · **`waitForSessionBackups`** · `isBackingUp(photoId)` · `hasPendingBackups(sessionId)` · `consumeBackupFailures` · **`attachSession(state)`** · `detachSession` · `addPhoto` · `releaseLocalURL` · `adoptLocalURL` · `showStagePicker` · `endSession` · `renderJournal` · `renderHistoryList` · `bindOverlays` · `openCamera` · `closeCamera` · `closeAll`
+
+**Shared image-preparation contract:** every fitting photo — journal capture, gallery selection, the Add fitting photos batch, and individual replacement — goes through `prepareImage(fileOrBlob)`, which converts HEIC when needed and returns an `image/jpeg` blob scaled so its **longest edge is at most `FITTING_IMAGE_MAX_DIMENSION` (2560)** at **`FITTING_IMAGE_QUALITY` (0.90)**. `compressImage(file, maxDimension, quality)` stays exported for callers that need other numbers; it scales on `Math.max(naturalWidth, naturalHeight)`, so a portrait photo is capped by its height. Do not inline new size or quality constants.
+
+`backupPhoto(photoRecord, pendingRecord, sessionState)` is the archival half of the save path for a page that already owns the durable record: it registers the upload with the pending-backup set (so `isBackingUp` / `hasPendingBackups` / `consumeBackupFailures` stay truthful) and returns the tracked promise. `app.js` `startAddBackups` uses it after the atomic metadata save.
 
 Two integration styles:
 - A page that owns its own markup calls `attachSession({ …, onChange })` — this is what the fitting-log detail page does.

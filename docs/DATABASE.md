@@ -1,6 +1,6 @@
 # DATABASE — data contract
 
-Read this instead of `schema.sql` (974 lines) or `db.js` (467 lines). Open the source only when this file lacks the column or query you need.
+Read this instead of `schema.sql` (1143 lines) or `db.js` (482 lines). Open the source only when this file lacks the column or query you need.
 
 `db.js` is the **only** module allowed to touch Supabase or an Edge Function.
 
@@ -35,6 +35,25 @@ Stage set: `Design phase`, `Design deadline`, `Sizing`, `Fitting 1`, `Fitting 2`
 ### `fitting_photos`
 `id` · `order_id` fk cascade · `session_id` fk→fitting_sessions **nullable** (photos predate sessions) · `stage` · `caption` · `drive_file_id` · `drive_link` · `position` smallint · `created_at`.
 
+### RPC `public.save_fitting_photo_batch` (security_invoker)
+
+The Add fitting photos page's single write. Signature:
+
+```sql
+save_fitting_photo_batch(
+  p_session_id      uuid,
+  p_caption_updates jsonb,   -- [{ id, caption|null }]
+  p_delete_ids      uuid[],
+  p_new_photos      jsonb    -- [{ client_key, caption|null }]
+) returns jsonb              -- { photos: [row], created: [{ client_key, photo }] }
+```
+
+One transaction, in this order: lock the session row · reject duplicate ids, an id that is both edited and deleted, a missing/duplicate `client_key`, and any photo belonging to another session · cap additions at **20** photos (`existing - deletions + additions`) · apply captions · delete staged rows · reindex the retained rows to gap-free zero-based `position` · insert the new rows with `order_id`/`stage` taken from the **locked session**, never from the browser, and `drive_file_id`/`drive_link` null.
+
+Captions and deletions are never capacity-checked, so a legacy log already above 20 photos stays editable; only additions are refused. Drive archival happens after this commits — uploading first would strand archive files whenever the transaction failed.
+
+Any violation raises, so `unwrap` surfaces it and nothing is written. Granted to `authenticated` only; `security_invoker` keeps the table's own RLS in force.
+
 ### `intake_submissions` — Tally landing table
 `id` · `payload` jsonb **verbatim, the record of truth** · `name` · `phone` · `instagram` · `source` (**unconstrained on purpose** — a stranger's answer must never reject the insert) · `wedding_date` · `wedding_date_precision` · `notes` · `status` (`new|accepted|dismissed`) · `customer_id` fk set-null · `created_at` · `reviewed_at`.
 
@@ -63,7 +82,7 @@ Append-only. To change the schema:
 2. Add that title to the navigation list at `schema.sql` lines 8–18.
 3. Never edit an applied block — the file is re-run whole after every pull.
 
-Existing migration titles (grep any of these to jump): `dashboard UX overhaul` · `document name + payment schemes` · `fitting schedule + Google` · `the real lifecycle` · `status stops being` · `schedule gets a second anchor` · `moodboard generator` · `fitting revisions log`.
+Existing migration titles (grep any of these to jump): `dashboard UX overhaul` · `document name + payment schemes` · `fitting schedule + Google` · `the real lifecycle` · `status stops being` · `schedule gets a second anchor` · `moodboard generator` · `fitting revisions log` · `atomic fitting photo batches`.
 
 ---
 
@@ -83,15 +102,15 @@ Everything below is on `window.KK.db`. All async unless noted.
 
 **Fitting sessions** — `listFittingSessions(orderId)` 311 · `getFittingSession(id)` 315 · `getFittingSessionByStage(orderId, stage)` 319 · `createFittingSession` 328 · `updateFittingSession(id, record)` 332 · `deleteFittingSession(id)` 336
 
-**Fitting feed & photos** — **`listFittingLogs(options)` 352** (cursor paging, returns `{ rows, nextCursor }`) · `listFittingPhotos(orderId)` 389 · `listFittingPhotosBySession(sessionId)` 396 · `getFittingPhoto(id)` 403 · `createFittingPhoto` 407 · `updateFittingPhoto(id, record)` 411 · `deleteFittingPhoto(id)` 415
+**Fitting feed & photos** — **`listFittingLogs(options)` 352** (cursor paging, returns `{ rows, nextCursor }`) · `listFittingPhotos(orderId)` 389 · `listFittingPhotosBySession(sessionId)` 396 · `getFittingPhoto(id)` 403 · `createFittingPhoto` 407 · `updateFittingPhoto(id, record)` 411 · `deleteFittingPhoto(id)` 415 · **`saveFittingPhotoBatch(sessionId, captionUpdates, deleteIds, newPhotos)` 425** — the atomic RPC above; the only `.rpc(` call in the file
 
-**Intake** — `listIntake(statusFilter)` 421 · `getIntake(id)` 427 · `resolveIntake(id, status, customerId)` 431
+**Intake** — `listIntake(statusFilter)` 436 · `getIntake(id)` 442 · `resolveIntake(id, status, customerId)` 446
 
-**Google Calendar** (via `callGoogle` 93) — `googleStatus` 441 · `googleExchange(code, redirectUri)` 442 · `googleDisconnect` 443 · `googleForget(eventIds)` 444 · `syncOrderCalendar(orderId)` 445 · `syncFollowUp(customerId)` 446
+**Google Calendar** (via `callGoogle` 93) — `googleStatus` 456 · `googleExchange(code, redirectUri)` 457 · `googleDisconnect` 458 · `googleForget(eventIds)` 459 · `syncOrderCalendar(orderId)` 460 · `syncFollowUp(customerId)` 461
 
-**Google Drive** (via `callDrive` 110) — `driveSaveMoodboardPdf(...)` 448 · `driveSaveFittingPhoto(imageBase64, mimeType, fileName, customerName, orderTitle, stage)` 450 · `driveGetFittingPhoto(photoId)` 455
+**Google Drive** (via `callDrive` 110) — `driveSaveMoodboardPdf(...)` 463 · `driveSaveFittingPhoto(imageBase64, mimeType, fileName, customerName, orderTitle, stage)` 465 · `driveGetFittingPhoto(photoId)` 470
 
-**Moodboard log** — `logMoodboard(orderId, driveLink)` 457 · `countMoodboards(orderId)` 461
+**Moodboard log** — `logMoodboard(orderId, driveLink)` 472 · `countMoodboards(orderId)` 476
 
 **Internal helpers** (not exported): `unwrap(res)` 44 · `normalizeFeedQuery` 74 · `likeLiteral` 82 · `normalizeFeedStages` 86.
 

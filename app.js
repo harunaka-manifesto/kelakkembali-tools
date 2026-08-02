@@ -129,6 +129,23 @@ KK.app = (function () {
     fitdetEndBtn: $("#fitdetEndBtn"),
     fitdetAddBtn: $("#fitdetAddBtn"),
     fitdetDeleteBtn: $("#fitdetDeleteBtn"),
+    fitdetPhotoInput: $("#fitdetPhotoInput"),
+    viewFittingPhotoAdd: $("#viewFittingPhotoAdd"),
+    fitaddBackBtn: $("#fitaddBackBtn"),
+    fitaddBackLabel: $("#fitaddBackLabel"),
+    fitaddTitle: $("#fitaddTitle"),
+    fitaddBody: $("#fitaddBody"),
+    fitaddList: $("#fitaddList"),
+    fitaddState: $("#fitaddState"),
+    fitaddStatus: $("#fitaddStatus"),
+    fitaddFileInput: $("#fitaddFileInput"),
+    fitaddBar: $("#fitaddBar"),
+    fitaddPickBtn: $("#fitaddPickBtn"),
+    fitaddSaveBtn: $("#fitaddSaveBtn"),
+    fitaddSaveFace: $("#fitaddSaveFace"),
+    fitaddUndo: $("#fitaddUndo"),
+    fitaddUndoCopy: $("#fitaddUndoCopy"),
+    fitaddUndoBtn: $("#fitaddUndoBtn"),
     viewFittingPhotoEdit: $("#viewFittingPhotoEdit"),
     fiteditBackBtn: $("#fiteditBackBtn"),
     fiteditTitle: $("#fiteditTitle"),
@@ -333,6 +350,40 @@ KK.app = (function () {
       saving: false,
       source: "feed"
     },
+    /* The Add fitting photos review page. Nothing here is written until Save
+       changes: captions, deletions and selected files are all local proposals,
+       which is why the persisted records and the local edits are kept apart
+       rather than merged into one mutable list. */
+    fittingPhotoAdd: {
+      phase: "idle", // idle | loading | ready | error | saving
+      loadToken: 0,
+      sessionId: null,
+      session: null,
+      order: null,
+      customer: null,
+      source: "feed",
+      existing: [], // persisted rows, deterministic order
+      captionPatches: new Map(), // photoId -> locally saved caption
+      deleted: new Map(), // photoId -> { photo, originalIndex }
+      newPhotos: [], // local drafts, see makeDraft
+      openEditors: new Set(), // card keys with an editor on screen
+      /* Draft text is kept apart from the locally saved caption so card Cancel
+         can restore the previous value and Save changes can tell an untouched
+         open editor from an edited one. */
+      editorDrafts: new Map(), // card key -> current textarea text
+      keySeq: 0,
+      seeded: false, // drafts staged by the detail picker before navigation
+      preparing: false,
+      preparingDone: 0,
+      preparingTotal: 0,
+      failedPreparationCount: 0,
+      admitting: false,
+      saving: false,
+      undoPhotoId: null,
+      undoTimer: null,
+      loadError: null,
+      lastStatus: ""
+    },
     orderDetail: {
       phase: "idle", // idle | loading | ready | error
       loadToken: 0,
@@ -369,7 +420,8 @@ KK.app = (function () {
       elements.savebar,
       elements.fittingJournalBar,
       elements.fitdetBar,
-      elements.fiteditBar
+      elements.fiteditBar,
+      elements.fitaddBar
     ].filter((bar) => bar && !bar.hidden)[0] || null;
     document.documentElement.style.setProperty(
       "--bottombar-h",
@@ -503,7 +555,11 @@ KK.app = (function () {
     document.body.classList.remove("is-page-transitioning");
   }
 
-  const routeHasOwnLoader = (r) => "customers" === r.view || "order" === r.view || "fittingLogs" === r.view;
+  /* The add-photos page draws its own card skeletons inside the real ledger
+     inset and reports its own load failure, so the generic route loader would
+     only be a second, differently-shaped wait on top of it. */
+  const routeHasOwnLoader = (r) =>
+    "customers" === r.view || "order" === r.view || "fittingLogs" === r.view || "fittingPhotoAdd" === r.view;
   const routeLoaderKind = (r) =>
     "fittingLogDetail" === r.view
       ? "fitdet"
@@ -600,6 +656,8 @@ KK.app = (function () {
         ? elements.fitdetTitle
         : "fittingPhotoEdit" === r.view
         ? elements.fiteditTitle
+        : "fittingPhotoAdd" === r.view
+        ? elements.fitaddTitle
         : elements.viewTitle;
 
     if (focusTarget) {
@@ -826,6 +884,9 @@ KK.app = (function () {
       if ("fittings" === segments[0] && segments[1] && "photo" === segments[2] && segments[3] && "edit" === segments[4]) {
         return { view: "fittingPhotoEdit", sessionId: segments[1], photoId: segments[3], query };
       }
+      if ("fittings" === segments[0] && segments[1] && "photos" === segments[2] && "add" === segments[3]) {
+        return { view: "fittingPhotoAdd", sessionId: segments[1], query };
+      }
       if ("fittings" === segments[0] && segments[1]) {
         return { view: "fittingLogDetail", sessionId: segments[1], query };
       }
@@ -884,6 +945,7 @@ KK.app = (function () {
     elements.viewFittingLogs.hidden = "fittingLogs" !== targetRoute.view;
     elements.viewFittingDetail.hidden = "fittingLogDetail" !== targetRoute.view;
     elements.viewFittingPhotoEdit.hidden = "fittingPhotoEdit" !== targetRoute.view;
+    elements.viewFittingPhotoAdd.hidden = "fittingPhotoAdd" !== targetRoute.view;
     elements.viewCalendar.hidden = "calendar" !== targetRoute.view;
     elements.viewEnquiry.hidden = "enquiry" !== targetRoute.view;
 
@@ -895,12 +957,16 @@ KK.app = (function () {
       if (prevRoute && "fittingLogs" === prevRoute.view) cleanupFittingLogs();
       cleanupFittingDetail();
       cleanupFittingEditor();
+      cleanupFittingPhotoAdd();
     } else {
       if (prevRoute && "fittingLogs" === prevRoute.view && "fittingLogs" !== targetRoute.view) {
         parkFittingLogs();
       }
       if (prevRoute && "fittingPhotoEdit" === prevRoute.view && "fittingPhotoEdit" !== targetRoute.view) {
         cleanupFittingEditor();
+      }
+      if (prevRoute && "fittingPhotoAdd" === prevRoute.view && "fittingPhotoAdd" !== targetRoute.view) {
+        cleanupFittingPhotoAdd();
       }
     }
     if (prevRoute && "fittingLogDetail" === prevRoute.view && "fittingLogDetail" !== targetRoute.view) {
@@ -911,6 +977,11 @@ KK.app = (function () {
     if ("fittingPhotoEdit" !== targetRoute.view) {
       elements.fiteditBar.hidden = true;
       document.body.classList.remove("has-fitedit-bar");
+    }
+    if ("fittingPhotoAdd" !== targetRoute.view) {
+      elements.fitaddBar.hidden = true;
+      elements.fitaddUndo.hidden = true;
+      document.body.classList.remove("has-fitadd-bar");
     }
 
     if (!prevRoute || ("fittingNew" !== prevRoute.view && "fittingJournal" !== prevRoute.view) ||
@@ -1087,6 +1158,8 @@ KK.app = (function () {
         await showFittingLogDetail(targetRoute.sessionId, targetRoute.query);
       } else if ("fittingPhotoEdit" === targetRoute.view) {
         await showFittingPhotoEditor(targetRoute.sessionId, targetRoute.photoId, targetRoute.query);
+      } else if ("fittingPhotoAdd" === targetRoute.view) {
+        await showFittingPhotoAdd(targetRoute.sessionId, targetRoute.query);
       } else if ("calendar" === targetRoute.view) {
         await showCalendarSettings();
       } else if ("enquiry" === targetRoute.view) {
@@ -1836,7 +1909,7 @@ KK.app = (function () {
   /* The three routes that are one experience. Moving between them keeps the
      feed's search, filters, loaded pages, DOM, and offset alive; leaving them
      for anything else is an ordinary teardown. */
-  const FITTING_ROUTE_FAMILY = ["fittingLogs", "fittingLogDetail", "fittingPhotoEdit"];
+  const FITTING_ROUTE_FAMILY = ["fittingLogs", "fittingLogDetail", "fittingPhotoEdit", "fittingPhotoAdd"];
   const inFittingFamily = (r) => !!r && FITTING_ROUTE_FAMILY.indexOf(r.view) !== -1;
 
   /* Everything with a timer or a callback stops; everything with a result
@@ -2073,8 +2146,10 @@ KK.app = (function () {
   const isDetailRoute = () => !!state.route && "fittingLogDetail" === state.route.view;
   const isEditorRoute = () => !!state.route && "fittingPhotoEdit" === state.route.view;
 
+  /* Drive thumbnail width only. Image preparation itself lives in
+     KK.fittings.prepareImage, which owns the 2560px / 0.90 contract every
+     fitting path now shares. */
   const FITTING_IMAGE_MAX = 1600;
-  const FITTING_IMAGE_QUALITY = 0.85;
 
   function invalidateFittingFeed() {
     const fs = feed();
@@ -2452,12 +2527,23 @@ KK.app = (function () {
     };
   }
 
+  /* Gallery first, and native: the studio adds photos it already took far more
+     often than it shoots into the app, and the custom camera overlay cannot
+     select several at once. The journal keeps the camera flow untouched. */
   function addFittingDetailPhoto() {
     const d = detail();
     if (!d.session) return;
-    d.bridge = fittingDetailBridge();
-    KK.fittings.attachSession(d.bridge);
-    KK.fittings.addPhoto();
+    elements.fitdetPhotoInput.click();
+  }
+
+  /* Only a returned file opens the review page. A dismissed picker leaves this
+     page exactly as it was, with nothing staged and no route change. */
+  function detailPhotosPicked(fileList) {
+    const d = detail();
+    const files = Array.from(fileList || []);
+    if (!files.length || !d.session) return;
+    seedFittingPhotoAdd(files);
+    go("#/fittings/" + encodeURIComponent(d.sessionId) + "/photos/add?source=" + d.source);
   }
 
   async function endFittingDetailSession() {
@@ -2627,9 +2713,7 @@ KK.app = (function () {
   async function stageFittingReplacement(file) {
     const ed = editor();
     try {
-      const prepared = await KK.fittings.compressImage(
-        await KK.fittings.usableBlob(file), FITTING_IMAGE_MAX, FITTING_IMAGE_QUALITY
-      );
+      const prepared = await KK.fittings.prepareImage(file);
       if (!isEditorRoute()) return;
       clearStagedReplacement();
       // A staged replacement is only a picture on screen until Save succeeds;
@@ -2820,7 +2904,7 @@ KK.app = (function () {
   function setupFittingDetailListeners() {
     const pressable = ".cust-nav-btn,.fitdet-action,.fitdet-bar__btn,.fitdet-delete,.fitedit-delete";
 
-    [elements.viewFittingDetail, elements.viewFittingPhotoEdit].forEach((view) => {
+    [elements.viewFittingDetail, elements.viewFittingPhotoEdit, elements.viewFittingPhotoAdd].forEach((view) => {
       view.addEventListener("pointerdown", (e) => {
         const target = e.target.closest(pressable);
         if (target && !target.disabled) target.classList.add("is-pressed");
@@ -2832,7 +2916,7 @@ KK.app = (function () {
       });
     });
 
-    [elements.fitdetBar, elements.fiteditBar].forEach((bar) => {
+    [elements.fitdetBar, elements.fiteditBar, elements.fitaddBar].forEach((bar) => {
       bar.addEventListener("pointerdown", (e) => {
         const target = e.target.closest(".fitdet-bar__btn");
         if (target && !target.disabled) target.classList.add("is-pressed");
@@ -2855,6 +2939,12 @@ KK.app = (function () {
 
     elements.fitdetPdfBtn.addEventListener("click", downloadFittingPdf);
     elements.fitdetAddBtn.addEventListener("click", addFittingDetailPhoto);
+    elements.fitdetPhotoInput.addEventListener("change", (e) => {
+      const files = e.target.files;
+      const picked = files && files.length ? Array.from(files) : [];
+      e.target.value = "";
+      detailPhotosPicked(picked);
+    });
     elements.fitdetEndBtn.addEventListener("click", endFittingDetailSession);
     elements.fitdetDeleteBtn.addEventListener("click", deleteFittingDetailLog);
 
@@ -2888,6 +2978,971 @@ KK.app = (function () {
         closeFittingPhotoViewer();
       }
     });
+  }
+
+
+  /* ========================== Add fitting photos ========================== */
+
+  /* Figma 266:3522. A staging page: captions, deletions and selected files are
+     local proposals until one atomic Save changes applies the whole batch
+     through db.saveFittingPhotoBatch. Nothing here writes on its own, which is
+     what makes Back a discard rather than a rollback. */
+
+  const add = () => state.fittingPhotoAdd;
+  const isAddRoute = () => !!state.route && "fittingPhotoAdd" === state.route.view;
+
+  const FITTING_PHOTO_LIMIT = 20;
+  const FITTING_UNDO_MS = 5000;
+
+  const addDetailHash = () =>
+    "#/fittings/" + encodeURIComponent(add().sessionId || "") + "?source=" + add().source;
+
+  /* ------------------------------ Derived state ---------------------------- */
+
+  const addVisibleExisting = () => add().existing.filter((photo) => !add().deleted.has(photo.id));
+  const addVisibleCount = () => addVisibleExisting().length + add().newPhotos.length;
+  const addRemainingSlots = () => Math.max(0, FITTING_PHOTO_LIMIT - addVisibleCount());
+
+  function addCaptionFor(photo) {
+    const a = add();
+    return a.captionPatches.has(photo.id) ? a.captionPatches.get(photo.id) : String(photo.caption || "");
+  }
+
+  const addDraftByKey = (key) => add().newPhotos.filter((draft) => draft.clientKey === key)[0] || null;
+  const addExistingById = (id) => add().existing.filter((photo) => photo.id === id)[0] || null;
+
+  /* The value a card's editor would return to if it were cancelled right now. */
+  function addSavedCaptionForKey(key) {
+    const draft = addDraftByKey(key);
+    if (draft) return draft.caption;
+    const photo = addExistingById(key);
+    return photo ? addCaptionFor(photo) : "";
+  }
+
+  function addDirty() {
+    const a = add();
+    if (a.newPhotos.length || a.deleted.size) return true;
+
+    let changed = false;
+    a.captionPatches.forEach((caption, id) => {
+      const photo = addExistingById(id);
+      if (photo && String(photo.caption || "") !== caption) changed = true;
+    });
+    if (changed) return true;
+
+    a.openEditors.forEach((key) => {
+      if (String(a.editorDrafts.get(key) || "") !== addSavedCaptionForKey(key)) changed = true;
+    });
+    return changed;
+  }
+
+  const syncAddDirty = () => setDirty(addDirty());
+
+  function announceAddStatus(text) {
+    const a = add();
+    if (a.lastStatus === text) return;
+    a.lastStatus = text;
+    elements.fitaddStatus.textContent = text;
+  }
+
+  /* ------------------------------ Local drafts ----------------------------- */
+
+  /* A draft has no database identity until Save changes returns, so it carries
+     a page-local key instead. The load token is part of it so a response that
+     belongs to an abandoned visit can never be matched to a live card. */
+  function makeAddDraft(file) {
+    const a = add();
+    let sourceUrl = null;
+    try {
+      sourceUrl = URL.createObjectURL(file);
+    } catch (_) {
+      sourceUrl = null; // no raw preview; the prepared one still arrives
+    }
+    return {
+      clientKey: "draft-" + a.loadToken + "-" + (++a.keySeq),
+      file,
+      sourceUrl,
+      preparedBlob: null,
+      preparedUrl: null,
+      status: "queued", // queued | preparing | ready
+      caption: ""
+    };
+  }
+
+  /* keepPrepared is set exactly once: when KK.fittings.localURLs has adopted
+     the prepared URL and revoking it here would blank a saved photo. */
+  function releaseAddDraft(draft, keepPrepared) {
+    if (draft.sourceUrl) URL.revokeObjectURL(draft.sourceUrl);
+    draft.sourceUrl = null;
+    if (!keepPrepared && draft.preparedUrl) URL.revokeObjectURL(draft.preparedUrl);
+    if (!keepPrepared) draft.preparedUrl = null;
+  }
+
+  function removeAddDraft(draft) {
+    const a = add();
+    a.openEditors.delete(draft.clientKey);
+    a.editorDrafts.delete(draft.clientKey);
+    releaseAddDraft(draft, false);
+    a.newPhotos = a.newPhotos.filter((entry) => entry !== draft);
+  }
+
+  /* Keeps the first files that fit and says how many it dropped, rather than
+     refusing the whole selection over its tail. */
+  function admitAddFiles(fileList) {
+    const a = add();
+    const files = Array.from(fileList || []);
+    if (!files.length) return 0;
+
+    const slots = addRemainingSlots();
+    const accepted = files.slice(0, slots);
+    const skipped = files.length - accepted.length;
+
+    accepted.forEach((file) => a.newPhotos.push(makeAddDraft(file)));
+    if (skipped) {
+      showToast(
+        skipped + (1 === skipped ? " photo was skipped" : " photos were skipped") +
+        " — a fitting log holds at most " + FITTING_PHOTO_LIMIT + " photos."
+      );
+    }
+    return accepted.length;
+  }
+
+  /* ------------------------- Sequential preparation ------------------------ */
+
+  /* One image at a time. Twenty full-resolution phone photos decoded in
+     parallel is how a mobile browser runs out of memory mid-selection; a
+     second picker selection joins this queue instead of starting its own. */
+  async function runAddPreparationQueue() {
+    const a = add();
+    if (a.preparing) return;
+    const token = a.loadToken;
+    a.preparing = true;
+
+    try {
+      for (;;) {
+        const draft = a.newPhotos.filter((entry) => "queued" === entry.status)[0];
+        if (!draft) break;
+
+        draft.status = "preparing";
+        a.preparingDone = a.newPhotos.filter((entry) => "ready" === entry.status).length;
+        a.preparingTotal = a.newPhotos.length;
+        patchAddDraftCard(draft);
+        announceAddStatus("Preparing photo " + (a.preparingDone + 1) + " of " + a.preparingTotal);
+
+        try {
+          const blob = await KK.fittings.prepareImage(draft.file);
+          if (token !== a.loadToken) return;
+          draft.preparedBlob = blob;
+          draft.preparedUrl = URL.createObjectURL(blob);
+          draft.status = "ready";
+          await patchAddDraftCard(draft);
+          // The raw preview is only worth its memory until the prepared one is
+          // on screen.
+          if (draft.sourceUrl) {
+            URL.revokeObjectURL(draft.sourceUrl);
+            draft.sourceUrl = null;
+          }
+        } catch (err) {
+          if (token !== a.loadToken) return;
+          console.error(err);
+          a.failedPreparationCount++;
+          removeAddDraft(draft);
+          renderFittingPhotoAdd();
+        }
+      }
+    } finally {
+      if (token === a.loadToken) {
+        a.preparing = false;
+        a.preparingDone = 0;
+        a.preparingTotal = 0;
+        reportAddPreparationFailures();
+        renderFittingPhotoAdd();
+        syncAddDirty();
+      }
+    }
+  }
+
+  /* One sentence for the batch, not one per file — and never called an upload
+     failure, because none of this has reached Drive or Postgres yet. */
+  function reportAddPreparationFailures() {
+    const a = add();
+    const failed = a.failedPreparationCount;
+    if (!failed) {
+      announceAddStatus(a.newPhotos.length ? a.newPhotos.length + " photo" + (1 === a.newPhotos.length ? "" : "s") + " ready" : "");
+      return;
+    }
+    a.failedPreparationCount = 0;
+    const copy = 1 === failed ? "1 photo couldn't be added." : failed + " photos couldn't be added.";
+    announceAddStatus(copy);
+    showToast(copy);
+
+    // Nothing was selected, nothing exists, nothing was edited: this page has
+    // no reason to stay open.
+    if (!a.newPhotos.length && !addVisibleExisting().length && !addDirty() && isAddRoute()) {
+      go(addDetailHash());
+    }
+  }
+
+  /* ------------------------------- Undo toast ------------------------------ */
+
+  function clearAddUndo() {
+    const a = add();
+    if (a.undoTimer) clearTimeout(a.undoTimer);
+    a.undoTimer = null;
+    a.undoPhotoId = null;
+    elements.fitaddUndo.hidden = true;
+    elements.fitaddUndoCopy.textContent = "";
+  }
+
+  function showAddUndo(photoId) {
+    const a = add();
+    clearAddUndo();
+    a.undoPhotoId = photoId;
+    elements.fitaddUndoCopy.textContent = "Photo removed. It is deleted when you save.";
+    elements.fitaddUndo.hidden = false;
+    a.undoTimer = setTimeout(() => {
+      if (isAddRoute()) clearAddUndo();
+    }, FITTING_UNDO_MS);
+  }
+
+  function undoAddDeletion() {
+    const a = add();
+    const photoId = a.undoPhotoId;
+    if (!photoId || !a.deleted.has(photoId)) return clearAddUndo();
+
+    // Restoring must not push the log over the ceiling a staged addition has
+    // already claimed.
+    if (addVisibleCount() >= FITTING_PHOTO_LIMIT) {
+      showToast("Remove another photo first — a fitting log holds at most " + FITTING_PHOTO_LIMIT + " photos.");
+      return;
+    }
+
+    a.deleted.delete(photoId);
+    clearAddUndo();
+    renderFittingPhotoAdd();
+    syncAddDirty();
+    announceAddStatus("Photo restored");
+
+    const card = elements.fitaddList.querySelector('[data-key="' + cssEscapeAttr(photoId) + '"]');
+    if (card) {
+      const box = card.getBoundingClientRect();
+      const offscreen = box.top < 0 || box.bottom > window.innerHeight;
+      if (offscreen) card.scrollIntoView({ block: "center", behavior: reducedMotion() ? "auto" : "smooth" });
+    }
+  }
+
+  // Ids and draft keys are uuids and "draft-n-n"; quoting them is enough.
+  const cssEscapeAttr = (value) => String(value).replace(/["\\]/g, "\\$&");
+
+  /* --------------------------------- Render -------------------------------- */
+
+  function fitaddStageHtml(url, alt, eager, statusHtml) {
+    if (!url) {
+      return '<div class="fitadd-stage">' +
+        '<div class="fitadd-stage__missing">' +
+          '<b>Photo unavailable</b>' +
+          '<span>No image on this device or in Drive. Its caption is kept.</span>' +
+        '</div>' +
+      '</div>';
+    }
+    return '<div class="fitadd-stage">' +
+      '<img class="fitadd-stage__image" data-role="image" src="' + U.escapeHtml(url) + '" ' +
+        'alt="' + U.escapeHtml(alt) + '" loading="' + (eager ? "eager" : "lazy") + '" decoding="async">' +
+      (statusHtml || '') +
+    '</div>';
+  }
+
+  function fitaddActionHtml(cls, key, kind, label, ariaLabel, iconSrc, disabled) {
+    return '<button type="button" class="fitdet-action ' + cls + '" ' +
+      'data-key="' + U.escapeHtml(key) + '" data-kind="' + kind + '"' + (disabled ? ' disabled' : '') + ' ' +
+      'aria-label="' + U.escapeHtml(ariaLabel) + '">' +
+      '<span class="fitdet-action__face">' +
+        (iconSrc ? '<img src="' + iconSrc + '" alt="" width="20" height="20">' : '') +
+        '<span>' + U.escapeHtml(label) + '</span>' +
+      '</span>' +
+      '<span class="fitdet-action__rail" aria-hidden="true"></span>' +
+    '</button>';
+  }
+
+  function fitaddCardHtml(options) {
+    const a = add();
+    const key = options.key;
+    const editing = a.openEditors.has(key);
+    const caption = options.caption;
+    const number = options.number;
+
+    const busy = a.saving;
+
+    const body = editing
+      ? '<div class="fitadd-editor">' +
+          '<label class="fitadd-editor__label" for="fitaddCaption-' + U.escapeHtml(key) + '">Caption</label>' +
+          '<textarea class="fitadd-textarea" id="fitaddCaption-' + U.escapeHtml(key) + '" ' +
+            'data-key="' + U.escapeHtml(key) + '" rows="2" enterkeyhint="done" ' +
+            'placeholder="What changed in this fitting?" ' +
+            'aria-label="Caption for photo ' + number + '">' +
+            U.escapeHtml(String(a.editorDrafts.get(key) || "")) +
+          '</textarea>' +
+        '</div>'
+      : caption
+      ? '<p class="fitdet-card__caption">' + U.escapeHtml(caption) + '</p>'
+      : '';
+
+    const actions = editing
+      ? fitaddActionHtml("fitadd-action--cancel js-fitadd-cancel", key, options.kind, "Cancel",
+          "Cancel the caption for photo " + number, "", busy) +
+        '<span class="fitdet-actions__rule" aria-hidden="true"></span>' +
+        fitaddActionHtml("fitadd-action--save js-fitadd-save", key, options.kind, "Save",
+          "Save the caption for photo " + number, "", busy)
+      : fitaddActionHtml("js-fitadd-delete", key, options.kind, "Delete",
+          "Delete photo " + number, "", busy || !options.canDelete) +
+        '<span class="fitdet-actions__rule" aria-hidden="true"></span>' +
+        fitaddActionHtml("js-fitadd-caption", key, options.kind, caption ? "Edit caption" : "Add caption",
+          (caption ? "Edit the caption for photo " : "Add a caption to photo ") + number,
+          "assets/fitlog-edit-icon.svg", busy || !options.canCaption);
+
+    return '<div class="fitlog-grid-spacer" aria-hidden="true"></div>' +
+      '<div class="fitlog-grid-rule" aria-hidden="true"></div>' +
+      '<div class="fitdet-inset" data-key="' + U.escapeHtml(key) + '" data-kind="' + options.kind + '">' +
+        '<article class="fitdet-card">' + options.stage + body + '</article>' +
+        '<div class="fitdet-actions">' + actions + '</div>' +
+      '</div>' +
+      '<div class="fitlog-grid-rule" aria-hidden="true"></div>';
+  }
+
+  function fitaddDraftStatusHtml(draft) {
+    if ("ready" === draft.status) return '';
+    return '<p class="fitadd-stage__status">' +
+      '<span class="fitadd-stage__dot" aria-hidden="true"></span>' +
+      ("preparing" === draft.status ? "Preparing photo…" : "Waiting to prepare…") +
+    '</p>';
+  }
+
+  function fitaddSkeletonHtml() {
+    return '<div class="fitlog-grid-spacer" aria-hidden="true"></div>' +
+      '<div class="fitlog-grid-rule" aria-hidden="true"></div>' +
+      '<div class="fitdet-inset">' +
+        '<div class="fitdet-card"><i class="fitadd-skel__stage"></i></div>' +
+        '<div class="fitdet-actions"><span class="fitadd-skel__actions"></span></div>' +
+      '</div>' +
+      '<div class="fitlog-grid-rule" aria-hidden="true"></div>';
+  }
+
+  function fitaddStateHtml() {
+    const a = add();
+    if ("error" === a.phase) {
+      return '<div class="fitlog-grid-spacer" aria-hidden="true"></div>' +
+        '<div class="fitlog-grid-rule" aria-hidden="true"></div>' +
+        '<div class="fitlog-inset">' +
+          fittingPanelHtml(
+            "Couldn't open this fitting log",
+            U.escapeHtml((a.loadError && a.loadError.message) || "Check your connection and try again."),
+            ' role="alert"',
+            '<button type="button" class="fitlog-panel__retry js-fitadd-retry">Try again</button>'
+          ) +
+        '</div>' +
+        '<div class="fitlog-grid-rule" aria-hidden="true"></div>';
+    }
+    return '<div class="fitlog-grid-spacer" aria-hidden="true"></div>' +
+      '<div class="fitlog-grid-rule" aria-hidden="true"></div>' +
+      '<div class="fitlog-inset">' +
+        fittingPanelHtml("No photos in this fitting log", "Use Add photos below to choose the first ones.") +
+      '</div>' +
+      '<div class="fitlog-grid-rule" aria-hidden="true"></div>';
+  }
+
+  /* Re-rendering the list replaces an open textarea, so its focus and caret are
+     carried across rather than dropped mid-sentence. */
+  function captureAddFocus() {
+    const el = document.activeElement;
+    if (!el || !el.matches || !el.matches(".fitadd-textarea")) return null;
+    return { key: el.dataset.key, start: el.selectionStart, end: el.selectionEnd };
+  }
+
+  function restoreAddFocus(snapshot) {
+    if (!snapshot) return;
+    const el = elements.fitaddList.querySelector('.fitadd-textarea[data-key="' + cssEscapeAttr(snapshot.key) + '"]');
+    if (!el) return;
+    el.focus({ preventScroll: true });
+    try {
+      el.setSelectionRange(snapshot.start, snapshot.end);
+    } catch (_) {
+      // Some browsers refuse a range on a field that is not yet laid out.
+    }
+    growAddTextarea(el);
+  }
+
+  function renderFittingPhotoAdd() {
+    const a = add();
+
+    if ("loading" === a.phase) {
+      elements.fitaddBody.setAttribute("aria-busy", "true");
+      elements.fitaddList.innerHTML = '<li class="fitdet-record">' + fitaddSkeletonHtml() + '</li>' +
+        '<li class="fitdet-record">' + fitaddSkeletonHtml() + '</li>';
+      elements.fitaddState.innerHTML = '';
+      renderAddBar();
+      return;
+    }
+
+    if ("error" === a.phase) {
+      elements.fitaddBody.setAttribute("aria-busy", "false");
+      elements.fitaddList.innerHTML = '';
+      elements.fitaddState.innerHTML = fitaddStateHtml();
+      renderAddBar();
+      return;
+    }
+
+    const focusSnapshot = captureAddFocus();
+    const visible = addVisibleExisting();
+    const drafts = a.newPhotos;
+    const total = visible.length + drafts.length;
+
+    const existingHtml = visible.map((photo, index) => {
+      const caption = addCaptionFor(photo);
+      const number = index + 1;
+      const url = fittingPhotoDisplayURL(photo);
+      const alt = caption ? "Fitting photo: " + caption : "Fitting photo " + number;
+      return '<li class="fitdet-record">' + fitaddCardHtml({
+        key: photo.id,
+        kind: "existing",
+        number,
+        caption,
+        canDelete: true,
+        canCaption: true,
+        stage: fitaddStageHtml(url, alt, 0 === index, '')
+      }) + '</li>';
+    }).join('');
+
+    // New photos land after the stored ones, in the order the picker returned.
+    const draftHtml = drafts.map((draft, index) => {
+      const number = visible.length + index + 1;
+      const url = draft.preparedUrl || draft.sourceUrl || "";
+      const alt = draft.caption ? "Selected photo: " + draft.caption : "Selected photo " + number;
+      return '<li class="fitdet-record">' + fitaddCardHtml({
+        key: draft.clientKey,
+        kind: "new",
+        number,
+        caption: draft.caption,
+        canDelete: true,
+        canCaption: true,
+        stage: fitaddStageHtml(url, alt, true, fitaddDraftStatusHtml(draft))
+      }) + '</li>';
+    }).join('');
+
+    elements.fitaddBody.setAttribute("aria-busy", "false");
+    elements.fitaddList.innerHTML = existingHtml + draftHtml;
+    elements.fitaddState.innerHTML = total ? '' : fitaddStateHtml();
+
+    elements.fitaddList.querySelectorAll(".fitadd-textarea").forEach(growAddTextarea);
+    restoreAddFocus(focusSnapshot);
+    renderAddBar();
+  }
+
+  /* One card, in place. Used while the queue runs so a background swap never
+     remounts a neighbouring card or moves the scroll position. */
+  async function patchAddDraftCard(draft) {
+    const card = elements.fitaddList.querySelector('[data-kind="new"][data-key="' + cssEscapeAttr(draft.clientKey) + '"]');
+    if (!card) return renderFittingPhotoAdd();
+
+    const stage = $(".fitadd-stage", card);
+    if (!stage) return;
+
+    const status = $(".fitadd-stage__status", stage);
+    const statusHtml = fitaddDraftStatusHtml(draft);
+    if (status && !statusHtml) status.remove();
+    else if (status && statusHtml) status.outerHTML = statusHtml;
+    else if (statusHtml) stage.insertAdjacentHTML("beforeend", statusHtml);
+
+    const url = draft.preparedUrl || draft.sourceUrl || "";
+    const img = $(".fitadd-stage__image", stage);
+    if (!url || !img || img.getAttribute("src") === url) return;
+
+    // Only the pixels change: the same <img> keeps the same box, so the card
+    // and the scroll position stay exactly where they were.
+    if (!reducedMotion()) img.classList.add("is-swapping");
+    const next = new Image();
+    next.src = url;
+    try {
+      if (next.decode) await next.decode();
+    } catch (_) {
+      // A decode that refuses still has the normal load/error path below.
+    }
+    if (!document.contains(img)) return;
+    img.src = url;
+    img.classList.remove("is-swapping");
+  }
+
+  function renderAddBar() {
+    const a = add();
+    const ready = "ready" === a.phase;
+    const slots = addRemainingSlots();
+
+    elements.fitaddBar.hidden = !ready;
+    document.body.classList.toggle("has-fitadd-bar", ready);
+
+    elements.fitaddPickBtn.disabled = !ready || a.saving || a.admitting || !slots;
+    elements.fitaddPickBtn.setAttribute(
+      "aria-label",
+      slots ? "Add photos" : "Add photos (this fitting log already holds " + FITTING_PHOTO_LIMIT + " photos)"
+    );
+
+    // An open editor keeps Save actionable on purpose: tapping it is how the
+    // user is told which caption is still unsaved.
+    elements.fitaddSaveBtn.disabled = !ready || a.saving || !(addDirty() || a.openEditors.size);
+    elements.fitaddSaveBtn.setAttribute("aria-busy", a.saving ? "true" : "false");
+    elements.fitaddSaveFace.textContent = a.saving ? "Saving…" : "Save changes";
+
+    syncBottomBar();
+  }
+
+  /* ------------------------------ Card actions ----------------------------- */
+
+  function growAddTextarea(el) {
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 200) + "px";
+  }
+
+  function openAddEditor(key) {
+    const a = add();
+    if (a.saving || a.openEditors.has(key)) return;
+    a.openEditors.add(key);
+    a.editorDrafts.set(key, addSavedCaptionForKey(key));
+    renderFittingPhotoAdd();
+    syncAddDirty();
+
+    // Focus after the field is painted, or a mobile browser may open no
+    // keyboard at all.
+    requestAnimationFrame(() => {
+      const el = elements.fitaddList.querySelector('.fitadd-textarea[data-key="' + cssEscapeAttr(key) + '"]');
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
+      el.scrollIntoView({ block: "nearest", behavior: reducedMotion() ? "auto" : "smooth" });
+    });
+  }
+
+  function closeAddEditor(key, focusBack) {
+    const a = add();
+    a.openEditors.delete(key);
+    a.editorDrafts.delete(key);
+    renderFittingPhotoAdd();
+    syncAddDirty();
+    if (!focusBack) return;
+    const btn = elements.fitaddList.querySelector('.js-fitadd-caption[data-key="' + cssEscapeAttr(key) + '"]');
+    if (btn) btn.focus({ preventScroll: true });
+  }
+
+  function saveAddEditor(key) {
+    const a = add();
+    if (a.saving) return;
+    const value = String(a.editorDrafts.get(key) || "").trim();
+
+    const draft = addDraftByKey(key);
+    if (draft) {
+      draft.caption = value;
+    } else {
+      const photo = addExistingById(key);
+      if (!photo) return closeAddEditor(key, true);
+      a.captionPatches.set(key, value);
+    }
+    closeAddEditor(key, true);
+  }
+
+  function deleteAddCard(key, kind) {
+    const a = add();
+    if (a.saving) return;
+
+    if ("new" === kind) {
+      const draft = addDraftByKey(key);
+      if (!draft) return;
+      // Nothing was ever stored, so there is nothing to undo.
+      removeAddDraft(draft);
+      renderFittingPhotoAdd();
+      syncAddDirty();
+      announceAddStatus("Photo removed");
+      return;
+    }
+
+    const photo = addExistingById(key);
+    if (!photo || a.deleted.has(key)) return;
+    // Staged only: the row survives until Save changes, and its Drive archive
+    // copy survives that too.
+    a.deleted.set(key, { photo, originalIndex: a.existing.indexOf(photo) });
+    a.openEditors.delete(key);
+    a.editorDrafts.delete(key);
+    showAddUndo(key);
+    renderFittingPhotoAdd();
+    syncAddDirty();
+  }
+
+  function focusFirstOpenAddEditor() {
+    const el = $(".fitadd-textarea", elements.fitaddList);
+    if (!el) return;
+    el.scrollIntoView({ block: "center", behavior: reducedMotion() ? "auto" : "smooth" });
+    // One focus, after the scroll settles — not one animation per open editor.
+    setTimeout(() => {
+      if (document.contains(el)) el.focus({ preventScroll: true });
+    }, reducedMotion() ? 0 : 280);
+  }
+
+  /* ------------------------------ Picker entry ----------------------------- */
+
+  function addPhotosFromReview() {
+    const a = add();
+    if (a.saving || !addRemainingSlots()) return;
+    elements.fitaddFileInput.click();
+  }
+
+  function addPhotosPicked(files) {
+    const a = add();
+    if (!files.length || "ready" !== a.phase) return;
+
+    a.admitting = true;
+    renderAddBar();
+    const accepted = admitAddFiles(files);
+    a.admitting = false;
+
+    renderFittingPhotoAdd();
+    syncAddDirty();
+    if (accepted) runAddPreparationQueue();
+    else renderAddBar();
+  }
+
+  /* --------------------------------- Saving -------------------------------- */
+
+  /* One RPC for captions, deletions and insertions together. Drive is
+     deliberately after the commit: uploading first would strand archive files
+     whenever the Postgres transaction failed. */
+  async function saveFittingPhotoAdd() {
+    const a = add();
+    if (a.saving || "ready" !== a.phase) return;
+
+    if (a.openEditors.size) {
+      showToast("Save your open captions first");
+      announceAddStatus("A caption is still open");
+      focusFirstOpenAddEditor();
+      return;
+    }
+    if (a.preparing || a.newPhotos.some((draft) => "ready" !== draft.status)) {
+      announceAddStatus("Photos are still being prepared");
+      showToast("Still preparing photos — try again in a moment");
+      return;
+    }
+    if (!addDirty()) {
+      announceAddStatus("Nothing to save.");
+      showToast("Nothing to save.");
+      return;
+    }
+
+    const captionUpdates = [];
+    a.captionPatches.forEach((caption, id) => {
+      if (a.deleted.has(id)) return;
+      const photo = addExistingById(id);
+      if (!photo || String(photo.caption || "") === caption) return;
+      captionUpdates.push({ id, caption: caption || null });
+    });
+    const deleteIds = Array.from(a.deleted.keys());
+    const drafts = a.newPhotos.slice();
+    const newPhotos = drafts.map((draft) => ({ client_key: draft.clientKey, caption: draft.caption || null }));
+
+    const sessionId = a.sessionId;
+    const source = a.source;
+
+    a.saving = true;
+    clearAddUndo();
+    renderFittingPhotoAdd();
+    announceAddStatus("Saving changes");
+
+    let result;
+    try {
+      result = await db.saveFittingPhotoBatch(sessionId, captionUpdates, deleteIds, newPhotos);
+    } catch (err) {
+      console.error(err);
+      // Every draft, caption and staged deletion survives for the retry.
+      a.saving = false;
+      renderFittingPhotoAdd();
+      announceAddStatus("Save failed");
+      showToast((err && err.message) || "Could not save those changes");
+      return;
+    }
+
+    const photos = sortFittingPhotos((result && result.photos) || []);
+    const created = (result && result.created) || [];
+
+    /* Ownership of a prepared object URL moves to the shared map the moment its
+       row exists, so the detail page shows the local image immediately and
+       nothing here may revoke it afterwards. */
+    const backups = [];
+    created.forEach((entry) => {
+      const draft = drafts.filter((item) => item.clientKey === entry.client_key)[0];
+      if (!draft || !entry.photo) return;
+      if (draft.preparedUrl) {
+        KK.fittings.adoptLocalURL(entry.photo.id, draft.preparedUrl);
+        draft.preparedUrl = null;
+      }
+      if (draft.preparedBlob) backups.push({ photo: entry.photo, blob: draft.preparedBlob });
+    });
+    drafts.forEach((draft) => releaseAddDraft(draft, false));
+
+    const d = detail();
+    if (d.sessionId === sessionId) {
+      d.photos = photos;
+      d.blobCache.clear();
+      if (d.bridge) d.bridge.photos = photos;
+    }
+    invalidateFittingFeed();
+
+    const backupContext = {
+      order: a.order,
+      customer: a.customer,
+      session: a.session,
+      photos: photos.slice(),
+      onToast: showToast
+    };
+
+    a.newPhotos = [];
+    a.captionPatches.clear();
+    a.deleted.clear();
+    a.openEditors.clear();
+    a.editorDrafts.clear();
+    a.existing = photos;
+    a.saving = false;
+    setDirty(false);
+
+    const addedCount = created.length;
+    go("#/fittings/" + encodeURIComponent(sessionId) + "?source=" + source);
+    showToast(
+      addedCount
+        ? addedCount + (1 === addedCount ? " photo added" : " photos added")
+        : "Fitting log updated"
+    );
+
+    startAddBackups(sessionId, backups, backupContext);
+  }
+
+  /* --------------------------- Drive backup handoff ------------------------ */
+
+  /* The bridge attached before navigation is not necessarily the one the detail
+     page is using afterwards, so settlement patches the page's own records and
+     re-renders it directly rather than trusting object identity. */
+  function applyAddBackupResult(sessionId, photo) {
+    const d = detail();
+    if (!photo || d.sessionId !== sessionId) return;
+    const idx = d.photos.findIndex((entry) => entry.id === photo.id);
+    if (-1 !== idx) d.photos[idx] = photo;
+    if (d.bridge) d.bridge.photos = d.photos;
+    if (isDetailRoute()) renderFittingDetail();
+  }
+
+  function startAddBackups(sessionId, entries, context) {
+    if (!entries.length) return;
+
+    const settled = entries.map((entry) =>
+      KK.fittings.backupPhoto(entry.photo, { blob: entry.blob }, context).then(
+        (updated) => {
+          applyAddBackupResult(sessionId, updated);
+          return true;
+        },
+        (err) => {
+          console.error(err);
+          // The record and its local image are durable; only the archive failed.
+          applyAddBackupResult(sessionId, entry.photo);
+          return false;
+        }
+      )
+    );
+
+    Promise.all(settled).then((results) => {
+      const failures = results.filter((ok) => !ok).length;
+      if (!failures) return;
+      showToast(
+        failures + (1 === failures ? " Drive backup failed" : " Drive backups failed") +
+        ", but the photos are saved."
+      );
+    });
+  }
+
+  /* ------------------------------- Lifecycle ------------------------------- */
+
+  function resetFittingPhotoAdd() {
+    const a = add();
+    a.loadToken++;
+    a.newPhotos.forEach((draft) => releaseAddDraft(draft, false));
+    a.newPhotos = [];
+    a.captionPatches.clear();
+    a.deleted.clear();
+    a.openEditors.clear();
+    a.editorDrafts.clear();
+    a.existing = [];
+    a.session = null;
+    a.order = null;
+    a.customer = null;
+    a.phase = "idle";
+    a.saving = false;
+    a.preparing = false;
+    a.admitting = false;
+    a.preparingDone = 0;
+    a.preparingTotal = 0;
+    a.failedPreparationCount = 0;
+    a.keySeq = 0;
+    a.seeded = false;
+    a.loadError = null;
+    a.lastStatus = "";
+    elements.fitaddStatus.textContent = "";
+    clearAddUndo();
+  }
+
+  function cleanupFittingPhotoAdd() {
+    resetFittingPhotoAdd();
+    elements.fitaddBar.hidden = true;
+    document.body.classList.remove("has-fitadd-bar");
+    setDirty(false);
+  }
+
+  /* The detail page stages its selection here before navigating, so the review
+     route can paint real previews on its first frame instead of flashing an
+     empty list. */
+  function seedFittingPhotoAdd(files) {
+    const d = detail();
+    resetFittingPhotoAdd();
+    const a = add();
+    a.sessionId = d.sessionId;
+    a.session = d.session;
+    a.order = d.order;
+    a.customer = d.customer;
+    a.source = d.source;
+    a.existing = d.photos.slice();
+    a.phase = "ready";
+    a.seeded = true;
+    admitAddFiles(files);
+  }
+
+  /* -------------------------------- Route entry ---------------------------- */
+
+  async function showFittingPhotoAdd(sessionId, queryParams) {
+    const a = add();
+    const seeded = a.seeded && a.sessionId === sessionId;
+    const source = queryParams && "order" === queryParams.get("source") ? "order" : "feed";
+
+    setChrome({ title: "Add fitting photos", save: false, fitdetailpage: true });
+    setSaveBar(false);
+
+    if (seeded) {
+      a.seeded = false;
+      a.source = source;
+      elements.fitaddBackBtn.href = addDetailHash();
+      renderFittingPhotoAdd();
+      syncAddDirty();
+      runAddPreparationQueue();
+      return;
+    }
+
+    resetFittingPhotoAdd();
+    const token = a.loadToken;
+    a.sessionId = sessionId;
+    a.source = source;
+    a.phase = "loading";
+    elements.fitaddBackBtn.href = addDetailHash();
+    elements.fitaddBar.hidden = true;
+    document.body.classList.remove("has-fitadd-bar");
+    renderFittingPhotoAdd();
+    announceAddStatus("Loading this fitting log");
+
+    let session;
+    let order;
+    let customer;
+    let photos;
+    try {
+      session = await db.getFittingSession(sessionId);
+      order = await db.getOrder(session.order_id);
+      const res = await Promise.all([
+        db.getCustomer(order.customer_id),
+        db.listFittingPhotosBySession(sessionId)
+      ]);
+      customer = res[0];
+      photos = sortFittingPhotos(res[1]);
+    } catch (err) {
+      console.error(err);
+      if (token !== a.loadToken) return;
+      // A permanent skeleton is the one outcome this page may not produce.
+      a.phase = "error";
+      a.loadError = err;
+      renderFittingPhotoAdd();
+      announceAddStatus("Could not open this fitting log");
+      return;
+    }
+    if (token !== a.loadToken || !isAddRoute()) return;
+
+    // One render once everything has resolved, rather than a list that grows a
+    // card per response.
+    a.session = session;
+    a.order = order;
+    a.customer = customer;
+    a.existing = photos;
+    a.phase = "ready";
+    renderFittingPhotoAdd();
+    syncAddDirty();
+    announceAddStatus(
+      photos.length
+        ? photos.length + (1 === photos.length ? " photo in this fitting log" : " photos in this fitting log")
+        : "This fitting log has no photos"
+    );
+  }
+
+  /* ------------------------------ Event wiring ----------------------------- */
+
+  function setupFittingPhotoAddListeners() {
+    elements.fitaddBackBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      leaveFormFor(addDetailHash());
+    });
+
+    elements.fitaddPickBtn.addEventListener("click", addPhotosFromReview);
+    elements.fitaddSaveBtn.addEventListener("click", saveFittingPhotoAdd);
+    elements.fitaddUndoBtn.addEventListener("click", undoAddDeletion);
+
+    elements.fitaddFileInput.addEventListener("change", (e) => {
+      const files = e.target.files;
+      const picked = files && files.length ? Array.from(files) : [];
+      e.target.value = "";
+      addPhotosPicked(picked);
+    });
+
+    elements.viewFittingPhotoAdd.addEventListener("click", (e) => {
+      if (e.target.closest(".js-fitadd-retry")) {
+        return showFittingPhotoAdd(add().sessionId, state.route && state.route.query);
+      }
+      const action = e.target.closest(".fitdet-action");
+      if (!action || action.disabled) return;
+      const key = action.dataset.key;
+      const kind = action.dataset.kind;
+      if (action.matches(".js-fitadd-delete")) deleteAddCard(key, kind);
+      else if (action.matches(".js-fitadd-caption")) openAddEditor(key);
+      else if (action.matches(".js-fitadd-cancel")) closeAddEditor(key, true);
+      else if (action.matches(".js-fitadd-save")) saveAddEditor(key);
+    });
+
+    elements.fitaddList.addEventListener("input", (e) => {
+      const el = e.target;
+      if (!el.matches || !el.matches(".fitadd-textarea")) return;
+      add().editorDrafts.set(el.dataset.key, el.value);
+      growAddTextarea(el);
+      syncAddDirty();
+      renderAddBar();
+    });
+
+    /* A Drive thumbnail that 404s resolves to the reserved unavailable state
+       instead of collapsing its <img>. Image errors do not bubble, so this
+       listener runs in the capture phase. */
+    elements.fitaddList.addEventListener("error", (e) => {
+      const img = e.target;
+      if (!img.matches || !img.matches(".fitadd-stage__image")) return;
+      const stage = img.closest(".fitadd-stage");
+      if (!stage) return;
+      stage.innerHTML = '<div class="fitadd-stage__missing">' +
+        '<b>Photo unavailable</b>' +
+        '<span>No image on this device or in Drive. Its caption is kept.</span>' +
+      '</div>';
+    }, true);
   }
 
   function readableAnswer(fieldObj) {
@@ -5096,6 +6151,7 @@ KK.app = (function () {
     elements.fittingJournalAdd.addEventListener("click", () => KK.fittings.openCamera());
     KK.fittings.bindOverlays();
     setupFittingDetailListeners();
+    setupFittingPhotoAddListeners();
     setupMoodboardListeners();
 
     elements.gcalConnect.addEventListener("click", connectGoogle);

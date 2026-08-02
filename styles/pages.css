@@ -2532,8 +2532,9 @@ body.is-fittinglogspage .fitlog-search__clear:focus-visible {
   outline-offset: -5px;
 }
 body.is-fittinglogspage #fitlogNewBtn:disabled {
-  opacity: .48;
-  filter: saturate(0);
+  opacity: 1;
+  filter: none;
+  cursor: default;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2895,7 +2896,7 @@ button.fitdet-card__frame { appearance: none; -webkit-appearance: none; }
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background: #fc3636;
+  background: #4b0000;
   color: var(--home-white);
   font-size: 14px;
   font-weight: 600;
@@ -2903,7 +2904,7 @@ button.fitdet-card__frame { appearance: none; -webkit-appearance: none; }
   letter-spacing: -.42px;
   white-space: nowrap;
 }
-.fitdet-delete__rail { display: block; background: #c92323; }
+.fitdet-delete__rail { display: block; background: #340000; }
 .fitdet-delete:active,
 .fitdet-delete.is-pressed { grid-template-rows: 57px 3px; }
 .fitdet-delete:disabled { opacity: .5; cursor: default; }
@@ -2973,6 +2974,191 @@ button.fitdet-card__frame { appearance: none; -webkit-appearance: none; }
 .fitedit-delete:active,
 .fitedit-delete.is-pressed { grid-template-rows: 46px 2px; }
 .fitedit-delete:disabled { opacity: .5; cursor: default; }
+
+/* --------------------------- Add fitting photos --------------------------- */
+
+/* Figma 266:3522. The card, its 24px inset, its rules and its face-over-rail
+   actions are the detail page's; only the fixed 4:3 stage and the inline
+   caption editor are new. Every state a photo can be in — raw preview, prepared
+   preview, Drive thumbnail, preparing, failed, unavailable — occupies this one
+   box, so a decode or a swap can never change the card's height. */
+.fitadd-stage {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: #000;
+  line-height: 0;
+}
+.fitadd-stage__image {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+  transition: opacity var(--motion-quick) var(--ease-standard);
+}
+/* Only the pixels cross-fade. Fading the whole card would hide its controls
+   and make the list appear to jump. */
+.fitadd-stage__image.is-swapping { opacity: 0; }
+
+.fitadd-stage__status {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(13,13,13,.72);
+  color: var(--home-white);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  letter-spacing: -.24px;
+}
+.fitadd-stage__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--home-orange);
+  animation: home-shimmer 1.2s ease-in-out infinite;
+}
+.fitadd-stage__missing {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: var(--home-black-light);
+  color: var(--home-white);
+  text-align: center;
+  line-height: 18px;
+}
+.fitadd-stage__missing b { display: block; font-size: 14px; line-height: 20px; }
+.fitadd-stage__missing span { color: #b7b7b7; font-size: 13px; font-weight: 400; }
+
+/* -------------------------- Inline caption editor ------------------------- */
+
+.fitadd-editor { display: flex; flex-direction: column; gap: 8px; }
+.fitadd-editor__label {
+  color: var(--home-black-light);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.fitadd-textarea {
+  width: 100%;
+  min-height: 72px;
+  max-height: 200px;
+  padding: 10px 12px;
+  border: 1px solid var(--home-grid);
+  border-radius: 0;
+  background: var(--home-white);
+  color: var(--home-black);
+  font: 400 16px/22px 'Plus Jakarta Sans', sans-serif;
+  letter-spacing: -.32px;
+  resize: none;
+  overflow-y: auto;
+  /* Clears the fixed bar and the mobile keyboard when the field is focused. */
+  scroll-margin-bottom: calc(var(--bottombar-h) + var(--keyboard-offset, 0px) + 24px);
+}
+.fitadd-action--cancel .fitdet-action__face { background: #4b0000; color: var(--home-white); }
+.fitadd-action--cancel .fitdet-action__rail { background: #340000; }
+.fitadd-action--save .fitdet-action__face { background: #0f5132; color: var(--home-white); }
+.fitadd-action--save .fitdet-action__rail { background: #0a3a24; }
+
+/* ------------------------------- Undo toast ------------------------------- */
+
+/* Sits on top of the fixed bar it must never cover, and carries a real button
+   rather than making the whole strip clickable. */
+.fitadd-undo {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--bottombar-h, 0px);
+  z-index: 45;
+}
+.fitadd-undo[hidden] { display: none; }
+.fitadd-undo__inner {
+  max-width: 390px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 24px;
+  background: var(--home-black-light);
+  border-top: 1px solid var(--home-grid);
+  color: var(--home-white);
+}
+.fitadd-undo__copy {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 18px;
+  letter-spacing: -.26px;
+}
+.fitadd-undo__btn {
+  flex: none;
+  padding: 6px 14px;
+  border: 1px solid var(--home-white);
+  border-radius: 0;
+  background: transparent;
+  color: var(--home-white);
+  font: 600 13px/18px 'Plus Jakarta Sans', sans-serif;
+  letter-spacing: -.26px;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* -------------------------------- Skeletons ------------------------------- */
+
+/* The real card geometry, so replacing the skeleton list moves nothing: same
+   inset, same 4:3 stage, same reserved action row, same rules. */
+/* The stage rests at the same black an unloaded photo shows, so the skeleton
+   reads as an image that has not arrived rather than as a grey slab. */
+.fitadd-skel__stage {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: #000;
+}
+.fitadd-skel__stage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: rgba(255,255,255,.06);
+  animation: home-shimmer-dark 1.2s ease-in-out infinite;
+}
+.fitadd-skel__actions {
+  grid-column: 1 / -1;
+  height: 48px;
+  background-color: rgba(13,13,13,.06);
+  animation: home-shimmer 1.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fitadd-stage__image { transition: none; }
+  .fitadd-stage__image.is-swapping { opacity: 1; }
+  .fitadd-stage__dot,
+  .fitadd-skel__stage::after,
+  .fitadd-skel__actions { animation: none; }
+}
 
 /* ------------------------------- Photo viewer ----------------------------- */
 
@@ -3063,7 +3249,8 @@ body.is-fitdetailpage .cust-nav-btn:disabled { opacity: .48; filter: saturate(0)
 body.has-fitdet-bar .fitdet,
 body.has-fitdet-bar .fitedit,
 body.has-fitedit-bar .fitdet,
-body.has-fitedit-bar .fitedit { padding-bottom: calc(var(--bottombar-h) + 8px); }
+body.has-fitedit-bar .fitedit,
+body.has-fitadd-bar .fitadd { padding-bottom: calc(var(--bottombar-h) + 8px); }
 
 /* --------------------------- Detail route skeleton ------------------------ */
 
@@ -3113,8 +3300,8 @@ body.has-fitedit-bar .fitedit { padding-bottom: calc(var(--bottombar-h) + 8px); 
 .route-loader__skel-caption i { height: 12px; background: rgba(13,13,13,.08); }
 .route-loader__skel-caption i:last-child { width: 62%; }
 .route-loader__canvas--fitdet .fitdet-action__face i { width: 48px; height: 12px; background: rgba(13,13,13,.08); }
-.route-loader__canvas--fitdet .fitdet-delete__face { background: rgba(252,54,54,.55); }
-.route-loader__canvas--fitdet .fitdet-delete__rail { background: rgba(201,35,35,.55); }
+.route-loader__canvas--fitdet .fitdet-delete__face { background: rgba(75,0,0,.55); }
+.route-loader__canvas--fitdet .fitdet-delete__rail { background: rgba(52,0,0,.55); }
 
 @media (prefers-reduced-motion: reduce) {
   .fitdet-record,
