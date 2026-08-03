@@ -126,7 +126,6 @@ KK.app = (function () {
     fitdetState: $("#fitdetState"),
     fitdetStatus: $("#fitdetStatus"),
     fitdetBar: $("#fitdetBar"),
-    fitdetEndBtn: $("#fitdetEndBtn"),
     fitdetAddBtn: $("#fitdetAddBtn"),
     fitdetDeleteBtn: $("#fitdetDeleteBtn"),
     fitdetPhotoInput: $("#fitdetPhotoInput"),
@@ -2263,7 +2262,6 @@ KK.app = (function () {
     if (!d.session) return;
 
     const stage = U.fittingStage(d.session.stage);
-    const isActive = "active" === d.session.status;
 
     elements.fitdetTitle.textContent = d.order ? orderLabel(d.order) : "Fitting log";
     elements.fitdetStage.textContent = stage.label;
@@ -2288,9 +2286,6 @@ KK.app = (function () {
     );
 
     elements.fitdetBar.hidden = false;
-    elements.fitdetBar.classList.toggle("fitdet-bar--single", !isActive);
-    elements.fitdetEndBtn.hidden = !isActive;
-    elements.fitdetEndBtn.disabled = isActive && !photos.length;
     document.body.classList.add("has-fitdet-bar");
     syncBottomBar();
 
@@ -2557,29 +2552,6 @@ KK.app = (function () {
     if (!files.length || !d.session) return;
     seedFittingPhotoAdd(files);
     go("#/fittings/" + encodeURIComponent(d.sessionId) + "/photos/add?source=" + d.source);
-  }
-
-  async function endFittingDetailSession() {
-    const d = detail();
-    if (!d.session || "active" !== d.session.status) return;
-    d.bridge = d.bridge || fittingDetailBridge();
-    KK.fittings.attachSession(d.bridge);
-
-    await KK.fittings.endSession(d.session, async () => {
-      if (!isDetailRoute()) return;
-      try {
-        d.session = await db.getFittingSession(d.sessionId);
-      } catch (_) {
-        d.session = Object.assign({}, d.session, {
-          status: "completed",
-          completed_at: new Date().toISOString()
-        });
-      }
-      d.bridge.session = d.session;
-      invalidateFittingFeed();
-      go("#/order/" + encodeURIComponent(d.order.id));
-      showToast("Fitting log saved");
-    });
   }
 
   async function deleteFittingDetailLog() {
@@ -2958,7 +2930,6 @@ KK.app = (function () {
       e.target.value = "";
       detailPhotosPicked(picked);
     });
-    elements.fitdetEndBtn.addEventListener("click", endFittingDetailSession);
     elements.fitdetDeleteBtn.addEventListener("click", deleteFittingDetailLog);
 
     elements.viewFittingDetail.addEventListener("click", (e) => {

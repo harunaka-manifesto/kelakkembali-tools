@@ -80,7 +80,7 @@ Column key: **app.js** = entry function + line ([MAP-app.md](MAP-app.md)) · **H
 
 ## 8. Fitting log detail
 - **Route** `#/fittings/:sessionId`
-- **app.js** `showFittingLogDetail` **2611**; region **2137–2668**. `renderFittingDetail` 2258, `fittingDetailCardHtml` 2186, `shareFittingPhoto` 2361, `fittingPhotoBlob` 2305, `openFittingPhotoViewer` 2484, `addFittingDetailPhoto` 2533, `endFittingDetailSession` 2549, `deleteFittingDetailLog` 2572, `setupFittingDetailListeners` 2904
+- **app.js** `showFittingLogDetail` **2601**; region **2137–2668**. `renderFittingDetail` 2261, `fittingDetailCardHtml` 2189, `shareFittingPhoto` 2364, `fittingPhotoBlob` 2308, `openFittingPhotoViewer` 2499, `addFittingDetailPhoto` 2546, `deleteFittingDetailLog` 2562, `setupFittingDetailListeners` 2881
 - **HTML** `#viewFittingDetail` **355–411**, `#fittingPhotoViewer` 1306, `#fitdetBar` 1314, `#fitdetPhotoInput` 408
 - **CSS** `pages.css` `.fitdet-*` 2667–2977 (photo cards 2667, actions 2753, bottom bar 2804, delete block 2868, viewer 3163)
 - **Data** `db.getFittingSession`, `db.listFittingPhotosBySession`, `db.driveGetFittingPhoto`, `db.updateFittingSession`, `db.deleteFittingSession` · tables `fitting_sessions`, `fitting_photos`
