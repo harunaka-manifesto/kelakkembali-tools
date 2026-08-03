@@ -134,6 +134,9 @@ KK.app = (function () {
     fitaddBackBtn: $("#fitaddBackBtn"),
     fitaddBackLabel: $("#fitaddBackLabel"),
     fitaddTitle: $("#fitaddTitle"),
+    fitaddStage: $("#fitaddStage"),
+    fitaddCustomer: $("#fitaddCustomer"),
+    fitaddDate: $("#fitaddDate"),
     fitaddBody: $("#fitaddBody"),
     fitaddList: $("#fitaddList"),
     fitaddState: $("#fitaddState"),
@@ -2481,18 +2484,28 @@ KK.app = (function () {
 
   /* ------------------------------ Photo viewer ----------------------------- */
 
+  function openFittingPhotoViewerImage(url, caption, alt, originButton) {
+    if (!url) return;
+    const d = detail();
+    d.viewerReturn = originButton || null;
+    elements.fittingPhotoViewerImage.src = url;
+    elements.fittingPhotoViewerImage.alt = alt || caption || "Fitting photo";
+    elements.fittingPhotoViewerCaption.textContent = caption || "";
+    elements.fittingPhotoViewer.hidden = false;
+    document.body.classList.add("has-modal");
+    requestAnimationFrame(() => elements.fittingPhotoViewerClose.focus());
+  }
+
   function openFittingPhotoViewer(photoId, originButton) {
     const d = detail();
     const photo = d.photos.filter((p) => p.id === photoId)[0];
     if (!photo || "unavailable" === fittingPhotoState(photo)) return;
-
-    d.viewerReturn = originButton || null;
-    elements.fittingPhotoViewerImage.src = fittingPhotoDisplayURL(photo);
-    elements.fittingPhotoViewerImage.alt = photo.caption || "Fitting photo";
-    elements.fittingPhotoViewerCaption.textContent = photo.caption || "";
-    elements.fittingPhotoViewer.hidden = false;
-    document.body.classList.add("has-modal");
-    requestAnimationFrame(() => elements.fittingPhotoViewerClose.focus());
+    openFittingPhotoViewerImage(
+      fittingPhotoDisplayURL(photo),
+      photo.caption,
+      photo.caption || "Fitting photo",
+      originButton
+    );
   }
 
   function closeFittingPhotoViewer() {
@@ -3236,20 +3249,31 @@ KK.app = (function () {
 
   /* --------------------------------- Render -------------------------------- */
 
-  function fitaddStageHtml(url, alt, eager, statusHtml) {
+  function fitaddStageHtml(url, alt, eager, statusHtml, key, kind) {
     if (!url) {
-      return '<div class="fitadd-stage">' +
+      return '<div class="fitadd-stage fitadd-stage--missing">' +
         '<div class="fitadd-stage__missing">' +
           '<b>Photo unavailable</b>' +
           '<span>No image on this device or in Drive. Its caption is kept.</span>' +
         '</div>' +
       '</div>';
     }
-    return '<div class="fitadd-stage">' +
+    return '<button type="button" class="fitadd-stage js-fitadd-open" data-key="' + U.escapeHtml(key) +
+      '" data-kind="' + U.escapeHtml(kind) + '" aria-label="Enlarge ' + U.escapeHtml(alt) + '">' +
       '<img class="fitadd-stage__image" data-role="image" src="' + U.escapeHtml(url) + '" ' +
         'alt="' + U.escapeHtml(alt) + '" loading="' + (eager ? "eager" : "lazy") + '" decoding="async">' +
       (statusHtml || '') +
-    '</div>';
+    '</button>';
+  }
+
+  function fitaddIconHtml(kind) {
+    if ("delete" === kind) {
+      return '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 6h11M8 3.5h4M6.5 6l.6 10h5.8l.6-10M8.5 8.5v5M11.5 8.5v5"/></svg>';
+    }
+    if ("cancel" === kind) {
+      return '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6" fill="currentColor" stroke="none"/><path d="m8 8 4 4m0-4-4 4" stroke="#ce0c33"/></svg>';
+    }
+    return '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 10 3 3 6-6"/></svg>';
   }
 
   function fitaddActionHtml(cls, key, kind, label, ariaLabel, iconSrc, disabled) {
@@ -3257,7 +3281,7 @@ KK.app = (function () {
       'data-key="' + U.escapeHtml(key) + '" data-kind="' + kind + '"' + (disabled ? ' disabled' : '') + ' ' +
       'aria-label="' + U.escapeHtml(ariaLabel) + '">' +
       '<span class="fitdet-action__face">' +
-        (iconSrc ? '<img src="' + iconSrc + '" alt="" width="20" height="20">' : '') +
+        (iconSrc ? ("<" === iconSrc.charAt(0) ? iconSrc : '<img src="' + iconSrc + '" alt="" width="20" height="20">') : '') +
         '<span>' + U.escapeHtml(label) + '</span>' +
       '</span>' +
       '<span class="fitdet-action__rail" aria-hidden="true"></span>' +
@@ -3275,13 +3299,13 @@ KK.app = (function () {
 
     const body = editing
       ? '<div class="fitadd-editor">' +
-          '<label class="fitadd-editor__label" for="fitaddCaption-' + U.escapeHtml(key) + '">Caption</label>' +
+          '<label class="sr-only" for="fitaddCaption-' + U.escapeHtml(key) + '">Caption</label>' +
           '<textarea class="fitadd-textarea" id="fitaddCaption-' + U.escapeHtml(key) + '" ' +
             'data-key="' + U.escapeHtml(key) + '" rows="2" enterkeyhint="done" ' +
             'placeholder="What changed in this fitting?" ' +
             'aria-label="Caption for photo ' + number + '">' +
             U.escapeHtml(String(a.editorDrafts.get(key) || "")) +
-          '</textarea>' +
+          '</textarea><span class="fitadd-textarea__rail" aria-hidden="true"></span>' +
         '</div>'
       : caption
       ? '<p class="fitdet-card__caption">' + U.escapeHtml(caption) + '</p>'
@@ -3289,12 +3313,12 @@ KK.app = (function () {
 
     const actions = editing
       ? fitaddActionHtml("fitadd-action--cancel js-fitadd-cancel", key, options.kind, "Cancel",
-          "Cancel the caption for photo " + number, "", busy) +
+          "Cancel the caption for photo " + number, fitaddIconHtml("cancel"), busy) +
         '<span class="fitdet-actions__rule" aria-hidden="true"></span>' +
         fitaddActionHtml("fitadd-action--save js-fitadd-save", key, options.kind, "Save",
-          "Save the caption for photo " + number, "", busy)
+          "Save the caption for photo " + number, fitaddIconHtml("save"), busy)
       : fitaddActionHtml("js-fitadd-delete", key, options.kind, "Delete",
-          "Delete photo " + number, "", busy || !options.canDelete) +
+          "Delete photo " + number, fitaddIconHtml("delete"), busy || !options.canDelete) +
         '<span class="fitdet-actions__rule" aria-hidden="true"></span>' +
         fitaddActionHtml("js-fitadd-caption", key, options.kind, caption ? "Edit caption" : "Add caption",
           (caption ? "Edit the caption for photo " : "Add a caption to photo ") + number,
@@ -3374,6 +3398,16 @@ KK.app = (function () {
   function renderFittingPhotoAdd() {
     const a = add();
 
+    if (a.session) {
+      const stage = U.fittingStage(a.session.stage);
+      elements.fitaddBackLabel.textContent = stage.label || "Fitting log";
+      elements.fitaddStage.textContent = stage.label;
+      elements.fitaddStage.hidden = !stage.label;
+      elements.fitaddStage.className = "fitdet-stage" + (stage.key ? " fitdet-stage--" + stage.key : "");
+      elements.fitaddCustomer.textContent = (a.customer && a.customer.name) || "Unnamed customer";
+      elements.fitaddDate.textContent = U.formatJakartaLongDate(a.session.created_at);
+    }
+
     if ("loading" === a.phase) {
       elements.fitaddBody.setAttribute("aria-busy", "true");
       elements.fitaddList.innerHTML = '<li class="fitdet-record">' + fitaddSkeletonHtml() + '</li>' +
@@ -3408,7 +3442,7 @@ KK.app = (function () {
         caption,
         canDelete: true,
         canCaption: true,
-        stage: fitaddStageHtml(url, alt, 0 === index, '')
+        stage: fitaddStageHtml(url, alt, 0 === index, '', photo.id, "existing")
       }) + '</li>';
     }).join('');
 
@@ -3424,7 +3458,7 @@ KK.app = (function () {
         caption: draft.caption,
         canDelete: true,
         canCaption: true,
-        stage: fitaddStageHtml(url, alt, true, fitaddDraftStatusHtml(draft))
+        stage: fitaddStageHtml(url, alt, true, fitaddDraftStatusHtml(draft), draft.clientKey, "new")
       }) + '</li>';
     }).join('');
 
@@ -3456,8 +3490,8 @@ KK.app = (function () {
     const img = $(".fitadd-stage__image", stage);
     if (!url || !img || img.getAttribute("src") === url) return;
 
-    // Only the pixels change: the same <img> keeps the same box, so the card
-    // and the scroll position stay exactly where they were.
+    // Reuse the same <img> so focus and the action state survive preparation;
+    // its natural ratio may refine once the prepared pixels replace the source.
     if (!reducedMotion()) img.classList.add("is-swapping");
     const next = new Image();
     next.src = url;
@@ -3787,6 +3821,10 @@ KK.app = (function () {
     a.seeded = false;
     a.loadError = null;
     a.lastStatus = "";
+    elements.fitaddBackLabel.textContent = "Fitting log";
+    elements.fitaddStage.hidden = true;
+    elements.fitaddCustomer.textContent = "";
+    elements.fitaddDate.textContent = "";
     elements.fitaddStatus.textContent = "";
     clearAddUndo();
   }
@@ -3911,6 +3949,18 @@ KK.app = (function () {
       if (e.target.closest(".js-fitadd-retry")) {
         return showFittingPhotoAdd(add().sessionId, state.route && state.route.query);
       }
+      const opener = e.target.closest(".js-fitadd-open");
+      if (opener) {
+        const key = opener.dataset.key;
+        const draft = "new" === opener.dataset.kind ? addDraftByKey(key) : null;
+        const photo = draft || addExistingById(key);
+        const url = draft
+          ? draft.preparedUrl || draft.sourceUrl || ""
+          : photo ? fittingPhotoDisplayURL(photo) : "";
+        const caption = draft ? draft.caption : photo ? addCaptionFor(photo) : "";
+        const image = opener.querySelector("img");
+        return openFittingPhotoViewerImage(url, caption, image && image.alt, opener);
+      }
       const action = e.target.closest(".fitdet-action");
       if (!action || action.disabled) return;
       const key = action.dataset.key;
@@ -3938,6 +3988,9 @@ KK.app = (function () {
       if (!img.matches || !img.matches(".fitadd-stage__image")) return;
       const stage = img.closest(".fitadd-stage");
       if (!stage) return;
+      stage.classList.remove("js-fitadd-open");
+      stage.classList.add("fitadd-stage--missing");
+      stage.disabled = true;
       stage.innerHTML = '<div class="fitadd-stage__missing">' +
         '<b>Photo unavailable</b>' +
         '<span>No image on this device or in Drive. Its caption is kept.</span>' +

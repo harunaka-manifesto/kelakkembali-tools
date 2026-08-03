@@ -32,8 +32,8 @@ Structure: boot gate → auth gate → app shell (bar + header + all views) → 
 | 288–345 | `#viewFittingLogs` | `.view.fitlog` | `showFittingLogs` 2061 |
 | 355–411 | `#viewFittingDetail` | `.view.fitdet` | `showFittingLogDetail` 2611 |
 | 416–474 | `#viewFittingPhotoEdit` | `.view.fitedit` | `showFittingPhotoEditor` 2843 |
-| 482–516 | `#viewFittingPhotoAdd` | `.view.fitadd` | `showFittingPhotoAdd` 3821 |
-| 521–730 | `#viewCustomerEdit` | `.view.custedit` | `showCustomerEdit` 4131 |
+| 482–523 | `#viewFittingPhotoAdd` | `.view.fitadd` | `showFittingPhotoAdd` 3859 |
+| 528–737 | `#viewCustomerEdit` | `.view.custedit` | `showCustomerEdit` 4184 |
 | 732–825 | `#viewOrderEdit` | `.view` | order editor region 4938 |
 | 831–1068 | `#viewOrder` | `.view.order` | `showOrderDetail` 4701 |
 | 1070–1102 | `#viewCalendar` | `.view` | `showCalendarSettings` 4966 |
@@ -43,9 +43,9 @@ Structure: boot gate → auth gate → app shell (bar + header + all views) → 
 
 ### Overlays & bars — id → line
 
-`#fittingCamera` 1278 · `#fittingConfirm` 1290 · `#fittingCaptionStep` 1295 · `#fittingPicker` 1300 · `#fittingEditSheet` 1302 · `#fittingPhotoViewer` 1306 · `#fitdetBar` 1314 · `#fiteditBar` 1328 · `#fitaddUndo` 1340 · `#fitaddBar` 1347 · `#fittingJournalBar` 1361 · `#savebar` 1365 · `#calcSheet` 1378 · `#routeLoader` 1417 · `#toast` 1539
+`#fittingCamera` 1285 · `#fittingConfirm` 1297 · `#fittingCaptionStep` 1302 · `#fittingPicker` 1307 · `#fittingEditSheet` 1309 · `#fittingPhotoViewer` 1313 · `#fitdetBar` 1321 · `#fiteditBar` 1335 · `#fitaddUndo` 1347 · `#fitaddBar` 1354 · `#fittingJournalBar` 1368 · `#savebar` 1372 · `#calcSheet` 1385 · `#routeLoader` 1424 · `#toast` 1546
 
-Hidden file inputs: `#fitdetPhotoInput` 408 (multi-select entry from detail) · `#fitaddFileInput` 513 (append on the review page) · `#fiteditFileInput` 472 · `#fittingFileInput` 1288
+Hidden file inputs: `#fitdetPhotoInput` 408 (multi-select entry from detail) · `#fitaddFileInput` 520 (append on the review page) · `#fiteditFileInput` 472 · `#fittingFileInput` 1295
 
 ### Locked PDF templates — do not edit without explicit request
 
@@ -91,7 +91,7 @@ Preceded by CDN: html2canvas 1.4.1, jsPDF 2.5.2, heic2any 0.0.4, supabase-js 2.4
 
 **Order detail:** 1350 · Stage and layers 1368 · Navigation 1398 · Ledger 1468 · Cards 1501 · Designs 1534 · Items table 1614 · Payments 1665 · Schedules 1743 · Actions 1897 · Footer 1978 · Loading skeleton 1995 · Error state 2042
 
-**Fitting logs:** 2113 · Title band 2153 · Search 2189 · Stage filters 2249 · Feed 2324 · Feed message panels 2434 · Skeletons 2478 · Feed card as link 2553 · Photo cards 2667 · Card actions 2753 · Fixed bottom bar 2804 · Delete block 2868 · Editor 2912 · **Add fitting photos 2978** · Inline caption editor 3049 · Undo toast 3081 · Add-page skeletons 3127 · Photo viewer 3163 · Detail focus rings 3215 · Detail route skeleton 3254
+**Fitting logs:** 2113 · Title band 2153 · Search 2189 · Stage filters 2249 · Feed 2324 · Feed message panels 2434 · Skeletons 2478 · Feed card as link 2553 · Photo cards 2667 · Card actions 2753 · Fixed bottom bar 2804 · Delete block 2868 · Editor 2912 · **Add fitting photos 2978** · Inline caption editor 3051 · Undo toast 3105 · Add-page skeletons 3151 · Photo viewer 3187 · Detail focus rings 3239 · Detail route skeleton 3279
 
 ### styles/shared.css (2277 lines) — section → line
 

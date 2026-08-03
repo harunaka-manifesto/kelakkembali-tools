@@ -21,13 +21,13 @@ One IIFE. Everything is file-scoped; there is no class, no module, no split. Reg
 | 670–1239 | Status derivation, lifecycle, follow-up, `handleRoute` dispatch | `Status Helpers & Data Transformations` | Status/pipeline logic, route dispatch |
 | 1240–1552 | Homepage / customer ledger render + reveal | (starts at `orderLabel`) | Homepage work |
 | 1553–2136 | **Fitting logs feed** (list, paging, filters, parking) | `Fitting logs feed` | Feed work |
-| 2137–2668 | **Fitting log detail** (photos, share, PDF, viewer) | `Fitting log session detail` | Detail page work |
-| 2669–2983 | **Fitting photo editor** (caption, replace, delete) | `Fitting photo editor` | Editor work |
-| 2984–3947 | **Add fitting photos** (batch review, captions, staged deletes, atomic save) | `Add fitting photos` | Batch add/edit page work |
-| 3948–4103 | Enquiry review (accept / dismiss intake) | (starts at `readableAnswer`) | Tally intake UI |
-| 4104–4368 | **Customer detail + editor** | `Customer Detail & Edit Controller` | Customer pages |
-| 4369–4937 | **Order detail** view model, render, schedule, payments | `Order Detail ViewModel & UI` | Order detail page |
-| 4938–5334 | **Order editor + cost calculator** (items, terms, chips) | `Order Editor & Cost Calculator` | Order editing, pricing |
+| 2140–2681 | **Fitting log detail** (photos, share, PDF, viewer) | `Fitting log session detail` | Detail page work |
+| 2682–2996 | **Fitting photo editor** (caption, replace, delete) | `Fitting photo editor` | Editor work |
+| 2997–3999 | **Add fitting photos** (batch review, captions, staged deletes, atomic save) | `Add fitting photos` | Batch add/edit page work |
+| 4000–4156 | Enquiry review (accept / dismiss intake) | (starts at `readableAnswer`) | Tally intake UI |
+| 4157–4421 | **Customer detail + editor** | `Customer Detail & Edit Controller` | Customer pages |
+| 4422–4990 | **Order detail** view model, render, schedule, payments | `Order Detail ViewModel & UI` | Order detail page |
+| 4991–5387 | **Order editor + cost calculator** (items, terms, chips) | `Order Editor & Cost Calculator` | Order editing, pricing |
 | 5335–5744 | **Moodboard integration** (canvas, overlay, gestures) | `Moodboard Integration` | Moodboard page glue |
 | 5745–6014 | **Exports**: PDFs, deposit logging, Drive reconnect | `Exports` | Document/PDF export flows |
 | 6015–6409 | **`bindEvents`** — every listener, one function | `Boot & Event Listeners` | Wiring a new control |
@@ -88,14 +88,14 @@ Look up here instead of grepping. Arrow-function helpers are marked `→`.
 ### Fitting logs feed (1553–2136)
 `isFittingRoute` →1578 · `fittingStageLabel` 1580 · `fittingStageListText` 1585 · `fittingBlockHtml` 1595 · `fittingCardHtml` 1602 · `fittingSkeletonHtml` 1652 · `fittingPanelHtml` 1670 · `fittingEmptyHtml` 1681 · `fittingStateHtml` 1705 · `announceFittingStatus` 1736 · `renderFittingStages` 1743 · `renderFittingSearchClear` 1750 · `renderFittingFeed` 1758 · `fittingRequestArgs` 1789 · `ensureFittingObserver` 1801 · `stopFittingObserver` 1810 · `startFittingFirstPage` →1818 · `loadMoreFittingLogs` →1851 · `cleanupFittingLogs` 1891 · `parkFittingLogs` 1918 · `alignFittingSearch` 1933 · `scheduleFittingSearchAlign` 1949 · **`showFittingLogs` 2061** · `restoreFittingScroll` 2119 · `setFittingBackControl` 2130
 
-### Fitting log detail (2137–2668)
-`isDetailRoute` →2146 · `isEditorRoute` →2147 · `invalidateFittingFeed` 2154 · `sortFittingPhotos` 2165 · `fittingPhotoState` 2173 · `fittingPhotoDisplayURL` →2181 · `fittingDetailCardHtml` 2186 · `fittingDetailEmptyHtml` 2240 · `announceDetailStatus` 2253 · `renderFittingDetail` 2258 · `fittingPhotoBlob` 2305 · `blobToDataUrl` 2328 · `measureImage` 2337 · `fittingShareFilename` 2346 · `shareFittingPhoto` →2361 · **`downloadFittingPdf` 2415** · `openFittingPhotoViewer` 2484 · `closeFittingPhotoViewer` 2498 · `fittingDetailBridge` 2512 · `addFittingDetailPhoto` 2533 · `endFittingDetailSession` →2549 · `deleteFittingDetailLog` →2572 · `cleanupFittingDetail` 2596 · **`showFittingLogDetail` 2611**
+### Fitting log detail (2140–2681)
+`isDetailRoute` →2149 · `isEditorRoute` →2150 · `invalidateFittingFeed` 2157 · `sortFittingPhotos` 2168 · `fittingPhotoState` 2176 · `fittingPhotoDisplayURL` →2184 · `fittingDetailCardHtml` 2189 · `fittingDetailEmptyHtml` 2243 · `announceDetailStatus` 2256 · `renderFittingDetail` 2261 · `fittingPhotoBlob` 2308 · `blobToDataUrl` 2331 · `measureImage` 2340 · `fittingShareFilename` 2349 · `shareFittingPhoto` →2364 · **`downloadFittingPdf` 2418** · `openFittingPhotoViewerImage` 2487 · `openFittingPhotoViewer` 2499 · `closeFittingPhotoViewer` 2511 · `fittingDetailBridge` 2525 · `addFittingDetailPhoto` 2546 · `endFittingDetailSession` →2562 · `deleteFittingDetailLog` →2585 · `cleanupFittingDetail` 2609 · **`showFittingLogDetail` 2624**
 
-### Fitting photo editor (2669–2983)
-`fittingEditorDirty` 2674 · `syncFittingEditorDirty` 2681 · `renderFittingEditor` 2685 · `clearStagedReplacement` 2707 · `stageFittingReplacement` →2713 · `saveFittingEditor` →2735 · `deleteFittingEditorPhoto` →2800 · `cleanupFittingEditor` 2831 · **`showFittingPhotoEditor` 2843** · `setupFittingDetailListeners` 2904
+### Fitting photo editor (2682–2996)
+`fittingEditorDirty` 2687 · `syncFittingEditorDirty` 2694 · `renderFittingEditor` 2698 · `clearStagedReplacement` 2720 · `stageFittingReplacement` →2726 · `saveFittingEditor` →2748 · `deleteFittingEditorPhoto` →2813 · `cleanupFittingEditor` 2844 · **`showFittingPhotoEditor` 2856** · `setupFittingDetailListeners` 2917
 
-### Add fitting photos (2984–3947)
-`addVisibleExisting` →3002 · `addVisibleCount` →3003 · `addRemainingSlots` →3004 · `addCaptionFor` 3006 · `addSavedCaptionForKey` 3015 · `addDirty` 3022 · `announceAddStatus` 3041 · `makeAddDraft` 3053 · `releaseAddDraft` 3074 · `removeAddDraft` 3081 · `admitAddFiles` 3091 · **`runAddPreparationQueue` 3115** · `reportAddPreparationFailures` 3167 · `clearAddUndo` 3188 · `showAddUndo` 3197 · `undoAddDeletion` 3208 · `fitaddStageHtml` 3239 · `fitaddActionHtml` 3255 · `fitaddCardHtml` 3267 · `fitaddDraftStatusHtml` 3312 · `fitaddSkeletonHtml` 3320 · `fitaddStateHtml` 3330 · `captureAddFocus` 3355 · `restoreAddFocus` 3361 · **`renderFittingPhotoAdd` 3374** · `patchAddDraftCard` 3442 · `renderAddBar` 3474 · `growAddTextarea` 3499 · `openAddEditor` 3504 · `closeAddEditor` 3523 · `saveAddEditor` 3534 · `deleteAddCard` 3550 · `focusFirstOpenAddEditor` 3577 · `addPhotosFromReview` 3589 · `addPhotosPicked` 3595 · **`saveFittingPhotoAdd` 3615** · `applyAddBackupResult` 3727 · `startAddBackups` 3736 · `resetFittingPhotoAdd` 3766 · `cleanupFittingPhotoAdd` 3794 · `seedFittingPhotoAdd` 3804 · **`showFittingPhotoAdd` 3821** · `setupFittingPhotoAddListeners` 3893
+### Add fitting photos (2997–3999)
+`addVisibleExisting` →3015 · `addVisibleCount` →3016 · `addRemainingSlots` →3017 · `addCaptionFor` 3019 · `addSavedCaptionForKey` 3028 · `addDirty` 3035 · `announceAddStatus` 3054 · `makeAddDraft` 3066 · `releaseAddDraft` 3087 · `removeAddDraft` 3094 · `admitAddFiles` 3104 · **`runAddPreparationQueue` 3128** · `reportAddPreparationFailures` 3180 · `clearAddUndo` 3201 · `showAddUndo` 3210 · `undoAddDeletion` 3221 · `fitaddStageHtml` 3252 · `fitaddIconHtml` 3269 · `fitaddActionHtml` 3279 · `fitaddCardHtml` 3291 · `fitaddDraftStatusHtml` 3336 · `fitaddSkeletonHtml` 3344 · `fitaddStateHtml` 3354 · `captureAddFocus` 3379 · `restoreAddFocus` 3385 · **`renderFittingPhotoAdd` 3398** · `patchAddDraftCard` 3476 · `renderAddBar` 3508 · `growAddTextarea` 3533 · `openAddEditor` 3538 · `closeAddEditor` 3557 · `saveAddEditor` 3568 · `deleteAddCard` 3584 · `focusFirstOpenAddEditor` 3611 · `addPhotosFromReview` 3623 · `addPhotosPicked` 3629 · **`saveFittingPhotoAdd` 3649** · `applyAddBackupResult` 3761 · `startAddBackups` 3770 · `resetFittingPhotoAdd` 3800 · `cleanupFittingPhotoAdd` 3832 · `seedFittingPhotoAdd` 3842 · **`showFittingPhotoAdd` 3859** · `setupFittingPhotoAddListeners` 3931
 
 ### Enquiry (3948–4103)
 `readableAnswer` 3948 · `acceptEnquiry` →3959 · `dismissEnquiry` →3990
