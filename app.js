@@ -3267,13 +3267,8 @@ KK.app = (function () {
   }
 
   function fitaddIconHtml(kind) {
-    if ("delete" === kind) {
-      return '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 6h11M8 3.5h4M6.5 6l.6 10h5.8l.6-10M8.5 8.5v5M11.5 8.5v5"/></svg>';
-    }
-    if ("cancel" === kind) {
-      return '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6" fill="currentColor" stroke="none"/><path d="m8 8 4 4m0-4-4 4" stroke="#ce0c33"/></svg>';
-    }
-    return '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 10 3 3 6-6"/></svg>';
+    const symbol = "save" === kind ? "confirm" : kind;
+    return '<svg viewBox="0 0 20 20" aria-hidden="true"><use href="assets/fitadd-icons.svg#' + symbol + '"></use></svg>';
   }
 
   function fitaddActionHtml(cls, key, kind, label, ariaLabel, iconSrc, disabled) {
@@ -3322,7 +3317,7 @@ KK.app = (function () {
         '<span class="fitdet-actions__rule" aria-hidden="true"></span>' +
         fitaddActionHtml("js-fitadd-caption", key, options.kind, caption ? "Edit caption" : "Add caption",
           (caption ? "Edit the caption for photo " : "Add a caption to photo ") + number,
-          "assets/fitlog-edit-icon.svg", busy || !options.canCaption);
+          fitaddIconHtml("edit"), busy || !options.canCaption);
 
     return '<div class="fitlog-grid-spacer" aria-hidden="true"></div>' +
       '<div class="fitlog-grid-rule" aria-hidden="true"></div>' +

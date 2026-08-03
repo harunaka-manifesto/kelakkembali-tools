@@ -2571,7 +2571,8 @@ body.is-fittinglogspage #fitlogNewBtn:disabled {
    colours are redeclared here rather than inherited, because .fitlog is a
    sibling view and not an ancestor of this one. */
 .fitdet,
-.fitedit {
+.fitedit,
+.fitadd {
   display: flex;
   flex-direction: column;
   background: var(--home-black);
@@ -2853,6 +2854,16 @@ button.fitdet-card__frame { appearance: none; -webkit-appearance: none; }
   white-space: nowrap;
 }
 .fitdet-bar__face img { flex: none; display: block; width: 20px; height: 20px; }
+.fitadd-bar__icon { flex: none; display: block; width: 20px; height: 20px; }
+.fitadd-bar__icon-frame {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+}
+.fitadd-bar__icon--save { width: 16px; height: 16px; }
 .fitdet-bar__rail { display: block; }
 .fitdet-bar__btn--secondary .fitdet-bar__face { background: var(--home-grid); color: var(--home-white); }
 .fitdet-bar__btn--secondary .fitdet-bar__rail { background: var(--home-black-light); }
@@ -3085,17 +3096,11 @@ button.fitdet-card__frame { appearance: none; -webkit-appearance: none; }
 .fitadd .fitdet-action:active,
 .fitadd .fitdet-action.is-pressed { grid-template-rows: 53px 2px; }
 .fitadd .fitdet-action__face svg {
+  flex: none;
   display: block;
   width: 20px;
   height: 20px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
-.fitadd-action--cancel svg circle { fill: currentColor; stroke: none; }
-.fitadd-action--cancel svg path { stroke: #ce0c33; }
 .js-fitadd-delete .fitdet-action__face { color: #c50f0f; }
 .fitadd-action--cancel .fitdet-action__face { background: #ce0c33; color: var(--home-white); font-weight: 600; }
 .fitadd-action--cancel .fitdet-action__rail { background: #ae0728; }
