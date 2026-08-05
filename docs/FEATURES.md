@@ -26,6 +26,8 @@ Column key: **app.js** = entry function + line ([MAP-app.md](MAP-app.md)) · **H
 | Google Calendar, sync, connect | [16](#16-google-calendar) |
 | sign in, gate, boot, session | [17](#17-auth-gate--boot) |
 | app bar, toast, save bar, route loader | [18](#18-shared-chrome) |
+| calendar, month view, week band, day sheet, schedules | [19](#19-schedules-calendar) |
+| quotation list, invoice list, document log, document feed | [20](#20-quotations--invoices-lists) |
 
 ---
 
@@ -158,3 +160,25 @@ Column key: **app.js** = entry function + line ([MAP-app.md](MAP-app.md)) · **H
 - **HTML** app bar **60–115**, `#savebar` 1365, `#routeLoader` 1417, `#toast` 1539
 - **CSS** `shared.css` app bar 361, overflow menu 466, page header 514, buttons 1851, bottom bars 1964, toast 2192, motion 2223
 - **Warning** this region is shared by every page. Changing it is a repo-wide edit — justify it before starting.
+
+---
+
+## 19. Schedules calendar
+- **Route** `#/schedules` (not `#/calendar` — that is the Google connection settings page)
+- **app.js** `showSchedules` **2294**; region **1722–2348**. `buildScheduleItems` 1791, `indexScheduleItems` 1902, `scheduleItemHref` 1762, `renderSchedulesMonth` 2069, `schedcalCellHtml` 1962, `openScheduleDay` 2216, `handleSchedulesGridKey` 2250, `cleanupSchedules` 2276
+- **calendar.js** `monthGrid` (42 cells, always), `eventSpan` (production stage → its Monday–Sunday week), `assignLanes` (one lane per band, agreed across every cell it covers), `weekdayIndex`, `addMonths`, `monthRange`
+- **HTML** `#viewSchedules` **1293**, day sheet `#schedcalSheet` **1457** (outside `<main>`, so it is never inside a hidden view)
+- **CSS** `pages.css` 3364+ (`.schedcal-*`). The grid deliberately has **no vertical rules**: a 1px separator between cells would cut every week band into seven pieces
+- **Data** joined in the browser from four sources — `db.listAllOrderEvents`, `db.listCustomers` (weddings + follow-ups), `db.listAllOrders` (payment dates), `db.listAllFittingSessions` (tap target). Loaded once per visit; every month change is local, so paging costs no request
+- **Tap targets** production stage with a session → its fitting log; without one → `#/order/:id/fitting/new?stage=…`; design rows and payments → the order; wedding and follow-up → the customer
+- **Note** month-precision weddings are stored as the last day of the month, so they are named in a banner above the grid and never drawn on a cell
+
+## 20. Quotations & invoices lists
+- **Routes** `#/quotations` and `#/invoices` — one view (`#viewDocuments`) parameterised by kind
+- **app.js** `showDocuments` **3279**; region **2941–3707**. `documentCardHtml` 2968, `renderDocumentFeed` 3093, `startDocumentFirstPage` 3149, `loadMoreDocuments` 3180, `parkDocuments` 3237, `openDocumentPicker` 3447, `generateDocumentFor` 3535
+- **HTML** `#viewDocuments` **1360**, picker `#docnewSheet` **1439**
+- **CSS** `pages.css` 3871+ (`.doclist-*`), picker in `shared.css` 2279+ (`.docnew*` — utility chrome, not ledger canvas). The search block is `.fitlog-search`, reused rather than copied
+- **Data** `db.listDocumentFeed({kind, …})` (cursor paging, server-side `ilike`) · view `document_feed` · `db.logDocument` on create
+- **The amount shown is the logged `total`, never recomputed** from the order's current items — see [14](#14-quotation--invoice-documents) and `document_log` in [DATABASE.md](DATABASE.md)
+- **Create flow** New → pick customer → pick order → `docs.download` → `db.logDocument` → status advances via `advancedStatus` (forward only). Readiness comes from `documentReadiness`, shared with the order page so the two can never disagree
+- **Known gap** `db.createOrder` has zero call sites, so a customer with no orders is a real dead end. The picker says so plainly rather than pretending otherwise

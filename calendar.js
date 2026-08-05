@@ -73,6 +73,103 @@ KK.calendar = (function () {
   const mondayOnOrBefore = (dayNumber) => dayNumber - ((dayNumber % 7 + 7 + 3) % 7);
   const isMonday = (dayNumber) => mondayOnOrBefore(dayNumber) === dayNumber;
 
+  /* ----------------------------- Month Grid Math --------------------------- */
+
+  /* Monday-first, and not by preference: every planned production week that
+     plannedWeek returns is a Monday-Sunday block, so a Monday-first grid puts
+     each of those weeks on exactly one row. That is what lets the calendar draw
+     a week as seven ordinary cells instead of one absolutely positioned bar. */
+  const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+  const pad2 = (val) => String(val).padStart(2, '0');
+
+  /* 0 = Monday ... 6 = Sunday. Null for anything toDay rejects. */
+  function weekdayIndex(isoDateStr) {
+    const day = toDay(isoDateStr);
+    if (day === null) return null;
+    return day - mondayOnOrBefore(day);
+  }
+
+  /* Month is 0-based, matching Date and U.MONTHS. Rolls in both directions. */
+  function addMonths(year, month, delta) {
+    const total = Number(year) * 12 + Number(month) + Number(delta || 0);
+    return { year: Math.floor(total / 12), month: ((total % 12) + 12) % 12 };
+  }
+
+  function monthRange(year, month) {
+    const startIso = year + '-' + pad2(month + 1) + '-01';
+    const startDay = toDay(startIso);
+    if (startDay === null) return null;
+    const next = addMonths(year, month, 1);
+    return { start: startIso, end: fromDay(toDay(next.year + '-' + pad2(next.month + 1) + '-01') - 1) };
+  }
+
+  /* Always 42 cells, never 35. A month that only needs five rows still renders
+     six so that paging between months cannot move the footer. */
+  function monthGrid(year, month) {
+    const range = monthRange(year, month);
+    if (!range) return null;
+    const firstDay = toDay(range.start);
+    const lastDay = toDay(range.end);
+    const gridStart = mondayOnOrBefore(firstDay);
+    const days = [];
+    for (let offset = 0; offset < 42; offset++) {
+      const dayNumber = gridStart + offset;
+      const iso = fromDay(dayNumber);
+      days.push({
+        iso,
+        day: Number(iso.slice(8, 10)),
+        inMonth: dayNumber >= firstDay && dayNumber <= lastDay
+      });
+    }
+    return { year, month, start: range.start, end: range.end, days };
+  }
+
+  /* A production date is stored as one day but means its whole Monday-Sunday
+     week -- the same rule orderScheduleModel already renders on the order page.
+     Design phase is the one stored row with a real end_date. Everything else,
+     including the point events the calendar overlays from customers and orders,
+     is a single day, which is why every source can pass through one function. */
+  function eventSpan(stage, eventDate, endDate) {
+    if (toDay(eventDate) === null) return null;
+    if (isProductionStage(stage)) return plannedWeek(eventDate);
+    if (endDate && toDay(endDate) !== null) return { start: eventDate, end: endDate };
+    return { start: eventDate, end: eventDate };
+  }
+
+  /* Greedy interval colouring. Each day cell renders its own strips, so a
+     multi-day band only reads as one continuous bar if every cell it covers
+     agrees on which row to draw it in -- that agreement is this lane number.
+     Returns lanes parallel to the input; the input is never mutated. */
+  function assignLanes(spans) {
+    const list = spans || [];
+    const lanes = list.map(() => 0);
+    const laneEnds = [];
+
+    list.map((span, index) => index).sort((a, b) => {
+      const startA = toDay(list[a].start);
+      const startB = toDay(list[b].start);
+      if (startA !== startB) return startA === null ? 1 : startB === null ? -1 : startA - startB;
+      const orderA = stageOrder(list[a].stage);
+      const orderB = stageOrder(list[b].stage);
+      if (orderA !== orderB) return orderA - orderB;
+      const keyA = String(list[a].key || '');
+      const keyB = String(list[b].key || '');
+      if (keyA !== keyB) return keyA < keyB ? -1 : 1;
+      return a - b;
+    }).forEach((index) => {
+      const startDay = toDay(list[index].start);
+      const endDay = toDay(list[index].end);
+      if (startDay === null || endDay === null) return;
+      let lane = 0;
+      while (lane < laneEnds.length && laneEnds[lane] >= startDay) lane++;
+      laneEnds[lane] = endDay;
+      lanes[index] = lane;
+    });
+
+    return lanes;
+  }
+
   /* --------------------------- Schedule Computations ----------------------- */
 
   function computeDesign(firstPaymentDate) {
@@ -351,6 +448,13 @@ KK.calendar = (function () {
     fromDay,
     daysBetween,
     plannedWeek,
-    mondayOnOrBefore
+    mondayOnOrBefore,
+    WEEKDAYS,
+    weekdayIndex,
+    addMonths,
+    monthRange,
+    monthGrid,
+    eventSpan,
+    assignLanes
   };
 })();

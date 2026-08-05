@@ -8,13 +8,13 @@ Every file is an IIFE assigning one `window.KK.<name>` object at the bottom.
 | :--- | :--- | ---: | :--- | :--- |
 | `config.js` | `config` | 27 | Supabase URL, anon key, shared email | Hold secrets |
 | `util.js` | `util` | 214 | Pure formatting, HEIC decode, icons, stage vocabulary | DOM writes, network |
-| `calendar.js` | `cal` | 356 | Pure date arithmetic and schedule generation | DOM, network |
+| `calendar.js` | `cal` | 460 | Pure date arithmetic, schedule generation, month-grid math | DOM, network |
 | `docs.js` | `docs` | 353 | Quotation/invoice layout, watermark, PDF export | Touch the database |
 | `moodboard.js` | `moodboard` | 724 | Canvas layout solver, mosaic engine, PDF snapshot | Routing |
 | `fittings.js` | `fittings` | 731 | Journal UI adapter, camera overlays, image preparation, Drive archival | Own a route |
 | `fitting-pdf.js` | `fittingPdf` | 290 | Pure A4 page geometry for the fitting-log snapshot | DB, Drive, toast, save |
-| `db.js` | `db` | 482 | **Sole** Supabase + Edge Function gateway | Render |
-| `app.js` | (composition root) | 6460 | Router, state, all controllers, all listeners | — see [MAP-app.md](MAP-app.md) |
+| `db.js` | `db` | 556 | **Sole** Supabase + Edge Function gateway | Render |
+| `app.js` | (composition root) | 8120 | Router, state, all controllers, all listeners | — see [MAP-app.md](MAP-app.md) |
 
 ---
 
@@ -26,13 +26,20 @@ Pure. Covered by `tests/pure-modules.test.cjs`. Any change here needs the test s
 
 Use these instead of inlining: money → `formatRupiah`; dates → `formatLongDate` / `formatShortDate` / `todayISO` / `jakartaDateISO`; **all** interpolated user text → `escapeHtml`; filenames → `sanitizeForFilename`.
 
-## calendar.js — `KK.cal` (read whole, 356 lines; tested)
+## calendar.js — `KK.cal` (read whole, 460 lines; tested)
 
-Constants: `STAGES` · `DESIGN_STAGES` · `PRODUCTION_STAGES` · `ANCHOR_FIRST` · `ANCHOR_LAST` · `DROP_ORDER`
+Constants: `STAGES` · `DESIGN_STAGES` · `PRODUCTION_STAGES` · `ANCHOR_FIRST` · `ANCHOR_LAST` · `DROP_ORDER` · `WEEKDAYS`
 
-Functions: `computeDesign` · `computeProduction` · **`computeSchedule`** · `spanNeededFor` · `gapsFor` · `pinsFrom` · `stageOrder` · `isDesignStage` · `isProductionStage` · `eventTitle` · `renderSchedule` · `toDay` · `fromDay` · `daysBetween` · `plannedWeek`
+Schedule generation: `computeDesign` · `computeProduction` · **`computeSchedule`** · `spanNeededFor` · `gapsFor` · `pinsFrom` · `stageOrder` · `isDesignStage` · `isProductionStage` · `eventTitle` · `renderSchedule`
 
-Pure date math on ISO day numbers, timezone-safe. A tight window drops middle fittings via `DROP_ORDER` rather than crowding them. `app.js` `orderScheduleModel` (3414) is the only caller that matters; `db.replaceOrderEvents` persists the result.
+Date math: `toDay` · `fromDay` · `daysBetween` · `plannedWeek` · `mondayOnOrBefore` · `weekdayIndex` · `addMonths` · `monthRange` · `monthGrid` · `eventSpan` · `assignLanes`
+
+Pure date math on ISO day numbers, timezone-safe. A tight window drops middle fittings via `DROP_ORDER` rather than crowding them. `app.js` `orderScheduleModel` is the schedule generator's main caller; `db.replaceOrderEvents` persists the result.
+
+The month-grid half serves the schedules calendar. Three rules live there rather than in `app.js`:
+- `monthGrid` always returns **42 cells**, so paging months cannot move the footer.
+- `eventSpan` is where "a production date means its whole Monday–Sunday week" is decided; everything that is not a production stage falls through to a single day, which is why weddings, follow-ups and payments can share one code path.
+- `assignLanes` gives every band a lane that all seven of its cells agree on — that agreement is what makes a week render as one continuous bar instead of seven fragments.
 
 ## docs.js — `KK.docs` (read whole, 353 lines)
 

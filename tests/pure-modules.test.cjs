@@ -52,6 +52,67 @@ test('planned fitting weeks are timezone-safe Monday-Sunday ranges', () => {
   assert.equal(calendar.plannedWeek('not-a-date'), null);
 });
 
+test('weekdays are Monday-indexed from the ISO day epoch', () => {
+  // 1970-01-01 is a Thursday, and every other index hangs off that anchor.
+  assert.equal(calendar.weekdayIndex('1970-01-01'), 3);
+  assert.equal(calendar.weekdayIndex('2026-06-01'), 0);
+  assert.equal(calendar.weekdayIndex('2026-11-01'), 6);
+  assert.equal(calendar.weekdayIndex('2026-02-31'), null);
+});
+
+test('months roll in both directions across the year boundary', () => {
+  assert.deepEqual(calendar.addMonths(2026, 11, 1), { year: 2027, month: 0 });
+  assert.deepEqual(calendar.addMonths(2026, 0, -1), { year: 2025, month: 11 });
+  assert.deepEqual(calendar.addMonths(2026, 7, 0), { year: 2026, month: 7 });
+  assert.deepEqual(calendar.monthRange(2026, 1), { start: '2026-02-01', end: '2026-02-28' });
+  assert.deepEqual(calendar.monthRange(2028, 1), { start: '2028-02-01', end: '2028-02-29' });
+});
+
+test('the month grid is always six rows so paging cannot move the footer', () => {
+  // November 2026 opens on a Sunday: six leading days are back-filled.
+  const sundayStart = calendar.monthGrid(2026, 10);
+  assert.equal(sundayStart.days.length, 42);
+  assert.deepEqual(sundayStart.days[0], { iso: '2026-10-26', day: 26, inMonth: false });
+  assert.equal(sundayStart.days[6].iso, '2026-11-01');
+  assert.equal(sundayStart.days[6].inMonth, true);
+
+  // June 2026 opens on a Monday: the 1st is the very first cell, and the month
+  // only needs five rows -- it still gets six.
+  const mondayStart = calendar.monthGrid(2026, 5);
+  assert.equal(mondayStart.days.length, 42);
+  assert.deepEqual(mondayStart.days[0], { iso: '2026-06-01', day: 1, inMonth: true });
+  assert.equal(mondayStart.days[41].inMonth, false);
+});
+
+test('production stages span their planned week, everything else a single day', () => {
+  assert.deepEqual(calendar.eventSpan('Fitting 2', '2026-08-27'), calendar.plannedWeek('2026-08-27'));
+  assert.deepEqual(calendar.eventSpan('Sizing', '2026-08-27'), { start: '2026-08-24', end: '2026-08-30' });
+  // Design phase is the one stored row carrying a real end_date.
+  assert.deepEqual(
+    calendar.eventSpan('Design phase', '2026-03-02', '2026-03-16'),
+    { start: '2026-03-02', end: '2026-03-16' },
+  );
+  assert.deepEqual(calendar.eventSpan('Design deadline', '2026-03-16'), { start: '2026-03-16', end: '2026-03-16' });
+  // Weddings, follow-ups and payments are not stages at all, and fall through
+  // to the single-day branch rather than needing their own function.
+  assert.deepEqual(calendar.eventSpan('Wedding', '2026-06-30'), { start: '2026-06-30', end: '2026-06-30' });
+  assert.equal(calendar.eventSpan('Wedding', 'not-a-date'), null);
+});
+
+test('overlapping calendar bands take stable, distinct lanes', () => {
+  const spans = [
+    { start: '2026-08-24', end: '2026-08-30', stage: 'Fitting 1', key: 'a' },
+    { start: '2026-08-26', end: '2026-09-01', stage: 'Fitting 2', key: 'b' },
+    { start: '2026-09-10', end: '2026-09-10', stage: 'Sizing', key: 'c' }
+  ];
+  // Two overlaps separate; a disjoint span reuses lane 0.
+  assert.deepEqual(calendar.assignLanes(spans), [0, 1, 0]);
+  // Deterministic, and the input is never mutated.
+  assert.deepEqual(calendar.assignLanes(spans), [0, 1, 0]);
+  assert.deepEqual(spans[0], { start: '2026-08-24', end: '2026-08-30', stage: 'Fitting 1', key: 'a' });
+  assert.deepEqual(calendar.assignLanes([]), []);
+});
+
 test('Sizing anchors the five canonical production stages', () => {
   assert.deepEqual(
     calendar.PRODUCTION_STAGES,
@@ -194,6 +255,19 @@ test('fitting feed stages are restricted to the five canonical keys', () => {
   assert.deepEqual(db.normalizeFeedStages(['Final fitting', 'nope']), []);
   assert.deepEqual(db.normalizeFeedStages(undefined), []);
   assert.deepEqual(db.normalizeFeedStages(db.FITTING_STAGE_KEYS), db.FITTING_STAGE_KEYS);
+});
+
+test('a document feed serves one kind, and moodboards are not one of them', () => {
+  assert.equal(db.normalizeDocumentKind('quotation'), 'quotation');
+  assert.equal(db.normalizeDocumentKind('invoice'), 'invoice');
+  // document_log holds these too, but neither list route can render one.
+  assert.equal(db.normalizeDocumentKind('moodboard'), '');
+  // An unusable kind fails loudly rather than defaulting to showing both.
+  assert.equal(db.normalizeDocumentKind('QUOTATION'), '');
+  assert.equal(db.normalizeDocumentKind(''), '');
+  assert.equal(db.normalizeDocumentKind(null), '');
+  assert.equal(db.normalizeDocumentKind(undefined), '');
+  assert.deepEqual(db.DOCUMENT_KINDS, ['quotation', 'invoice']);
 });
 
 /* ------------------- Fitting log detail, sharing, and PDF ----------------- */

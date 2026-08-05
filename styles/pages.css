@@ -2141,13 +2141,26 @@ body.is-fittinglogspage .view { gap: 0; }
 
 /* The five canonical stage colours. The existing --home-* hues are
    the lighter faces used for banners; these are the dark text/fill pair the
-   feed needs, so they get their own names rather than shifting a shared one. */
-.fitlog {
+   feed needs, so they get their own names rather than shifting a shared one.
+
+   Shared with the schedules calendar, which paints the same stages and adds the
+   four kinds only it can show. Widening this selector is how a stage-aware page
+   gets the vocabulary — never by re-listing the hexes in a new block. No new
+   hues: grey already means "not committed yet", orange is the next-deadline
+   banner's, blue is the one that already means invoice and payment. */
+.fitlog,
+.schedcal,
+.schedcal-sheet {
   --stage-sizing:    #1866da;
   --stage-fitting-1: #19aa16;
   --stage-fitting-2: #e72a90;
   --stage-fitting-3: #ff6a00;
   --stage-final-fitting: var(--home-black);
+  --stage-design:    var(--home-grid);
+  --stage-wedding:   var(--home-black);
+  --stage-follow-up: #dd5d01;
+  --stage-payment:   #1866da;
+  --stage-more:      rgba(76,76,76,.45);
 }
 
 /* ------------------------------- Title band ------------------------------ */
@@ -3347,3 +3360,755 @@ body.has-fitadd-bar .fitadd { padding-bottom: calc(var(--bottombar-h) + 8px); }
 /* The two shortcuts that lead somewhere are anchors now, so they need the link
    defaults removed that the button versions never had. */
 .home-action { text-decoration: none; }
+
+/* --------------------------- Schedules calendar --------------------------- */
+
+/* Same 390px canvas and black ledger as the fitting feed, and the nav reuses
+   .cust-nav / .cust-nav-btn wholesale for the same reason it does there.
+
+   The one thing this page does that no other does: a fitting appointment is
+   stored as a single date but means its whole Monday-Sunday week, so it has to
+   read as one continuous band across seven cells. That is why the grid carries
+   no vertical rules — a 1px separator between cells would cut every band into
+   seven pieces. The seven-column rhythm is carried by the weekday header and
+   the aligned date numbers instead, and the bands stay whole. */
+body.is-schedulespage { background: #292929; overflow-x: hidden; }
+body.is-schedulespage .appbar,
+body.is-schedulespage .pagehead { display: none; }
+body.is-schedulespage .page {
+  width: min(390px, 100%);
+  max-width: 390px;
+  min-height: 100svh;
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: 0;
+  background: var(--home-black);
+}
+body.is-schedulespage .view { gap: 0; }
+
+.schedcal {
+  display: flex;
+  flex-direction: column;
+  background: var(--home-black);
+}
+
+/* ------------------------------- Title band ------------------------------- */
+
+.schedcal-head { padding-top: 67px; background: var(--home-black); }
+.schedcal-title {
+  padding: 12px 24px;
+  border-top: 1px solid var(--home-grid);
+  border-bottom: 1px solid var(--home-grid);
+}
+.schedcal-title h1 {
+  margin: 0;
+  color: var(--home-white);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 40px;
+  letter-spacing: -.96px;
+}
+.schedcal-title h1:focus { outline: none; }
+
+.schedcal-grid-spacer { height: 24px; position: relative; }
+.schedcal-grid-spacer::before,
+.schedcal-grid-spacer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 24px;
+  background: var(--home-grid);
+}
+.schedcal-grid-spacer::before { left: 24px; }
+.schedcal-grid-spacer::after  { right: 24px; }
+
+/* -------------------------------- Month bar ------------------------------- */
+
+.schedcal-monthbar {
+  padding: 12px 24px;
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  align-items: center;
+  gap: 12px;
+  background: var(--home-black);
+  border-bottom: 1px solid var(--home-grid);
+}
+.schedcal-monthbar__label {
+  margin: 0;
+  text-align: center;
+  color: var(--home-white);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+  letter-spacing: -.48px;
+  font-variant-numeric: tabular-nums;
+}
+.schedcal-nav-btn {
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--home-white-dark);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--home-black);
+  font: inherit;
+  display: grid;
+  grid-template-rows: 38px 6px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: grid-template-rows 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.schedcal-nav-btn__face {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--home-white);
+}
+.schedcal-nav-btn__rail { display: block; background: var(--home-white-dark); }
+.schedcal-nav-btn:active,
+.schedcal-nav-btn.is-pressed { grid-template-rows: 42px 2px; }
+
+/* ---------------------------- Approximate notice -------------------------- */
+
+/* A month-precision wedding is stored as the last day of its month, so it gets
+   named here rather than drawn on a day the couple never chose. */
+.schedcal-approx {
+  padding: 12px 24px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: var(--home-black-light);
+  border-bottom: 1px solid var(--home-grid);
+}
+.schedcal-approx[hidden] { display: none; }
+.schedcal-approx__tag {
+  flex: none;
+  padding: 2px 6px;
+  background: var(--home-grid);
+  color: var(--home-white);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: -.22px;
+  text-transform: uppercase;
+}
+.schedcal-approx__copy {
+  color: var(--home-white);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 18px;
+  letter-spacing: -.26px;
+}
+.schedcal-approx__copy b { font-weight: 700; }
+
+/* --------------------------------- The grid ------------------------------- */
+
+.schedcal-body { background: var(--home-black); }
+.schedcal-grid {
+  padding: 0 24px;
+  background: var(--home-black);
+}
+.schedcal-weekdays,
+.schedcal-week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+.schedcal-weekdays {
+  background: var(--home-white-dark);
+  border-bottom: 1px solid var(--home-grid);
+}
+.schedcal-weekday {
+  padding: 6px 0;
+  text-align: center;
+  color: var(--home-black-light);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: .22px;
+}
+.schedcal-week + .schedcal-week { border-top: 1px solid var(--home-grid); }
+
+.schedcal-day {
+  position: relative;
+  min-width: 0;
+  padding: 6px 0 12px;
+  border: 0;
+  border-radius: 0;
+  background: var(--home-white);
+  color: var(--home-black);
+  font: inherit;
+  text-align: left;
+  display: grid;
+  grid-template-rows: 20px auto;
+  /* Tight above, generous below. Equidistant strips read as a rule between two
+     weeks rather than as the bands belonging to the week whose number they sit
+     under — the 3px/12px split is what settles which week owns them. */
+  gap: 3px;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.schedcal-day__top {
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px;
+}
+.schedcal-day__num {
+  min-width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: -.26px;
+  font-variant-numeric: tabular-nums;
+}
+.schedcal-day__dots { display: inline-flex; align-items: center; gap: 2px; }
+.schedcal-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--stage-more);
+}
+.schedcal-dot--follow-up { background: var(--stage-follow-up); }
+.schedcal-dot--payment   { background: var(--stage-payment); }
+.schedcal-dot--more      { background: var(--stage-more); }
+
+/* Full-bleed to both cell edges on purpose: seven of these in a row, same lane,
+   same colour, is what makes a planned fitting week read as one bar. */
+.schedcal-day__strips {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.schedcal-strip { display: block; height: 3px; background: transparent; }
+.schedcal-strip--sizing        { background: var(--stage-sizing); }
+.schedcal-strip--fitting-1     { background: var(--stage-fitting-1); }
+.schedcal-strip--fitting-2     { background: var(--stage-fitting-2); }
+.schedcal-strip--fitting-3     { background: var(--stage-fitting-3); }
+.schedcal-strip--final-fitting { background: var(--stage-final-fitting); }
+.schedcal-strip--design        { background: var(--stage-design); }
+.schedcal-strip--more          { background: var(--stage-more); }
+
+/* The one date the whole programme is computed backwards from, readable at a
+   glance without spending a lane on it. */
+.schedcal-day--wedding .schedcal-day__num {
+  background: var(--stage-wedding);
+  color: var(--home-white);
+}
+.schedcal-day--today .schedcal-day__num { box-shadow: inset 0 0 0 1.5px var(--home-orange, #dd5d01); }
+.schedcal-day--outside { background: var(--home-white-dark); }
+.schedcal-day--outside .schedcal-day__num { color: var(--home-grid); }
+.schedcal-day--skel { cursor: default; }
+.schedcal-day:active,
+.schedcal-day.is-pressed { background: var(--home-white-dark); }
+
+.schedcal-skel__block {
+  display: block;
+  background: rgba(76,76,76,.18);
+  animation: home-shimmer 1.2s ease-in-out infinite;
+}
+
+/* ------------------------------ Panels & legend --------------------------- */
+
+.schedcal-state:empty { display: none; }
+.schedcal-state {
+  padding: 24px;
+  background: var(--home-black);
+}
+.schedcal-panel {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--home-white);
+  border: 1px solid var(--home-grid);
+}
+.schedcal-panel__title {
+  margin: 0;
+  color: var(--home-black-light);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: -.28px;
+}
+.schedcal-panel__copy {
+  margin: 0;
+  color: var(--home-grid);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 18px;
+  letter-spacing: -.26px;
+}
+.schedcal-panel__retry {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 0;
+  background: var(--home-black);
+  color: var(--home-white);
+  font: 700 13px/18px 'Plus Jakarta Sans', sans-serif;
+  letter-spacing: -.26px;
+  cursor: pointer;
+}
+
+.schedcal-legend {
+  padding: 12px 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  background: var(--home-black);
+  border-top: 1px solid var(--home-grid);
+}
+.schedcal-legend:empty { display: none; }
+.schedcal-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--home-white);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  letter-spacing: -.24px;
+}
+.schedcal-legend__swatch { width: 12px; height: 3px; background: var(--stage-more); }
+.schedcal-legend__swatch--sizing        { background: var(--stage-sizing); }
+.schedcal-legend__swatch--fitting-1     { background: var(--stage-fitting-1); }
+.schedcal-legend__swatch--fitting-2     { background: var(--stage-fitting-2); }
+.schedcal-legend__swatch--fitting-3     { background: var(--stage-fitting-3); }
+.schedcal-legend__swatch--final-fitting { background: var(--home-white); }
+.schedcal-legend__swatch--design        { background: var(--stage-design); }
+.schedcal-legend__swatch--wedding       { background: var(--home-white); }
+.schedcal-legend__swatch--follow-up     { background: var(--stage-follow-up); }
+.schedcal-legend__swatch--payment       { background: var(--stage-payment); }
+
+.schedcal-footer {
+  padding: 24px;
+  text-align: center;
+  color: var(--home-grid);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 24px;
+  letter-spacing: -.42px;
+}
+
+/* -------------------------------- Day sheet ------------------------------- */
+
+/* z-index 120 puts it in the photo-viewer band: above the fixed nav, below the
+   camera and the toast. */
+.schedcal-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.schedcal-sheet[hidden] { display: none; }
+.schedcal-sheet__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(13,13,13,.62);
+}
+.schedcal-sheet__panel {
+  position: relative;
+  width: min(390px, 100%);
+  max-height: 76svh;
+  padding: 20px 24px calc(24px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  background: var(--home-black);
+  border-top: 1px solid var(--home-grid);
+  animation: surface-rise 220ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.schedcal-sheet__title {
+  margin: 0;
+  color: var(--home-white);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 28px;
+  letter-spacing: -.6px;
+}
+.schedcal-sheet__title:focus { outline: none; }
+.schedcal-sheet__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.schedcal-sheet__empty {
+  color: var(--home-grid);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 18px;
+  letter-spacing: -.26px;
+}
+.schedcal-sheet__link {
+  --schedcal-row-color: var(--stage-more);
+  display: grid;
+  grid-template-rows: auto 6px;
+  overflow: hidden;
+  text-decoration: none;
+  color: var(--home-black);
+  transition: grid-template-rows 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.schedcal-sheet__link--sizing        { --schedcal-row-color: var(--stage-sizing); }
+.schedcal-sheet__link--fitting-1     { --schedcal-row-color: var(--stage-fitting-1); }
+.schedcal-sheet__link--fitting-2     { --schedcal-row-color: var(--stage-fitting-2); }
+.schedcal-sheet__link--fitting-3     { --schedcal-row-color: var(--stage-fitting-3); }
+.schedcal-sheet__link--final-fitting { --schedcal-row-color: var(--home-black-light); }
+.schedcal-sheet__link--design        { --schedcal-row-color: var(--stage-design); }
+.schedcal-sheet__link--wedding       { --schedcal-row-color: var(--home-black-light); }
+.schedcal-sheet__link--follow-up     { --schedcal-row-color: var(--stage-follow-up); }
+.schedcal-sheet__link--payment       { --schedcal-row-color: var(--stage-payment); }
+.schedcal-sheet__face {
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--home-white);
+}
+.schedcal-sheet__rail { display: block; background: var(--schedcal-row-color); }
+.schedcal-sheet__link:active,
+.schedcal-sheet__link.is-pressed { grid-template-rows: auto 2px; }
+.schedcal-sheet__lines { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.schedcal-sheet__who {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+  letter-spacing: -.28px;
+}
+.schedcal-sheet__what {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--home-grid);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 18px;
+  letter-spacing: -.26px;
+}
+.schedcal-sheet__when {
+  flex: none;
+  color: var(--home-black-light);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  letter-spacing: -.24px;
+  font-variant-numeric: tabular-nums;
+}
+.schedcal-sheet__close {
+  padding: 0;
+  border: 1px solid var(--home-white-dark);
+  border-radius: 4px;
+  background: transparent;
+  font: inherit;
+  color: var(--home-black);
+  display: grid;
+  grid-template-rows: 42px 6px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: grid-template-rows 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.schedcal-sheet__close-face {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--home-white);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -.3px;
+}
+.schedcal-sheet__close-rail { display: block; background: var(--home-white-dark); }
+.schedcal-sheet__close:active,
+.schedcal-sheet__close.is-pressed { grid-template-rows: 46px 2px; }
+
+/* Paper over the black ledger, ink over anything sitting on a white face. */
+body.is-schedulespage a:focus-visible,
+body.is-schedulespage button:focus-visible {
+  outline: 2px solid var(--home-white);
+  outline-offset: 2px;
+}
+body.is-schedulespage .schedcal-day:focus-visible,
+body.is-schedulespage .schedcal-nav-btn:focus-visible,
+body.is-schedulespage .schedcal-panel__retry:focus-visible,
+body.is-schedulespage .cust-nav-btn:focus-visible {
+  outline-color: var(--home-black);
+  outline-offset: -2px;
+}
+.schedcal-sheet a:focus-visible,
+.schedcal-sheet button:focus-visible {
+  outline: 2px solid var(--home-white);
+  outline-offset: 2px;
+}
+.schedcal-sheet__link:focus-visible,
+.schedcal-sheet__close:focus-visible {
+  outline-color: var(--home-black);
+  outline-offset: -2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .schedcal-skel__block { animation: none; }
+  .schedcal-sheet__panel { animation: none; }
+  .schedcal-nav-btn,
+  .schedcal-sheet__link,
+  .schedcal-sheet__close { transition: none; }
+}
+
+/* ------------------------- Quotations & invoices -------------------------- */
+
+/* One page, two routes. Structurally the fitting feed — same black ledger, same
+   390px canvas, same inset rhythm — because it is the same kind of object.
+
+   The search deliberately reuses .fitlog-search rather than restating it: this
+   is the third search on the same canvas, and the design system's rule is to
+   unify rather than add a fourth copy. Unifying all three into one block is a
+   separate mechanical change; reusing the existing one is the zero-risk way to
+   avoid making that job bigger. */
+body.is-doclistpage { background: #292929; overflow-x: hidden; }
+body.is-doclistpage .appbar,
+body.is-doclistpage .pagehead { display: none; }
+body.is-doclistpage .page {
+  width: min(390px, 100%);
+  max-width: 390px;
+  min-height: 100svh;
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: 0;
+  background: var(--home-black);
+}
+body.is-doclistpage .view { gap: 0; }
+
+.doclist {
+  display: flex;
+  flex-direction: column;
+  background: var(--home-black);
+}
+
+.doclist-head { padding-top: 67px; background: var(--home-black); }
+.doclist-title {
+  padding: 12px 24px;
+  border-top: 1px solid var(--home-grid);
+  border-bottom: 1px solid var(--home-grid);
+}
+.doclist-title h1 {
+  margin: 0;
+  color: var(--home-white);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 40px;
+  letter-spacing: -.96px;
+}
+.doclist-title h1:focus { outline: none; }
+
+.doclist-grid-rule { height: 1px; background: var(--home-grid); }
+.doclist-grid-spacer { height: 24px; position: relative; }
+.doclist-grid-spacer::before,
+.doclist-grid-spacer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 24px;
+  background: var(--home-grid);
+}
+.doclist-grid-spacer::before { left: 24px; }
+.doclist-grid-spacer::after  { right: 24px; }
+.doclist-inset { padding: 0 24px; }
+
+.doclist-feed { background: var(--home-black); }
+.doclist-feed--initial { min-height: 60svh; }
+.doclist-list { margin: 0; padding: 0; list-style: none; }
+.doclist-sentinel { height: 1px; }
+
+/* ---------------------------------- Card ---------------------------------- */
+
+.doclist-card-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  transition: transform 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.doclist-card {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--home-white);
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
+}
+/* The rail is a sibling of the card, not a child, so it cannot read the card's
+   --doclist-kind-color. The kind is applied to it through the adjacent-sibling
+   rules below; this only sets the geometry and the neutral default. */
+.doclist-card__rail {
+  display: block;
+  height: 6px;
+  background: var(--home-grid);
+  transition: height 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+/* The same green and blue that already mean quotation and invoice on the
+   shortcut row and the customer banners. */
+.doclist-card--quotation { --doclist-kind-color: #19aa16; }
+.doclist-card--invoice   { --doclist-kind-color: #1866da; }
+.doclist-card--quotation + .doclist-card__rail { background: #19aa16; }
+.doclist-card--invoice   + .doclist-card__rail { background: #1866da; }
+.doclist-card-link:active .doclist-card__rail,
+.doclist-card-link.is-pressed .doclist-card__rail { height: 2px; }
+
+.doclist-card__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.doclist-card__names { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.doclist-card__who {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--home-black);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 20px;
+  letter-spacing: -.3px;
+}
+.doclist-card__order {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--home-grid);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 18px;
+  letter-spacing: -.26px;
+}
+.doclist-card__kind {
+  flex: none;
+  padding: 2px 8px;
+  background: var(--doclist-kind-color, var(--home-grid));
+  color: var(--home-white);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: .22px;
+  text-transform: uppercase;
+}
+.doclist-card__divider { height: 1px; background: var(--home-white-dark); }
+.doclist-card__bottom {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.doclist-card__date {
+  color: var(--home-grid);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+  letter-spacing: -.26px;
+  font-variant-numeric: tabular-nums;
+}
+.doclist-card__amount {
+  color: var(--home-black);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 20px;
+  letter-spacing: -.3px;
+  font-variant-numeric: tabular-nums;
+}
+.doclist-card__amount--none { color: var(--home-grid); font-weight: 500; }
+
+/* ------------------------- Panels, skeletons, footer ---------------------- */
+
+.doclist-panel {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--home-white);
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
+}
+.doclist-panel__title {
+  margin: 0;
+  color: var(--home-black-light);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: -.28px;
+}
+.doclist-panel__copy {
+  margin: 0;
+  color: var(--home-grid);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 18px;
+  letter-spacing: -.26px;
+}
+.doclist-panel__copy b { font-weight: 700; }
+.doclist-panel__retry {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 0;
+  background: var(--home-black);
+  color: var(--home-white);
+  font: 700 13px/18px 'Plus Jakarta Sans', sans-serif;
+  letter-spacing: -.26px;
+  cursor: pointer;
+}
+
+.doclist-skel__block {
+  display: block;
+  background: rgba(76,76,76,.18);
+  animation: home-shimmer 1.2s ease-in-out infinite;
+}
+.doclist-skel__line { height: 20px; display: flex; align-items: center; }
+
+.doclist-footer {
+  padding: 24px;
+  text-align: center;
+  color: var(--home-grid);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 24px;
+  letter-spacing: -.42px;
+}
+
+body.is-doclistpage a:focus-visible,
+body.is-doclistpage button:focus-visible,
+body.is-doclistpage input:focus-visible {
+  outline: 2px solid var(--home-white);
+  outline-offset: 2px;
+}
+body.is-doclistpage .doclist-panel__retry:focus-visible,
+body.is-doclistpage .cust-nav-btn:focus-visible {
+  outline-color: var(--home-black);
+  outline-offset: -2px;
+}
+body.is-doclistpage .fitlog-search input:focus-visible { outline: 0; }
+body.is-doclistpage .fitlog-search__clear:focus-visible {
+  outline-color: var(--home-black);
+  outline-offset: -5px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .doclist-skel__block { animation: none; }
+  .doclist-card-link,
+  .doclist-card__rail { transition: none; }
+}

@@ -88,6 +88,24 @@ KK.db = (function () {
     return FITTING_STAGE_KEYS.filter((key) => wanted.indexOf(key) !== -1);
   }
 
+  /* ---------------------------- Document Feed ----------------------------- */
+
+  const PROJECTION_DOCUMENT_FEED = 'id,order_id,customer_id,customer_name,order_title,order_label,order_status,kind,total,created_at,issued_date';
+
+  /* Moodboards live in document_log too, but they are a different object and
+     neither list route can render one, so the vocabulary here is the two the
+     pages actually speak. */
+  const DOCUMENT_KINDS = ['quotation', 'invoice'];
+  const DOCUMENT_FEED_PAGE_SIZE = 10;
+
+  /* The route decides the kind, so an unrecognised value is a routing bug, not
+     user input. Defaulting to "both" would silently show invoices on the
+     quotations page; an empty string makes the caller fail loudly instead. */
+  function normalizeDocumentKind(kind) {
+    const name = String(kind == null ? '' : kind);
+    return DOCUMENT_KINDS.indexOf(name) === -1 ? '' : name;
+  }
+
   /* --------------------------- Edge Function Helpers ---------------------- */
 
   async function callGoogle(action, payload) {
@@ -210,7 +228,7 @@ KK.db = (function () {
     },
 
     listAllOrders: async function () {
-      return unwrap(await init().from('orders').select('id,customer_id,status,items,first_payment_date,second_payment_date,final_payment_date'));
+      return unwrap(await init().from('orders').select('id,customer_id,title,status,items,first_payment_date,second_payment_date,final_payment_date'));
     },
 
     getOrder: async function (id) {
@@ -257,8 +275,14 @@ KK.db = (function () {
       return unwrap(await init().from('order_events').select(PROJECTION_ORDER_EVENTS).eq('order_id', orderId).order('event_date', { ascending: true }));
     },
 
+    /* Every appointment across every order, for the homepage deadline strip and
+       the schedules calendar. Reading the whole table is deliberate: order_events
+       caps at seven rows per order, so a studio's entire programme is smaller
+       than one page of the fitting feed. Past roughly 5k rows, range-filter this
+       to a 13-month window either side of the calendar cursor — the render code
+       does not need to change for that. */
     listAllOrderEvents: async function () {
-      return unwrap(await init().from('order_events').select('order_id,stage,event_date,end_date'));
+      return unwrap(await init().from('order_events').select('id,order_id,stage,event_date,end_date,pinned'));
     },
 
     replaceOrderEvents: async function (orderId, newEvents, allowedStages) {
@@ -312,6 +336,13 @@ KK.db = (function () {
       return unwrap(await init().from('fitting_sessions').select(PROJECTION_FITTING_SESSIONS).eq('order_id', orderId).order('created_at', { ascending: false }));
     },
 
+    /* Every session in one read, so the schedules calendar can decide where a
+       tapped fitting goes — its existing log, or the camera — without a request
+       per appointment. Ids only; the calendar never renders session contents. */
+    listAllFittingSessions: async function () {
+      return unwrap(await init().from('fitting_sessions').select('id,order_id,stage,status'));
+    },
+
     getFittingSession: async function (id) {
       return unwrap(await init().from('fitting_sessions').select(PROJECTION_FITTING_SESSIONS).eq('id', id).single());
     },
@@ -339,6 +370,9 @@ KK.db = (function () {
 
     FITTING_STAGE_KEYS,
     FITTING_FEED_PAGE_SIZE,
+    DOCUMENT_KINDS,
+    DOCUMENT_FEED_PAGE_SIZE,
+    normalizeDocumentKind,
     normalizeFeedQuery,
     likeLiteral,
     normalizeFeedStages,
@@ -363,6 +397,46 @@ KK.db = (function () {
 
       // Records strictly older than the cursor, with id breaking ties exactly
       // the way the sort below does.
+      if (opts.before && opts.before.createdAt && opts.before.id) {
+        const at = new Date(opts.before.createdAt).toISOString();
+        request = request.or(
+          'created_at.lt.' + at + ',and(created_at.eq.' + at + ',id.lt.' + opts.before.id + ')'
+        );
+      }
+
+      const rows = unwrap(await request
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .limit(limit + 1)) || [];
+
+      const hasMore = rows.length > limit;
+      const items = rows.slice(0, limit);
+      const last = items[items.length - 1] || null;
+
+      return {
+        items,
+        hasMore,
+        nextCursor: hasMore && last ? { createdAt: last.created_at, id: last.id } : null
+      };
+    },
+
+    /* One page of the quotation or invoice feed, newest first. Deliberately the
+       same shape as listFittingLogs — same limit + 1 trick, same
+       created_at/id ordering, same cursor tie-break, same return shape — so the
+       two feeds cannot drift into behaving differently under paging. */
+    listDocumentFeed: async function (options) {
+      const opts = options || {};
+      const kind = normalizeDocumentKind(opts.kind);
+      if (!kind) throw new Error('A document kind is required');
+
+      const limit = Math.max(1, Number(opts.limit) || DOCUMENT_FEED_PAGE_SIZE);
+      const search = normalizeFeedQuery(opts.query);
+
+      let request = init().from('document_feed').select(PROJECTION_DOCUMENT_FEED).eq('kind', kind);
+
+      if (search) request = request.ilike('search_text', '%' + likeLiteral(search) + '%');
+      if (opts.customerId) request = request.eq('customer_id', opts.customerId);
+
       if (opts.before && opts.before.createdAt && opts.before.id) {
         const at = new Date(opts.before.createdAt).toISOString();
         request = request.or(

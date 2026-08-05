@@ -19,7 +19,9 @@ The customer owns the pipeline: stage, consult, moodboard, follow-up, cancellati
 The order owns money, items, documents, and the schedule anchors.
 
 ### `document_log`
-`id` · `order_id` fk cascade · `kind` (`quotation|invoice|moodboard`) · `total` bigint · `drive_link` · `created_at`. Paper trail of numbers, not files.
+`id` · `order_id` fk cascade · `kind` (`quotation|invoice|moodboard`) · `total` bigint (nullable since moodboards) · `drive_link` · `created_at`. Paper trail of numbers, not files.
+
+A quotation and an invoice are two renderings of one order, not two records — this table is the only durable trace either leaves. Read through `document_feed` for the list pages.
 
 ### `order_history`
 `id` · `order_id` fk cascade · `action` (`created|updated|payment_logged`) · `detail` jsonb · `created_at`.
@@ -61,6 +63,13 @@ Any violation raises, so `unwrap` surfaces it and nothing is written. Granted to
 `id` smallint pk `= 1` · `refresh_token` · `calendar_id` default `primary` · `connected_at` · `updated_at`.
 **RLS enabled with zero policies** — denies `anon` and `authenticated` outright. Only the service-role Edge Function reads it. Never query it from the browser.
 
+### View `public.document_feed` (security_invoker)
+Row shape: `id`, `order_id`, `kind` (`quotation|invoice` only — moodboards are excluded in the view, not by the caller), `total` (nullable), `created_at`, `customer_id`, `customer_name`, `order_title`, `order_status`, `order_label` (same expression as `fitting_log_feed`), `issued_date` (Asia/Jakarta date), `search_text` (lowercased name + label + `FMDD Mon YYYY`).
+
+Backs `#/quotations` and `#/invoices`. `document_log` stores no customer name, no order label, and no search column, so the join has to happen here — a client-side join could not do server-side `ilike` or cursor paging. Index `document_log_kind_created_idx (kind, created_at desc, id desc)` matches the feed's ordering and cursor tie-break.
+
+**The `total` on a row is the number that was actually sent.** Never recompute it from the order's current items — that is the whole reason the column exists.
+
 ### View `public.fitting_log_feed` (security_invoker)
 Feed row shape: `id`, `order_id`, `customer_id`, `customer_name`, `order_title`, `order_label` (title → first item + "+N more" → `Empty order`), `stage_key` (`sizing|fitting-1|fitting-2|fitting-3|final-fitting`), `stage_label`, `status`, `created_at`, `log_date` (Asia/Jakarta date), `photo_count`, `preview_photos` (first 3), `search_text` (lowercased name + label + `FMDD Mon YYYY`).
 
@@ -82,7 +91,7 @@ Append-only. To change the schema:
 2. Add that title to the navigation list at `schema.sql` lines 8–18.
 3. Never edit an applied block — the file is re-run whole after every pull.
 
-Existing migration titles (grep any of these to jump): `dashboard UX overhaul` · `document name + payment schemes` · `fitting schedule + Google` · `the real lifecycle` · `status stops being` · `schedule gets a second anchor` · `moodboard generator` · `fitting revisions log` · `atomic fitting photo batches`.
+Existing migration titles (grep any of these to jump): `dashboard UX overhaul` · `document name + payment schemes` · `fitting schedule + Google` · `the real lifecycle` · `status stops being` · `schedule gets a second anchor` · `moodboard generator` · `fitting revisions log` · `atomic fitting photo batches` · `quotation and invoice feeds`.
 
 ---
 
@@ -90,27 +99,29 @@ Existing migration titles (grep any of these to jump): `dashboard UX overhaul` �
 
 Everything below is on `window.KK.db`. All async unless noted.
 
-**Auth & session** — `isConfigured` 15 · `init` 31 · `currentSession` 133 · `signIn(password, rememberMe)` 139 · `signOut` 160 · `refreshSession` 167 · `isStaleToken(err)` 174 · `savedPassword` 180
+**Auth & session** — `isConfigured` 15 · `init` 31 · `currentSession` 151 · `signIn(password, rememberMe)` 157 · `signOut` 178 · `refreshSession` 185 · `isStaleToken(err)` 192 · `savedPassword` 198
 
-**Customers** — `listCustomers` 186 · `getCustomer(id)` 190 · `createCustomer(record)` 194 · `updateCustomer(id, record)` 198 · `deleteCustomer(id)` 202
+**Customers** — `listCustomers` 204 · `getCustomer(id)` 208 · `createCustomer(record)` 212 · `updateCustomer(id, record)` 216 · `deleteCustomer(id)` 220
 
-**Orders** — `listOrders(customerId)` 208 · `listAllOrders` 212 · `getOrder(id)` 216 · `createOrder` 220 · `updateOrder(id, record)` 224 · `deleteOrder(id)` 228
+**Orders** — `listOrders(customerId)` 226 · `listAllOrders` 230 (carries `title` for the calendar) · `getOrder(id)` 234 · `createOrder` 238 **— zero call sites; orders are still inserted by hand in Supabase** · `updateOrder(id, record)` 242 · `deleteOrder(id)` 246
 
-**Documents & history** — `logDocument(orderId, kind, total)` 234 · `listDocumentLog(orderId)` 238 · `logOrderHistory(orderId, action, detail)` 246 · `listOrderHistory(orderId)` 250
+**Documents & history** — `logDocument(orderId, kind, total)` 252 · `listDocumentLog(orderId)` 256 · `logOrderHistory(orderId, action, detail)` 264 · `listOrderHistory(orderId)` 268
 
-**Schedule** — `listOrderEvents(orderId)` 256 · `listAllOrderEvents` 260 · **`replaceOrderEvents(orderId, newEvents, allowedStages)` 264** — rewrites the schedule while preserving `google_event_id` per stage; returns `{ removed, events }`
+**Schedule** — `listOrderEvents(orderId)` 274 · `listAllOrderEvents` 284 (whole table, for the homepage strip and the schedules calendar) · `listAllFittingSessions` 342 (resolves a calendar tap target in one read) · **`replaceOrderEvents(orderId, newEvents, allowedStages)` 288** — rewrites the schedule while preserving `google_event_id` per stage; returns `{ removed, events }`
 
-**Fitting sessions** — `listFittingSessions(orderId)` 311 · `getFittingSession(id)` 315 · `getFittingSessionByStage(orderId, stage)` 319 · `createFittingSession` 328 · `updateFittingSession(id, record)` 332 · `deleteFittingSession(id)` 336
+**Fitting sessions** — `listFittingSessions(orderId)` 335 · `getFittingSession(id)` 346 · `getFittingSessionByStage(orderId, stage)` 350 · `createFittingSession` 359 · `updateFittingSession(id, record)` 363 · `deleteFittingSession(id)` 367
 
-**Fitting feed & photos** — **`listFittingLogs(options)` 352** (cursor paging, returns `{ rows, nextCursor }`) · `listFittingPhotos(orderId)` 389 · `listFittingPhotosBySession(sessionId)` 396 · `getFittingPhoto(id)` 403 · `createFittingPhoto` 407 · `updateFittingPhoto(id, record)` 411 · `deleteFittingPhoto(id)` 415 · **`saveFittingPhotoBatch(sessionId, captionUpdates, deleteIds, newPhotos)` 425** — the atomic RPC above; the only `.rpc(` call in the file
+**Fitting feed & photos** — **`listFittingLogs(options)` 386** (cursor paging, returns `{ rows, nextCursor }`) · `listFittingPhotos(orderId)` 463 · `listFittingPhotosBySession(sessionId)` 470 · `getFittingPhoto(id)` 477 · `createFittingPhoto` 481 · `updateFittingPhoto(id, record)` 485 · `deleteFittingPhoto(id)` 489 · **`saveFittingPhotoBatch(sessionId, captionUpdates, deleteIds, newPhotos)` 499** — the atomic RPC above; the only `.rpc(` call in the file
 
-**Intake** — `listIntake(statusFilter)` 436 · `getIntake(id)` 442 · `resolveIntake(id, status, customerId)` 446
+**Document feed** — **`listDocumentFeed(options)` 427** — one kind per call, cursor paging, server-side `ilike`; same shape and same guarantees as `listFittingLogs`. `normalizeDocumentKind` rejects anything but `quotation`/`invoice` so a routing bug fails loudly instead of showing both.
 
-**Google Calendar** (via `callGoogle` 93) — `googleStatus` 456 · `googleExchange(code, redirectUri)` 457 · `googleDisconnect` 458 · `googleForget(eventIds)` 459 · `syncOrderCalendar(orderId)` 460 · `syncFollowUp(customerId)` 461
+**Intake** — `listIntake(statusFilter)` 510 · `getIntake(id)` 516 · `resolveIntake(id, status, customerId)` 520
 
-**Google Drive** (via `callDrive` 110) — `driveSaveMoodboardPdf(...)` 463 · `driveSaveFittingPhoto(imageBase64, mimeType, fileName, customerName, orderTitle, stage)` 465 · `driveGetFittingPhoto(photoId)` 470
+**Google Calendar** (via `callGoogle` 111) — `googleStatus` 456 · `googleExchange(code, redirectUri)` 457 · `googleDisconnect` 458 · `googleForget(eventIds)` 459 · `syncOrderCalendar(orderId)` 460 · `syncFollowUp(customerId)` 461
 
-**Moodboard log** — `logMoodboard(orderId, driveLink)` 472 · `countMoodboards(orderId)` 476
+**Google Drive** (via `callDrive` 128) — `driveSaveMoodboardPdf(...)` 463 · `driveSaveFittingPhoto(imageBase64, mimeType, fileName, customerName, orderTitle, stage)` 465 · `driveGetFittingPhoto(photoId)` 470
+
+**Moodboard log** — `logMoodboard(orderId, driveLink)` 546 · `countMoodboards(orderId)` 550
 
 **Internal helpers** (not exported): `unwrap(res)` 44 · `normalizeFeedQuery` 74 · `likeLiteral` 82 · `normalizeFeedStages` 86.
 

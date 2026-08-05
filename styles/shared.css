@@ -2275,3 +2275,110 @@ body:not(.has-savebar):not(.has-fitting-journal-bar) .toast {
   .route-loader__nav i { animation: none !important; }
   * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* ------------------------- New document picker --------------------------- */
+
+/* Utility chrome, not ledger canvas: this is a modal over whichever page
+   opened it, so it uses the shared surface idiom rather than the cream-and-
+   black one the document list itself wears. z-index 210 is the picker /
+   edit-sheet band. */
+.docnew {
+  position: fixed;
+  inset: 0;
+  z-index: 210;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.docnew[hidden] { display: none; }
+.docnew__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(13,13,13,.6);
+}
+.docnew__panel {
+  position: relative;
+  width: min(420px, 100%);
+  max-height: 80svh;
+  padding: 20px 20px calc(20px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  background: var(--surface-2);
+  border-radius: var(--radius) var(--radius) 0 0;
+  animation: surface-rise 220ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.docnew__title { margin: 0; font-size: 20px; font-weight: 700; line-height: 28px; }
+.docnew__title:focus { outline: none; }
+.docnew__hint { margin: 0; color: var(--muted); font-size: 14px; line-height: 20px; }
+.docnew__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 64px;
+}
+.docnew__row {
+  width: 100%;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.docnew__row:hover { background: var(--bg); }
+.docnew__row-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 600;
+}
+.docnew__row-meta {
+  flex: none;
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+/* Disabled because the order cannot produce a document yet. The reason sits
+   beneath it and is wired through aria-describedby, so it is never carried by
+   colour alone. */
+.docnew__row--blocked,
+.docnew__row:disabled {
+  opacity: .55;
+  cursor: default;
+}
+.docnew__reason {
+  margin: -4px 0 0;
+  padding: 0 14px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+.docnew__loading,
+.docnew__empty,
+.docnew__error {
+  margin: 0;
+  padding: 12px 2px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 20px;
+}
+.docnew__error { color: var(--danger); }
+.docnew__panel-title { margin: 0 0 6px; font-size: 15px; font-weight: 700; }
+.docnew__panel-copy { margin: 0 0 12px; color: var(--muted); font-size: 13px; line-height: 18px; }
+.docnew__actions { display: flex; gap: 8px; }
+.docnew__actions .btn { flex: 1; }
+.docnew__actions .btn[hidden] { display: none; }
+.docnew input[hidden] { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .docnew__panel { animation: none; }
+}

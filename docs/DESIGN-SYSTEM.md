@@ -99,7 +99,7 @@ colour by opacity or `filter: brightness()`** — use the twin.
 | `--home-black-light` `#292929` | `--home-black` `#0d0d0d` | — |
 | `--home-grid` `#4c4c4c` | `--home-black-light` `#292929` | — |
 
-### 2.3 Stage colours — declared on `.fitlog`, `pages.css:2145`
+### 2.3 Stage colours — declared on `.fitlog, .schedcal, .schedcal-sheet`, `pages.css:2145`
 
 The five fitting stages are a **fixed, exhaustive vocabulary**. They are the
 dark text/fill pair (not the lighter banner hues), so they read on cream.
@@ -112,8 +112,28 @@ dark text/fill pair (not the lighter banner hues), so they read on cream.
 | Fitting 3 | `--stage-fitting-3` | `#ff6a00` |
 | Final fitting | `--stage-final-fitting` | `var(--home-black)` |
 
+The schedules calendar shares this block and adds four kinds only it can show.
+No new hues: grey already means "not committed yet", orange is the
+next-deadline banner's, blue is the one that already means invoice and payment.
+
+| Kind | Token | Value |
+| :--- | :--- | :--- |
+| Design phase / deadline | `--stage-design` | `var(--home-grid)` |
+| Wedding | `--stage-wedding` | `var(--home-black)` |
+| Follow-up | `--stage-follow-up` | `#dd5d01` |
+| Payment | `--stage-payment` | `#1866da` |
+| Overflow ("more") | `--stage-more` | `rgba(76,76,76,.45)` |
+
 Any new stage-aware component sets `--fitlog-stage-color` and reads it — see
-`.fitlog-stage`. Do not re-list the five hex values in a new block.
+`.fitlog-stage` — or joins the selector list on the token block, as `.schedcal`
+does. Do not re-list the hex values in a new block.
+
+**Do not add a sixth entry to `U.FITTING_STAGES` to cover the design rows.**
+`tests/pure-modules.test.cjs` asserts those five map one-to-one onto
+`fitting_log_feed`'s five `stage_key` values, and `db.FITTING_STAGE_KEYS` is the
+same contract. Colour for non-stage rows belongs in CSS, which is why the token
+block is the extension point and `U.fittingStage()` still falls back to a
+neutral for anything it does not know.
 
 "Body measurements" is a **retired** stage name. `tests/pure-modules.test.cjs`
 greps for it and fails the suite. Do not reintroduce the word anywhere.
@@ -606,8 +626,10 @@ Recorded so the next person does not read it as intent:
 - **Two press timings** (`120ms --ease-out-expo` on older canvas controls,
   `--motion-quick --ease-standard` on newer fitting controls). Match the file
   you are in.
-- `.home-search` and `.fitlog-search` are near-duplicate blocks. If a third
-  search appears, unify all three rather than adding a fourth copy.
+- `.home-search` and `.fitlog-search` are near-duplicate blocks. The document
+  list is the third search, and it **reuses `.fitlog-search` verbatim** rather
+  than adding a copy. Unifying all three into one block is still worth doing and
+  is now a purely mechanical change; do not add a fourth copy in the meantime.
 - `--space-*` tokens are barely used on the canvas, which works in raw
   12/16/24. Do not force `--space-5` (20px) into a canvas layout — 20px is not
   part of that rhythm.

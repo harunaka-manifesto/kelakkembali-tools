@@ -160,9 +160,9 @@
       <div class="home-state home-state--ready" id="homeReady" hidden>
         <section class="home-hero" id="homeHero" aria-label="Today"><div class="home-hero__content"><h1 class="home-hero__greeting" id="heroGreeting"></h1><p class="home-hero__deadline" id="heroDeadline"></p></div></section>
         <section class="home-actions" id="homeActions" aria-label="Shortcuts">
-          <button type="button" class="home-action home-action--schedule" aria-disabled="true"><span class="home-action__face"><img src="assets/home-schedule-icon.svg" alt="">Schedule</span><span class="home-action__rail"></span></button>
-          <button type="button" class="home-action home-action--quotation" aria-disabled="true"><span class="home-action__face"><img src="assets/home-quote-icon.svg" alt="">Quotation</span><span class="home-action__rail"></span></button>
-          <button type="button" class="home-action home-action--invoice" aria-disabled="true"><span class="home-action__face"><img src="assets/home-invoice-icon.svg" alt="">Invoice</span><span class="home-action__rail"></span></button>
+          <a class="home-action home-action--schedule" href="#/schedules"><span class="home-action__face"><img src="assets/home-schedule-icon.svg" alt="">Schedule</span><span class="home-action__rail"></span></a>
+          <a class="home-action home-action--quotation" href="#/quotations"><span class="home-action__face"><img src="assets/home-quote-icon.svg" alt="">Quotation</span><span class="home-action__rail"></span></a>
+          <a class="home-action home-action--invoice" href="#/invoices"><span class="home-action__face"><img src="assets/home-invoice-icon.svg" alt="">Invoice</span><span class="home-action__rail"></span></a>
           <a class="home-action home-action--fitting" href="#/fittings"><span class="home-action__face"><img src="assets/home-fitting-icon.svg" alt="">Fitting</span><span class="home-action__rail"></span></a>
         </section>
         <button type="button" class="home-alert" id="enquiriesCard" aria-disabled="true" hidden><span class="home-alert__face"><img class="home-alert__icon" src="assets/home-alert-icon.svg" alt=""><span id="enquiriesCount"></span><img class="home-alert__chevron" src="assets/home-chevron-icon.svg" alt=""></span><span class="home-alert__rail"></span></button>
@@ -216,7 +216,10 @@
         <span class="cust-banner__rail" aria-hidden="true"></span>
       </div>
 
-      <div class="cust-banner cust-banner--next" id="custNextBanner" aria-disabled="true">
+      <!-- Opens the calendar on the month of this customer's next appointment,
+           with that day's sheet already up. Its href is written once the record
+           has loaded — see renderCustomerDetail. -->
+      <a class="cust-banner cust-banner--next" id="custNextBanner" href="#/schedules">
         <span class="cust-banner__face">
           <span class="cust-banner__left">
             <img class="cust-banner__icon" src="assets/home-schedule-icon.svg" alt="">
@@ -225,11 +228,11 @@
           <span class="cust-banner__value" id="custNextDate">Nothing scheduled</span>
         </span>
         <span class="cust-banner__rail" aria-hidden="true"></span>
-      </div>
+      </a>
 
-      <!-- The one banner that leads somewhere. Its href carries both the visible
-           search term and the customer id, and is written once the record has
-           loaded — see renderCustomerReadOnly. -->
+      <!-- Its href carries both the visible search term and the customer id,
+           and is written once the record has loaded — see
+           renderCustomerReadOnly. -->
       <a class="cust-banner cust-banner--fittings" id="custFittingBanner" href="#/fittings">
         <span class="cust-banner__face">
           <span class="cust-banner__left">
@@ -241,7 +244,10 @@
       </a>
 
       <div class="cust-banner-split">
-        <div class="cust-banner cust-banner--quotation" id="custQuotationBanner" aria-disabled="true">
+        <!-- Both carry the same seed contract as the fitting banner: the
+             visible search term plus the customer id, written once the record
+             has loaded. -->
+        <a class="cust-banner cust-banner--quotation" id="custQuotationBanner" href="#/quotations">
           <span class="cust-banner__face">
             <span class="cust-banner__left">
               <img class="cust-banner__icon" src="assets/home-quote-icon.svg" alt="">
@@ -249,9 +255,9 @@
             </span>
           </span>
           <span class="cust-banner__rail" aria-hidden="true"></span>
-        </div>
+        </a>
 
-        <div class="cust-banner cust-banner--invoice" id="custInvoiceBanner" aria-disabled="true">
+        <a class="cust-banner cust-banner--invoice" id="custInvoiceBanner" href="#/invoices">
           <span class="cust-banner__face">
             <span class="cust-banner__left">
               <img class="cust-banner__icon" src="assets/home-invoice-icon.svg" alt="">
@@ -259,7 +265,7 @@
             </span>
           </span>
           <span class="cust-banner__rail" aria-hidden="true"></span>
-        </div>
+        </a>
       </div>
     </div>
 
@@ -1279,6 +1285,128 @@
     </section>
   </section>
 
+  <!-- One month of every appointment the studio has, from four sources that
+       each store dates for their own reasons: order_events, wedding dates,
+       follow-ups, and logged payments. The grid is Monday-first because a
+       planned fitting week is Monday-Sunday, which is what lets a week render
+       as seven ordinary cells instead of a positioned bar. -->
+  <section class="view schedcal" id="viewSchedules" hidden>
+    <nav class="cust-nav" aria-label="Schedules navigation">
+      <a class="cust-nav-btn" id="schedcalBackBtn" href="#/customers">
+        <span class="cust-nav-btn__face">
+          <img src="assets/cust-back-icon.svg" alt="" width="24" height="24">
+          <span>Home</span>
+        </span>
+        <span class="cust-nav-btn__rail" aria-hidden="true"></span>
+      </a>
+      <button type="button" class="cust-nav-btn" id="schedcalTodayBtn">
+        <span class="cust-nav-btn__face"><span>Today</span></span>
+        <span class="cust-nav-btn__rail" aria-hidden="true"></span>
+      </button>
+    </nav>
+
+    <header class="schedcal-head">
+      <div class="schedcal-grid-spacer" aria-hidden="true"></div>
+      <div class="schedcal-title"><h1 id="schedcalTitle" tabindex="-1">Schedules</h1></div>
+      <div class="schedcal-grid-spacer" aria-hidden="true"></div>
+    </header>
+
+    <div class="schedcal-monthbar">
+      <button type="button" class="schedcal-nav-btn" id="schedcalPrev" aria-label="Previous month">
+        <span class="schedcal-nav-btn__face"><svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5 8 12l7 7"/></svg></span>
+        <span class="schedcal-nav-btn__rail" aria-hidden="true"></span>
+      </button>
+      <h2 class="schedcal-monthbar__label" id="schedcalMonthLabel"></h2>
+      <button type="button" class="schedcal-nav-btn" id="schedcalNext" aria-label="Next month">
+        <span class="schedcal-nav-btn__face"><svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg></span>
+        <span class="schedcal-nav-btn__rail" aria-hidden="true"></span>
+      </button>
+    </div>
+
+    <!-- A month-precision wedding is stored as the last day of its month, so
+         drawing it on the 30th would be a lie the operator plans around. Those
+         weddings are named here instead and never touch a cell. -->
+    <div class="schedcal-approx" id="schedcalApprox" hidden></div>
+
+    <div class="schedcal-body" id="schedcalBody" aria-busy="true">
+      <div class="schedcal-grid" id="schedcalGrid" role="grid" aria-labelledby="schedcalMonthLabel">
+        <!-- Two of the seven initials are T and two are S, so each carries its
+             full name for anything reading the header aloud. -->
+        <div class="schedcal-weekdays" role="row">
+          <span class="schedcal-weekday" role="columnheader"><span aria-hidden="true">M</span><span class="sr-only">Monday</span></span>
+          <span class="schedcal-weekday" role="columnheader"><span aria-hidden="true">T</span><span class="sr-only">Tuesday</span></span>
+          <span class="schedcal-weekday" role="columnheader"><span aria-hidden="true">W</span><span class="sr-only">Wednesday</span></span>
+          <span class="schedcal-weekday" role="columnheader"><span aria-hidden="true">T</span><span class="sr-only">Thursday</span></span>
+          <span class="schedcal-weekday" role="columnheader"><span aria-hidden="true">F</span><span class="sr-only">Friday</span></span>
+          <span class="schedcal-weekday" role="columnheader"><span aria-hidden="true">S</span><span class="sr-only">Saturday</span></span>
+          <span class="schedcal-weekday" role="columnheader"><span aria-hidden="true">S</span><span class="sr-only">Sunday</span></span>
+        </div>
+        <div class="schedcal-weeks" id="schedcalWeeks"></div>
+      </div>
+      <!-- Skeleton, empty, and both failure states share this slot so none of
+           them can resize the grid already on screen. -->
+      <div class="schedcal-state" id="schedcalState"></div>
+    </div>
+
+    <div class="schedcal-legend" id="schedcalLegend" aria-hidden="true"></div>
+    <p class="sr-only" id="schedcalStatus" role="status" aria-live="polite"></p>
+
+    <footer class="schedcal-footer">Made with love for Ichaku</footer>
+  </section>
+
+  <!-- One page, two routes. A quotation and an invoice are two renderings of
+       one order, so the only thing that differs between #/quotations and
+       #/invoices is the kind the feed filters on and the words on the page. -->
+  <section class="view doclist" id="viewDocuments" hidden>
+    <nav class="cust-nav" aria-label="Documents navigation">
+      <a class="cust-nav-btn" id="doclistBackBtn" href="#/customers">
+        <span class="cust-nav-btn__face">
+          <img src="assets/cust-back-icon.svg" alt="" width="24" height="24">
+          <span id="doclistBackLabel">Home</span>
+        </span>
+        <span class="cust-nav-btn__rail" aria-hidden="true"></span>
+      </a>
+      <!-- Live, unlike the fitting feed's New key. A fitting needs an order
+           context it cannot get from a global list; a document gets one from
+           the picker this opens. -->
+      <button type="button" class="cust-nav-btn" id="doclistNewBtn">
+        <span class="cust-nav-btn__face"><span>New</span></span>
+        <span class="cust-nav-btn__rail" aria-hidden="true"></span>
+      </button>
+    </nav>
+
+    <header class="doclist-head">
+      <div class="doclist-grid-spacer" aria-hidden="true"></div>
+      <div class="doclist-title"><h1 id="doclistTitle" tabindex="-1">Quotations</h1></div>
+      <div class="doclist-grid-spacer" aria-hidden="true"></div>
+    </header>
+
+    <section class="fitlog-search-section" id="doclistSearchSection">
+      <label class="sr-only" for="doclistSearch">Search by customer, order, or date</label>
+      <div class="fitlog-search">
+        <img class="fitlog-search__icon" src="assets/home-search-icon.svg" alt="" width="20" height="20">
+        <input id="doclistSearch" type="search" enterkeyhint="search" placeholder="Search customer, order, or date" autocapitalize="none" autocomplete="off" spellcheck="false">
+        <button type="button" class="fitlog-search__clear" id="doclistSearchClear" aria-label="Clear search" hidden><span aria-hidden="true">&times;</span></button>
+      </div>
+      <div class="fitlog-search__rail" aria-hidden="true"></div>
+    </section>
+
+    <!-- No filter row, and that is a decision rather than an omission. Kind is
+         already fixed by the route; order status is derived FROM these
+         documents, so filtering quotations by "Quoted" returns nearly all of
+         them; and the date is already searchable, because search_text carries
+         the issued date, so typing "Aug 2026" filters by month. -->
+
+    <div class="doclist-feed" id="doclistFeed" aria-busy="true">
+      <ol class="doclist-list" id="doclistList"></ol>
+      <div class="doclist-state" id="doclistState"></div>
+      <div class="doclist-sentinel" id="doclistSentinel" aria-hidden="true"></div>
+    </div>
+    <p class="sr-only" id="doclistStatus" role="status" aria-live="polite"></p>
+
+    <footer class="doclist-footer">Made with love for Ichaku</footer>
+  </section>
+
 </main>
 
 <!-- Fitting journal overlays stay outside the page flow. -->
@@ -1302,6 +1430,40 @@
 <section class="fitting-caption-step" id="fittingCaptionStep" hidden aria-label="Caption fitting photo" role="dialog" aria-modal="true">
   <div class="fitting-caption-step__preview"><img id="fittingCaptionPreview" alt="Selected fitting photo"></div>
   <div class="fitting-caption-step__form"><label class="field__label" for="fittingCaption">Revision note</label><textarea class="input" id="fittingCaption" rows="1" placeholder="What changed?" enterkeyhint="done"></textarea><div class="fitting-caption-step__actions"><button type="button" class="btn btn--outline" id="fittingCaptionCancel">Cancel</button><button type="button" class="btn btn--primary" id="fittingCaptionSave">Save</button></div></div>
+</section>
+
+<!-- Pick a customer, then one of their orders, then generate. A sheet rather
+     than a route: the choice is transient, has nothing worth sharing or
+     reloading, and a two-step route would leave a back-button trap between the
+     steps. -->
+<section class="docnew" id="docnewSheet" hidden role="dialog" aria-modal="true" aria-labelledby="docnewTitle">
+  <div class="docnew__backdrop" id="docnewBackdrop"></div>
+  <div class="docnew__panel">
+    <h2 class="docnew__title" id="docnewTitle" tabindex="-1"></h2>
+    <p class="docnew__hint" id="docnewHint"></p>
+    <label class="sr-only" for="docnewSearch">Search customers</label>
+    <input class="input input--search" id="docnewSearch" type="search" enterkeyhint="search" placeholder="Search customer name" autocapitalize="none" autocomplete="off" spellcheck="false">
+    <div class="docnew__list" id="docnewList"></div>
+    <div class="docnew__actions">
+      <button type="button" class="btn btn--outline" id="docnewBack" hidden>Back</button>
+      <button type="button" class="btn btn--outline" id="docnewCancel">Cancel</button>
+    </div>
+  </div>
+  <p class="sr-only" id="docnewStatus" role="status" aria-live="polite"></p>
+</section>
+
+<!-- One day's appointments. Lives out here with the other overlays rather than
+     inside #viewSchedules, so it is never a descendant of a hidden view. -->
+<section class="schedcal-sheet" id="schedcalSheet" hidden role="dialog" aria-modal="true" aria-labelledby="schedcalSheetTitle">
+  <div class="schedcal-sheet__backdrop" id="schedcalSheetBackdrop"></div>
+  <div class="schedcal-sheet__panel">
+    <h2 class="schedcal-sheet__title" id="schedcalSheetTitle" tabindex="-1"></h2>
+    <ul class="schedcal-sheet__list" id="schedcalSheetList"></ul>
+    <button type="button" class="schedcal-sheet__close" id="schedcalSheetClose">
+      <span class="schedcal-sheet__close-face">Close</span>
+      <span class="schedcal-sheet__close-rail" aria-hidden="true"></span>
+    </button>
+  </div>
 </section>
 
 <section class="fitting-picker" id="fittingPicker" hidden aria-label="Choose fitting stage" role="dialog" aria-modal="true"><div class="fitting-picker__backdrop"></div><div class="fitting-picker__sheet"><h2 class="card__title">Which fitting is this?</h2><div id="fittingPickerOptions"></div><button type="button" class="btn btn--outline btn--block" id="fittingPickerCancel">Cancel</button></div></section>

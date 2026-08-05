@@ -16,6 +16,7 @@
 --   "moodboard generator"              moodboard document/history support
 --   "fitting revisions log"            fitting sessions and journal photos
 --   "atomic fitting photo batches"     save_fitting_photo_batch RPC
+--   "quotation and invoice feeds"      document_feed read model + paging index
 
 create extension if not exists pgcrypto;
 
@@ -1141,3 +1142,78 @@ $$;
 
 revoke all on function public.save_fitting_photo_batch(uuid, jsonb, uuid[], jsonb) from public;
 grant execute on function public.save_fitting_photo_batch(uuid, jsonb, uuid[], jsonb) to authenticated;
+
+
+-- =========================================================================
+-- Migration — "quotation and invoice feeds"
+--
+-- A quotation and an invoice are two renderings of one order, not two
+-- records: the only durable trace either leaves is a document_log row holding
+-- the total that was actually sent. The two list pages therefore feed off
+-- document_log, and they need exactly what document_log deliberately does not
+-- store — whose order it was and what the order was called.
+--
+-- Resolving that in the browser would mean holding every order and every
+-- customer in memory to render ten rows, and would reduce the search to a
+-- client filter over one loaded page instead of the whole history. So the
+-- join, the Jakarta calendar date, and the search haystack are resolved here,
+-- the same way fitting_log_feed does it for fitting sessions.
+--
+-- Moodboard rows share this table but are a different object — a Drive link
+-- and no total — and neither list route can render one, so they are excluded
+-- here rather than filtered by every caller.
+-- =========================================================================
+
+-- Newest-first paging across the whole history, with id as the same tie-break
+-- the cursor uses, so equal timestamps cannot reorder between pages. Every
+-- query filters kind first, so kind leads the index.
+create index if not exists document_log_kind_created_idx
+  on public.document_log (kind, created_at desc, id desc);
+
+drop view if exists public.document_feed;
+
+create view public.document_feed
+with (security_invoker = true) as
+with resolved as (
+  select
+    dl.id,
+    dl.order_id,
+    dl.kind,
+    dl.total,
+    dl.created_at,
+    o.customer_id,
+    c.name   as customer_name,
+    o.title  as order_title,
+    o.status as order_status,
+    -- Mirrors orderLabel() in app.js and the identical expression in
+    -- fitting_log_feed: a non-blank title wins, otherwise the first item name
+    -- plus a count of the rest, otherwise 'Empty order'.
+    case
+      when nullif(btrim(coalesce(o.title, '')), '') is not null then btrim(o.title)
+      when nullif(btrim(coalesce(o.items -> 0 ->> 'name', '')), '') is not null then
+        btrim(o.items -> 0 ->> 'name') ||
+        case when jsonb_array_length(o.items) > 1
+             then ' + ' || (jsonb_array_length(o.items) - 1)::text || ' more'
+             else '' end
+      else 'Empty order'
+    end as order_label,
+    -- The workshop's day, not UTC's: a document generated at 9am in Jakarta is
+    -- still the previous day in UTC.
+    (dl.created_at at time zone 'Asia/Jakarta')::date as issued_date
+  from public.document_log dl
+  join public.orders    o on o.id = dl.order_id
+  join public.customers c on c.id = o.customer_id
+  where dl.kind in ('quotation', 'invoice')
+)
+select
+  r.*,
+  lower(
+    coalesce(r.customer_name, '') || ' ' ||
+    coalesce(r.order_label, '')   || ' ' ||
+    to_char(r.issued_date, 'FMDD Mon YYYY')
+  ) as search_text
+from resolved r;
+
+-- security_invoker keeps every underlying table's own RLS in force, so this
+-- grants nobody a row they could not already read.
+grant select on public.document_feed to authenticated;

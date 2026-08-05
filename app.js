@@ -94,6 +94,7 @@ KK.app = (function () {
     custEditBtn: $("#custEditBtn"),
     custHeroName: $("#custHeroName"),
     custWeddingText: $("#custWeddingText"),
+    custNextBanner: $("#custNextBanner"),
     custNextLabel: $("#custNextLabel"),
     custNextDate: $("#custNextDate"),
     custOrdersCount: $("#custOrdersCount"),
@@ -267,7 +268,50 @@ KK.app = (function () {
     mbExportStatus: $("#mbExportStatus"),
     mbOverlay: $("#mbOverlay"),
     mbOverlayCanvas: $("#mbOverlayCanvas"),
-    mbOverlayClose: $("#mbOverlayClose")
+    mbOverlayClose: $("#mbOverlayClose"),
+    viewSchedules: $("#viewSchedules"),
+    schedcalBackBtn: $("#schedcalBackBtn"),
+    schedcalTodayBtn: $("#schedcalTodayBtn"),
+    schedcalTitle: $("#schedcalTitle"),
+    schedcalPrev: $("#schedcalPrev"),
+    schedcalNext: $("#schedcalNext"),
+    schedcalMonthLabel: $("#schedcalMonthLabel"),
+    schedcalApprox: $("#schedcalApprox"),
+    schedcalBody: $("#schedcalBody"),
+    schedcalGrid: $("#schedcalGrid"),
+    schedcalWeeks: $("#schedcalWeeks"),
+    schedcalState: $("#schedcalState"),
+    schedcalLegend: $("#schedcalLegend"),
+    schedcalStatus: $("#schedcalStatus"),
+    schedcalSheet: $("#schedcalSheet"),
+    schedcalSheetBackdrop: $("#schedcalSheetBackdrop"),
+    schedcalSheetTitle: $("#schedcalSheetTitle"),
+    schedcalSheetList: $("#schedcalSheetList"),
+    schedcalSheetClose: $("#schedcalSheetClose"),
+    viewDocuments: $("#viewDocuments"),
+    doclistBackBtn: $("#doclistBackBtn"),
+    doclistBackLabel: $("#doclistBackLabel"),
+    doclistNewBtn: $("#doclistNewBtn"),
+    doclistTitle: $("#doclistTitle"),
+    doclistSearchSection: $("#doclistSearchSection"),
+    doclistSearch: $("#doclistSearch"),
+    doclistSearchClear: $("#doclistSearchClear"),
+    doclistFeed: $("#doclistFeed"),
+    doclistList: $("#doclistList"),
+    doclistState: $("#doclistState"),
+    doclistSentinel: $("#doclistSentinel"),
+    doclistStatus: $("#doclistStatus"),
+    docnewSheet: $("#docnewSheet"),
+    docnewBackdrop: $("#docnewBackdrop"),
+    docnewTitle: $("#docnewTitle"),
+    docnewHint: $("#docnewHint"),
+    docnewSearch: $("#docnewSearch"),
+    docnewList: $("#docnewList"),
+    docnewBack: $("#docnewBack"),
+    docnewCancel: $("#docnewCancel"),
+    docnewStatus: $("#docnewStatus"),
+    custQuotationBanner: $("#custQuotationBanner"),
+    custInvoiceBanner: $("#custInvoiceBanner")
   };
 
   const docButtons = {
@@ -394,6 +438,63 @@ KK.app = (function () {
       sectionErrors: {},
       paymentBusy: false,
       documentBusy: null
+    },
+    /* The calendar joins four sources in the browser. That joined index is
+       expensive enough to build that paging months must not rebuild it, and
+       stale enough after any write that it is dropped on leaving the route.
+       Separate from state.overview because that join is per-customer and this
+       one is per-day. */
+    schedules: {
+      phase: "idle", // idle | loading | ready | error
+      loadToken: 0,
+      cursor: { year: 0, month: 0 }, // month on screen; month is 0-based
+      focusedDate: "", // ISO of the cell holding tabindex="0"
+      openDate: "", // ISO of the day whose sheet is open, "" when closed
+      sheetReturn: null, // element focus returns to when the sheet closes
+      items: [], // one entry per calendar object, all four sources
+      byDay: null, // Map<isoDate, item[]>, rebuilt only on a data load
+      approximate: [], // month-precision weddings, named above the grid
+      lastStatus: "",
+      error: null
+    },
+    /* Quotations and invoices are one page parameterised by kind: the route
+       sets it, the feed filters on it, and nothing else about the page differs.
+       One island rather than two, because two would guarantee they drift. */
+    documents: {
+      kind: "quotation", // quotation | invoice
+      phase: "idle", // idle | initial-loading | ready | initial-error
+      items: [],
+      query: "",
+      customerSeed: null,
+      nextCursor: null,
+      hasMore: true,
+      loadingMore: false,
+      loadMoreError: null,
+      requestToken: 0,
+      renderedToken: -1,
+      observer: null,
+      searchTimer: null,
+      alignPending: false,
+      errorAnnounced: false,
+      lastStatus: "",
+      retainHash: "",
+      retainScroll: 0,
+      /* The create flow. Nothing is written until Generate, and state.order is
+         deliberately left alone so a picker that never opened the order page
+         cannot corrupt what that page is showing. */
+      picker: {
+        open: false,
+        step: "customer", // customer | order
+        customers: null,
+        customerId: null,
+        customer: null,
+        orders: null,
+        query: "",
+        loading: false,
+        generating: false,
+        error: null,
+        returnEl: null
+      }
     }
   };
 
@@ -480,6 +581,8 @@ KK.app = (function () {
     document.body.classList.toggle("is-moodboardpage", !!cfg.moodboardpage);
     document.body.classList.toggle("is-fittinglogspage", !!cfg.fittinglogspage);
     document.body.classList.toggle("is-fitdetailpage", !!cfg.fitdetailpage);
+    document.body.classList.toggle("is-schedulespage", !!cfg.schedulespage);
+    document.body.classList.toggle("is-doclistpage", !!cfg.doclistpage);
 
     elements.viewSub.innerHTML = cfg.sub || "";
     elements.viewSub.hidden = !cfg.sub;
@@ -561,7 +664,8 @@ KK.app = (function () {
      inset and reports its own load failure, so the generic route loader would
      only be a second, differently-shaped wait on top of it. */
   const routeHasOwnLoader = (r) =>
-    "customers" === r.view || "order" === r.view || "fittingLogs" === r.view || "fittingPhotoAdd" === r.view;
+    "customers" === r.view || "order" === r.view || "fittingLogs" === r.view ||
+    "fittingPhotoAdd" === r.view || "schedules" === r.view || "documents" === r.view;
   const routeLoaderKind = (r) =>
     "fittingLogDetail" === r.view
       ? "fitdet"
@@ -652,6 +756,10 @@ KK.app = (function () {
         ? elements.mbTitle
         : "moodboardPreview" === r.view
         ? elements.mbCanvasBack
+        : "schedules" === r.view
+        ? elements.schedcalTitle
+        : "documents" === r.view
+        ? elements.doclistTitle
         : "fittingLogs" === r.view
         ? elements.fitlogTitle
         : "fittingLogDetail" === r.view
@@ -678,10 +786,19 @@ KK.app = (function () {
     return orderRecord.final_payment_date ? "Delivered" : statusVal;
   }
 
+  /* Status only ever moves forward: re-issuing a quotation for an order that is
+     already Confirmed must not demote it back to Quoted. Extracted from
+     bumpStatus so the document picker — which issues documents for an order the
+     order page is not showing — can apply the same rule without touching that
+     page's chrome. */
+  function advancedStatus(current, target) {
+    const prevIdx = ORDER_STATUSES.indexOf(current);
+    const nextIdx = ORDER_STATUSES.indexOf(target);
+    return nextIdx > prevIdx ? target : prevIdx === -1 ? ORDER_STATUSES[0] : current;
+  }
+
   async function bumpStatus(newStatus) {
-    const prevIdx = ORDER_STATUSES.indexOf(state.order.status);
-    const nextIdx = ORDER_STATUSES.indexOf(newStatus);
-    const targetStatus = nextIdx > prevIdx ? newStatus : prevIdx === -1 ? ORDER_STATUSES[0] : state.order.status;
+    const targetStatus = advancedStatus(state.order.status, newStatus);
 
     if (targetStatus !== state.order.status) {
       try {
@@ -895,6 +1012,18 @@ KK.app = (function () {
       if ("fittings" === segments[0]) {
         return { view: "fittingLogs", query };
       }
+      // Not "#/calendar" — that name already belongs to the Google Calendar
+      // connection settings, which is a different page about a different thing.
+      if ("schedules" === segments[0]) {
+        return { view: "schedules", query };
+      }
+      // One view, two routes: the kind is the only thing that differs.
+      if ("quotations" === segments[0]) {
+        return { view: "documents", kind: "quotation", query };
+      }
+      if ("invoices" === segments[0]) {
+        return { view: "documents", kind: "invoice", query };
+      }
       if ("calendar" === segments[0]) {
         return { view: "calendar", query };
       }
@@ -950,6 +1079,8 @@ KK.app = (function () {
     elements.viewFittingPhotoAdd.hidden = "fittingPhotoAdd" !== targetRoute.view;
     elements.viewCalendar.hidden = "calendar" !== targetRoute.view;
     elements.viewEnquiry.hidden = "enquiry" !== targetRoute.view;
+    elements.viewSchedules.hidden = "schedules" !== targetRoute.view;
+    elements.viewDocuments.hidden = "documents" !== targetRoute.view;
 
     // Leaving the feed must take its observer, debounce, and in-flight page
     // tokens with it, or a late response can render into a hidden view. Moving
@@ -976,6 +1107,20 @@ KK.app = (function () {
       elements.fitdetBar.hidden = true;
       document.body.classList.remove("has-fitdet-bar");
     }
+    // The calendar has no cursor and no scroll depth worth restoring, and its
+    // data is a snapshot that must not survive a write, so it tears down rather
+    // than parking. Only the month on screen is retained.
+    if (prevRoute && "schedules" === prevRoute.view && "schedules" !== targetRoute.view) {
+      cleanupSchedules();
+    }
+    /* The document feed has no route family — a row goes to the order and Back
+       comes straight here. That one hop is worth keeping the list, cursor and
+       offset alive for; every other exit is an ordinary teardown. */
+    if (prevRoute && "documents" === prevRoute.view && "documents" !== targetRoute.view) {
+      if ("order" === targetRoute.view) parkDocuments();
+      else cleanupDocuments();
+    }
+    if ("documents" !== targetRoute.view) closeDocumentPicker();
     if ("fittingPhotoEdit" !== targetRoute.view) {
       elements.fiteditBar.hidden = true;
       document.body.classList.remove("has-fitedit-bar");
@@ -1154,6 +1299,10 @@ KK.app = (function () {
       } else if ("fittingJournal" === targetRoute.view) {
         // Old order-scoped bookmarks join the canonical detail route.
         return go("#/fittings/" + encodeURIComponent(targetRoute.sessionId) + "?source=order");
+      } else if ("schedules" === targetRoute.view) {
+        await showSchedules(targetRoute.query);
+      } else if ("documents" === targetRoute.view) {
+        await showDocuments(targetRoute.kind, targetRoute.query);
       } else if ("fittingLogs" === targetRoute.view) {
         await showFittingLogs(targetRoute.query);
       } else if ("fittingLogDetail" === targetRoute.view) {
@@ -1464,15 +1613,16 @@ KK.app = (function () {
     if (target) {
       target.classList.add("is-pressed");
       if (target.matches(".home-action")) hapticTap();
-      if (target.matches(".home-action,.home-alert,.home-nav-btn") && !target.matches(".home-action--fitting")) e.preventDefault();
+      if (target.matches(".home-action,.home-alert,.home-nav-btn") && !target.matches("a.home-action")) e.preventDefault();
     }
   });
 
   window.addEventListener("keyup", clearHomepagePresses);
-  // Fitting is the one shortcut that leads somewhere; its unfinished siblings
-  // stay inert.
+  /* A shortcut leads somewhere iff it is an <a>. Naming the live one instead
+     would mean editing this line every time another is finished; as written it
+     maintains itself. Enquiries is the last one still inert. */
   elements.homeReady.addEventListener("click", (e) => {
-    if (e.target.closest(".home-action,.home-alert") && !e.target.closest(".home-action--fitting")) e.preventDefault();
+    if (e.target.closest(".home-action,.home-alert") && !e.target.closest("a.home-action")) e.preventDefault();
   });
 
   elements.viewCustomer.addEventListener("pointerdown", (e) => {
@@ -1485,8 +1635,22 @@ KK.app = (function () {
     const target = e.target.closest(".cust-banner,.cust-nav-btn,.cust-order-card");
     if (target) {
       target.classList.add("is-pressed");
-      if (target.matches(".cust-banner") && !target.matches(".cust-banner--fittings")) e.preventDefault();
+      if (target.matches(".cust-banner") && !target.matches("a.cust-banner")) e.preventDefault();
     }
+  });
+
+  elements.viewSchedules.addEventListener("pointerdown", (e) => {
+    const target = e.target.closest(".cust-nav-btn,.schedcal-nav-btn,.schedcal-day,.schedcal-panel__retry");
+    if (target) {
+      target.classList.add("is-pressed");
+      if (target.matches(".schedcal-nav-btn")) hapticTap();
+    }
+  });
+
+  elements.viewSchedules.addEventListener("keydown", (e) => {
+    if (" " !== e.key && "Enter" !== e.key) return;
+    const target = e.target.closest(".cust-nav-btn,.schedcal-nav-btn,.schedcal-day,.schedcal-panel__retry");
+    if (target) target.classList.add("is-pressed");
   });
 
   window.addEventListener("scroll", () => {
@@ -1494,14 +1658,17 @@ KK.app = (function () {
         document.body.classList.contains("is-custeditpage") ||
         document.body.classList.contains("is-orderpage") ||
         document.body.classList.contains("is-moodboardpage") ||
+        document.body.classList.contains("is-schedulespage") ||
+        document.body.classList.contains("is-doclistpage") ||
         document.body.classList.contains("is-fittinglogspage")) {
       clearHomepagePresses();
     }
   }, { passive: true });
 
-  // Same rule on the customer page: only the Fitting logs banner navigates.
+  // Same self-maintaining rule on the customer page: a banner navigates iff it
+  // is an <a>.
   elements.viewCustomer.addEventListener("click", (e) => {
-    if (e.target.closest(".cust-banner") && !e.target.closest(".cust-banner--fittings")) e.preventDefault();
+    if (e.target.closest(".cust-banner") && !e.target.closest("a.cust-banner")) e.preventDefault();
   });
 
   elements.viewOrder.addEventListener("pointerdown", (e) => {
@@ -1551,6 +1718,633 @@ KK.app = (function () {
   elements.saveBtn.addEventListener("pointerdown", () => {
     if (document.body.classList.contains("is-custeditpage")) elements.saveBtn.classList.add("is-pressed");
   });
+
+  /* ------------------------- Schedules calendar ------------------------- */
+
+  /* One month of everything the studio has committed to, joined in the browser
+     from the four places dates are stored: order_events, wedding dates,
+     follow-ups, and logged payments. It sits beside the homepage rather than
+     the fitting feed because it reads the same three tables the homepage
+     already reads on every visit.
+
+     The whole working set is loaded once per visit and every month change is
+     computed locally, so paging costs no request. That is affordable because
+     order_events caps at seven rows per order — see the note on
+     db.listAllOrderEvents for the point at which it stops being. */
+
+  const SCHEDULE_LANES = 3;
+  const SCHEDULE_MONTH_PATTERN = /^\d{4}-\d{2}$/;
+
+  const sched = () => state.schedules;
+  const isSchedulesRoute = () => !!state.route && "schedules" === state.route.view;
+
+  function beginSchedulesLoad() {
+    const sc = sched();
+    sc.loadToken += 1;
+    return sc.loadToken;
+  }
+
+  const isCurrentSchedulesLoad = (token) => isSchedulesRoute() && sched().loadToken === token;
+
+  /* The five production stages already own a colour; the two design rows share
+     one. Nothing here is a hex — the token block in pages.css holds those. */
+  const scheduleStageColorKey = (stage) => U.fittingStage(stage).key || "design";
+
+  const scheduleSpanLabel = (item) =>
+    item.start === item.end
+      ? U.formatShortDate(item.start)
+      : U.formatShortDate(item.start) + " – " + U.formatShortDate(item.end);
+
+  /* Where a tapped appointment goes. Only the five production stages can own a
+     fitting log — fitting_sessions.stage is constrained to them, and the
+     #/order/:id/fitting/new route rejects anything else — so the two design
+     rows and every point event land on the record they belong to instead. */
+  function scheduleItemHref(item) {
+    if ("stage" === item.kind && calendar.PRODUCTION_STAGES.indexOf(item.stage) !== -1) {
+      /* source=order, not a third value: showFittingLogDetail treats source as
+         strictly binary, and "feed" would send Back to the fitting-log feed,
+         which is not where you came from. You tapped a fitting belonging to an
+         order, so Back belongs on that order. Adding a real "schedules" origin
+         means touching all five coupled decision points — the back-href writes
+         at 2613 and 2647, the detail bridge at 2570, and the editor and
+         add-photo entries at 2831 and 3828. */
+      return item.sessionId
+        ? "#/fittings/" + encodeURIComponent(item.sessionId) + "?source=order"
+        : "#/order/" + encodeURIComponent(item.orderId) + "/fitting/new?stage=" + encodeURIComponent(item.stage);
+    }
+    if ("wedding" === item.kind || "follow-up" === item.kind) {
+      return "#/customer/" + encodeURIComponent(item.customerId);
+    }
+    return "#/order/" + encodeURIComponent(item.orderId);
+  }
+
+  const SCHEDULE_PAYMENT_FIELDS = [
+    { field: "first_payment_date", label: "First payment" },
+    { field: "second_payment_date", label: "Production payment" },
+    { field: "final_payment_date", label: "Final payment" }
+  ];
+
+  /* One flat, normalised list from four differently-shaped sources, so that
+     everything downstream — indexing, lanes, cells, the day sheet — handles a
+     single kind of object. Approximate weddings are separated out here rather
+     than filtered at every use. */
+  function buildScheduleItems(customers, orders, events, sessions) {
+    const customersById = {};
+    (customers || []).forEach((c) => { customersById[c.id] = c; });
+    const ordersById = {};
+    (orders || []).forEach((o) => { ordersById[o.id] = o; });
+    const sessionByOrderStage = {};
+    (sessions || []).forEach((s) => { sessionByOrderStage[s.order_id + "|" + s.stage] = s; });
+
+    const items = [];
+    const approximate = [];
+
+    const push = (item) => {
+      const span = calendar.eventSpan(item.stage, item.date, item.endDate);
+      if (!span) return;
+      items.push({
+        key: item.key,
+        kind: item.kind,
+        stage: item.stage || "",
+        colorKey: item.colorKey,
+        label: item.label,
+        start: span.start,
+        end: span.end,
+        isBand: "stage" === item.kind,
+        pinned: !!item.pinned,
+        customerId: item.customerId || "",
+        customerName: item.customerName || "",
+        orderId: item.orderId || "",
+        orderLabel: item.orderLabel || "",
+        sessionId: item.sessionId || ""
+      });
+    };
+
+    (events || []).forEach((evt) => {
+      const order = ordersById[evt.order_id];
+      if (!order) return; // an event whose order has gone is not a thing to draw
+      const customer = customersById[order.customer_id];
+      if (!customer) return;
+      const session = sessionByOrderStage[evt.order_id + "|" + evt.stage];
+      push({
+        key: "stage:" + evt.id,
+        kind: "stage",
+        stage: evt.stage,
+        colorKey: scheduleStageColorKey(evt.stage),
+        label: U.fittingStage(evt.stage).label,
+        date: evt.event_date,
+        endDate: evt.end_date,
+        pinned: evt.pinned,
+        customerId: customer.id,
+        customerName: customer.name,
+        orderId: order.id,
+        orderLabel: orderLabel(order),
+        sessionId: session ? session.id : ""
+      });
+    });
+
+    (customers || []).forEach((cust) => {
+      if (cust.cancelled_at) return;
+      if (cust.wedding_date) {
+        // Stored as the last day of the month when only the month is known, so
+        // drawing it on a cell would put a real commitment on a made-up day.
+        if (isApproximateWedding(cust)) {
+          approximate.push({ id: cust.id, name: cust.name, date: cust.wedding_date });
+        } else {
+          push({
+            key: "wedding:" + cust.id,
+            kind: "wedding",
+            colorKey: "wedding",
+            label: "Wedding",
+            date: cust.wedding_date,
+            customerId: cust.id,
+            customerName: cust.name
+          });
+        }
+      }
+      if (cust.follow_up_date) {
+        push({
+          key: "followup:" + cust.id,
+          kind: "follow-up",
+          colorKey: "follow-up",
+          label: cust.follow_up_label || "Follow up",
+          date: cust.follow_up_date,
+          customerId: cust.id,
+          customerName: cust.name
+        });
+      }
+    });
+
+    (orders || []).forEach((order) => {
+      const customer = customersById[order.customer_id];
+      if (!customer || customer.cancelled_at) return;
+      SCHEDULE_PAYMENT_FIELDS.forEach((entry, index) => {
+        if (!order[entry.field]) return;
+        push({
+          key: "payment:" + order.id + ":" + index,
+          kind: "payment",
+          colorKey: "payment",
+          label: entry.label,
+          date: order[entry.field],
+          customerId: customer.id,
+          customerName: customer.name,
+          orderId: order.id,
+          orderLabel: orderLabel(order)
+        });
+      });
+    });
+
+    return { items, approximate };
+  }
+
+  /* Every day an item covers points at that item, so a cell never has to scan
+     the whole list. Built once per data load, not per month. */
+  function indexScheduleItems(items) {
+    const byDay = new Map();
+    (items || []).forEach((item) => {
+      const startDay = calendar.toDay(item.start);
+      const endDay = calendar.toDay(item.end);
+      if (startDay === null || endDay === null) return;
+      for (let day = startDay; day <= endDay; day++) {
+        const iso = calendar.fromDay(day);
+        const bucket = byDay.get(iso);
+        if (bucket) bucket.push(item);
+        else byDay.set(iso, [item]);
+      }
+    });
+    byDay.forEach((bucket) => {
+      bucket.sort((a, b) => {
+        const orderA = calendar.stageOrder(a.stage);
+        const orderB = calendar.stageOrder(b.stage);
+        if (orderA !== orderB) return orderA - orderB;
+        return a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
+      });
+    });
+    return byDay;
+  }
+
+  const scheduleDayItems = (iso) => {
+    const sc = sched();
+    return (sc.byDay && sc.byDay.get(iso)) || [];
+  };
+
+  /* -------------------------- Calendar rendering ------------------------- */
+
+  function schedcalPanelHtml(title, copyHtml, extraAttr, actionHtml) {
+    return '<div class="schedcal-panel"' + (extraAttr || '') + '>' +
+      '<p class="schedcal-panel__title">' + U.escapeHtml(title) + '</p>' +
+      '<p class="schedcal-panel__copy">' + copyHtml + '</p>' +
+      (actionHtml || '') +
+    '</div>';
+  }
+
+  function schedcalStateHtml() {
+    const sc = sched();
+    if ("error" === sc.phase) {
+      return schedcalPanelHtml(
+        "Couldn't load schedules",
+        "Check your connection and try again.",
+        ' role="alert"',
+        '<button type="button" class="schedcal-panel__retry js-schedcal-retry">Try again</button>'
+      );
+    }
+    if ("ready" === sc.phase && !sc.items.length) {
+      return schedcalPanelHtml(
+        "Nothing scheduled yet",
+        "Appointments appear here once an order has its payment dates and a wedding date to work back from."
+      );
+    }
+    return '';
+  }
+
+  /* One day. A single <button role="gridcell"> rather than a div wrapping a
+     button: one target, nothing focusable inside it. */
+  function schedcalCellHtml(cell, laneByKey, todayIso, focusedIso, openIso) {
+    const items = cell.inMonth ? scheduleDayItems(cell.iso) : [];
+    const bands = items.filter((item) => item.isBand);
+    const points = items.filter((item) => !item.isBand && "wedding" !== item.kind);
+    const isWedding = items.some((item) => "wedding" === item.kind);
+
+    const slots = new Array(SCHEDULE_LANES).fill(null);
+    let overflow = false;
+    bands.forEach((band) => {
+      const lane = laneByKey.get(band.key);
+      if (lane === undefined || lane >= SCHEDULE_LANES || slots[lane]) {
+        overflow = true;
+        return;
+      }
+      slots[lane] = band;
+    });
+    // The truth never disappears — it moves to the label and the day sheet.
+    if (overflow) slots[SCHEDULE_LANES - 1] = { colorKey: "more", key: "more" };
+
+    const stripsHtml = slots.map((slot) =>
+      slot
+        ? '<i class="schedcal-strip schedcal-strip--' + U.escapeHtml(slot.colorKey) + '"></i>'
+        : '<i class="schedcal-strip"></i>'
+    ).join('');
+
+    const dotsHtml = points.slice(0, 2).map((item, index) =>
+      '<i class="schedcal-dot schedcal-dot--' +
+        U.escapeHtml(points.length > 2 && 1 === index ? "more" : item.colorKey) + '"></i>'
+    ).join('');
+
+    const weekdayName = calendar.WEEKDAYS[calendar.weekdayIndex(cell.iso)] || "";
+    const monthName = U.MONTHS[Number(cell.iso.slice(5, 7)) - 1] || "";
+    const label = cell.inMonth
+      ? weekdayName + " " + cell.day + " " + monthName + " " + cell.iso.slice(0, 4) + ", " +
+        (items.length ? items.length + (1 === items.length ? " event" : " events") : "nothing scheduled")
+      : weekdayName + " " + cell.day + " " + monthName + " " + cell.iso.slice(0, 4) + ", not in this month";
+
+    const classes = ["schedcal-day"];
+    if (!cell.inMonth) classes.push("schedcal-day--outside");
+    if (isWedding) classes.push("schedcal-day--wedding");
+    if (cell.iso === todayIso) classes.push("schedcal-day--today");
+
+    return '<button type="button" role="gridcell" class="' + classes.join(" ") + '"' +
+      ' data-date="' + U.escapeHtml(cell.iso) + '"' +
+      ' tabindex="' + (cell.iso === focusedIso ? "0" : "-1") + '"' +
+      (cell.iso === todayIso ? ' aria-current="date"' : '') +
+      (cell.iso === openIso ? ' aria-selected="true"' : '') +
+      ' aria-label="' + U.escapeHtml(label) + '">' +
+      '<span class="schedcal-day__top">' +
+        '<span class="schedcal-day__num">' + cell.day + '</span>' +
+        '<span class="schedcal-day__dots" aria-hidden="true">' + dotsHtml + '</span>' +
+      '</span>' +
+      '<span class="schedcal-day__strips" aria-hidden="true">' + stripsHtml + '</span>' +
+    '</button>';
+  }
+
+  function schedcalSkeletonHtml() {
+    let html = '';
+    for (let week = 0; week < 6; week++) {
+      let cells = '';
+      for (let day = 0; day < 7; day++) {
+        cells += '<div class="schedcal-day schedcal-day--skel" aria-hidden="true">' +
+          '<span class="schedcal-day__top"><span class="schedcal-day__num"><i class="schedcal-skel__block" style="width:14px;height:13px"></i></span></span>' +
+          '<span class="schedcal-day__strips"><i class="schedcal-strip"></i><i class="schedcal-strip"></i><i class="schedcal-strip"></i></span>' +
+        '</div>';
+      }
+      html += '<div class="schedcal-week" role="row">' + cells + '</div>';
+    }
+    return html;
+  }
+
+  function renderScheduleApprox() {
+    const sc = sched();
+    const cursorMonth = sc.cursor.year + "-" + String(sc.cursor.month + 1).padStart(2, "0");
+    const thisMonth = sc.approximate.filter((entry) => entry.date.slice(0, 7) === cursorMonth);
+
+    elements.schedcalApprox.hidden = !thisMonth.length;
+    if (!thisMonth.length) {
+      elements.schedcalApprox.innerHTML = '';
+      return;
+    }
+    const names = thisMonth.map((entry) => U.escapeHtml(entry.name)).join(", ");
+    elements.schedcalApprox.innerHTML =
+      '<span class="schedcal-approx__tag">Approximate</span>' +
+      '<span class="schedcal-approx__copy">' +
+        (1 === thisMonth.length ? "1 wedding" : thisMonth.length + " weddings") +
+        ' this month with the day still unconfirmed: <b>' + names + '</b>.</span>';
+  }
+
+  function renderScheduleLegend() {
+    const sc = sched();
+    const cursorMonth = sc.cursor.year + "-" + String(sc.cursor.month + 1).padStart(2, "0");
+    const present = [];
+    sc.items.forEach((item) => {
+      if (item.start.slice(0, 7) !== cursorMonth && item.end.slice(0, 7) !== cursorMonth) return;
+      if (present.some((entry) => entry.colorKey === item.colorKey)) return;
+      present.push({ colorKey: item.colorKey, label: "stage" === item.kind ? item.label : item.kind });
+    });
+    elements.schedcalLegend.innerHTML = present.map((entry) =>
+      '<span class="schedcal-legend__item">' +
+        '<i class="schedcal-legend__swatch schedcal-legend__swatch--' + U.escapeHtml(entry.colorKey) + '"></i>' +
+        '<span>' + U.escapeHtml("follow-up" === entry.label ? "Follow up" :
+          "payment" === entry.label ? "Payment" : "wedding" === entry.label ? "Wedding" : entry.label) + '</span>' +
+      '</span>'
+    ).join('');
+  }
+
+  function renderSchedulesMonth() {
+    const sc = sched();
+    const grid = calendar.monthGrid(sc.cursor.year, sc.cursor.month);
+    if (!grid) return;
+
+    elements.schedcalMonthLabel.textContent = U.MONTHS[sc.cursor.month] + " " + sc.cursor.year;
+    elements.schedcalBody.setAttribute("aria-busy", "loading" === sc.phase ? "true" : "false");
+
+    if ("loading" === sc.phase) {
+      elements.schedcalWeeks.innerHTML = schedcalSkeletonHtml();
+      elements.schedcalState.innerHTML = '';
+      elements.schedcalApprox.hidden = true;
+      elements.schedcalLegend.innerHTML = '';
+      return;
+    }
+
+    /* Lanes are assigned across the whole visible window, not per week: a band
+       only reads as one continuous bar if every cell it touches agrees on which
+       row to draw it in, and a Monday-first grid puts a planned fitting week on
+       exactly one row. */
+    const windowStart = calendar.toDay(grid.days[0].iso);
+    const windowEnd = calendar.toDay(grid.days[41].iso);
+    const visibleBands = sc.items.filter((item) =>
+      item.isBand && calendar.toDay(item.end) >= windowStart && calendar.toDay(item.start) <= windowEnd);
+    const lanes = calendar.assignLanes(visibleBands);
+    const laneByKey = new Map();
+    visibleBands.forEach((band, index) => { laneByKey.set(band.key, lanes[index]); });
+
+    if (!sc.focusedDate || sc.focusedDate.slice(0, 7) !== grid.start.slice(0, 7)) {
+      const today = U.todayISO();
+      sc.focusedDate = today.slice(0, 7) === grid.start.slice(0, 7) ? today : grid.start;
+    }
+
+    const todayIso = U.todayISO();
+    let html = '';
+    for (let week = 0; week < 6; week++) {
+      const cells = grid.days.slice(week * 7, week * 7 + 7)
+        .map((cell) => schedcalCellHtml(cell, laneByKey, todayIso, sc.focusedDate, sc.openDate))
+        .join('');
+      html += '<div class="schedcal-week" role="row">' + cells + '</div>';
+    }
+    elements.schedcalWeeks.innerHTML = html;
+    elements.schedcalState.innerHTML = schedcalStateHtml();
+    renderScheduleApprox();
+    renderScheduleLegend();
+  }
+
+  function announceSchedulesStatus(text) {
+    const sc = sched();
+    if (sc.lastStatus === text) return;
+    sc.lastStatus = text;
+    elements.schedcalStatus.textContent = text;
+  }
+
+  function scheduleCellFor(iso) {
+    return elements.schedcalWeeks.querySelector('[data-date="' + iso + '"]');
+  }
+
+  /* Moves the single tab stop. A month change rewrites all 42 cells, so focus
+     has to be re-applied after the write, in the same synchronous turn. */
+  function focusScheduleCell(iso) {
+    const sc = sched();
+    const previous = sc.focusedDate && scheduleCellFor(sc.focusedDate);
+    if (previous) previous.tabIndex = -1;
+    sc.focusedDate = iso;
+    const target = scheduleCellFor(iso);
+    if (target) {
+      target.tabIndex = 0;
+      target.focus({ preventScroll: true });
+    }
+  }
+
+  function goToMonth(year, month, focusIso) {
+    const sc = sched();
+    sc.cursor = { year, month };
+    sc.focusedDate = focusIso || "";
+    renderSchedulesMonth();
+    announceSchedulesStatus(U.MONTHS[month] + " " + year);
+    if (focusIso) focusScheduleCell(focusIso);
+  }
+
+  function shiftScheduleFocus(deltaDays) {
+    const sc = sched();
+    const day = calendar.toDay(sc.focusedDate);
+    if (day === null) return;
+    const targetIso = calendar.fromDay(day + deltaDays);
+    const targetMonth = Number(targetIso.slice(5, 7)) - 1;
+    const targetYear = Number(targetIso.slice(0, 4));
+    // Walking past the edge pages the month rather than dead-ending, and keeps
+    // focus on the day you actually asked for.
+    if (targetYear !== sc.cursor.year || targetMonth !== sc.cursor.month) {
+      goToMonth(targetYear, targetMonth, targetIso);
+      return;
+    }
+    focusScheduleCell(targetIso);
+  }
+
+  function shiftScheduleMonth(delta) {
+    const sc = sched();
+    const next = calendar.addMonths(sc.cursor.year, sc.cursor.month, delta);
+    const range = calendar.monthRange(next.year, next.month);
+    const focusedDay = Number(sc.focusedDate.slice(8, 10)) || 1;
+    const lastDay = Number(range.end.slice(8, 10));
+    const clamped = Math.min(focusedDay, lastDay);
+    goToMonth(next.year, next.month,
+      range.start.slice(0, 8) + String(clamped).padStart(2, "0"));
+  }
+
+  /* ----------------------------- The day sheet --------------------------- */
+
+  function renderScheduleSheet(iso) {
+    const items = scheduleDayItems(iso);
+    const weekdayName = calendar.WEEKDAYS[calendar.weekdayIndex(iso)] || "";
+    elements.schedcalSheetTitle.textContent = weekdayName + ", " + U.formatShortDate(iso);
+
+    if (!items.length) {
+      elements.schedcalSheetList.innerHTML =
+        '<li class="schedcal-sheet__empty">Nothing scheduled on this day.</li>';
+      return;
+    }
+
+    elements.schedcalSheetList.innerHTML = items.map((item) => {
+      const destination = "stage" === item.kind && calendar.PRODUCTION_STAGES.indexOf(item.stage) !== -1
+        ? (item.sessionId ? "open fitting log" : "start a fitting log")
+        : "wedding" === item.kind || "follow-up" === item.kind ? "open customer" : "open order";
+      const context = item.orderLabel || item.customerName;
+      const ariaLabel = [item.label, "for " + item.customerName, context, scheduleSpanLabel(item), destination]
+        .filter(Boolean).join(", ");
+
+      return '<li class="schedcal-sheet__row">' +
+        '<a class="schedcal-sheet__link schedcal-sheet__link--' + U.escapeHtml(item.colorKey) + '"' +
+          ' href="' + U.escapeHtml(scheduleItemHref(item)) + '"' +
+          ' aria-label="' + U.escapeHtml(ariaLabel) + '">' +
+          '<span class="schedcal-sheet__face">' +
+            '<span class="schedcal-sheet__lines">' +
+              '<span class="schedcal-sheet__who">' + U.escapeHtml(item.customerName) + '</span>' +
+              '<span class="schedcal-sheet__what">' + U.escapeHtml(item.label) +
+                (item.orderLabel ? ' · ' + U.escapeHtml(item.orderLabel) : '') + '</span>' +
+            '</span>' +
+            '<span class="schedcal-sheet__when">' + U.escapeHtml(scheduleSpanLabel(item)) + '</span>' +
+          '</span>' +
+          '<span class="schedcal-sheet__rail" aria-hidden="true"></span>' +
+        '</a>' +
+      '</li>';
+    }).join('');
+  }
+
+  function openScheduleDay(iso, returnEl) {
+    const sc = sched();
+    if (calendar.toDay(iso) === null) return;
+    sc.openDate = iso;
+    sc.sheetReturn = returnEl || document.activeElement;
+    renderScheduleSheet(iso);
+    elements.schedcalSheet.hidden = false;
+    document.body.classList.add("has-schedcal-sheet");
+    const cell = scheduleCellFor(iso);
+    if (cell) cell.setAttribute("aria-selected", "true");
+    /* Synchronously, not in a frame: preventScroll means there is no layout to
+       wait for, and a deferred focus simply never lands if the frame does not
+       come (a backgrounded tab). Opening a dialog must move focus, always. */
+    elements.schedcalSheetTitle.focus({ preventScroll: true });
+    const count = scheduleDayItems(iso).length;
+    announceSchedulesStatus(elements.schedcalSheetTitle.textContent + ", " +
+      (count ? count + (1 === count ? " event" : " events") : "nothing scheduled"));
+  }
+
+  function closeScheduleDay() {
+    const sc = sched();
+    if (!sc.openDate) return;
+    const cell = scheduleCellFor(sc.openDate);
+    if (cell) cell.removeAttribute("aria-selected");
+    const returnEl = sc.sheetReturn;
+    sc.openDate = "";
+    sc.sheetReturn = null;
+    elements.schedcalSheet.hidden = true;
+    document.body.classList.remove("has-schedcal-sheet");
+    if (returnEl && document.contains(returnEl)) returnEl.focus({ preventScroll: true });
+  }
+
+  /* --------------------------- Keyboard & lifecycle ---------------------- */
+
+  function handleSchedulesGridKey(e) {
+    const cell = e.target.closest(".schedcal-day");
+    if (!cell) return;
+
+    if ("ArrowLeft" === e.key) { e.preventDefault(); shiftScheduleFocus(-1); return; }
+    if ("ArrowRight" === e.key) { e.preventDefault(); shiftScheduleFocus(1); return; }
+    if ("ArrowUp" === e.key) { e.preventDefault(); shiftScheduleFocus(-7); return; }
+    if ("ArrowDown" === e.key) { e.preventDefault(); shiftScheduleFocus(7); return; }
+    if ("PageUp" === e.key) { e.preventDefault(); shiftScheduleMonth(-1); return; }
+    if ("PageDown" === e.key) { e.preventDefault(); shiftScheduleMonth(1); return; }
+
+    if ("Home" === e.key || "End" === e.key) {
+      e.preventDefault();
+      const day = calendar.toDay(sched().focusedDate);
+      if (day === null) return;
+      const monday = calendar.mondayOnOrBefore(day);
+      shiftScheduleFocus(("Home" === e.key ? monday : monday + 6) - day);
+      return;
+    }
+    if ("Enter" === e.key || " " === e.key) {
+      // Space would otherwise scroll the page out from under the grid.
+      e.preventDefault();
+      openScheduleDay(cell.dataset.date, cell);
+    }
+  }
+
+  function cleanupSchedules() {
+    const sc = sched();
+    closeScheduleDay();
+    sc.loadToken += 1;
+    sc.phase = "idle";
+    sc.items = [];
+    sc.byDay = null;
+    sc.approximate = [];
+    sc.focusedDate = "";
+    sc.lastStatus = "";
+    sc.error = null;
+    elements.schedcalWeeks.innerHTML = '';
+    elements.schedcalState.innerHTML = '';
+    elements.schedcalStatus.textContent = '';
+    // sc.cursor is kept on purpose: coming back should land on the month you
+    // left, and the data is refetched anyway so nothing can go stale.
+  }
+
+  async function showSchedules(queryParams) {
+    const sc = sched();
+    const params = queryParams || new URLSearchParams("");
+    setChrome({ title: "Schedules", up: null, save: false, schedulespage: true });
+
+    const focusParam = params.get("focus") || "";
+    const monthParam = params.get("month") || "";
+    const focusIso = calendar.toDay(focusParam) === null ? "" : focusParam;
+
+    if (focusIso) {
+      sc.cursor = { year: Number(focusIso.slice(0, 4)), month: Number(focusIso.slice(5, 7)) - 1 };
+    } else if (SCHEDULE_MONTH_PATTERN.test(monthParam) &&
+               calendar.toDay(monthParam + "-01") !== null) {
+      sc.cursor = { year: Number(monthParam.slice(0, 4)), month: Number(monthParam.slice(5, 7)) - 1 };
+    } else if (!sc.cursor.year) {
+      const today = U.todayISO();
+      sc.cursor = { year: Number(today.slice(0, 4)), month: Number(today.slice(5, 7)) - 1 };
+    }
+
+    // The grid paints before the request goes out, so the page never shows an
+    // empty frame and the swap to real data moves nothing.
+    sc.phase = "loading";
+    sc.focusedDate = "";
+    renderSchedulesMonth();
+
+    const token = beginSchedulesLoad();
+    let res;
+    try {
+      res = await Promise.all([
+        db.listCustomers(),
+        db.listAllOrders(),
+        db.listAllOrderEvents(),
+        db.listAllFittingSessions()
+      ]);
+    } catch (err) {
+      if (db.isStaleToken(err)) throw err;
+      if (!isCurrentSchedulesLoad(token)) return;
+      console.error(err);
+      sc.phase = "error";
+      sc.error = err;
+      renderSchedulesMonth();
+      return;
+    }
+    if (!isCurrentSchedulesLoad(token)) return;
+
+    const built = buildScheduleItems(res[0], res[1], res[2], res[3]);
+    sc.items = built.items;
+    sc.approximate = built.approximate;
+    sc.byDay = indexScheduleItems(built.items);
+    sc.phase = "ready";
+    renderSchedulesMonth();
+    announceSchedulesStatus(U.MONTHS[sc.cursor.month] + " " + sc.cursor.year);
+    if (focusIso) openScheduleDay(focusIso, null);
+  }
 
   /* ------------------------- Fitting logs feed -------------------------- */
 
@@ -1932,18 +2726,26 @@ KK.app = (function () {
      page would bury the search under the software keyboard. Here the field is
      scrolled to sit directly under the fixed navigation instead, measured from
      the nav's own box rather than assumed from a keyboard height. */
-  function alignFittingSearch() {
-    if (!isFittingRoute() || document.activeElement !== elements.fitlogSearch) return;
-    const nav = $(".cust-nav", elements.viewFittingLogs);
+  /* Generalised over the view rather than copied per page: the document feed
+     needs the identical correction, and a second copy would be a third by the
+     next ledger page. */
+  function alignLedgerSearch(viewEl, sectionEl, inputEl) {
+    if (document.activeElement !== inputEl) return;
+    const nav = $(".cust-nav", viewEl);
     if (!nav) return;
 
     const delta = Math.round(
-      elements.fitlogSearchSection.getBoundingClientRect().top -
+      sectionEl.getBoundingClientRect().top -
       nav.getBoundingClientRect().bottom -
       FITTING_SEARCH_GAP
     );
     if (Math.abs(delta) < 2) return;
     window.scrollBy({ top: delta, left: 0, behavior: reducedMotion() ? "auto" : "smooth" });
+  }
+
+  function alignFittingSearch() {
+    if (!isFittingRoute()) return;
+    alignLedgerSearch(elements.viewFittingLogs, elements.fitlogSearchSection, elements.fitlogSearch);
   }
 
   /* One correction per settle. The pending flag is what stops the scroll this
@@ -2135,6 +2937,773 @@ KK.app = (function () {
     elements.fitlogBackBtn.href = origin ? "#/customer/" + encodeURIComponent(origin.id) : "#/customers";
     elements.fitlogBackBtn.setAttribute("aria-label", "Back to " + label);
   }
+
+  /* ---------------------------- Document feed --------------------------- */
+
+  /* Quotations and invoices, one page and two routes. Structurally the fitting
+     feed — same append-only render, same cursor paging, same server-side
+     search, same shared state slot — because it is the same kind of object: a
+     read-only global list of records you can search and open.
+
+     What differs is what a record IS. A quotation is not stored; only the total
+     it was sent for is. So a row shows the logged number, never a recomputed
+     one, and opening a row goes to the order the document was rendered from. */
+
+  const DOCUMENT_SEARCH_DEBOUNCE_MS = 250;
+
+  const docFeed = () => state.documents;
+  const isDocumentsRoute = () => !!state.route && "documents" === state.route.view;
+
+  const documentKindName = (kind) => "invoice" === kind ? "Invoice" : "Quotation";
+  const documentKindPlural = (kind) => "invoice" === kind ? "Invoices" : "Quotations";
+  const documentRouteFor = (kind) => "invoice" === kind ? "#/invoices" : "#/quotations";
+
+  function documentBlockHtml(innerHtml) {
+    return '<div class="doclist-grid-rule" aria-hidden="true"></div>' +
+      '<div class="doclist-inset">' + innerHtml + '</div>' +
+      '<div class="doclist-grid-rule" aria-hidden="true"></div>' +
+      '<div class="doclist-grid-spacer" aria-hidden="true"></div>';
+  }
+
+  function documentCardHtml(item) {
+    const kindLabel = documentKindName(item.kind);
+    /* item.total, never docs.computeTotal(order.items). Nothing about a
+       document is snapshotted except this number, so recomputing it would let
+       an order edited afterwards silently rewrite what was already sent —
+       which is the exact thing the column exists to prevent. */
+    const hasTotal = item.total !== null && item.total !== undefined;
+    const amountLabel = hasTotal ? U.formatRupiah(item.total) : "—";
+    const dateLabel = U.formatShortDate(item.issued_date);
+
+    const label = [
+      item.customer_name,
+      item.order_label,
+      kindLabel,
+      dateLabel,
+      hasTotal ? amountLabel : "amount not recorded"
+    ].filter(Boolean).join(", ");
+
+    return '<a class="doclist-card-link" href="#/order/' + U.escapeHtml(encodeURIComponent(item.order_id)) +
+      '" aria-label="' + U.escapeHtml(label) + '">' +
+      '<article class="doclist-card doclist-card--' + U.escapeHtml(item.kind) + '">' +
+        '<div class="doclist-card__top">' +
+          '<div class="doclist-card__names">' +
+            '<span class="doclist-card__who">' + U.escapeHtml(item.customer_name) + '</span>' +
+            '<span class="doclist-card__order">' + U.escapeHtml(item.order_label) + '</span>' +
+          '</div>' +
+          '<span class="doclist-card__kind">' + U.escapeHtml(kindLabel) + '</span>' +
+        '</div>' +
+        '<div class="doclist-card__divider"></div>' +
+        '<div class="doclist-card__bottom">' +
+          '<span class="doclist-card__date">' + U.escapeHtml(dateLabel) + '</span>' +
+          '<span class="doclist-card__amount' + (hasTotal ? '' : ' doclist-card__amount--none') + '">' +
+            U.escapeHtml(amountLabel) + '</span>' +
+        '</div>' +
+      '</article>' +
+      '<span class="doclist-card__rail" aria-hidden="true"></span>' +
+    '</a>';
+  }
+
+  function documentSkeletonHtml() {
+    return '<div class="doclist-card doclist-skel" aria-hidden="true">' +
+      '<div class="doclist-card__top">' +
+        '<div class="doclist-card__names">' +
+          '<span class="doclist-skel__line"><i class="doclist-skel__block" style="width:48%;height:14px"></i></span>' +
+          '<span class="doclist-skel__line"><i class="doclist-skel__block" style="width:70%;height:14px"></i></span>' +
+        '</div>' +
+        '<span class="doclist-card__kind"><i class="doclist-skel__block" style="width:64px;height:14px;margin-left:auto"></i></span>' +
+      '</div>' +
+      '<div class="doclist-card__divider"></div>' +
+      '<div class="doclist-card__bottom">' +
+        '<span class="doclist-skel__line"><i class="doclist-skel__block" style="width:80px;height:14px"></i></span>' +
+        '<span class="doclist-skel__line"><i class="doclist-skel__block" style="width:104px;height:14px"></i></span>' +
+      '</div>' +
+    '</div>' +
+    '<span class="doclist-card__rail" aria-hidden="true"></span>';
+  }
+
+  function documentPanelHtml(title, copyHtml, extraAttr, actionHtml) {
+    return '<div class="doclist-panel"' + (extraAttr || '') + '>' +
+      '<p class="doclist-panel__title">' + U.escapeHtml(title) + '</p>' +
+      '<p class="doclist-panel__copy">' + copyHtml + '</p>' +
+      (actionHtml || '') +
+    '</div>';
+  }
+
+  /* Three cases, not the feed's four: there is no second filter axis here, so
+     no combination of query-and-filter to word separately. */
+  function documentEmptyHtml() {
+    const ds = docFeed();
+    const plural = documentKindPlural(ds.kind).toLowerCase();
+    const typed = ds.customerSeed ? ds.customerSeed.originalQuery : ds.query.trim();
+
+    if (ds.customerSeed && !typed) {
+      return documentPanelHtml("No " + plural + " yet",
+        "Documents generated for this customer will appear here.");
+    }
+    if (typed) {
+      return documentPanelHtml("Nothing matched your search",
+        "We couldn't find <b>" + U.escapeHtml(typed) + "</b>. Check the spelling or try another search.");
+    }
+    return documentPanelHtml("No " + plural + " yet",
+      documentKindPlural(ds.kind) + " you generate will appear here.");
+  }
+
+  function documentStateHtml() {
+    const ds = docFeed();
+    const plural = documentKindPlural(ds.kind).toLowerCase();
+
+    if ("initial-loading" === ds.phase) {
+      return documentBlockHtml(documentSkeletonHtml()) +
+        documentBlockHtml(documentSkeletonHtml()) +
+        documentBlockHtml(documentSkeletonHtml());
+    }
+    if ("initial-error" === ds.phase) {
+      return documentBlockHtml(documentPanelHtml(
+        "Couldn't load " + plural,
+        "Check your connection and try again.",
+        ds.errorAnnounced ? '' : ' role="alert"',
+        '<button type="button" class="doclist-panel__retry js-doclist-retry">Try again</button>'
+      ));
+    }
+    if (!ds.items.length) return documentBlockHtml(documentEmptyHtml());
+    if (ds.loadingMore) return documentBlockHtml(documentSkeletonHtml());
+    if (ds.loadMoreError) {
+      return documentBlockHtml(documentPanelHtml(
+        "Couldn't load more " + plural,
+        "Check your connection and try again.",
+        '',
+        '<button type="button" class="doclist-panel__retry js-doclist-retry-more">Try again</button>'
+      ));
+    }
+    return '';
+  }
+
+  function announceDocumentStatus(text) {
+    const ds = docFeed();
+    if (ds.lastStatus === text) return;
+    ds.lastStatus = text;
+    elements.doclistStatus.textContent = text;
+  }
+
+  function renderDocumentSearchClear() {
+    elements.doclistSearchClear.hidden = !elements.doclistSearch.value;
+  }
+
+  function renderDocumentFeed() {
+    const ds = docFeed();
+    const plural = documentKindPlural(ds.kind).toLowerCase();
+
+    if (ds.renderedToken !== ds.requestToken) {
+      elements.doclistList.innerHTML = "";
+      ds.renderedToken = ds.requestToken;
+    }
+    const rendered = elements.doclistList.children.length;
+    if (rendered < ds.items.length) {
+      elements.doclistList.insertAdjacentHTML("beforeend", ds.items.slice(rendered).map(
+        (item) => '<li class="doclist-record">' + documentBlockHtml(documentCardHtml(item)) + '</li>'
+      ).join(''));
+    }
+
+    elements.doclistState.innerHTML = documentStateHtml();
+    const busy = "initial-loading" === ds.phase || ds.loadingMore;
+    elements.doclistFeed.setAttribute("aria-busy", busy ? "true" : "false");
+    elements.doclistFeed.classList.toggle("doclist-feed--initial", "initial-loading" === ds.phase);
+
+    if ("initial-loading" === ds.phase) announceDocumentStatus("Loading " + plural);
+    else if ("initial-error" === ds.phase) announceDocumentStatus("");
+    else if (ds.loadingMore) announceDocumentStatus("Loading more " + plural);
+    else if (ds.items.length) {
+      announceDocumentStatus(ds.items.length + " " +
+        (1 === ds.items.length ? documentKindName(ds.kind).toLowerCase() : plural) + " found");
+    } else announceDocumentStatus("No " + plural + " matched");
+  }
+
+  function documentRequestArgs() {
+    const ds = docFeed();
+    return {
+      kind: ds.kind,
+      query: ds.customerSeed ? "" : ds.query,
+      customerId: ds.customerSeed ? ds.customerSeed.id : null,
+      limit: db.DOCUMENT_FEED_PAGE_SIZE
+    };
+  }
+
+  function ensureDocumentObserver() {
+    const ds = docFeed();
+    if (ds.observer || !ds.hasMore || !window.IntersectionObserver) return;
+    ds.observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) loadMoreDocuments();
+    }, { root: null, rootMargin: FITTING_SENTINEL_MARGIN, threshold: 0 });
+    ds.observer.observe(elements.doclistSentinel);
+  }
+
+  function stopDocumentObserver() {
+    const ds = docFeed();
+    if (ds.observer) {
+      ds.observer.disconnect();
+      ds.observer = null;
+    }
+  }
+
+  async function startDocumentFirstPage() {
+    const ds = docFeed();
+    const token = ++ds.requestToken;
+
+    ds.phase = "initial-loading";
+    ds.items = [];
+    ds.nextCursor = null;
+    ds.hasMore = true;
+    ds.loadingMore = false;
+    ds.loadMoreError = null;
+    stopDocumentObserver();
+    renderDocumentFeed();
+
+    try {
+      const page = await db.listDocumentFeed(documentRequestArgs());
+      if (token !== ds.requestToken || !isDocumentsRoute()) return;
+      ds.items = page.items;
+      ds.nextCursor = page.nextCursor;
+      ds.hasMore = page.hasMore;
+      ds.phase = "ready";
+    } catch (err) {
+      console.error(err);
+      if (token !== ds.requestToken || !isDocumentsRoute()) return;
+      ds.phase = "initial-error";
+    }
+
+    renderDocumentFeed();
+    if ("initial-error" === ds.phase) ds.errorAnnounced = true;
+    else ensureDocumentObserver();
+  }
+
+  async function loadMoreDocuments() {
+    const ds = docFeed();
+    if (!isDocumentsRoute() || "ready" !== ds.phase) return;
+    if (ds.loadingMore || !ds.hasMore || ds.loadMoreError || !ds.nextCursor) return;
+
+    const token = ds.requestToken;
+    ds.loadingMore = true;
+    renderDocumentFeed();
+
+    try {
+      const page = await db.listDocumentFeed(Object.assign(documentRequestArgs(), { before: ds.nextCursor }));
+      if (token !== ds.requestToken || !isDocumentsRoute()) return;
+
+      const seen = {};
+      ds.items.forEach((item) => { seen[item.id] = true; });
+      page.items.forEach((item) => {
+        if (!seen[item.id]) {
+          seen[item.id] = true;
+          ds.items.push(item);
+        }
+      });
+
+      ds.nextCursor = page.nextCursor;
+      ds.hasMore = page.hasMore;
+      ds.loadingMore = false;
+      if (!ds.hasMore) stopDocumentObserver();
+    } catch (err) {
+      console.error(err);
+      if (token !== ds.requestToken || !isDocumentsRoute()) return;
+      ds.loadingMore = false;
+      ds.loadMoreError = err;
+      stopDocumentObserver();
+    }
+    renderDocumentFeed();
+  }
+
+  function cleanupDocuments() {
+    const ds = docFeed();
+    stopDocumentObserver();
+    clearTimeout(ds.searchTimer);
+    ds.searchTimer = null;
+    ds.requestToken++;
+    ds.phase = "idle";
+    ds.items = [];
+    ds.loadingMore = false;
+    ds.loadMoreError = null;
+    ds.alignPending = false;
+    ds.lastStatus = "";
+    ds.retainHash = "";
+    ds.retainScroll = 0;
+    elements.doclistList.innerHTML = "";
+    ds.renderedToken = -1;
+  }
+
+  /* A row goes to the order, so there is no route family to belong to — only
+     the one hop out and straight back. That single case is worth keeping the
+     list alive for; anything else rebuilds. */
+  function parkDocuments() {
+    const ds = docFeed();
+    stopDocumentObserver();
+    clearTimeout(ds.searchTimer);
+    ds.searchTimer = null;
+    ds.alignPending = false;
+    ds.retainHash = "ready" === ds.phase && ds.items.length ? lastVisitedHash : "";
+  }
+
+  function alignDocumentSearch() {
+    if (!isDocumentsRoute()) return;
+    alignLedgerSearch(elements.viewDocuments, elements.doclistSearchSection, elements.doclistSearch);
+  }
+
+  function scheduleDocumentSearchAlign() {
+    const ds = docFeed();
+    if (ds.alignPending) return;
+    ds.alignPending = true;
+    requestAnimationFrame(() => setTimeout(() => {
+      ds.alignPending = false;
+      alignDocumentSearch();
+    }, 140));
+  }
+
+  function setDocumentBackControl(origin) {
+    const label = origin && origin.name ? origin.name : "Home";
+    elements.doclistBackLabel.textContent = label;
+    elements.doclistBackBtn.href = origin ? "#/customer/" + encodeURIComponent(origin.id) : "#/customers";
+    elements.doclistBackBtn.setAttribute("aria-label", "Back to " + label);
+  }
+
+  function restoreDocumentScroll(offset) {
+    const target = Math.max(0, Number(offset) || 0);
+    if (!target) return;
+    const apply = () => {
+      if (!isDocumentsRoute()) return;
+      window.scrollTo(0, target);
+    };
+    requestAnimationFrame(() => requestAnimationFrame(apply));
+    setTimeout(apply, 120);
+  }
+
+  async function showDocuments(kind, queryParams) {
+    const params = queryParams || new URLSearchParams("");
+    const seedName = String(params.get("q") || "");
+    const seedId = String(params.get("customerId") || "");
+    const hasSeed = "customer" === params.get("from") && UUID_PATTERN.test(seedId);
+    const wanted = db.normalizeDocumentKind(kind) || "quotation";
+
+    setChrome({ title: documentKindPlural(wanted), save: false, doclistpage: true });
+    setSaveBar(false);
+
+    const ds = docFeed();
+    const kindChanged = ds.kind !== wanted;
+    ds.kind = wanted;
+    elements.doclistTitle.textContent = documentKindPlural(wanted);
+    elements.doclistNewBtn.setAttribute("aria-label", "New " + documentKindName(wanted).toLowerCase());
+    elements.doclistSearch.setAttribute("placeholder", "Search customer, order, or date");
+
+    // Coming back from the order a row opened, in the same history visit: the
+    // rows, cursor, DOM and offset are all still here. A kind change is never
+    // that, whatever the hash says.
+    if (!kindChanged && ds.retainHash && ds.retainHash === location.hash &&
+        "ready" === ds.phase && ds.items.length) {
+      ds.retainHash = "";
+      renderDocumentSearchClear();
+      renderDocumentFeed();
+      ensureDocumentObserver();
+      restoreDocumentScroll(ds.retainScroll);
+      return;
+    }
+    ds.retainHash = "";
+    ds.retainScroll = 0;
+
+    ds.query = seedName;
+    ds.customerSeed = hasSeed ? { id: seedId, originalQuery: seedName } : null;
+    ds.errorAnnounced = false;
+    ds.lastStatus = "";
+    ds.loadMoreError = null;
+
+    elements.doclistSearch.value = seedName;
+    renderDocumentSearchClear();
+    setDocumentBackControl(hasSeed ? { id: seedId, name: seedName } : null);
+
+    const seedCheck = hasSeed
+      ? db.getCustomer(seedId).then(() => true, () => false)
+      : Promise.resolve(true);
+
+    await startDocumentFirstPage();
+
+    if (!(await seedCheck) && isDocumentsRoute() && ds.customerSeed && ds.customerSeed.id === seedId) {
+      ds.customerSeed = null;
+      setDocumentBackControl(null);
+      await startDocumentFirstPage();
+    }
+  }
+
+  /* --------------------------- New document picker ----------------------- */
+
+  const picker = () => state.documents.picker;
+
+  function docnewRowHtml(attrs, titleText, metaText, extraClass, describedById) {
+    return '<button type="button" class="docnew__row' + (extraClass || '') + '"' + attrs +
+      (describedById ? ' aria-describedby="' + describedById + '"' : '') + '>' +
+      '<span class="docnew__row-title">' + U.escapeHtml(titleText) + '</span>' +
+      (metaText ? '<span class="docnew__row-meta">' + U.escapeHtml(metaText) + '</span>' : '') +
+    '</button>';
+  }
+
+  function renderDocumentPicker() {
+    const pk = picker();
+    const ds = docFeed();
+    const kindLabel = documentKindName(ds.kind);
+
+    elements.docnewTitle.textContent = "New " + kindLabel.toLowerCase();
+    elements.docnewBack.hidden = "customer" !== pk.step ? false : true;
+
+    if ("customer" === pk.step) {
+      elements.docnewHint.textContent = "Which customer?";
+      elements.docnewSearch.hidden = false;
+
+      if (pk.loading || !pk.customers) {
+        elements.docnewList.innerHTML = '<p class="docnew__loading">Loading customers…</p>';
+        return;
+      }
+      if (pk.error) {
+        elements.docnewList.innerHTML =
+          '<p class="docnew__error" role="alert">Couldn\'t load customers. Check your connection.</p>' +
+          '<button type="button" class="btn btn--outline js-docnew-retry">Try again</button>';
+        return;
+      }
+
+      const needle = pk.query.trim().toLowerCase();
+      const matches = pk.customers.filter((c) =>
+        !needle || String(c.name || "").toLowerCase().indexOf(needle) !== -1);
+
+      // "Nothing matched" and "there is nobody yet" are different situations and
+      // must not share a sentence — only one of them is about the search.
+      const emptyCopy = needle
+        ? "No customer matched that name."
+        : "No customers yet. Add one from the home page first.";
+
+      elements.docnewList.innerHTML = matches.length
+        ? matches.map((c) => docnewRowHtml(
+            ' data-customer="' + U.escapeHtml(c.id) + '"', c.name, weddingText(c)
+          )).join('')
+        : '<p class="docnew__empty">' + emptyCopy + '</p>';
+      announceDocumentPickerStatus(matches.length + (1 === matches.length ? " customer" : " customers"));
+      return;
+    }
+
+    elements.docnewHint.textContent = "Which order?";
+    elements.docnewSearch.hidden = true;
+
+    if (pk.generating) {
+      elements.docnewList.innerHTML = '<p class="docnew__loading">Generating ' + U.escapeHtml(kindLabel.toLowerCase()) + '…</p>';
+      return;
+    }
+    if (pk.loading || !pk.orders) {
+      elements.docnewList.innerHTML = '<p class="docnew__loading">Loading orders…</p>';
+      return;
+    }
+    if (pk.error) {
+      elements.docnewList.innerHTML =
+        '<p class="docnew__error" role="alert">Couldn\'t load orders. Check your connection.</p>' +
+        '<button type="button" class="btn btn--outline js-docnew-retry">Try again</button>';
+      return;
+    }
+
+    /* An order is the only thing a document can be rendered from, and orders
+       are still created directly in the studio database rather than in this
+       app — db.createOrder has no caller. Saying so plainly beats a dead end
+       the operator has to guess their way out of. */
+    if (!pk.orders.length) {
+      elements.docnewList.innerHTML =
+        '<div class="docnew__panel">' +
+          '<p class="docnew__panel-title">No orders for this customer yet</p>' +
+          '<p class="docnew__panel-copy">A ' + U.escapeHtml(kindLabel.toLowerCase()) +
+            ' is a rendering of an order, and orders are still created in the studio ' +
+            'database rather than in the app. Open the customer to check their details, ' +
+            'or pick someone else.</p>' +
+          '<button type="button" class="btn btn--outline js-docnew-open-customer">Open customer</button>' +
+        '</div>';
+      announceDocumentPickerStatus("No orders for this customer");
+      return;
+    }
+
+    elements.docnewList.innerHTML = pk.orders.map((order, index) => {
+      const ready = documentReadiness(order, pk.customer);
+      const itemCount = (order.items || []).length;
+      const meta = itemCount + (1 === itemCount ? " item" : " items") + " · " +
+        U.formatRupiah(docs.computeTotal(order.items));
+      const reasonId = ready.canDownload ? "" : "docnewReason" + index;
+
+      return docnewRowHtml(
+        ' data-order="' + U.escapeHtml(order.id) + '"' + (ready.canDownload ? '' : ' disabled'),
+        orderLabel(order),
+        meta,
+        ready.canDownload ? '' : ' docnew__row--blocked',
+        reasonId
+      ) + (ready.canDownload ? ''
+        : '<p class="docnew__reason" id="' + reasonId + '">' + U.escapeHtml(ready.disabledReason) + '</p>');
+    }).join('');
+    announceDocumentPickerStatus(pk.orders.length + (1 === pk.orders.length ? " order" : " orders"));
+  }
+
+  function announceDocumentPickerStatus(text) {
+    elements.docnewStatus.textContent = text;
+  }
+
+  async function openDocumentPicker() {
+    const pk = picker();
+    if (pk.open) return;
+
+    pk.open = true;
+    pk.step = "customer";
+    pk.customerId = null;
+    pk.customer = null;
+    pk.orders = null;
+    pk.query = "";
+    pk.error = null;
+    pk.generating = false;
+    pk.returnEl = document.activeElement;
+
+    elements.docnewSearch.value = "";
+    elements.docnewSheet.hidden = false;
+    document.body.classList.add("has-docnew");
+    pk.loading = !pk.customers;
+    renderDocumentPicker();
+    elements.docnewTitle.focus({ preventScroll: true });
+
+    if (!pk.customers) {
+      try {
+        pk.customers = await db.listCustomers();
+        pk.error = null;
+      } catch (err) {
+        console.error(err);
+        pk.error = err;
+      }
+      pk.loading = false;
+      if (pk.open) {
+        renderDocumentPicker();
+        if (!pk.error) elements.docnewSearch.focus({ preventScroll: true });
+      }
+    } else {
+      elements.docnewSearch.focus({ preventScroll: true });
+    }
+  }
+
+  function closeDocumentPicker() {
+    const pk = picker();
+    if (!pk.open) return;
+    const returnEl = pk.returnEl;
+    pk.open = false;
+    pk.returnEl = null;
+    pk.generating = false;
+    elements.docnewSheet.hidden = true;
+    document.body.classList.remove("has-docnew");
+    elements.docnewStatus.textContent = "";
+    if (returnEl && document.contains(returnEl)) returnEl.focus({ preventScroll: true });
+  }
+
+  async function pickDocumentCustomer(customerId) {
+    const pk = picker();
+    pk.customerId = customerId;
+    pk.customer = (pk.customers || []).filter((c) => c.id === customerId)[0] || null;
+    pk.step = "order";
+    pk.orders = null;
+    pk.error = null;
+    pk.loading = true;
+    renderDocumentPicker();
+
+    try {
+      pk.orders = await db.listOrders(customerId);
+      pk.error = null;
+    } catch (err) {
+      console.error(err);
+      pk.error = err;
+    }
+    pk.loading = false;
+    if (pk.open) renderDocumentPicker();
+  }
+
+  function backToDocumentCustomers() {
+    const pk = picker();
+    pk.step = "customer";
+    pk.orders = null;
+    pk.error = null;
+    pk.loading = false;
+    renderDocumentPicker();
+    elements.docnewSearch.focus({ preventScroll: true });
+  }
+
+  /* Generates the PDF and records it, in exactly the order downloadDocument
+     uses on the order page. docs.download fills the offscreen #quotation /
+     #invoice templates and reads its own DOM nodes — it never touches app
+     state and does not need the order view to be showing, which is what makes
+     issuing a document from a list page possible at all. */
+  async function generateDocumentFor(orderId) {
+    const pk = picker();
+    const ds = docFeed();
+    const order = (pk.orders || []).filter((o) => o.id === orderId)[0];
+    if (!order || pk.generating) return;
+
+    const kind = ds.kind;
+    pk.generating = true;
+    elements.docnewSheet.setAttribute("aria-busy", "true");
+    renderDocumentPicker();
+    announceDocumentPickerStatus("Generating " + documentKindName(kind).toLowerCase());
+
+    let totalAmt;
+    try {
+      totalAmt = await docs.download(kind, {
+        docName: order.doc_name || (pk.customer && pk.customer.name) || "",
+        date: U.todayISO(),
+        items: order.items || [],
+        includes: order.includes || [],
+        terms: docs.termsFor(order)
+      });
+    } catch (err) {
+      console.error(err);
+      // Nothing is logged and no status moves: the document was never produced.
+      pk.generating = false;
+      elements.docnewSheet.setAttribute("aria-busy", "false");
+      renderDocumentPicker();
+      showToast("Could not generate the PDF — please try again");
+      return;
+    }
+
+    pk.generating = false;
+    elements.docnewSheet.setAttribute("aria-busy", "false");
+    showToast(documentKindName(kind) + " downloaded");
+
+    try {
+      const nextStatus = advancedStatus(order.status, "invoice" === kind ? "Confirmed" : "Quoted");
+      if (nextStatus !== order.status) await db.updateOrder(order.id, { status: nextStatus });
+      await db.logDocument(order.id, kind, totalAmt);
+    } catch (err) {
+      console.error(err);
+      showToast("Downloaded, but could not record it");
+    }
+
+    closeDocumentPicker();
+    // The feed is append-only, so a clean first page is how a new row is
+    // introduced — never a splice into the middle of rendered DOM.
+    if (isDocumentsRoute()) await startDocumentFirstPage();
+  }
+
+  /* ----------------------------- Document events ------------------------- */
+
+  elements.doclistSearch.addEventListener("input", () => {
+    const ds = docFeed();
+    const value = elements.doclistSearch.value;
+
+    if (ds.customerSeed && value !== ds.customerSeed.originalQuery) ds.customerSeed = null;
+    ds.query = value;
+    renderDocumentSearchClear();
+
+    clearTimeout(ds.searchTimer);
+    ds.searchTimer = setTimeout(() => {
+      ds.searchTimer = null;
+      startDocumentFirstPage();
+    }, DOCUMENT_SEARCH_DEBOUNCE_MS);
+  });
+
+  elements.doclistSearchClear.addEventListener("click", () => {
+    const ds = docFeed();
+    clearTimeout(ds.searchTimer);
+    ds.searchTimer = null;
+    ds.customerSeed = null;
+    ds.query = "";
+    elements.doclistSearch.value = "";
+    renderDocumentSearchClear();
+    elements.doclistSearch.focus({ preventScroll: true });
+    startDocumentFirstPage();
+  });
+
+  elements.doclistSearch.addEventListener("focus", scheduleDocumentSearchAlign);
+
+  elements.viewDocuments.addEventListener("pointerdown", (e) => {
+    const target = e.target.closest(".cust-nav-btn,.doclist-panel__retry,.doclist-card-link");
+    if (target && !target.disabled) target.classList.add("is-pressed");
+  });
+
+  elements.viewDocuments.addEventListener("keydown", (e) => {
+    if (" " !== e.key && "Enter" !== e.key) return;
+    const target = e.target.closest(".cust-nav-btn,.doclist-panel__retry");
+    if (target && !target.disabled) target.classList.add("is-pressed");
+  });
+
+  elements.viewDocuments.addEventListener("click", (e) => {
+    if (e.target.closest("#doclistNewBtn")) {
+      openDocumentPicker();
+      return;
+    }
+    if (e.target.closest(".doclist-card-link")) {
+      docFeed().retainScroll = window.scrollY || window.pageYOffset || 0;
+      return;
+    }
+    if (e.target.closest(".js-doclist-retry")) {
+      startDocumentFirstPage();
+      return;
+    }
+    if (e.target.closest(".js-doclist-retry-more")) {
+      const ds = docFeed();
+      ds.loadMoreError = null;
+      renderDocumentFeed();
+      ensureDocumentObserver();
+      loadMoreDocuments();
+    }
+  });
+
+  elements.docnewSearch.addEventListener("input", () => {
+    picker().query = elements.docnewSearch.value;
+    renderDocumentPicker();
+  });
+
+  elements.docnewList.addEventListener("click", (e) => {
+    const pk = picker();
+    if (e.target.closest(".js-docnew-retry")) {
+      if ("customer" === pk.step) {
+        pk.customers = null;
+        pk.error = null;
+        pk.step = "customer";
+        openDocumentPickerReload();
+      } else if (pk.customerId) {
+        pickDocumentCustomer(pk.customerId);
+      }
+      return;
+    }
+    if (e.target.closest(".js-docnew-open-customer")) {
+      const customerId = pk.customerId;
+      closeDocumentPicker();
+      if (customerId) go("#/customer/" + encodeURIComponent(customerId));
+      return;
+    }
+    const row = e.target.closest(".docnew__row");
+    if (!row || row.disabled) return;
+    if (row.dataset.customer) pickDocumentCustomer(row.dataset.customer);
+    else if (row.dataset.order) generateDocumentFor(row.dataset.order);
+  });
+
+  async function openDocumentPickerReload() {
+    const pk = picker();
+    pk.loading = true;
+    renderDocumentPicker();
+    try {
+      pk.customers = await db.listCustomers();
+      pk.error = null;
+    } catch (err) {
+      console.error(err);
+      pk.error = err;
+    }
+    pk.loading = false;
+    if (pk.open) renderDocumentPicker();
+  }
+
+  elements.docnewBack.addEventListener("click", backToDocumentCustomers);
+  elements.docnewCancel.addEventListener("click", closeDocumentPicker);
+  elements.docnewBackdrop.addEventListener("click", closeDocumentPicker);
+  elements.docnewSheet.addEventListener("keydown", (e) => {
+    if ("Escape" === e.key) {
+      // A generate in flight owns the sheet until the PDF resolves.
+      if (picker().generating) return;
+      e.preventDefault();
+      closeDocumentPicker();
+      return;
+    }
+    trapModalFocus(e, elements.docnewSheet);
+  });
 
   /* ====================== Fitting log session detail ====================== */
 
@@ -4238,9 +5807,17 @@ KK.app = (function () {
     // The feed shows the name the way Figma does, and scopes exactly by id so
     // two customers sharing a name cannot bleed into each other on first paint.
     const fittingName = customerRecord.name || "";
-    elements.custFittingBanner.href = "#/fittings?q=" + encodeURIComponent(fittingName) +
+    const bannerSeed = "?q=" + encodeURIComponent(fittingName) +
       "&from=customer&customerId=" + encodeURIComponent(customerRecord.id || "");
+    elements.custFittingBanner.href = "#/fittings" + bannerSeed;
     elements.custFittingBanner.setAttribute("aria-label", "Fitting logs for " + (fittingName || "this customer"));
+
+    // The document feeds honour the identical seed contract, so all three
+    // banners scope the same way and drop the scope the same way when edited.
+    elements.custQuotationBanner.href = "#/quotations" + bannerSeed;
+    elements.custQuotationBanner.setAttribute("aria-label", "Quotations for " + (fittingName || "this customer"));
+    elements.custInvoiceBanner.href = "#/invoices" + bannerSeed;
+    elements.custInvoiceBanner.setAttribute("aria-label", "Invoices for " + (fittingName || "this customer"));
 
     elements.custWeddingText.textContent = customerRecord.wedding_date
       ? (isApproximateWedding(customerRecord) ? weddingText(customerRecord) : U.formatShortDate(customerRecord.wedding_date)) + " (" + relativeToToday(customerRecord.wedding_date) + ")"
@@ -4249,6 +5826,14 @@ KK.app = (function () {
     const nextEvt = custNextEvent(customerRecord, orders);
     elements.custNextLabel.textContent = nextEvt ? "Next: " + nextEvt.what : "Next event";
     elements.custNextDate.textContent = nextEvt ? U.formatShortDate(nextEvt.date) + " (" + relativeToToday(nextEvt.date) + ")" : "Nothing scheduled";
+    /* With nothing scheduled the banner still opens the current month rather
+       than going dead: an empty calendar is an honest answer to "what's next". */
+    elements.custNextBanner.href = nextEvt
+      ? "#/schedules?focus=" + encodeURIComponent(nextEvt.date)
+      : "#/schedules";
+    elements.custNextBanner.setAttribute("aria-label", nextEvt
+      ? "Schedules, next: " + nextEvt.what + " on " + U.formatShortDate(nextEvt.date)
+      : "Schedules");
     elements.custOrdersCount.textContent = orders.length + " order" + (1 === orders.length ? "" : "s");
     elements.custOrdersSum.textContent = U.formatRupiah(orders.reduce((sum, o) => sum + docs.computeTotal(o.items), 0));
 
@@ -4532,6 +6117,24 @@ KK.app = (function () {
     };
   }
 
+  /* One rule, two surfaces: the order page's download keys and the document
+     picker's order rows must never disagree about whether an order can produce
+     a PDF, so both read this rather than restating the condition. */
+  function documentReadiness(orderRecord, customerRecord) {
+    const items = orderRecord.items || [];
+    const validItems = items.filter(isNamed);
+    const totalAmount = docs.computeTotal(items);
+    const docName = String(orderRecord.doc_name || (customerRecord && customerRecord.name) || "").trim();
+    const priced = validItems.length > 0 && totalAmount > 0;
+
+    return {
+      canDownload: priced && "" !== docName,
+      disabledReason: priced
+        ? ("" !== docName ? "" : "Add the name for documents to enable downloads.")
+        : "Add a priced item to enable downloads."
+    };
+  }
+
   function buildOrderDetailViewModel(paramObj) {
     const ord = paramObj.order;
     const cust = paramObj.customer;
@@ -4541,8 +6144,6 @@ KK.app = (function () {
     const costedItems = validItems.filter(isCosted);
 
     const estProfit = costedItems.reduce((acc, it) => acc + ((Number(it.price) || 0) - (Number(it.cost) || 0)) * (Number(it.qty) || 0), 0);
-    const docName = String(ord.doc_name || (cust && cust.name) || "").trim();
-    const canDownloadDocs = validItems.length > 0 && totalAmount > 0;
     const terms = docs.termsFor(ord);
     const termAmts = docs.termAmounts(totalAmount, terms);
     const deposits = paramObj.loggedDeposits || {};
@@ -4568,12 +6169,7 @@ KK.app = (function () {
           ? (costedItems.length < validItems.length ? "Based on " + costedItems.length + " of " + validItems.length + " costed items." : "")
           : (validItems.length ? "No production costs filled in yet." : "")
       },
-      documents: {
-        canDownload: canDownloadDocs && "" !== docName,
-        disabledReason: canDownloadDocs
-          ? ("" !== docName ? "" : "Add the name for documents to enable downloads.")
-          : "Add a priced item to enable downloads."
-      },
+      documents: documentReadiness(ord, cust),
       paymentsPriced: totalAmount > 0,
       paymentsUnknown: !!paramObj.paymentsUnknown,
       payments: terms.map((t, idx) => ({
@@ -6035,6 +7631,51 @@ KK.app = (function () {
 
   function bindEvents() {
     window.addEventListener("hashchange", handleRoute);
+
+    /* ------------------------ Schedules calendar ------------------------- */
+
+    elements.schedcalPrev.addEventListener("click", () => shiftScheduleMonth(-1));
+    elements.schedcalNext.addEventListener("click", () => shiftScheduleMonth(1));
+    elements.schedcalTodayBtn.addEventListener("click", () => {
+      const today = U.todayISO();
+      goToMonth(Number(today.slice(0, 4)), Number(today.slice(5, 7)) - 1, today);
+    });
+
+    elements.schedcalGrid.addEventListener("click", (e) => {
+      const cell = e.target.closest(".schedcal-day");
+      if (!cell || cell.classList.contains("schedcal-day--skel")) return;
+      focusScheduleCell(cell.dataset.date);
+      openScheduleDay(cell.dataset.date, cell);
+    });
+    elements.schedcalGrid.addEventListener("keydown", handleSchedulesGridKey);
+    /* Arrow keys step from state.focusedDate, so anything that moves focus
+       without going through focusScheduleCell would step from the wrong day.
+       Syncing here means the state cannot disagree with what is actually
+       focused, however focus got there. */
+    elements.schedcalGrid.addEventListener("focusin", (e) => {
+      const cell = e.target.closest(".schedcal-day");
+      if (cell && cell.dataset.date) focusScheduleCell(cell.dataset.date);
+    });
+
+    elements.schedcalState.addEventListener("click", (e) => {
+      if (e.target.closest(".js-schedcal-retry")) showSchedules(state.route && state.route.query);
+    });
+
+    elements.schedcalSheetClose.addEventListener("click", closeScheduleDay);
+    elements.schedcalSheetBackdrop.addEventListener("click", closeScheduleDay);
+    // Following a row is a real navigation, so the sheet must not be left open
+    // behind the page it opened.
+    elements.schedcalSheetList.addEventListener("click", (e) => {
+      if (e.target.closest(".schedcal-sheet__link")) closeScheduleDay();
+    });
+    elements.schedcalSheet.addEventListener("keydown", (e) => {
+      if ("Escape" === e.key) {
+        e.preventDefault();
+        closeScheduleDay();
+        return;
+      }
+      trapModalFocus(e, elements.schedcalSheet);
+    });
 
     elements.pageAction.addEventListener("click", () => {
       if (pageActionHandler) pageActionHandler();
