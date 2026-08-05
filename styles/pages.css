@@ -3861,7 +3861,7 @@ body.is-schedulespage .cust-nav-btn:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .schedcal-skel__block { animation: none; }
+  .schedcal-skel__block { animation: none; background-color: rgba(76,76,76,.25); }
   .schedcal-sheet__panel { animation: none; }
   .schedcal-nav-btn,
   .schedcal-sheet__link,
@@ -3932,6 +3932,8 @@ body.is-doclistpage .view { gap: 0; }
 .doclist-feed { background: var(--home-black); }
 .doclist-feed--initial { min-height: 60svh; }
 .doclist-list { margin: 0; padding: 0; list-style: none; }
+.doclist-record,
+.doclist-state:not(:empty) { animation: fitlog-result-in var(--motion-enter) var(--ease-standard) both; }
 .doclist-sentinel { height: 1px; }
 
 /* ---------------------------------- Card ---------------------------------- */
@@ -3940,23 +3942,24 @@ body.is-doclistpage .view { gap: 0; }
   display: block;
   text-decoration: none;
   color: inherit;
-  transition: transform 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+  -webkit-tap-highlight-color: transparent;
 }
 .doclist-card {
-  padding: 14px 16px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   background: var(--home-white);
   border-left: 1px solid var(--home-grid);
   border-right: 1px solid var(--home-grid);
+  transition: padding 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
 }
 /* The rail is a sibling of the card, not a child, so it cannot read the card's
    --doclist-kind-color. The kind is applied to it through the adjacent-sibling
    rules below; this only sets the geometry and the neutral default. */
 .doclist-card__rail {
   display: block;
-  height: 6px;
+  height: 8px;
   background: var(--home-grid);
   transition: height 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
 }
@@ -3967,7 +3970,9 @@ body.is-doclistpage .view { gap: 0; }
 .doclist-card--quotation + .doclist-card__rail { background: #19aa16; }
 .doclist-card--invoice   + .doclist-card__rail { background: #1866da; }
 .doclist-card-link:active .doclist-card__rail,
-.doclist-card-link.is-pressed .doclist-card__rail { height: 2px; }
+.doclist-card-link.is-pressed .doclist-card__rail { height: 4px; }
+.doclist-card-link:active .doclist-card,
+.doclist-card-link.is-pressed .doclist-card { padding-top: 14px; padding-bottom: 10px; }
 
 .doclist-card__top {
   display: flex;
@@ -4081,7 +4086,12 @@ body.is-doclistpage .view { gap: 0; }
 .doclist-skel__line { height: 20px; display: flex; align-items: center; }
 
 .doclist-footer {
+  height: 72px;
   padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--home-black);
   text-align: center;
   color: var(--home-grid);
   font-size: 14px;
@@ -4108,7 +4118,9 @@ body.is-doclistpage .fitlog-search__clear:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .doclist-skel__block { animation: none; }
-  .doclist-card-link,
+  .doclist-skel__block { animation: none; background-color: rgba(76,76,76,.25); }
+  .doclist-record,
+  .doclist-state:not(:empty) { animation: none; }
+  .doclist-card,
   .doclist-card__rail { transition: none; }
 }

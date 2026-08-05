@@ -2320,6 +2320,7 @@ body:not(.has-savebar):not(.has-fitting-journal-bar) .toast {
 }
 .docnew__row {
   width: 100%;
+  min-height: 48px;
   padding: 12px 14px;
   display: flex;
   align-items: center;
@@ -2372,6 +2373,25 @@ body:not(.has-savebar):not(.has-fitting-journal-bar) .toast {
   line-height: 20px;
 }
 .docnew__error { color: var(--danger); }
+.docnew__skeleton-row {
+  min-height: 48px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.docnew__skeleton-row i {
+  width: 52%;
+  height: 14px;
+  border-radius: 4px;
+  background: rgba(76,76,76,.16);
+  animation: home-shimmer 1.2s ease-in-out infinite;
+}
+.docnew__skeleton-row i + i { width: 24%; }
 .docnew__panel-title { margin: 0 0 6px; font-size: 15px; font-weight: 700; }
 .docnew__panel-copy { margin: 0 0 12px; color: var(--muted); font-size: 13px; line-height: 18px; }
 .docnew__actions { display: flex; gap: 8px; }
@@ -2381,4 +2401,5 @@ body:not(.has-savebar):not(.has-fitting-journal-bar) .toast {
 
 @media (prefers-reduced-motion: reduce) {
   .docnew__panel { animation: none; }
+  .docnew__skeleton-row i { animation: none; background-color: rgba(76,76,76,.22); }
 }

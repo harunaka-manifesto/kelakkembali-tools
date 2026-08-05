@@ -485,6 +485,7 @@ KK.app = (function () {
       picker: {
         open: false,
         step: "customer", // customer | order
+        orderToken: 0,
         customers: null,
         customerId: null,
         customer: null,
@@ -1120,7 +1121,7 @@ KK.app = (function () {
       if ("order" === targetRoute.view) parkDocuments();
       else cleanupDocuments();
     }
-    if ("documents" !== targetRoute.view) closeDocumentPicker();
+    if ("documents" !== targetRoute.view) closeDocumentPicker(true);
     if ("fittingPhotoEdit" !== targetRoute.view) {
       elements.fiteditBar.hidden = true;
       document.body.classList.remove("has-fitedit-bar");
@@ -3350,13 +3351,15 @@ KK.app = (function () {
 
     elements.docnewTitle.textContent = "New " + kindLabel.toLowerCase();
     elements.docnewBack.hidden = "customer" !== pk.step ? false : true;
+    elements.docnewBack.disabled = pk.generating;
+    elements.docnewCancel.disabled = pk.generating;
 
     if ("customer" === pk.step) {
       elements.docnewHint.textContent = "Which customer?";
       elements.docnewSearch.hidden = false;
 
       if (pk.loading || !pk.customers) {
-        elements.docnewList.innerHTML = '<p class="docnew__loading">Loading customers…</p>';
+        elements.docnewList.innerHTML = '<span class="sr-only">Loading customers…</span>' + '<div class="docnew__skeleton-row" aria-hidden="true"><i></i><i></i></div>'.repeat(3);
         return;
       }
       if (pk.error) {
@@ -3389,11 +3392,13 @@ KK.app = (function () {
     elements.docnewSearch.hidden = true;
 
     if (pk.generating) {
-      elements.docnewList.innerHTML = '<p class="docnew__loading">Generating ' + U.escapeHtml(kindLabel.toLowerCase()) + '…</p>';
+      elements.docnewList.innerHTML = '<p class="docnew__loading">Generating ' +
+        U.escapeHtml(kindLabel.toLowerCase()) + '…</p>' +
+        '<div class="docnew__skeleton-row" aria-hidden="true"><i></i><i></i></div>'.repeat(Math.min(3, (pk.orders || []).length) || 1);
       return;
     }
     if (pk.loading || !pk.orders) {
-      elements.docnewList.innerHTML = '<p class="docnew__loading">Loading orders…</p>';
+      elements.docnewList.innerHTML = '<span class="sr-only">Loading orders…</span>' + '<div class="docnew__skeleton-row" aria-hidden="true"><i></i><i></i></div>'.repeat(3);
       return;
     }
     if (pk.error) {
@@ -3483,10 +3488,11 @@ KK.app = (function () {
     }
   }
 
-  function closeDocumentPicker() {
+  function closeDocumentPicker(force) {
     const pk = picker();
-    if (!pk.open) return;
+    if (!pk.open || (pk.generating && !force)) return;
     const returnEl = pk.returnEl;
+    pk.orderToken++;
     pk.open = false;
     pk.returnEl = null;
     pk.generating = false;
@@ -3498,6 +3504,7 @@ KK.app = (function () {
 
   async function pickDocumentCustomer(customerId) {
     const pk = picker();
+    const token = ++pk.orderToken;
     pk.customerId = customerId;
     pk.customer = (pk.customers || []).filter((c) => c.id === customerId)[0] || null;
     pk.step = "order";
@@ -3506,19 +3513,25 @@ KK.app = (function () {
     pk.loading = true;
     renderDocumentPicker();
 
+    let orders = null;
+    let error = null;
     try {
-      pk.orders = await db.listOrders(customerId);
-      pk.error = null;
+      orders = await db.listOrders(customerId);
     } catch (err) {
       console.error(err);
-      pk.error = err;
+      error = err;
     }
+    if (token !== pk.orderToken || !pk.open || "order" !== pk.step || pk.customerId !== customerId) return;
+    pk.orders = orders;
+    pk.error = error;
     pk.loading = false;
-    if (pk.open) renderDocumentPicker();
+    renderDocumentPicker();
   }
 
   function backToDocumentCustomers() {
     const pk = picker();
+    if (pk.generating) return;
+    pk.orderToken++;
     pk.step = "customer";
     pk.orders = null;
     pk.error = null;
@@ -7644,8 +7657,14 @@ KK.app = (function () {
     elements.schedcalGrid.addEventListener("click", (e) => {
       const cell = e.target.closest(".schedcal-day");
       if (!cell || cell.classList.contains("schedcal-day--skel")) return;
-      focusScheduleCell(cell.dataset.date);
-      openScheduleDay(cell.dataset.date, cell);
+      const iso = cell.dataset.date;
+      const targetYear = Number(iso.slice(0, 4));
+      const targetMonth = Number(iso.slice(5, 7)) - 1;
+      if (targetYear !== sched().cursor.year || targetMonth !== sched().cursor.month) {
+        goToMonth(targetYear, targetMonth, iso);
+      }
+      focusScheduleCell(iso);
+      openScheduleDay(iso, scheduleCellFor(iso) || cell);
     });
     elements.schedcalGrid.addEventListener("keydown", handleSchedulesGridKey);
     /* Arrow keys step from state.focusedDate, so anything that moves focus
