@@ -1,4 +1,4 @@
-# MAP — app.js (8120 lines, ~320 KB)
+# MAP — app.js (8507 lines, ~338 KB)
 
 **Never read this file whole.** It costs ~60k tokens. Jump to a region below, read ≤400 lines.
 
@@ -14,24 +14,24 @@ One IIFE. Everything is file-scoped; there is no class, no module, no split. Reg
 | 12–21 | Dependency aliases (`db`, `util`, `cal`, `docs`…) | `Core Dependencies & Helper Aliases` | Resolving what `u.` / `cal.` mean |
 | 22–38 | Domain constants (statuses, stages, copy) | `Domain Constants` | Adding a status/stage value |
 | 39–44 | SVG icon aliases | `SVG Icons` | Adding an icon |
-| 45–321 | **Element registry** — every `$("#id")` handle | `Element Registry` | You added DOM to `index.html` and need a handle |
-| 322–503 | **Application state** object | `Application State` | Adding page state; read 322–503 in full |
-| 504–619 | UI chrome: toast, dirty flag, save bar, app bar, menu | `UI Utilities & Chrome` | Changing bars, toasts, page actions |
-| 620–779 | **Router**: curtain, route loader, error, focus | `Routing & View Transition` | Adding a route |
-| 780–1721 | Status derivation, lifecycle, follow-up, `handleRoute` dispatch, homepage | `Status Helpers & Data Transformations` | Status/pipeline logic, route dispatch, homepage |
-| 1722–2348 | **Schedules calendar** (month grid, lanes, day sheet, keyboard) | `Schedules calendar` | Calendar work |
-| 2349–2940 | **Fitting logs feed** (list, paging, filters, parking) | `Fitting logs feed` | Feed work |
-| 2941–3707 | **Document feed** (quotations + invoices list, new-document picker) | `Document feed` | Quotation/invoice list work |
-| 3708–4222 | **Fitting log detail** (photos, share, PDF, viewer) | `Fitting log session detail` | Detail page work |
-| 4223–4536 | **Fitting photo editor** (caption, replace, delete) | `Fitting photo editor` | Editor work |
-| 4537–5691 | **Add fitting photos** (batch review, captions, staged deletes, atomic save) | `Add fitting photos` | Batch add/edit page work |
-| 5692–5972 | **Customer detail + editor** (and enquiry review) | `Customer Detail & Edit Controller` | Customer pages, Tally intake UI |
-| 5973–6552 | **Order detail** view model, render, schedule, payments | `Order Detail ViewModel & UI` | Order detail page |
-| 6553–6949 | **Order editor + cost calculator** (items, terms, chips) | `Order Editor & Cost Calculator` | Order editing, pricing |
-| 6950–7359 | **Moodboard integration** (canvas, overlay, gestures) | `Moodboard Integration` | Moodboard page glue |
-| 7360–7629 | **Exports**: PDFs, deposit logging, Drive reconnect | `Exports` | Document/PDF export flows |
-| 7630–8069 | **`bindEvents`** — every listener, one function | `Boot & Event Listeners` | Wiring a new control |
-| 8070–8120 | Gate, boot, session restore | `App Boot` | Auth/boot changes |
+| 45–324 | **Element registry** — every `$("#id")` handle | `Element Registry` | You added DOM to `index.html` and need a handle |
+| 325–507 | **Application state** object | `Application State` | Adding page state; read 322–503 in full |
+| 508–623 | UI chrome: toast, dirty flag, save bar, app bar, menu | `UI Utilities & Chrome` | Changing bars, toasts, page actions |
+| 624–783 | **Router**: curtain, route loader, error, focus | `Routing & View Transition` | Adding a route |
+| 784–2083 | Status derivation, lifecycle, follow-up, `handleRoute` dispatch, homepage | `Status Helpers & Data Transformations` | Status/pipeline logic, route dispatch, homepage |
+| 2084–2710 | **Schedules calendar** (month grid, lanes, day sheet, keyboard) | `Schedules calendar` | Calendar work |
+| 2711–3302 | **Fitting logs feed** (list, paging, filters, parking) | `Fitting logs feed` | Feed work |
+| 3303–4070 | **Document feed** (quotations + invoices list, new-document picker) | `Document feed` | Quotation/invoice list work |
+| 4071–4586 | **Fitting log detail** (photos, share, PDF, viewer) | `Fitting log session detail` | Detail page work |
+| 4587–4900 | **Fitting photo editor** (caption, replace, delete) | `Fitting photo editor` | Editor work |
+| 4901–6065 | **Add fitting photos** (batch review, captions, staged deletes, atomic save) | `Add fitting photos` | Batch add/edit page work |
+| 6066–6346 | **Customer detail + editor** (and enquiry review) | `Customer Detail & Edit Controller` | Customer pages, Tally intake UI |
+| 6347–6926 | **Order detail** view model, render, schedule, payments | `Order Detail ViewModel & UI` | Order detail page |
+| 6927–7323 | **Order editor + cost calculator** (items, terms, chips) | `Order Editor & Cost Calculator` | Order editing, pricing |
+| 7324–7733 | **Moodboard integration** (canvas, overlay, gestures) | `Moodboard Integration` | Moodboard page glue |
+| 7734–8003 | **Exports**: PDFs, deposit logging, Drive reconnect | `Exports` | Document/PDF export flows |
+| 8004–8455 | **`bindEvents`** — every listener, one function | `Boot & Event Listeners` | Wiring a new control |
+| 8456–8507 | Gate, boot, session restore | `App Boot` | Auth/boot changes |
 
 ### Region read recipes
 

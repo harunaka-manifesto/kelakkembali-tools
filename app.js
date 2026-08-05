@@ -73,6 +73,9 @@ KK.app = (function () {
     menuSignOut: $("#menuSignOut"),
     viewCustomers: $("#viewCustomers"),
     homeStage: $("#homeStage"),
+    homeAtmosphere: $("#homeAtmosphere"),
+    homeAtmosphereSceneA: $("#homeAtmosphereSceneA"),
+    homeAtmosphereSceneB: $("#homeAtmosphereSceneB"),
     homeLoading: $("#homeLoading"),
     homeError: $("#homeError"),
     homeReady: $("#homeReady"),
@@ -1064,6 +1067,10 @@ KK.app = (function () {
       activeMoodboardOrderId = null;
     }
 
+    if ("customers" !== targetRoute.view) {
+      cleanupHomepageAtmosphere();
+    }
+
     state.route = targetRoute;
     elements.viewCustomers.hidden = "customers" !== targetRoute.view;
     elements.viewCustomer.hidden = "customer" !== targetRoute.view;
@@ -1398,6 +1405,360 @@ KK.app = (function () {
   const isCosted = (item) => (Number(item.cost) || 0) > 0;
   const isNamed = (item) => "" !== String(item.name || "").trim();
 
+  const HOME_ATMOSPHERE_PHASES = {
+    dawn: {
+      key: "dawn",
+      greetingPeriod: "morning",
+      base: "#DCE9FF",
+      palette: ["#7FB9E8", "#A596D9", "#C97ABF", "#F5B3A2", "#FFD7A8", "#F6E7D7"],
+      quiet: ["#F5E2D2", "#D8E9F2"],
+      ink: "#17150F",
+      skeleton: "rgba(23,21,15,.16)",
+      skeletonPeak: "rgba(23,21,15,.28)"
+    },
+    morning: {
+      key: "morning",
+      greetingPeriod: "morning",
+      base: "#DDF8F8",
+      palette: ["#04A8D6", "#49CFE2", "#7CD4C4", "#F7E733", "#FFF6A8", "#F36F32"],
+      quiet: ["#E8F9F1", "#FFF7BF"],
+      ink: "#17150F",
+      skeleton: "rgba(23,21,15,.16)",
+      skeletonPeak: "rgba(23,21,15,.28)"
+    },
+    afternoon: {
+      key: "afternoon",
+      greetingPeriod: "afternoon",
+      base: "#FFEFA1",
+      palette: ["#18A9DC", "#75D4EA", "#FFF000", "#FFB52E", "#FF6533", "#DD3C9D"],
+      quiet: ["#FFF4B5", "#DDF6EF"],
+      ink: "#17150F",
+      skeleton: "rgba(23,21,15,.16)",
+      skeletonPeak: "rgba(23,21,15,.28)"
+    },
+    evening: {
+      key: "evening",
+      greetingPeriod: "evening",
+      base: "#44265F",
+      palette: ["#244F9B", "#6A3FA0", "#C32C95", "#EF3F67", "#FF7A2E", "#FFB34D"],
+      quiet: ["#35234E", "#243A70"],
+      ink: "#FEFAF1",
+      skeleton: "rgba(254,250,241,.18)",
+      skeletonPeak: "rgba(254,250,241,.32)"
+    },
+    night: {
+      key: "night",
+      greetingPeriod: "evening",
+      base: "#071B3D",
+      palette: ["#0C2556", "#173F7A", "#315AA8", "#5267A6", "#372D72", "#1C6F82"],
+      quiet: ["#071A36", "#102B55"],
+      ink: "#FEFAF1",
+      skeleton: "rgba(254,250,241,.18)",
+      skeletonPeak: "rgba(254,250,241,.32)"
+    }
+  };
+
+  const homeAtmosphereState = {
+    activeIndex: 0,
+    seedKey: "",
+    phase: "",
+    greetingPeriod: "morning",
+    timer: null,
+    transitionTimer: null,
+    transitionToken: 0
+  };
+
+  function homepageAtmospherePhase(dateObj) {
+    const hour = dateObj.getHours();
+    if (hour < 5) return HOME_ATMOSPHERE_PHASES.night;
+    if (hour < 8) return HOME_ATMOSPHERE_PHASES.dawn;
+    if (hour < 12) return HOME_ATMOSPHERE_PHASES.morning;
+    if (hour < 17) return HOME_ATMOSPHERE_PHASES.afternoon;
+    if (hour < 20) return HOME_ATMOSPHERE_PHASES.evening;
+    return HOME_ATMOSPHERE_PHASES.night;
+  }
+
+  function homepageAtmosphereSeedKey(dateObj, phaseKey) {
+    const yyyy = dateObj.getFullYear();
+    const mm = String(dateObj.getMonth() + 1).padStart(2, "0");
+    const dd = String(dateObj.getDate()).padStart(2, "0");
+    const w = dateObj.getDay();
+    return yyyy + "-" + mm + "-" + dd + "-" + w + "-" + phaseKey;
+  }
+
+  function homepageAtmosphereHash(value) {
+    let hash = 2166136261;
+    for (let index = 0; index < value.length; index++) {
+      hash ^= value.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+    return hash >>> 0;
+  }
+
+  function homepageAtmosphereRandom(seed) {
+    return function () {
+      seed += 0x6D2B79F5;
+      let value = seed;
+      value = Math.imul(value ^ value >>> 15, value | 1);
+      value ^= value + Math.imul(value ^ value >>> 7, value | 61);
+      return ((value ^ value >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  function normalizedAtmosphereWeights(count, floor, spread, random) {
+    const weights = [];
+    let total = 0;
+    for (let i = 0; i < count; i++) {
+      const w = floor + random() * spread;
+      weights.push(w);
+      total += w;
+    }
+    return weights.map((w) => w / total);
+  }
+
+  function atmosphereOffsets(weights) {
+    const offsets = [0];
+    let current = 0;
+    for (let i = 0; i < weights.length; i++) {
+      current += weights[i] * 100;
+      offsets.push(current);
+    }
+    offsets[offsets.length - 1] = 100;
+    return offsets;
+  }
+
+  function buildHomepageAtmosphereScene(scene, config, seedKey) {
+    const random = homepageAtmosphereRandom(homepageAtmosphereHash(seedKey));
+    const columns = normalizedAtmosphereWeights(6, 0.75, 0.60, random);
+    const rows = normalizedAtmosphereWeights(7, 0.75, 0.55, random);
+    const columnOffsets = atmosphereOffsets(columns);
+    const rowOffsets = atmosphereOffsets(rows);
+    const fragment = document.createDocumentFragment();
+
+    const seededX = Math.round(25 + random() * 50);
+    const seededY = Math.round(15 + random() * 50);
+    scene.style.background =
+      "radial-gradient(circle at " + seededX + "% " + seededY + "%, " + config.palette[1] + ", transparent 62%), " +
+      "linear-gradient(135deg, " + config.base + ", " + config.palette[4] + ")";
+
+    const sceneFromX = (-6 + random() * 12).toFixed(2) + "px";
+    const sceneFromY = (-6 + random() * 12).toFixed(2) + "px";
+    const sceneToX = (-6 + random() * 12).toFixed(2) + "px";
+    const sceneToY = (-6 + random() * 12).toFixed(2) + "px";
+    const sceneDurationNum = 28 + random() * 8;
+    const sceneDuration = sceneDurationNum.toFixed(2) + "s";
+    const sceneDelay = (-(random() * sceneDurationNum)).toFixed(2) + "s";
+
+    scene.style.setProperty("--scene-from-x", sceneFromX);
+    scene.style.setProperty("--scene-from-y", sceneFromY);
+    scene.style.setProperty("--scene-to-x", sceneToX);
+    scene.style.setProperty("--scene-to-y", sceneToY);
+    scene.style.setProperty("--scene-duration", sceneDuration);
+    scene.style.setProperty("--scene-delay", sceneDelay);
+
+    for (let rowIndex = 0; rowIndex < 7; rowIndex++) {
+      let startColumn = 0;
+      let leftPair = "";
+
+      while (startColumn < 6) {
+        const remaining = 6 - startColumn;
+        const roll = random();
+        const wantedSpan = roll < 0.28 ? 1 : roll < 0.82 ? 2 : 3;
+        const span = Math.min(wantedSpan, remaining);
+        const quiet = rowIndex >= 5 && startColumn < 4;
+
+        let colors;
+        if (quiet) {
+          colors = [config.quiet[0], config.quiet[1]];
+          if (random() >= 0.5) colors = [config.quiet[1], config.quiet[0]];
+        } else {
+          const firstIdx = Math.floor(random() * config.palette.length);
+          const distRoll = random();
+          const dist = distRoll < 0.18 ? 3 : 1;
+          const secondIdx = (firstIdx + dist) % config.palette.length;
+          colors = [config.palette[firstIdx], config.palette[secondIdx]];
+          if (colors.join("|") === leftPair) {
+            colors = [colors[1], colors[0]];
+          }
+        }
+
+        const opacity = quiet ? (0.88 + random() * 0.08).toFixed(2) : (0.78 + random() * 0.18).toFixed(2);
+        const angles = [0, 90, 180, 270];
+        const angleBase = angles[Math.floor(random() * angles.length)];
+        const angleJitter = -18 + random() * 36;
+        const angle = (angleBase + angleJitter).toFixed(2) + "deg";
+        const glowX = (20 + random() * 60).toFixed(2) + "%";
+        const glowY = (20 + random() * 60).toFixed(2) + "%";
+        const tileDurationNum = quiet ? (36 + random() * 16) : (24 + random() * 16);
+        const tileDuration = tileDurationNum.toFixed(2) + "s";
+        const tileDelay = (-(random() * tileDurationNum)).toFixed(2) + "s";
+
+        const tileLeft = columnOffsets[startColumn].toFixed(4) + "%";
+        const tileTop = rowOffsets[rowIndex].toFixed(4) + "%";
+        const tileWidth = (columnOffsets[startColumn + span] - columnOffsets[startColumn]).toFixed(4) + "%";
+        const tileHeight = (rowOffsets[rowIndex + 1] - rowOffsets[rowIndex]).toFixed(4) + "%";
+
+        const tile = document.createElement("i");
+        tile.className = "home-atmosphere__tile" + (quiet ? " home-atmosphere__tile--quiet" : "");
+        tile.style.setProperty("--tile-left", tileLeft);
+        tile.style.setProperty("--tile-top", tileTop);
+        tile.style.setProperty("--tile-width", tileWidth);
+        tile.style.setProperty("--tile-height", tileHeight);
+        tile.style.setProperty("--tile-opacity", opacity);
+        tile.style.setProperty("--tile-angle", angle);
+        tile.style.setProperty("--tile-a", colors[0]);
+        tile.style.setProperty("--tile-b", colors[1]);
+        tile.style.setProperty("--tile-glow-x", glowX);
+        tile.style.setProperty("--tile-glow-y", glowY);
+        tile.style.setProperty("--tile-duration", tileDuration);
+        tile.style.setProperty("--tile-delay", tileDelay);
+
+        fragment.appendChild(tile);
+        leftPair = colors.join("|");
+        startColumn += span;
+      }
+    }
+
+    scene.replaceChildren(fragment);
+  }
+
+  function homepageAtmosphereNextBoundary(dateObj) {
+    const y = dateObj.getFullYear();
+    const m = dateObj.getMonth();
+    const d = dateObj.getDate();
+
+    const candidates = [
+      new Date(y, m, d, 5, 0, 0, 0),
+      new Date(y, m, d, 8, 0, 0, 0),
+      new Date(y, m, d, 12, 0, 0, 0),
+      new Date(y, m, d, 17, 0, 0, 0),
+      new Date(y, m, d, 20, 0, 0, 0),
+      new Date(y, m, d + 1, 0, 0, 0, 0)
+    ];
+
+    const nowMs = dateObj.getTime();
+    const valid = candidates.filter((c) => c.getTime() > nowMs);
+    valid.sort((a, b) => a.getTime() - b.getTime());
+    return valid[0];
+  }
+
+  function scheduleHomepageAtmosphere(dateObj) {
+    if (homeAtmosphereState.timer) {
+      clearTimeout(homeAtmosphereState.timer);
+      homeAtmosphereState.timer = null;
+    }
+    const next = homepageAtmosphereNextBoundary(dateObj);
+    const delay = Math.max(0, next.getTime() - Date.now() + 250);
+    homeAtmosphereState.timer = setTimeout(() => {
+      syncHomepageAtmosphere({ instant: false });
+    }, delay);
+  }
+
+  function syncHomepageAtmosphere(options) {
+    const now = new Date();
+    const config = homepageAtmospherePhase(now);
+    const seedKey = homepageAtmosphereSeedKey(now, config.key);
+
+    scheduleHomepageAtmosphere(now);
+
+    homeAtmosphereState.greetingPeriod = config.greetingPeriod;
+
+    if (elements.viewCustomers) {
+      elements.viewCustomers.dataset.atmospherePhase = config.key;
+      elements.viewCustomers.style.setProperty("--home-hero-ink", config.ink);
+      elements.viewCustomers.style.setProperty("--home-hero-skeleton", config.skeleton);
+      elements.viewCustomers.style.setProperty("--home-hero-skeleton-peak", config.skeletonPeak);
+    }
+    if (elements.homeAtmosphere) {
+      elements.homeAtmosphere.style.setProperty("--home-atmosphere-base", config.base);
+    }
+
+    if (state.route && "customers" === state.route.view && elements.heroGreeting && elements.heroGreeting.textContent) {
+      renderHomepageHero();
+    }
+
+    homeAtmosphereState.transitionToken++;
+    if (homeAtmosphereState.transitionTimer) {
+      clearTimeout(homeAtmosphereState.transitionTimer);
+      homeAtmosphereState.transitionTimer = null;
+    }
+
+    if (elements.homeAtmosphereSceneA && elements.homeAtmosphereSceneB) {
+      if (homeAtmosphereState.activeIndex === 0) {
+        elements.homeAtmosphereSceneA.classList.add("is-visible");
+        elements.homeAtmosphereSceneB.classList.remove("is-visible");
+      } else {
+        elements.homeAtmosphereSceneB.classList.add("is-visible");
+        elements.homeAtmosphereSceneA.classList.remove("is-visible");
+      }
+    }
+
+    if (seedKey === homeAtmosphereState.seedKey) {
+      return;
+    }
+
+    const targetIndex = !homeAtmosphereState.seedKey ? 0 : 1 - homeAtmosphereState.activeIndex;
+    const targetScene = targetIndex === 0 ? elements.homeAtmosphereSceneA : elements.homeAtmosphereSceneB;
+    const oldScene = homeAtmosphereState.activeIndex === 0 ? elements.homeAtmosphereSceneA : elements.homeAtmosphereSceneB;
+
+    if (!targetScene) return;
+
+    buildHomepageAtmosphereScene(targetScene, config, seedKey);
+    homeAtmosphereState.seedKey = seedKey;
+    homeAtmosphereState.phase = config.key;
+
+    const isInstant = !!(options && options.instant) || reducedMotion() || !oldScene;
+
+    if (isInstant) {
+      targetScene.classList.add("is-instant", "is-visible");
+      if (oldScene && oldScene !== targetScene) {
+        oldScene.classList.remove("is-visible");
+        oldScene.replaceChildren();
+      }
+      homeAtmosphereState.activeIndex = targetIndex;
+      requestAnimationFrame(() => {
+        targetScene.classList.remove("is-instant");
+      });
+    } else {
+      const capturedToken = homeAtmosphereState.transitionToken;
+      const capturedOldScene = oldScene;
+
+      requestAnimationFrame(() => {
+        targetScene.classList.add("is-visible");
+        capturedOldScene.classList.remove("is-visible");
+        homeAtmosphereState.activeIndex = targetIndex;
+
+        homeAtmosphereState.transitionTimer = setTimeout(() => {
+          if (homeAtmosphereState.transitionToken === capturedToken) {
+            capturedOldScene.replaceChildren();
+            homeAtmosphereState.transitionTimer = null;
+          }
+        }, 900);
+      });
+    }
+  }
+
+  function cleanupHomepageAtmosphere() {
+    if (homeAtmosphereState.timer) {
+      clearTimeout(homeAtmosphereState.timer);
+      homeAtmosphereState.timer = null;
+    }
+    if (homeAtmosphereState.transitionTimer) {
+      clearTimeout(homeAtmosphereState.transitionTimer);
+      homeAtmosphereState.transitionTimer = null;
+    }
+    homeAtmosphereState.transitionToken++;
+    if (elements.homeAtmosphereSceneA && elements.homeAtmosphereSceneB) {
+      if (homeAtmosphereState.activeIndex === 0) {
+        elements.homeAtmosphereSceneA.classList.add("is-visible");
+        elements.homeAtmosphereSceneB.classList.remove("is-visible");
+      } else {
+        elements.homeAtmosphereSceneB.classList.add("is-visible");
+        elements.homeAtmosphereSceneA.classList.remove("is-visible");
+      }
+    }
+  }
+
   function greetingForClock(clockObj) {
     const period = clockObj.period;
     return ("dawn" === period || "morning" === period ? "Good morning" : "noon" === period || "afternoon" === period ? "Good afternoon" : "Good evening") + ", Ichaku";
@@ -1442,6 +1803,7 @@ KK.app = (function () {
   function beginHomepageLoad() {
     const token = ++state.homepage.loadToken;
     state.homepage.phase = "loading";
+    syncHomepageAtmosphere({ instant: !homeAtmosphereState.seedKey });
     clearHomepagePops();
     clearHomepagePresses();
 
@@ -1478,14 +1840,13 @@ KK.app = (function () {
   }
 
   function renderHomepageHero() {
-    const hour = new Date().getHours();
     const activeDeadlineCust = state.customers
       .filter(isActive)
       .map((c) => ({ customer: c, deadline: nextDeadline(c) }))
       .filter((c) => c.deadline)
       .sort((a, b) => a.deadline.date.localeCompare(b.deadline.date))[0];
 
-    elements.heroGreeting.textContent = greetingForClock({ period: hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening" });
+    elements.heroGreeting.textContent = greetingForClock({ period: homeAtmosphereState.greetingPeriod });
 
     if (!activeDeadlineCust) {
       elements.heroDeadline.textContent = "No upcoming deadline. All clear!";
@@ -7644,6 +8005,12 @@ KK.app = (function () {
 
   function bindEvents() {
     window.addEventListener("hashchange", handleRoute);
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible" && state.route && "customers" === state.route.view) {
+        syncHomepageAtmosphere({ instant: false });
+      }
+    });
 
     /* ------------------------ Schedules calendar ------------------------- */
 
