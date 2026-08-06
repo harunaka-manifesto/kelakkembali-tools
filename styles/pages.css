@@ -165,20 +165,31 @@ body.is-homepage .view { gap: 0; }
   background-size: 9px 9px;
 }
 
-/* The greeting's safe area is an elliptical exclusion field rather than a box
-   or a fixed band. Its solid centre holds both lines over the phase's own base
-   colour, while the long feather lets the mosaic return without drawing a halo.
-   A separate, seeded drift keeps that clear patch part of the moving picture. */
+/* The greeting sits in an ambient clearing, not a shape. Two offset fields
+   protect different parts of the copy while a faint wash joins them to the foot
+   of the hero. Their overlaps break the contour; the blur removes the last
+   readable edge. A seeded drift keeps the clearing inside the moving picture. */
 .home-atmosphere__scrim {
   position: absolute;
-  inset: 0;
+  inset: -24px -32px -36px;
   transform-origin: 50% 82%;
-  background: radial-gradient(
-    ellipse 76% 34% at 50% 82%,
-    color-mix(in srgb, var(--home-atmosphere-scrim, var(--home-white)) 96%, transparent) 0%,
-    color-mix(in srgb, var(--home-atmosphere-scrim, var(--home-white)) 92%, transparent) 38%,
-    color-mix(in srgb, var(--home-atmosphere-scrim, var(--home-white)) 66%, transparent) 62%,
-    transparent 100%);
+  background:
+    radial-gradient(
+      ellipse 64% 29% at 34% 80%,
+      color-mix(in srgb, var(--home-atmosphere-scrim, var(--home-white)) 94%, transparent) 0%,
+      color-mix(in srgb, var(--home-atmosphere-scrim, var(--home-white)) 78%, transparent) 42%,
+      transparent 100%),
+    radial-gradient(
+      ellipse 56% 32% at 74% 88%,
+      color-mix(in srgb, var(--home-atmosphere-scrim, var(--home-white)) 80%, transparent) 0%,
+      color-mix(in srgb, var(--home-atmosphere-scrim, var(--home-white)) 48%, transparent) 48%,
+      transparent 100%),
+    linear-gradient(
+      180deg,
+      transparent 55%,
+      color-mix(in srgb, var(--home-atmosphere-scrim, var(--home-white)) 12%, transparent) 70%,
+      color-mix(in srgb, var(--home-atmosphere-scrim, var(--home-white)) 54%, transparent) 104%);
+  filter: blur(20px);
   will-change: transform;
   animation: home-atmosphere-safe-area var(--safe-duration, 27s) ease-in-out var(--safe-delay, -9s) infinite alternate;
 }
