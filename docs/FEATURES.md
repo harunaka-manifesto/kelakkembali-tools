@@ -165,19 +165,22 @@ Column key: **app.js** = entry function + line ([MAP-app.md](MAP-app.md)) · **H
 
 ## 19. Schedules calendar
 - **Route** `#/schedules` (not `#/calendar` — that is the Google connection settings page)
-- **app.js** `showSchedules` **2294**; region **1722–2348**. `buildScheduleItems` 1791, `indexScheduleItems` 1902, `scheduleItemHref` 1762, `renderSchedulesMonth` 2069, `schedcalCellHtml` 1962, `openScheduleDay` 2216, `handleSchedulesGridKey` 2250, `cleanupSchedules` 2276
+- **app.js** `showSchedules` **2736**; region **2099–2789**. `buildScheduleItems` 2168, `indexScheduleItems` 2279, `scheduleItemHref` 2139, `renderSchedulesMonth` 2503, `schedcalCellHtml` 2348, `schedcalBandsHtml` 2398, `openScheduleDay` 2658, `handleSchedulesGridKey` 2692, `cleanupSchedules` 2718
 - **calendar.js** `monthGrid` (42 cells, always), `eventSpan` (production stage → its Monday–Sunday week), `assignLanes` (one lane per band, agreed across every cell it covers), `weekdayIndex`, `addMonths`, `monthRange`
-- **HTML** `#viewSchedules` **1293**, day sheet `#schedcalSheet` **1457** (outside `<main>`, so it is never inside a hidden view)
-- **CSS** `pages.css` 3364+ (`.schedcal-*`). The grid deliberately has **no vertical rules**: a 1px separator between cells would cut every week band into seven pieces
+- **HTML** `#viewSchedules` **1297**, day sheet `#schedcalSheet` **1474** (outside `<main>`, so it is never inside a hidden view)
+- **CSS** `pages.css` 3434+ (`.schedcal-*`). A day is a **physical key**: carrying something → a raised cream key; in the month but empty → the same key unpopped, its face sunk to the bottom of the box; outside the month → no key, only the ledger. Reading a month is reading a relief
+- **Week bands** are drawn **once per week row** (`schedcalBandsHtml`), positioned by `grid-column`, not as a strip inside each of seven cells. A production date means its whole Monday–Sunday week and the grid is Monday-first, so a band *is* a row-level object. That is what lets the cells carry real 3px gutters — the earlier per-cell version had to drop every vertical rule to keep its bands continuous, and lost the grid with it
+- **Fixed geometry** every week reserves its three lane tracks and closes with a 1px rule whether or not anything is in them, so skeleton, ready, empty, and every month are all exactly the same height
 - **Data** joined in the browser from four sources — `db.listAllOrderEvents`, `db.listCustomers` (weddings + follow-ups), `db.listAllOrders` (payment dates), `db.listAllFittingSessions` (tap target). Loaded once per visit; every month change is local, so paging costs no request
 - **Tap targets** production stage with a session → its fitting log; without one → `#/order/:id/fitting/new?stage=…`; design rows and payments → the order; wedding and follow-up → the customer
-- **Note** month-precision weddings are stored as the last day of the month, so they are named in a banner above the grid and never drawn on a cell
+- **Note** month-precision weddings are stored as the last day of the month, so they are named in a paper note **below** the grid (`.schedcal-note`) and never drawn on a cell. Below, not above, so the calendar starts in the same place in every month
 
 ## 20. Quotations & invoices lists
 - **Routes** `#/quotations` and `#/invoices` — one view (`#viewDocuments`) parameterised by kind
-- **app.js** `showDocuments` **3279**; region **2941–3707**. `documentCardHtml` 2968, `renderDocumentFeed` 3093, `startDocumentFirstPage` 3149, `loadMoreDocuments` 3180, `parkDocuments` 3237, `openDocumentPicker` 3447, `generateDocumentFor` 3535
-- **HTML** `#viewDocuments` **1360**, picker `#docnewSheet` **1439**
-- **CSS** `pages.css` 3871+ (`.doclist-*`), picker in `shared.css` 2279+ (`.docnew*` — utility chrome, not ledger canvas). The search block is `.fitlog-search`, reused rather than copied
+- **app.js** `showDocuments` **3721**; region **3383–4149**. `documentCardHtml` 3410, `renderDocumentFeed` 3093, `startDocumentFirstPage` 3149, `loadMoreDocuments` 3180, `parkDocuments` 3237, `openDocumentPicker` 3447, `generateDocumentFor` 3535
+- **HTML** `#viewDocuments` **1373**, picker `#docnewSheet` **1456**
+- **CSS** `pages.css` 4130+ (`.doclist-*`), picker in `shared.css` 2285+ (`.docnew*` — utility chrome, not ledger canvas). The search block is `.fitlog-search`, reused rather than copied
+- **The card is the fitting-log card**, deliberately: same 14/20 700 name pair, same right-aligned coloured kind text in place of the stage, same `--home-white-dark` rail with grid borders. The kind's green and blue are **ink, never a fill** — they are rail twins, and the canvas has no pill-shaped tags. A coloured rail would also say nothing on a route where every row is one kind
 - **Data** `db.listDocumentFeed({kind, …})` (cursor paging, server-side `ilike`) · view `document_feed` · `db.logDocument` on create
 - **The amount shown is the logged `total`, never recomputed** from the order's current items — see [14](#14-quotation--invoice-documents) and `document_log` in [DATABASE.md](DATABASE.md)
 - **Create flow** New → pick customer → pick order → `docs.download` → `db.logDocument` → status advances via `advancedStatus` (forward only). Readiness comes from `documentReadiness`, shared with the order page so the two can never disagree

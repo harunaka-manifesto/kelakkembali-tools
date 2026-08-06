@@ -278,7 +278,6 @@ KK.app = (function () {
     schedcalTitle: $("#schedcalTitle"),
     schedcalPrev: $("#schedcalPrev"),
     schedcalNext: $("#schedcalNext"),
-    schedcalMonthLabel: $("#schedcalMonthLabel"),
     schedcalApprox: $("#schedcalApprox"),
     schedcalBody: $("#schedcalBody"),
     schedcalGrid: $("#schedcalGrid"),
@@ -289,6 +288,7 @@ KK.app = (function () {
     schedcalSheet: $("#schedcalSheet"),
     schedcalSheetBackdrop: $("#schedcalSheetBackdrop"),
     schedcalSheetTitle: $("#schedcalSheetTitle"),
+    schedcalSheetCount: $("#schedcalSheetCount"),
     schedcalSheetList: $("#schedcalSheetList"),
     schedcalSheetClose: $("#schedcalSheetClose"),
     viewDocuments: $("#viewDocuments"),
@@ -2015,6 +2015,21 @@ KK.app = (function () {
     if (target) target.classList.add("is-pressed");
   });
 
+  /* The day sheet is a sibling of the views, not a descendant, so its keys need
+     their own pair of listeners to get the same press state everything else on
+     the page has. clearHomepagePresses sweeps the whole document, so release is
+     already handled. */
+  elements.schedcalSheet.addEventListener("pointerdown", (e) => {
+    const target = e.target.closest(".schedcal-sheet__link,.schedcal-sheet__close");
+    if (target) target.classList.add("is-pressed");
+  });
+
+  elements.schedcalSheet.addEventListener("keydown", (e) => {
+    if (" " !== e.key && "Enter" !== e.key) return;
+    const target = e.target.closest(".schedcal-sheet__link,.schedcal-sheet__close");
+    if (target) target.classList.add("is-pressed");
+  });
+
   window.addEventListener("scroll", () => {
     if (document.body.classList.contains("is-custpage") ||
         document.body.classList.contains("is-custeditpage") ||
@@ -2294,7 +2309,7 @@ KK.app = (function () {
 
   function schedcalPanelHtml(title, copyHtml, extraAttr, actionHtml) {
     return '<div class="schedcal-panel"' + (extraAttr || '') + '>' +
-      '<p class="schedcal-panel__title">' + U.escapeHtml(title) + '</p>' +
+      '<h2 class="schedcal-panel__title">' + U.escapeHtml(title) + '</h2>' +
       '<p class="schedcal-panel__copy">' + copyHtml + '</p>' +
       (actionHtml || '') +
     '</div>';
@@ -2307,7 +2322,10 @@ KK.app = (function () {
         "Couldn't load schedules",
         "Check your connection and try again.",
         ' role="alert"',
-        '<button type="button" class="schedcal-panel__retry js-schedcal-retry">Try again</button>'
+        '<button type="button" class="schedcal-panel__retry js-schedcal-retry">' +
+          '<span class="schedcal-panel__retry-face">Try again</span>' +
+          '<span class="schedcal-panel__retry-rail" aria-hidden="true"></span>' +
+        '</button>'
       );
     }
     if ("ready" === sc.phase && !sc.items.length) {
@@ -2319,32 +2337,18 @@ KK.app = (function () {
     return '';
   }
 
-  /* One day. A single <button role="gridcell"> rather than a div wrapping a
-     button: one target, nothing focusable inside it. */
-  function schedcalCellHtml(cell, laneByKey, todayIso, focusedIso, openIso) {
+  /* One day, as one key. A single <button role="gridcell"> rather than a div
+     wrapping a button: one target, nothing focusable inside it.
+
+     Three states, and which one applies is the whole visual language of the
+     page: a day carrying anything is a raised cream key, a day in the month
+     carrying nothing is the same key unpopped, and a day outside the month is
+     no key at all. The bands that used to live in here are drawn once per week
+     by schedcalBandsHtml. */
+  function schedcalCellHtml(cell, todayIso, focusedIso, openIso) {
     const items = cell.inMonth ? scheduleDayItems(cell.iso) : [];
-    const bands = items.filter((item) => item.isBand);
     const points = items.filter((item) => !item.isBand && "wedding" !== item.kind);
     const isWedding = items.some((item) => "wedding" === item.kind);
-
-    const slots = new Array(SCHEDULE_LANES).fill(null);
-    let overflow = false;
-    bands.forEach((band) => {
-      const lane = laneByKey.get(band.key);
-      if (lane === undefined || lane >= SCHEDULE_LANES || slots[lane]) {
-        overflow = true;
-        return;
-      }
-      slots[lane] = band;
-    });
-    // The truth never disappears — it moves to the label and the day sheet.
-    if (overflow) slots[SCHEDULE_LANES - 1] = { colorKey: "more", key: "more" };
-
-    const stripsHtml = slots.map((slot) =>
-      slot
-        ? '<i class="schedcal-strip schedcal-strip--' + U.escapeHtml(slot.colorKey) + '"></i>'
-        : '<i class="schedcal-strip"></i>'
-    ).join('');
 
     const dotsHtml = points.slice(0, 2).map((item, index) =>
       '<i class="schedcal-dot schedcal-dot--' +
@@ -2360,6 +2364,7 @@ KK.app = (function () {
 
     const classes = ["schedcal-day"];
     if (!cell.inMonth) classes.push("schedcal-day--outside");
+    else if (!items.length) classes.push("schedcal-day--quiet");
     if (isWedding) classes.push("schedcal-day--wedding");
     if (cell.iso === todayIso) classes.push("schedcal-day--today");
 
@@ -2369,25 +2374,82 @@ KK.app = (function () {
       (cell.iso === todayIso ? ' aria-current="date"' : '') +
       (cell.iso === openIso ? ' aria-selected="true"' : '') +
       ' aria-label="' + U.escapeHtml(label) + '">' +
-      '<span class="schedcal-day__top">' +
+      '<span class="schedcal-day__face">' +
         '<span class="schedcal-day__num">' + cell.day + '</span>' +
         '<span class="schedcal-day__dots" aria-hidden="true">' + dotsHtml + '</span>' +
       '</span>' +
-      '<span class="schedcal-day__strips" aria-hidden="true">' + stripsHtml + '</span>' +
+      '<span class="schedcal-day__rail" aria-hidden="true"></span>' +
     '</button>';
   }
 
+  /* The bands for one week, drawn once onto the week's own seven columns rather
+     than as a strip inside each of the seven cells.
+
+     A stored production date means its whole Monday-Sunday week, and monthGrid
+     is Monday-first, so such a band always spans this row's full 1/8 and is one
+     unbroken bar. A design phase carries a real end_date, so it spans only the
+     days it covers and picks up its own lane again on the next row. Placement is
+     grid-column arithmetic on ISO day numbers — nothing is measured, so nothing
+     has to be recomputed when the canvas resizes.
+
+     These are decoration over the gridcells that already carry the truth in
+     their labels, which is why the whole track is aria-hidden by omission: the
+     <i> elements have no role and no text. */
+  function schedcalBandsHtml(weekDays, laneByKey) {
+    const weekStart = calendar.toDay(weekDays[0].iso);
+    const weekEnd = weekStart + 6;
+    const lastLane = SCHEDULE_LANES - 1;
+    const drawn = [];
+    const overflow = [];
+
+    sched().items.forEach((item) => {
+      if (!item.isBand) return;
+      const start = calendar.toDay(item.start);
+      const end = calendar.toDay(item.end);
+      if (start === null || end === null || end < weekStart || start > weekEnd) return;
+      const from = Math.max(start, weekStart) - weekStart + 1;
+      const to = Math.min(end, weekEnd) - weekStart + 2;
+      const lane = laneByKey.get(item.key);
+      if (lane === undefined || lane >= SCHEDULE_LANES) overflow.push({ lane, from, to });
+      else drawn.push({ lane, from, to, colorKey: item.colorKey });
+    });
+
+    /* The last lane is where "there is more here than fits" gets said, so a week
+       that overflows gives it up as a real band. Nothing is lost: the cell's own
+       label and the day sheet both still carry everything. */
+    const bars = overflow.length ? drawn.filter((bar) => bar.lane !== lastLane) : drawn;
+    let html = bars.map((bar) =>
+      '<i class="schedcal-band schedcal-band--' + U.escapeHtml(bar.colorKey) + '"' +
+      ' style="grid-row:' + (bar.lane + 2) + ';grid-column:' + bar.from + '/' + bar.to + '"></i>'
+    ).join('');
+
+    if (overflow.length) {
+      const spans = overflow.concat(drawn.filter((bar) => bar.lane === lastLane));
+      const from = Math.min.apply(null, spans.map((span) => span.from));
+      const to = Math.max.apply(null, spans.map((span) => span.to));
+      html += '<i class="schedcal-band schedcal-band--more"' +
+        ' style="grid-row:' + (lastLane + 2) + ';grid-column:' + from + '/' + to + '"></i>';
+    }
+    return html;
+  }
+
+  /* The same six rows, the same 42 boxes, the same reserved lanes — the skeleton
+     is the unpopped state of the real grid, so arriving data changes colours and
+     numbers and never a height. */
   function schedcalSkeletonHtml() {
     let html = '';
     for (let week = 0; week < 6; week++) {
       let cells = '';
       for (let day = 0; day < 7; day++) {
         cells += '<div class="schedcal-day schedcal-day--skel" aria-hidden="true">' +
-          '<span class="schedcal-day__top"><span class="schedcal-day__num"><i class="schedcal-skel__block" style="width:14px;height:13px"></i></span></span>' +
-          '<span class="schedcal-day__strips"><i class="schedcal-strip"></i><i class="schedcal-strip"></i><i class="schedcal-strip"></i></span>' +
+          '<span class="schedcal-day__face">' +
+            '<span class="schedcal-day__num"><i class="schedcal-skel__block"></i></span>' +
+            '<span class="schedcal-day__dots"></span>' +
+          '</span>' +
+          '<span class="schedcal-day__rail"></span>' +
         '</div>';
       }
-      html += '<div class="schedcal-week" role="row">' + cells + '</div>';
+      html += '<div class="schedcal-week" role="presentation">' + cells + '</div>';
     }
     return html;
   }
@@ -2402,12 +2464,22 @@ KK.app = (function () {
       elements.schedcalApprox.innerHTML = '';
       return;
     }
-    const names = thisMonth.map((entry) => U.escapeHtml(entry.name)).join(", ");
+    const one = 1 === thisMonth.length;
     elements.schedcalApprox.innerHTML =
-      '<span class="schedcal-approx__tag">Approximate</span>' +
-      '<span class="schedcal-approx__copy">' +
-        (1 === thisMonth.length ? "1 wedding" : thisMonth.length + " weddings") +
-        ' this month with the day still unconfirmed: <b>' + names + '</b>.</span>';
+      '<div class="schedcal-note">' +
+        '<h2 class="schedcal-note__title">Day not set</h2>' +
+        '<p class="schedcal-note__copy">' +
+          (one ? "This wedding is" : "These weddings are") + " in " +
+          U.escapeHtml(U.MONTHS[sc.cursor.month]) + ", but the day is still unconfirmed, so " +
+          (one ? "it is" : "they are") + " not on the grid.</p>" +
+        '<ul class="schedcal-note__list">' +
+          thisMonth.map((entry) =>
+            '<li class="schedcal-note__row">' +
+              '<i class="schedcal-note__tick" aria-hidden="true"></i>' +
+              U.escapeHtml(entry.name) +
+            '</li>').join('') +
+        '</ul>' +
+      '</div>';
   }
 
   function renderScheduleLegend() {
@@ -2433,7 +2505,10 @@ KK.app = (function () {
     const grid = calendar.monthGrid(sc.cursor.year, sc.cursor.month);
     if (!grid) return;
 
-    elements.schedcalMonthLabel.textContent = U.MONTHS[sc.cursor.month] + " " + sc.cursor.year;
+    /* The month is the <h1> the grid is labelled by, so it carries the year for
+       anything reading it aloud even though the year is set smaller. */
+    elements.schedcalTitle.innerHTML = U.escapeHtml(U.MONTHS[sc.cursor.month]) +
+      '<span class="schedcal-title__year">' + sc.cursor.year + '</span>';
     elements.schedcalBody.setAttribute("aria-busy", "loading" === sc.phase ? "true" : "false");
 
     if ("loading" === sc.phase) {
@@ -2464,10 +2539,12 @@ KK.app = (function () {
     const todayIso = U.todayISO();
     let html = '';
     for (let week = 0; week < 6; week++) {
-      const cells = grid.days.slice(week * 7, week * 7 + 7)
-        .map((cell) => schedcalCellHtml(cell, laneByKey, todayIso, sc.focusedDate, sc.openDate))
+      const weekDays = grid.days.slice(week * 7, week * 7 + 7);
+      const cells = weekDays
+        .map((cell) => schedcalCellHtml(cell, todayIso, sc.focusedDate, sc.openDate))
         .join('');
-      html += '<div class="schedcal-week" role="row">' + cells + '</div>';
+      html += '<div class="schedcal-week" role="row">' + cells +
+        schedcalBandsHtml(weekDays, laneByKey) + '</div>';
     }
     elements.schedcalWeeks.innerHTML = html;
     elements.schedcalState.innerHTML = schedcalStateHtml();
@@ -2541,7 +2618,10 @@ KK.app = (function () {
   function renderScheduleSheet(iso) {
     const items = scheduleDayItems(iso);
     const weekdayName = calendar.WEEKDAYS[calendar.weekdayIndex(iso)] || "";
-    elements.schedcalSheetTitle.textContent = weekdayName + ", " + U.formatShortDate(iso);
+    elements.schedcalSheetTitle.textContent = weekdayName + " " + U.formatShortDate(iso);
+    elements.schedcalSheetCount.textContent = items.length
+      ? items.length + (1 === items.length ? " event" : " events")
+      : "Nothing scheduled";
 
     if (!items.length) {
       elements.schedcalSheetList.innerHTML =
@@ -3373,7 +3453,7 @@ KK.app = (function () {
           '<span class="doclist-skel__line"><i class="doclist-skel__block" style="width:48%;height:14px"></i></span>' +
           '<span class="doclist-skel__line"><i class="doclist-skel__block" style="width:70%;height:14px"></i></span>' +
         '</div>' +
-        '<span class="doclist-card__kind"><i class="doclist-skel__block" style="width:64px;height:14px;margin-left:auto"></i></span>' +
+        '<span class="doclist-card__kind doclist-skel__line"><i class="doclist-skel__block" style="width:64px;height:14px;margin-left:auto"></i></span>' +
       '</div>' +
       '<div class="doclist-card__divider"></div>' +
       '<div class="doclist-card__bottom">' +
@@ -3652,7 +3732,10 @@ KK.app = (function () {
     const kindChanged = ds.kind !== wanted;
     ds.kind = wanted;
     elements.doclistTitle.textContent = documentKindPlural(wanted);
+    // Icon-only key: the label is the only thing that says which kind it makes,
+    // so it carries the title too rather than leaving a bare tooltip-less glyph.
     elements.doclistNewBtn.setAttribute("aria-label", "New " + documentKindName(wanted).toLowerCase());
+    elements.doclistNewBtn.setAttribute("title", "New " + documentKindName(wanted).toLowerCase());
     elements.doclistSearch.setAttribute("placeholder", "Search customer, order, or date");
 
     // Coming back from the order a row opened, in the same history visit: the

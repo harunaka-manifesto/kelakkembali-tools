@@ -128,6 +128,21 @@ Any new stage-aware component sets `--fitlog-stage-color` and reads it — see
 `.fitlog-stage` — or joins the selector list on the token block, as `.schedcal`
 does. Do not re-list the hex values in a new block.
 
+**These are the dark pair, so they are chosen to read on cream.** The schedules
+calendar draws its week bands straight onto the black ledger instead, where
+`--stage-design`, `--stage-final-fitting`, and `--stage-more` land within a shade
+or two of the ground and disappear. They get an edge, not a different value:
+
+```css
+.schedcal-band--final-fitting,
+.schedcal-band--design,
+.schedcal-band--more { box-shadow: inset 0 0 0 1px rgba(254,250,241,.42); }
+```
+
+A paper hairline on the three that need it is the sanctioned fix. Re-listing the
+palette lighter for a dark surface is not — that is how a second, drifting set
+of stage colours gets born.
+
 **Do not add a sixth entry to `U.FITTING_STAGES` to cover the design rows.**
 `tests/pure-modules.test.cjs` asserts those five map one-to-one onto
 `fitting_log_feed`'s five `stage_key` values, and `db.FITTING_STAGE_KEYS` is the
@@ -385,6 +400,13 @@ add to the padding exactly what you take off the rail:
 Pick the rail from the weight of the object: a full-width record gets 12px, a
 control in a row gets 7–8px.
 
+**A key can also be built unpopped.** The schedules calendar's empty days invert
+the same two-row grid — `grid-template-rows: 6px 40px`, face on row 2, rail
+transparent, and the face shaded from the top (`rgba(0,0,0,.28)`) rather than
+lit from it. The block then sits exactly one rail-height lower than its raised
+neighbours, which is precisely what a pressed key gives up, so a grid of raised
+and unpopped keys reads as one mechanism rather than two treatments.
+
 ### 5.3 `display: grid` beats `[hidden]`
 
 Any element that sets its own `display` must restate the hidden case, or a
@@ -633,3 +655,9 @@ Recorded so the next person does not read it as intent:
 - `--space-*` tokens are barely used on the canvas, which works in raw
   12/16/24. Do not force `--space-5` (20px) into a canvas layout — 20px is not
   part of that rhythm.
+- **`.fitlog-card` breaks its own press invariant.** `pages.css:2646` presses to
+  `padding-top: 14px; padding-bottom: 10px` while the rail goes 8px → 4px: the
+  padding gives back nothing, so the record loses 4px of height and everything
+  under it jumps. The correct pair is `14px / 14px` — take back exactly what the
+  rail gives up (§5.1). `.doclist-card` was copied from it and has been fixed;
+  the fitting feed still carries the bug and should get the same one-line change.

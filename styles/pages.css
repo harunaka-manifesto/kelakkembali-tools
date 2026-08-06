@@ -3436,12 +3436,19 @@ body.has-fitadd-bar .fitadd { padding-bottom: calc(var(--bottombar-h) + 8px); }
 /* Same 390px canvas and black ledger as the fitting feed, and the nav reuses
    .cust-nav / .cust-nav-btn wholesale for the same reason it does there.
 
-   The one thing this page does that no other does: a fitting appointment is
-   stored as a single date but means its whole Monday-Sunday week, so it has to
-   read as one continuous band across seven cells. That is why the grid carries
-   no vertical rules — a 1px separator between cells would cut every band into
-   seven pieces. The seven-column rhythm is carried by the weekday header and
-   the aligned date numbers instead, and the bands stay whole. */
+   The page is built on one idea: a day is a physical key. A day with something
+   on it is a cream key standing off the ledger; a day with nothing is the same
+   key unpopped, its face sunk to the bottom of the box; a day outside the month
+   is no key at all, only the ledger showing through. Reading a month is then
+   reading a relief, not scanning text.
+
+   That is only possible because the coloured week bands moved out of the cells.
+   A stored production date means its whole Monday-Sunday week, and a
+   Monday-first grid puts that week on exactly one row — so a band belongs to
+   the row, not to seven cells. Drawing it once per row, positioned by
+   grid-column, is what frees the cells to carry real gutters, which is what
+   makes the grid read as a grid and the keys read as keys. The previous version
+   had to drop every vertical rule to keep its bands continuous. */
 body.is-schedulespage { background: #292929; overflow-x: hidden; }
 body.is-schedulespage .appbar,
 body.is-schedulespage .pagehead { display: none; }
@@ -3465,21 +3472,88 @@ body.is-schedulespage .view { gap: 0; }
 /* ------------------------------- Title band ------------------------------- */
 
 .schedcal-head { padding-top: 67px; background: var(--home-black); }
-.schedcal-title {
-  padding: 12px 24px;
+
+.schedcal-titleband {
+  padding: 12px 24px 14px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
   border-top: 1px solid var(--home-grid);
   border-bottom: 1px solid var(--home-grid);
 }
-.schedcal-title h1 {
+.schedcal-titleband__text { min-width: 0; }
+.schedcal-eyebrow {
+  margin: 0 0 2px;
+  color: var(--home-grid);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+}
+/* The month is the page title, at the same 32/40 the order and fitting-log
+   pages set theirs. "September 2026" at that size does not clear the two nav
+   keys on a 390px canvas, so the year is set at card-title size beside it —
+   which is also the right hierarchy: you page months, you read the year once. */
+.schedcal-title {
   margin: 0;
   color: var(--home-white);
   font-size: 32px;
   font-weight: 700;
   line-height: 40px;
   letter-spacing: -.96px;
+  white-space: nowrap;
 }
-.schedcal-title h1:focus { outline: none; }
+.schedcal-title:focus { outline: none; }
+.schedcal-title__year {
+  margin-left: 6px;
+  color: var(--home-grid);
+  font-size: 20px;
+  line-height: 24px;
+  letter-spacing: -.6px;
+  font-variant-numeric: tabular-nums;
+}
 
+.schedcal-monthnav {
+  flex: none;
+  display: flex;
+  gap: 6px;
+  padding-bottom: 2px;
+}
+.schedcal-nav-btn {
+  width: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--home-black);
+  font: inherit;
+  display: grid;
+  grid-template-rows: 38px 6px;
+  overflow: hidden;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: grid-template-rows 120ms var(--ease-out-expo);
+}
+.schedcal-nav-btn__face {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, rgba(0,0,0,.04), transparent), var(--home-white);
+}
+.schedcal-nav-btn__rail { display: block; background: var(--home-white-dark); }
+.schedcal-nav-btn:active,
+.schedcal-nav-btn.is-pressed { grid-template-rows: 42px 2px; }
+.schedcal-nav-btn:active .schedcal-nav-btn__face,
+.schedcal-nav-btn.is-pressed .schedcal-nav-btn__face {
+  background-image: linear-gradient(180deg, transparent, rgba(0,0,0,.06));
+}
+
+/* The vertical ticks are real elements, not a background pattern, so they stay
+   pixel-aligned whatever height a block ends up at. */
+.schedcal-grid-rule { height: 1px; background: var(--home-grid); }
 .schedcal-grid-spacer { height: 24px; position: relative; }
 .schedcal-grid-spacer::before,
 .schedcal-grid-spacer::after {
@@ -3493,151 +3567,88 @@ body.is-schedulespage .view { gap: 0; }
 .schedcal-grid-spacer::before { left: 24px; }
 .schedcal-grid-spacer::after  { right: 24px; }
 
-/* -------------------------------- Month bar ------------------------------- */
-
-.schedcal-monthbar {
-  padding: 12px 24px;
-  display: grid;
-  grid-template-columns: 44px 1fr 44px;
-  align-items: center;
-  gap: 12px;
-  background: var(--home-black);
-  border-bottom: 1px solid var(--home-grid);
-}
-.schedcal-monthbar__label {
-  margin: 0;
-  text-align: center;
-  color: var(--home-white);
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 24px;
-  letter-spacing: -.48px;
-  font-variant-numeric: tabular-nums;
-}
-.schedcal-nav-btn {
-  height: 44px;
-  padding: 0;
-  border: 1px solid var(--home-white-dark);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--home-black);
-  font: inherit;
-  display: grid;
-  grid-template-rows: 38px 6px;
-  overflow: hidden;
-  cursor: pointer;
-  transition: grid-template-rows 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
-}
-.schedcal-nav-btn__face {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--home-white);
-}
-.schedcal-nav-btn__rail { display: block; background: var(--home-white-dark); }
-.schedcal-nav-btn:active,
-.schedcal-nav-btn.is-pressed { grid-template-rows: 42px 2px; }
-
-/* ---------------------------- Approximate notice -------------------------- */
-
-/* A month-precision wedding is stored as the last day of its month, so it gets
-   named here rather than drawn on a day the couple never chose. */
-.schedcal-approx {
-  padding: 12px 24px;
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  background: var(--home-black-light);
-  border-bottom: 1px solid var(--home-grid);
-}
-.schedcal-approx[hidden] { display: none; }
-.schedcal-approx__tag {
-  flex: none;
-  padding: 2px 6px;
-  background: var(--home-grid);
-  color: var(--home-white);
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 16px;
-  letter-spacing: -.22px;
-  text-transform: uppercase;
-}
-.schedcal-approx__copy {
-  color: var(--home-white);
-  font-size: 13px;
-  font-weight: 400;
-  line-height: 18px;
-  letter-spacing: -.26px;
-}
-.schedcal-approx__copy b { font-weight: 700; }
-
 /* --------------------------------- The grid ------------------------------- */
 
 .schedcal-body { background: var(--home-black); }
-.schedcal-grid {
-  padding: 0 24px;
-  background: var(--home-black);
-}
-.schedcal-weekdays,
-.schedcal-week {
+.schedcal-grid { padding: 12px 24px 16px; background: var(--home-black); }
+
+.schedcal-weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-}
-.schedcal-weekdays {
-  background: var(--home-white-dark);
+  column-gap: 3px;
+  padding-bottom: 8px;
   border-bottom: 1px solid var(--home-grid);
 }
 .schedcal-weekday {
-  padding: 6px 0;
   text-align: center;
-  color: var(--home-black-light);
-  font-size: 11px;
+  color: var(--home-white-dark);
+  font-size: 12px;
   font-weight: 700;
   line-height: 16px;
-  letter-spacing: .22px;
+  letter-spacing: .6px;
 }
-.schedcal-week + .schedcal-week { border-top: 1px solid var(--home-grid); }
+
+/* Every week is a ruled line of the ledger, and the three lane tracks are
+   reserved on every row whether or not anything is in them. Together those two
+   facts are what let a quiet week read as part of the grid instead of a hole in
+   it, and they are why loading, ready, and empty are all exactly the same
+   height — a month change or a data swap can never move the footer. */
+.schedcal-week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-template-rows: 47px repeat(3, 5px);
+  column-gap: 3px;
+  row-gap: 2px;
+  margin-top: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--home-grid);
+}
 
 .schedcal-day {
-  position: relative;
+  grid-row: 1;
+  align-self: start;
   min-width: 0;
-  padding: 6px 0 12px;
+  height: 46px;
+  padding: 0;
   border: 0;
   border-radius: 0;
-  background: var(--home-white);
+  background: none;
   color: var(--home-black);
   font: inherit;
-  text-align: left;
+  text-align: center;
   display: grid;
-  grid-template-rows: 20px auto;
-  /* Tight above, generous below. Equidistant strips read as a rule between two
-     weeks rather than as the bands belonging to the week whose number they sit
-     under — the 3px/12px split is what settles which week owns them. */
-  gap: 3px;
+  grid-template-rows: 40px 6px;
+  overflow: hidden;
   cursor: pointer;
   -webkit-appearance: none;
   appearance: none;
+  transition: grid-template-rows 120ms var(--ease-out-expo);
 }
-.schedcal-day__top {
-  padding: 0 4px;
+.schedcal-day__face {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 2px;
-}
-.schedcal-day__num {
-  min-width: 20px;
-  height: 20px;
-  display: inline-flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  gap: 2px;
+  background: linear-gradient(180deg, rgba(0,0,0,.04), transparent), var(--home-white);
+}
+.schedcal-day__rail { display: block; background: var(--home-white-dark); }
+.schedcal-day__num {
+  font-size: 17px;
   font-weight: 700;
-  line-height: 16px;
-  letter-spacing: -.26px;
+  line-height: 20px;
+  letter-spacing: -.51px;
   font-variant-numeric: tabular-nums;
 }
-.schedcal-day__dots { display: inline-flex; align-items: center; gap: 2px; }
+/* Reserved whether or not there are dots, so the numbers keep one baseline
+   across a row. */
+.schedcal-day__dots {
+  height: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+}
 .schedcal-dot {
   width: 5px;
   height: 5px;
@@ -3648,49 +3659,101 @@ body.is-schedulespage .view { gap: 0; }
 .schedcal-dot--payment   { background: var(--stage-payment); }
 .schedcal-dot--more      { background: var(--stage-more); }
 
-/* Full-bleed to both cell edges on purpose: seven of these in a row, same lane,
-   same colour, is what makes a planned fitting week read as one bar. */
-.schedcal-day__strips {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.schedcal-day:active,
+.schedcal-day.is-pressed { grid-template-rows: 44px 2px; }
+.schedcal-day:active .schedcal-day__face,
+.schedcal-day.is-pressed .schedcal-day__face {
+  background-image: linear-gradient(180deg, transparent, rgba(0,0,0,.06));
 }
-.schedcal-strip { display: block; height: 3px; background: transparent; }
-.schedcal-strip--sizing        { background: var(--stage-sizing); }
-.schedcal-strip--fitting-1     { background: var(--stage-fitting-1); }
-.schedcal-strip--fitting-2     { background: var(--stage-fitting-2); }
-.schedcal-strip--fitting-3     { background: var(--stage-fitting-3); }
-.schedcal-strip--final-fitting { background: var(--stage-final-fitting); }
-.schedcal-strip--design        { background: var(--stage-design); }
-.schedcal-strip--more          { background: var(--stage-more); }
+
+/* A day with nothing on it is the same key unpopped: the face sits at the
+   bottom of the box rather than the top, and is shaded from above instead of
+   below, so the block reads as sunk into the ledger rather than standing on it.
+   The offset is exactly the rail height, which is what a pressed key loses. */
+.schedcal-day--quiet { grid-template-rows: 6px 40px; }
+.schedcal-day--quiet .schedcal-day__face {
+  grid-row: 2;
+  background: linear-gradient(180deg, rgba(0,0,0,.28), transparent 70%), var(--home-black-light);
+  color: var(--home-white-dark);
+}
+.schedcal-day--quiet .schedcal-day__rail { grid-row: 1; background: transparent; }
+.schedcal-day--quiet .schedcal-day__num { font-weight: 600; }
+.schedcal-day--quiet:active,
+.schedcal-day--quiet.is-pressed { grid-template-rows: 2px 44px; }
+
+/* Not this month: no block at all, only the ledger ground and a quiet number.
+   Still focusable, so arrow keys page the month instead of dead-ending. */
+.schedcal-day--outside { grid-template-rows: 6px 40px; }
+.schedcal-day--outside .schedcal-day__face {
+  grid-row: 2;
+  background: none;
+  color: var(--home-grid);
+}
+.schedcal-day--outside .schedcal-day__rail { grid-row: 1; background: transparent; }
+.schedcal-day--outside .schedcal-day__num { font-weight: 600; }
+.schedcal-day--outside:active,
+.schedcal-day--outside.is-pressed { grid-template-rows: 2px 44px; }
+
+/* Today's key sits on the orange rail — the colour that already means "the next
+   thing to act on" everywhere else in the app. */
+.schedcal-day--today .schedcal-day__face { box-shadow: inset 0 0 0 2px var(--home-orange); }
+.schedcal-day--today .schedcal-day__rail { background: #dd5d01; }
 
 /* The one date the whole programme is computed backwards from, readable at a
    glance without spending a lane on it. */
 .schedcal-day--wedding .schedcal-day__num {
+  min-width: 24px;
+  padding: 0 4px;
   background: var(--stage-wedding);
   color: var(--home-white);
 }
-.schedcal-day--today .schedcal-day__num { box-shadow: inset 0 0 0 1.5px var(--home-orange, #dd5d01); }
-.schedcal-day--outside { background: var(--home-white-dark); }
-.schedcal-day--outside .schedcal-day__num { color: var(--home-grid); }
-.schedcal-day--skel { cursor: default; }
-.schedcal-day:active,
-.schedcal-day.is-pressed { background: var(--home-white-dark); }
 
+/* ------------------------------- Week bands ------------------------------- */
+
+/* One element per band per week, placed by grid-column onto the same seven
+   tracks the cells use. A Monday-Sunday production week therefore spans 1/8 and
+   is one unbroken bar; a 14-day design phase spans the days it really covers
+   and keeps its lane as it wraps onto the next row. No measurement, no absolute
+   positioning, nothing to recompute on resize. */
+.schedcal-band {
+  align-self: stretch;
+  min-width: 0;
+  background: var(--stage-more);
+}
+.schedcal-band--sizing        { background: var(--stage-sizing); }
+.schedcal-band--fitting-1     { background: var(--stage-fitting-1); }
+.schedcal-band--fitting-2     { background: var(--stage-fitting-2); }
+.schedcal-band--fitting-3     { background: var(--stage-fitting-3); }
+.schedcal-band--final-fitting { background: var(--stage-final-fitting); }
+.schedcal-band--design        { background: var(--stage-design); }
+.schedcal-band--more          { background: var(--stage-more); }
+/* The stage tokens are the dark pair, picked to read on cream. Three of them
+   land within a shade or two of the ledger ground they now sit on, so those
+   three carry a paper hairline to keep an edge. One rule for the three that
+   need it beats re-listing hexes for a second context. */
+.schedcal-band--final-fitting,
+.schedcal-band--design,
+.schedcal-band--more { box-shadow: inset 0 0 0 1px rgba(254,250,241,.42); }
+
+/* ------------------------------ Skeleton & states ------------------------- */
+
+/* The skeleton is the unpopped block: loading to ready changes a colour and a
+   number, never a box. */
+.schedcal-day--skel { grid-template-rows: 6px 40px; cursor: default; }
+.schedcal-day--skel .schedcal-day__face { grid-row: 2; background: var(--home-black-light); }
+.schedcal-day--skel .schedcal-day__rail { grid-row: 1; background: transparent; }
 .schedcal-skel__block {
   display: block;
-  background: rgba(76,76,76,.18);
+  width: 18px;
+  height: 14px;
+  background: rgba(254,250,241,.14);
   animation: home-shimmer 1.2s ease-in-out infinite;
 }
 
-/* ------------------------------ Panels & legend --------------------------- */
-
+.schedcal-state { padding: 0 24px; background: var(--home-black); }
 .schedcal-state:empty { display: none; }
-.schedcal-state {
-  padding: 24px;
-  background: var(--home-black);
-}
 .schedcal-panel {
+  margin-top: 16px;
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -3700,11 +3763,11 @@ body.is-schedulespage .view { gap: 0; }
 }
 .schedcal-panel__title {
   margin: 0;
-  color: var(--home-black-light);
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 20px;
-  letter-spacing: -.28px;
+  color: var(--home-black);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+  letter-spacing: -.48px;
 }
 .schedcal-panel__copy {
   margin: 0;
@@ -3717,23 +3780,95 @@ body.is-schedulespage .view { gap: 0; }
 .schedcal-panel__retry {
   align-self: flex-start;
   margin-top: 4px;
-  padding: 8px 14px;
+  padding: 0;
   border: 0;
   border-radius: 0;
-  background: var(--home-black);
+  background: none;
   color: var(--home-white);
-  font: 700 13px/18px 'Plus Jakarta Sans', sans-serif;
-  letter-spacing: -.26px;
+  font: inherit;
+  display: grid;
+  grid-template-rows: 40px 6px;
+  overflow: hidden;
   cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: grid-template-rows 120ms var(--ease-out-expo);
+}
+.schedcal-panel__retry-face {
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  background: linear-gradient(180deg, rgba(255,255,255,.08), transparent), var(--home-black);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -.42px;
+}
+.schedcal-panel__retry-rail { display: block; background: var(--home-grid); }
+.schedcal-panel__retry:active,
+.schedcal-panel__retry.is-pressed { grid-template-rows: 44px 2px; }
+
+/* -------------------------- Approximate-wedding note ---------------------- */
+
+/* Paper inset in the ledger, the same object the empty and error panels are, so
+   the three things this page can say all say it the same way. */
+.schedcal-approx { padding: 16px 24px 0; background: var(--home-black); }
+.schedcal-approx[hidden] { display: none; }
+.schedcal-note {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--home-white);
+  border: 1px solid var(--home-grid);
+}
+.schedcal-note__title {
+  margin: 0;
+  color: var(--home-black);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+}
+.schedcal-note__copy {
+  margin: 0;
+  color: var(--home-grid);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 18px;
+  letter-spacing: -.26px;
+}
+.schedcal-note__list { margin: 0; padding: 0; list-style: none; }
+.schedcal-note__row {
+  padding: 6px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-top: 1px solid var(--home-white-dark);
+  color: var(--home-black);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+  letter-spacing: -.42px;
+  overflow-wrap: anywhere;
+}
+.schedcal-note__tick {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  background: var(--stage-wedding);
 }
 
+/* ---------------------------------- Legend -------------------------------- */
+
+/* Only the kinds actually present in the month on screen. The bands name their
+   stage, the dots and the wedding chip do not, so this is what decodes them. */
 .schedcal-legend {
-  padding: 12px 24px;
+  padding: 0 24px 8px;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 14px;
+  gap: 8px 16px;
   background: var(--home-black);
-  border-top: 1px solid var(--home-grid);
 }
 .schedcal-legend:empty { display: none; }
 .schedcal-legend__item {
@@ -3744,18 +3879,39 @@ body.is-schedulespage .view { gap: 0; }
   font-size: 12px;
   font-weight: 500;
   line-height: 16px;
-  letter-spacing: -.24px;
+  letter-spacing: -.36px;
 }
-.schedcal-legend__swatch { width: 12px; height: 3px; background: var(--stage-more); }
+.schedcal-legend__swatch {
+  flex: none;
+  width: 14px;
+  height: 5px;
+  background: var(--stage-more);
+}
 .schedcal-legend__swatch--sizing        { background: var(--stage-sizing); }
 .schedcal-legend__swatch--fitting-1     { background: var(--stage-fitting-1); }
 .schedcal-legend__swatch--fitting-2     { background: var(--stage-fitting-2); }
 .schedcal-legend__swatch--fitting-3     { background: var(--stage-fitting-3); }
-.schedcal-legend__swatch--final-fitting { background: var(--home-white); }
+.schedcal-legend__swatch--final-fitting,
+.schedcal-legend__swatch--design {
+  box-shadow: inset 0 0 0 1px rgba(254,250,241,.42);
+}
+.schedcal-legend__swatch--final-fitting { background: var(--stage-final-fitting); }
 .schedcal-legend__swatch--design        { background: var(--stage-design); }
-.schedcal-legend__swatch--wedding       { background: var(--home-white); }
-.schedcal-legend__swatch--follow-up     { background: var(--stage-follow-up); }
-.schedcal-legend__swatch--payment       { background: var(--stage-payment); }
+/* Not a band: a square chip and two dots, matching how they are drawn on a day. */
+.schedcal-legend__swatch--wedding {
+  width: 10px;
+  height: 10px;
+  background: var(--stage-wedding);
+  box-shadow: inset 0 0 0 1px rgba(254,250,241,.42);
+}
+.schedcal-legend__swatch--follow-up,
+.schedcal-legend__swatch--payment {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.schedcal-legend__swatch--follow-up { background: var(--stage-follow-up); }
+.schedcal-legend__swatch--payment   { background: var(--stage-payment); }
 
 .schedcal-footer {
   padding: 24px;
@@ -3770,7 +3926,8 @@ body.is-schedulespage .view { gap: 0; }
 /* -------------------------------- Day sheet ------------------------------- */
 
 /* z-index 120 puts it in the photo-viewer band: above the fixed nav, below the
-   camera and the toast. */
+   camera and the toast. Rows are the same key the grid is built from, with the
+   stage colour as the rail — the one place the page names what a colour meant. */
 .schedcal-sheet {
   position: fixed;
   inset: 0;
@@ -3789,31 +3946,43 @@ body.is-schedulespage .view { gap: 0; }
   position: relative;
   width: min(390px, 100%);
   max-height: 76svh;
-  padding: 20px 24px calc(24px + env(safe-area-inset-bottom, 0px));
+  padding: 0 0 calc(24px + env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
-  gap: 16px;
   overflow-y: auto;
   background: var(--home-black);
   border-top: 1px solid var(--home-grid);
-  animation: surface-rise 220ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+  animation: surface-rise 220ms var(--ease-out-expo);
+}
+.schedcal-sheet__head {
+  padding: 16px 24px 14px;
+  border-bottom: 1px solid var(--home-grid);
+}
+.schedcal-sheet__eyebrow {
+  margin: 0 0 2px;
+  color: var(--home-grid);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: .6px;
+  text-transform: uppercase;
 }
 .schedcal-sheet__title {
   margin: 0;
   color: var(--home-white);
-  font-size: 20px;
+  font-size: 26px;
   font-weight: 700;
-  line-height: 28px;
-  letter-spacing: -.6px;
+  line-height: 32px;
+  letter-spacing: -.78px;
 }
 .schedcal-sheet__title:focus { outline: none; }
 .schedcal-sheet__list {
   margin: 0;
-  padding: 0;
+  padding: 16px 24px;
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 .schedcal-sheet__empty {
   color: var(--home-grid);
@@ -3825,11 +3994,11 @@ body.is-schedulespage .view { gap: 0; }
 .schedcal-sheet__link {
   --schedcal-row-color: var(--stage-more);
   display: grid;
-  grid-template-rows: auto 6px;
+  grid-template-rows: auto 8px;
   overflow: hidden;
   text-decoration: none;
   color: var(--home-black);
-  transition: grid-template-rows 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+  transition: grid-template-rows 120ms var(--ease-out-expo);
 }
 .schedcal-sheet__link--sizing        { --schedcal-row-color: var(--stage-sizing); }
 .schedcal-sheet__link--fitting-1     { --schedcal-row-color: var(--stage-fitting-1); }
@@ -3841,16 +4010,23 @@ body.is-schedulespage .view { gap: 0; }
 .schedcal-sheet__link--follow-up     { --schedcal-row-color: var(--stage-follow-up); }
 .schedcal-sheet__link--payment       { --schedcal-row-color: var(--stage-payment); }
 .schedcal-sheet__face {
-  padding: 12px 14px;
+  padding: 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  background: var(--home-white);
+  background: linear-gradient(180deg, rgba(0,0,0,.04), transparent), var(--home-white);
 }
 .schedcal-sheet__rail { display: block; background: var(--schedcal-row-color); }
+/* Grows by exactly what the rail loses, so a pressed row moves nothing below it. */
 .schedcal-sheet__link:active,
-.schedcal-sheet__link.is-pressed { grid-template-rows: auto 2px; }
+.schedcal-sheet__link.is-pressed { grid-template-rows: auto 3px; }
+.schedcal-sheet__link:active .schedcal-sheet__face,
+.schedcal-sheet__link.is-pressed .schedcal-sheet__face {
+  padding-top: 14px;
+  padding-bottom: 15px;
+  background-image: linear-gradient(180deg, transparent, rgba(0,0,0,.06));
+}
 .schedcal-sheet__lines { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .schedcal-sheet__who {
   overflow: hidden;
@@ -3881,30 +4057,37 @@ body.is-schedulespage .view { gap: 0; }
   font-variant-numeric: tabular-nums;
 }
 .schedcal-sheet__close {
+  margin: 0 24px;
   padding: 0;
-  border: 1px solid var(--home-white-dark);
-  border-radius: 4px;
-  background: transparent;
+  border: 0;
+  border-radius: 0;
+  background: none;
   font: inherit;
   color: var(--home-black);
   display: grid;
-  grid-template-rows: 42px 6px;
+  grid-template-rows: 46px 8px;
   overflow: hidden;
   cursor: pointer;
-  transition: grid-template-rows 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+  -webkit-appearance: none;
+  appearance: none;
+  transition: grid-template-rows 120ms var(--ease-out-expo);
 }
 .schedcal-sheet__close-face {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--home-white);
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -.3px;
+  background: linear-gradient(180deg, rgba(0,0,0,.04), transparent), var(--home-white);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -.48px;
 }
 .schedcal-sheet__close-rail { display: block; background: var(--home-white-dark); }
 .schedcal-sheet__close:active,
-.schedcal-sheet__close.is-pressed { grid-template-rows: 46px 2px; }
+.schedcal-sheet__close.is-pressed { grid-template-rows: 51px 3px; }
+.schedcal-sheet__close:active .schedcal-sheet__close-face,
+.schedcal-sheet__close.is-pressed .schedcal-sheet__close-face {
+  background-image: linear-gradient(180deg, transparent, rgba(0,0,0,.06));
+}
 
 /* Paper over the black ledger, ink over anything sitting on a white face. */
 body.is-schedulespage a:focus-visible,
@@ -3914,9 +4097,13 @@ body.is-schedulespage button:focus-visible {
 }
 body.is-schedulespage .schedcal-day:focus-visible,
 body.is-schedulespage .schedcal-nav-btn:focus-visible,
-body.is-schedulespage .schedcal-panel__retry:focus-visible,
 body.is-schedulespage .cust-nav-btn:focus-visible {
   outline-color: var(--home-black);
+  outline-offset: -2px;
+}
+/* Both of these are dark faces on paper, so the ring goes back to paper. */
+body.is-schedulespage .schedcal-panel__retry:focus-visible {
+  outline-color: var(--home-white);
   outline-offset: -2px;
 }
 .schedcal-sheet a:focus-visible,
@@ -3933,7 +4120,9 @@ body.is-schedulespage .cust-nav-btn:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .schedcal-skel__block { animation: none; background-color: rgba(76,76,76,.25); }
   .schedcal-sheet__panel { animation: none; }
+  .schedcal-day,
   .schedcal-nav-btn,
+  .schedcal-panel__retry,
   .schedcal-sheet__link,
   .schedcal-sheet__close { transition: none; }
 }
@@ -4022,87 +4211,92 @@ body.is-doclistpage .view { gap: 0; }
   background: var(--home-white);
   border-left: 1px solid var(--home-grid);
   border-right: 1px solid var(--home-grid);
+  color: var(--home-black);
   transition: padding 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
 }
-/* The rail is a sibling of the card, not a child, so it cannot read the card's
-   --doclist-kind-color. The kind is applied to it through the adjacent-sibling
-   rules below; this only sets the geometry and the neutral default. */
+/* Paper, and therefore its own shadow twin — a cream face sits on
+   --home-white-dark and on nothing else (DESIGN-SYSTEM §2.2). The kind's colour
+   is carried by the kind text, exactly as the fitting feed carries its stage,
+   which is also the only place on the card where it is worth anything: on a
+   route that shows one kind, a coloured rail on every row says nothing. */
 .doclist-card__rail {
-  display: block;
   height: 8px;
-  background: var(--home-grid);
+  display: block;
+  background: var(--home-white-dark);
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
   transition: height 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
 }
-/* The same green and blue that already mean quotation and invoice on the
-   shortcut row and the customer banners. */
-.doclist-card--quotation { --doclist-kind-color: #19aa16; }
-.doclist-card--invoice   { --doclist-kind-color: #1866da; }
-.doclist-card--quotation + .doclist-card__rail { background: #19aa16; }
-.doclist-card--invoice   + .doclist-card__rail { background: #1866da; }
+/* The rail gives up 4px, so the padding takes exactly 4px back: pressing a card
+   redistributes its height and never changes its footprint (§5.1). */
 .doclist-card-link:active .doclist-card__rail,
 .doclist-card-link.is-pressed .doclist-card__rail { height: 4px; }
 .doclist-card-link:active .doclist-card,
-.doclist-card-link.is-pressed .doclist-card { padding-top: 14px; padding-bottom: 10px; }
+.doclist-card-link.is-pressed .doclist-card { padding-top: 14px; padding-bottom: 14px; }
 
 .doclist-card__top {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
+  font-size: 14px;
+  letter-spacing: -.42px;
 }
-.doclist-card__names { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.doclist-card__who {
+.doclist-card__names { flex: 1 1 0; min-width: 0; }
+.doclist-card__who,
+.doclist-card__order {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--home-black);
-  font-size: 15px;
   font-weight: 700;
   line-height: 20px;
-  letter-spacing: -.3px;
 }
-.doclist-card__order {
+/* The same green and blue that already mean quotation and invoice on the
+   shortcut row and the customer banners — as ink, not as a filled badge. The
+   ledger canvas has no pill-shaped tags, and these two hexes are rail twins:
+   they are what a green or blue key casts, never what it fills with. */
+.doclist-card__kind {
+  flex: none;
+  width: 100px;
+  max-width: 100px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--home-grid);
-  font-size: 13px;
-  font-weight: 400;
-  line-height: 18px;
-  letter-spacing: -.26px;
+  text-align: right;
+  font-weight: 600;
+  line-height: 20px;
 }
-.doclist-card__kind {
-  flex: none;
-  padding: 2px 8px;
-  background: var(--doclist-kind-color, var(--home-grid));
-  color: var(--home-white);
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 16px;
-  letter-spacing: .22px;
-  text-transform: uppercase;
-}
+.doclist-card--quotation .doclist-card__kind { color: #19aa16; }
+.doclist-card--invoice   .doclist-card__kind { color: #1866da; }
+
 .doclist-card__divider { height: 1px; background: var(--home-white-dark); }
 .doclist-card__bottom {
+  min-height: 32px;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 .doclist-card__date {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--home-grid);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
-  line-height: 18px;
-  letter-spacing: -.26px;
+  line-height: 24px;
+  letter-spacing: -.42px;
   font-variant-numeric: tabular-nums;
 }
 .doclist-card__amount {
+  flex: none;
   color: var(--home-black);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
-  line-height: 20px;
-  letter-spacing: -.3px;
+  line-height: 24px;
+  letter-spacing: -.42px;
   font-variant-numeric: tabular-nums;
 }
 .doclist-card__amount--none { color: var(--home-grid); font-weight: 500; }

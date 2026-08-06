@@ -40,12 +40,12 @@ Structure: boot gate → auth gate → app shell (bar + header + all views) → 
 | 1117 | `#viewMoodboard` | `.view.moodboard-page` | `setupMoodboardListeners` 6970 |
 | 1259 | `#viewFittingJournal` | `.view` | `KK.fittings.renderJournal` |
 | 1264 | `#viewEnquiry` | `.view` | `acceptEnquiry` 5547 |
-| 1293 | `#viewSchedules` | `.view.schedcal` | `showSchedules` 2294 |
-| 1360 | `#viewDocuments` | `.view.doclist` | `showDocuments` 3279 |
+| 1297 | `#viewSchedules` | `.view.schedcal` | `showSchedules` 2736 |
+| 1373 | `#viewDocuments` | `.view.doclist` | `showDocuments` 3721 |
 
 ### Overlays & bars — id → line
 
-`#docnewSheet` 1439 (new-document picker) · `#schedcalSheet` 1457 (calendar day sheet) · `#fittingCamera` 1285 · `#fittingConfirm` 1297 · `#fittingCaptionStep` 1302 · `#fittingPicker` 1307 · `#fittingEditSheet` 1309 · `#fittingPhotoViewer` 1313 · `#fitdetBar` 1321 · `#fiteditBar` 1335 · `#fitaddUndo` 1347 · `#fitaddBar` 1354 · `#fittingJournalBar` 1368 · `#savebar` 1372 · `#calcSheet` 1385 · `#routeLoader` 1424 · `#toast` 1546
+`#docnewSheet` 1456 (new-document picker) · `#schedcalSheet` 1474 (calendar day sheet) · `#fittingCamera` 1285 · `#fittingConfirm` 1297 · `#fittingCaptionStep` 1302 · `#fittingPicker` 1307 · `#fittingEditSheet` 1309 · `#fittingPhotoViewer` 1313 · `#fitdetBar` 1321 · `#fiteditBar` 1335 · `#fitaddUndo` 1347 · `#fitaddBar` 1354 · `#fittingJournalBar` 1368 · `#savebar` 1372 · `#calcSheet` 1385 · `#routeLoader` 1424 · `#toast` 1546
 
 Hidden file inputs: `#fitdetPhotoInput` 408 (multi-select entry from detail) · `#fitaddFileInput` 520 (append on the review page) · `#fiteditFileInput` 472 · `#fittingFileInput` 1295
 
@@ -115,9 +115,9 @@ Editor page 8 · Generated canvas 264 · Actions 352 · Full-screen overlay 437 
 
 | Prefix | Feature | File |
 | :--- | :--- | :--- |
-| `.schedcal-*` | Schedules calendar (grid, strips, day sheet) | `pages.css` 3364+ |
-| `.doclist-*` | Quotations and invoices list (both routes) | `pages.css` 3871+ |
-| `.docnew*` | New-document picker — utility chrome, not ledger canvas | `shared.css` 2279+ |
+| `.schedcal-*` | Schedules calendar (day keys, per-week bands, day sheet) | `pages.css` 3434+ |
+| `.doclist-*` | Quotations and invoices list (both routes) | `pages.css` 4130+ |
+| `.docnew*` | New-document picker — utility chrome, not ledger canvas | `shared.css` 2285+ |
 | `.fitlog-*` | Fitting logs feed (search block reused by `.doclist`) | `pages.css` 2113+ |
 | `.fitdet-*` | Fitting log detail (reused by the editor and add pages) | `pages.css` 2667+ |
 | `.fitedit-*` | Fitting photo editor | `pages.css` 2912+ |

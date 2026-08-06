@@ -94,13 +94,15 @@ Look up here instead of grepping. Arrow-function helpers are marked `→`.
 `badgeClass` →782 · `effectiveStatus` 784 · `advancedStatus` 794 · `bumpStatus` 800 · `renderOrderStatus` 813 · `customerStatus` 819 · `orderIsPaid` →829 · `designAnchor` →830 · `productionAnchor` →831 · `openCustomerOrders` →832 · `dateOnly` →833 · `followUpPatch` 835 · `consultNudgeFor` 850 · `setFollowUp` 860 · `pushFollowUp` 870 · `canCancel` →882 · `cancelCustomer` 884 · `deleteCustomerRecord` 904 · `reopenCustomer` 921 · `go` 942 · `leaveFormFor` 947 · `confirmLeave` 961 · **`handleRoute`** 968 · `orNull` →1389 · `orderLabel` 1391 · `isCosted` →1397 · `isNamed` →1398 · `greetingForClock` 1400 · `homepageOverview` 1405 · `reducedMotion` →1425 · `clearHomepagePops` 1428 · `clearHomepagePresses` 1433 · `isCurrentHomepageLoad` 1437 · `beginHomepageLoad` 1441 · `renderHomepageError` 1459 · `renderHomepageHero` 1479 · `renderHomepageAlert` 1500 · `renderHomepageSummary` 1507 · `renderHomepageReady` 1513 · `prepareShortcutAppearState` 1522 · `playShortcutAppear` 1527 · `revealHomepage` 1535 · **`showCustomers`** 1565 · `hapticTap` 1588
 
 ### Schedules calendar
-`sched` →1738 · `isSchedulesRoute` →1739 · `beginSchedulesLoad` 1741 · `isCurrentSchedulesLoad` →1747 · `scheduleStageColorKey` →1751 · `scheduleSpanLabel` →1753 · `scheduleItemHref` 1762 · **`buildScheduleItems`** 1791 · `indexScheduleItems` 1902 · `scheduleDayItems` →1926
+`sched` →2115 · `isSchedulesRoute` →2116 · `beginSchedulesLoad` 2118 · `isCurrentSchedulesLoad` →2124 · `scheduleStageColorKey` →2128 · `scheduleSpanLabel` →2130 · `scheduleItemHref` 2139 · **`buildScheduleItems`** 2168 · `indexScheduleItems` 2279 · `scheduleDayItems` →2303
 
 ### Calendar rendering
-`schedcalPanelHtml` 1933 · `schedcalStateHtml` 1941 · `schedcalCellHtml` 1962 · `schedcalSkeletonHtml` 2018 · `renderScheduleApprox` 2033 · `renderScheduleLegend` 2051 · **`renderSchedulesMonth`** 2069 · `announceSchedulesStatus` 2116 · `scheduleCellFor` 2123 · `focusScheduleCell` 2129 · `goToMonth` 2141 · `shiftScheduleFocus` 2150 · `shiftScheduleMonth` 2166
+`schedcalPanelHtml` 2310 · `schedcalStateHtml` 2318 · `schedcalCellHtml` 2348 · **`schedcalBandsHtml`** 2398 · `schedcalSkeletonHtml` 2439 · `renderScheduleApprox` 2457 · `renderScheduleLegend` 2485 · **`renderSchedulesMonth`** 2503 · `announceSchedulesStatus` 2555 · `scheduleCellFor` 2562 · `focusScheduleCell` 2568 · `goToMonth` 2580 · `shiftScheduleFocus` 2589 · `shiftScheduleMonth` 2605
+
+`schedcalCellHtml` draws one day and nothing else — the coloured bands are `schedcalBandsHtml`'s, drawn once per week row and placed by `grid-column`, because a production date means its whole Monday–Sunday week and a Monday-first grid puts that week on exactly one row. Both are called from `renderSchedulesMonth`, which assigns lanes across the whole 42-cell window first so a band keeps one lane in every row it touches.
 
 ### The day sheet
-`renderScheduleSheet` 2179 · `openScheduleDay` 2216 · `closeScheduleDay` 2235
+`renderScheduleSheet` 2618 · `openScheduleDay` 2658 · `closeScheduleDay` 2677
 
 ### Keyboard & lifecycle
 `handleSchedulesGridKey` 2250 · `cleanupSchedules` 2276 · **`showSchedules`** 2294
