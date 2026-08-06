@@ -1538,21 +1538,21 @@ KK.app = (function () {
     ATMOSPHERE_BLOB_ANCHORS.forEach((anchor, index) => {
       const blob = document.createElement("i");
       blob.className = "home-atmosphere__blob";
-      const duration = 26 + random() * 20;
+      const duration = 18 + random() * 14;
 
       blob.style.setProperty("--blob-color", picks[index % picks.length]);
       blob.style.setProperty("--blob-x", (anchor[0] + (-13 + random() * 26)).toFixed(2) + "%");
       blob.style.setProperty("--blob-y", (anchor[1] + (-13 + random() * 26)).toFixed(2) + "%");
       blob.style.setProperty("--blob-size", (64 + random() * 46).toFixed(2) + "%");
       blob.style.setProperty("--blob-opacity", ((0.58 + random() * 0.3) * (config.depth || 1)).toFixed(2));
-      /* Small travel on purpose. A mesh gradient should breathe; anything more
-         than a few percent reads as sliding wallpaper. */
-      blob.style.setProperty("--blob-from-x", (-5 + random() * 10).toFixed(2) + "%");
-      blob.style.setProperty("--blob-from-y", (-5 + random() * 10).toFixed(2) + "%");
-      blob.style.setProperty("--blob-to-x", (-5 + random() * 10).toFixed(2) + "%");
-      blob.style.setProperty("--blob-to-y", (-5 + random() * 10).toFixed(2) + "%");
-      blob.style.setProperty("--blob-from-scale", (0.9 + random() * 0.12).toFixed(3));
-      blob.style.setProperty("--blob-to-scale", (1.02 + random() * 0.14).toFixed(3));
+      /* Enough travel to move the colour from one pixel cell to the next, but
+         still slow enough to read as changing light rather than wallpaper. */
+      blob.style.setProperty("--blob-from-x", (-9 + random() * 18).toFixed(2) + "%");
+      blob.style.setProperty("--blob-from-y", (-9 + random() * 18).toFixed(2) + "%");
+      blob.style.setProperty("--blob-to-x", (-9 + random() * 18).toFixed(2) + "%");
+      blob.style.setProperty("--blob-to-y", (-9 + random() * 18).toFixed(2) + "%");
+      blob.style.setProperty("--blob-from-scale", (0.88 + random() * 0.14).toFixed(3));
+      blob.style.setProperty("--blob-to-scale", (1.04 + random() * 0.16).toFixed(3));
       blob.style.setProperty("--blob-duration", duration.toFixed(2) + "s");
       // Negative delay drops each field somewhere else in its own cycle, so they
       // never swing together.
@@ -1562,6 +1562,23 @@ KK.app = (function () {
     });
 
     scene.replaceChildren(fragment);
+  }
+
+  function seedHomepageAtmosphereSafeArea(seedKey) {
+    if (!elements.homeAtmosphere) return;
+    const random = homepageAtmosphereRandom(homepageAtmosphereHash(seedKey + "-safe-area"));
+    const duration = 21 + random() * 12;
+
+    /* The exclusion field follows its own nearby path, so the protected area
+       belongs to the moving picture instead of looking pinned behind the copy. */
+    elements.homeAtmosphere.style.setProperty("--safe-from-x", (-2 + random() * 4).toFixed(2) + "%");
+    elements.homeAtmosphere.style.setProperty("--safe-from-y", (-1.5 + random() * 3).toFixed(2) + "%");
+    elements.homeAtmosphere.style.setProperty("--safe-to-x", (-2 + random() * 4).toFixed(2) + "%");
+    elements.homeAtmosphere.style.setProperty("--safe-to-y", (-1.5 + random() * 3).toFixed(2) + "%");
+    elements.homeAtmosphere.style.setProperty("--safe-from-scale", (0.96 + random() * 0.05).toFixed(3));
+    elements.homeAtmosphere.style.setProperty("--safe-to-scale", (1.01 + random() * 0.05).toFixed(3));
+    elements.homeAtmosphere.style.setProperty("--safe-duration", duration.toFixed(2) + "s");
+    elements.homeAtmosphere.style.setProperty("--safe-delay", (-(random() * duration)).toFixed(2) + "s");
   }
 
   function homepageAtmosphereNextBoundary(dateObj) {
@@ -1629,7 +1646,7 @@ KK.app = (function () {
       homeAtmosphereState.transitionTimer = null;
     }
 
-    if (elements.homeAtmosphereSceneA && elements.homeAtmosphereSceneB) {
+    if (homeAtmosphereState.seedKey && elements.homeAtmosphereSceneA && elements.homeAtmosphereSceneB) {
       if (homeAtmosphereState.activeIndex === 0) {
         elements.homeAtmosphereSceneA.classList.add("is-visible");
         elements.homeAtmosphereSceneB.classList.remove("is-visible");
@@ -1643,17 +1660,27 @@ KK.app = (function () {
       return;
     }
 
-    const targetIndex = !homeAtmosphereState.seedKey ? 0 : 1 - homeAtmosphereState.activeIndex;
+    const isInitialScene = !homeAtmosphereState.seedKey;
+    const targetIndex = isInitialScene ? 0 : 1 - homeAtmosphereState.activeIndex;
     const targetScene = targetIndex === 0 ? elements.homeAtmosphereSceneA : elements.homeAtmosphereSceneB;
-    const oldScene = homeAtmosphereState.activeIndex === 0 ? elements.homeAtmosphereSceneA : elements.homeAtmosphereSceneB;
+    const oldScene = isInitialScene ? null : homeAtmosphereState.activeIndex === 0 ? elements.homeAtmosphereSceneA : elements.homeAtmosphereSceneB;
 
     if (!targetScene) return;
 
     buildHomepageAtmosphereScene(targetScene, config, seedKey);
+    seedHomepageAtmosphereSafeArea(seedKey);
     homeAtmosphereState.seedKey = seedKey;
     homeAtmosphereState.phase = config.key;
 
-    const isInstant = !!(options && options.instant) || reducedMotion() || !oldScene;
+    const isInstant = !!(options && options.instant) || reducedMotion();
+
+    if (isInitialScene && !isInstant) {
+      requestAnimationFrame(() => {
+        targetScene.classList.add("is-visible");
+        homeAtmosphereState.activeIndex = targetIndex;
+      });
+      return;
+    }
 
     if (isInstant) {
       targetScene.classList.add("is-instant", "is-visible");
@@ -1679,7 +1706,7 @@ KK.app = (function () {
             capturedOldScene.replaceChildren();
             homeAtmosphereState.transitionTimer = null;
           }
-        }, 900);
+        }, 1400);
       });
     }
   }
@@ -1749,7 +1776,7 @@ KK.app = (function () {
   function beginHomepageLoad() {
     const token = ++state.homepage.loadToken;
     state.homepage.phase = "loading";
-    syncHomepageAtmosphere({ instant: !homeAtmosphereState.seedKey });
+    syncHomepageAtmosphere({ instant: reducedMotion() });
     clearHomepagePops();
     clearHomepagePresses();
 
