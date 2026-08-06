@@ -547,9 +547,15 @@ Both `max-width: 560px` inner, safe-area padded on all four sides.
 
 **Measured clearance.** `app.js` publishes the live height of whichever fixed
 bar is up as `--bottombar-h`, and body classes `.has-savebar` /
-`.has-fitting-journal-bar` add `calc(var(--bottombar-h) + 32px)` of page
-padding. **Never hard-code a bar height** — the toast sat behind the action bar
-for exactly that reason.
+`.has-fitting-journal-bar` / `.has-schedcal-monthbar` add
+`calc(var(--bottombar-h) + 32px)` of page padding. **Never hard-code a bar
+height** — the toast sat behind the action bar for exactly that reason.
+
+A ledger-canvas page can have a fixed bar too — the schedules month bar is one:
+black ground, 1px `--home-grid` top rule, 390px inner, and 52px + 8px paper keys
+(§4.3). What makes it a bar rather than an overlay is that it takes space away
+from the page; anything that floats over the page instead belongs in §9's
+overlay bands and must stay out of `syncBottomBar`.
 
 **Toast.** `bottom: calc(var(--bottombar-h) + 16px)`, `--ink` pill, white,
 14px 500, `radius 999px`, `z-index: 300`. With no bar up it falls back to

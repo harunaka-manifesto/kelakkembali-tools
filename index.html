@@ -132,9 +132,17 @@
       </div>
     </nav>
     <div class="home-stage" id="homeStage" aria-busy="true">
+      <!-- Time of day as a slow mesh gradient read through a fixed pixel grid.
+           The two scenes crossfade when the phase turns over; the grid and the
+           scrim never change, so they are markup rather than anything JS builds.
+           The scrim is the greeting's safe area: a band of the phase's own base
+           colour at the foot of the field, which is what keeps the hero text
+           legible no matter which colour happens to drift under it. -->
       <div class="home-atmosphere" id="homeAtmosphere" aria-hidden="true">
         <div class="home-atmosphere__scene" id="homeAtmosphereSceneA"></div>
         <div class="home-atmosphere__scene" id="homeAtmosphereSceneB"></div>
+        <div class="home-atmosphere__grid"></div>
+        <div class="home-atmosphere__scrim"></div>
       </div>
       <!-- A structural stand-in for the real page: same section heights, same
            grid, same card faces. Only colour animates, so nothing here can
@@ -1310,25 +1318,14 @@
     </nav>
 
     <!-- The month is the page title, not a control above one: you arrive here to
-         read a month, and the eyebrow carries the page's identity. The two keys
-         sit with it so paging happens where you are already looking. -->
+         read a month. The keys that change it live in the fixed bar at the foot
+         of the screen, where a thumb already is — paging months is the thing you
+         do most here, and it was the furthest thing from your hand. -->
     <header class="schedcal-head">
       <div class="schedcal-grid-spacer" aria-hidden="true"></div>
       <div class="schedcal-titleband">
-        <div class="schedcal-titleband__text">
-          <p class="schedcal-eyebrow">Schedules</p>
-          <h1 class="schedcal-title" id="schedcalTitle" tabindex="-1">Schedules</h1>
-        </div>
-        <div class="schedcal-monthnav">
-          <button type="button" class="schedcal-nav-btn" id="schedcalPrev" aria-label="Previous month">
-            <span class="schedcal-nav-btn__face" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square" stroke-linejoin="miter"><path d="M15 5 8 12l7 7"/></svg></span>
-            <span class="schedcal-nav-btn__rail" aria-hidden="true"></span>
-          </button>
-          <button type="button" class="schedcal-nav-btn" id="schedcalNext" aria-label="Next month">
-            <span class="schedcal-nav-btn__face" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square" stroke-linejoin="miter"><path d="m9 5 7 7-7 7"/></svg></span>
-            <span class="schedcal-nav-btn__rail" aria-hidden="true"></span>
-          </button>
-        </div>
+        <p class="schedcal-eyebrow">Schedules</p>
+        <h1 class="schedcal-title" id="schedcalTitle" tabindex="-1">Schedules</h1>
       </div>
       <div class="schedcal-grid-spacer" aria-hidden="true"></div>
     </header>
@@ -1468,6 +1465,28 @@
   </div>
   <p class="sr-only" id="docnewStatus" role="status" aria-live="polite"></p>
 </section>
+
+<!-- Month paging, parked in thumb reach. Out here with the other fixed bars so
+     it is never inside a hidden view, and so syncBottomBar can measure it.
+
+     It repeats the month that the <h1> already shows, which is the point: once
+     you have scrolled past the title this is the only thing on screen saying
+     which month you are about to leave. It is aria-hidden because the heading
+     and the status line already say it — a screen reader should hear the month
+     once, not three times. -->
+<div class="schedcal-monthbar" id="schedcalMonthbar" hidden>
+  <div class="schedcal-monthbar__inner">
+    <button type="button" class="schedcal-monthbar__btn" id="schedcalPrev" aria-label="Previous month">
+      <span class="schedcal-monthbar__face" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square" stroke-linejoin="miter"><path d="M15 5 8 12l7 7"/></svg></span>
+      <span class="schedcal-monthbar__rail" aria-hidden="true"></span>
+    </button>
+    <p class="schedcal-monthbar__label" id="schedcalMonthLabel" aria-hidden="true"></p>
+    <button type="button" class="schedcal-monthbar__btn" id="schedcalNext" aria-label="Next month">
+      <span class="schedcal-monthbar__face" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square" stroke-linejoin="miter"><path d="m9 5 7 7-7 7"/></svg></span>
+      <span class="schedcal-monthbar__rail" aria-hidden="true"></span>
+    </button>
+  </div>
+</div>
 
 <!-- One day's appointments. Lives out here with the other overlays rather than
      inside #viewSchedules, so it is never a descendant of a hidden view. -->

@@ -278,6 +278,8 @@ KK.app = (function () {
     schedcalTitle: $("#schedcalTitle"),
     schedcalPrev: $("#schedcalPrev"),
     schedcalNext: $("#schedcalNext"),
+    schedcalMonthbar: $("#schedcalMonthbar"),
+    schedcalMonthLabel: $("#schedcalMonthLabel"),
     schedcalApprox: $("#schedcalApprox"),
     schedcalBody: $("#schedcalBody"),
     schedcalGrid: $("#schedcalGrid"),
@@ -528,7 +530,8 @@ KK.app = (function () {
       elements.fittingJournalBar,
       elements.fitdetBar,
       elements.fiteditBar,
-      elements.fitaddBar
+      elements.fitaddBar,
+      elements.schedcalMonthbar
     ].filter((bar) => bar && !bar.hidden)[0] || null;
     document.documentElement.style.setProperty(
       "--bottombar-h",
@@ -1411,7 +1414,11 @@ KK.app = (function () {
       greetingPeriod: "morning",
       base: "#DCE9FF",
       palette: ["#7FB9E8", "#A596D9", "#C97ABF", "#F5B3A2", "#FFD7A8", "#F6E7D7"],
-      quiet: ["#F5E2D2", "#D8E9F2"],
+      line: "rgba(23,21,15,.10)",
+      scrim: "#EAF1FF",
+      /* Dawn is the one genuinely pastel palette, so its fields need more of
+         themselves before they read as colour at all. */
+      depth: 1.22,
       ink: "#17150F",
       skeleton: "rgba(23,21,15,.16)",
       skeletonPeak: "rgba(23,21,15,.28)"
@@ -1421,7 +1428,8 @@ KK.app = (function () {
       greetingPeriod: "morning",
       base: "#DDF8F8",
       palette: ["#04A8D6", "#49CFE2", "#7CD4C4", "#F7E733", "#FFF6A8", "#F36F32"],
-      quiet: ["#E8F9F1", "#FFF7BF"],
+      line: "rgba(23,21,15,.10)",
+      scrim: "#E6FBF6",
       ink: "#17150F",
       skeleton: "rgba(23,21,15,.16)",
       skeletonPeak: "rgba(23,21,15,.28)"
@@ -1431,7 +1439,8 @@ KK.app = (function () {
       greetingPeriod: "afternoon",
       base: "#FFEFA1",
       palette: ["#18A9DC", "#75D4EA", "#FFF000", "#FFB52E", "#FF6533", "#DD3C9D"],
-      quiet: ["#FFF4B5", "#DDF6EF"],
+      line: "rgba(23,21,15,.10)",
+      scrim: "#FFF3C4",
       ink: "#17150F",
       skeleton: "rgba(23,21,15,.16)",
       skeletonPeak: "rgba(23,21,15,.28)"
@@ -1441,7 +1450,8 @@ KK.app = (function () {
       greetingPeriod: "evening",
       base: "#44265F",
       palette: ["#244F9B", "#6A3FA0", "#C32C95", "#EF3F67", "#FF7A2E", "#FFB34D"],
-      quiet: ["#35234E", "#243A70"],
+      line: "rgba(254,250,241,.10)",
+      scrim: "#2A1740",
       ink: "#FEFAF1",
       skeleton: "rgba(254,250,241,.18)",
       skeletonPeak: "rgba(254,250,241,.32)"
@@ -1451,7 +1461,8 @@ KK.app = (function () {
       greetingPeriod: "evening",
       base: "#071B3D",
       palette: ["#0C2556", "#173F7A", "#315AA8", "#5267A6", "#372D72", "#1C6F82"],
-      quiet: ["#071A36", "#102B55"],
+      line: "rgba(254,250,241,.09)",
+      scrim: "#04122A",
       ink: "#FEFAF1",
       skeleton: "rgba(254,250,241,.18)",
       skeletonPeak: "rgba(254,250,241,.32)"
@@ -1505,119 +1516,50 @@ KK.app = (function () {
     };
   }
 
-  function normalizedAtmosphereWeights(count, floor, spread, random) {
-    const weights = [];
-    let total = 0;
-    for (let i = 0; i < count; i++) {
-      const w = floor + random() * spread;
-      weights.push(w);
-      total += w;
-    }
-    return weights.map((w) => w / total);
-  }
-
-  function atmosphereOffsets(weights) {
-    const offsets = [0];
-    let current = 0;
-    for (let i = 0; i < weights.length; i++) {
-      current += weights[i] * 100;
-      offsets.push(current);
-    }
-    offsets[offsets.length - 1] = 100;
-    return offsets;
-  }
+  /* Five soft colour fields laid over the phase's base, seeded by the day so the
+     picture is different every morning and identical all through one. Anchors
+     rather than free placement: five random points bunch, and a mesh gradient
+     only reads as one if the fields are spread and overlapping. */
+  const ATMOSPHERE_BLOB_ANCHORS = [[20, 24], [80, 18], [50, 55], [16, 80], [86, 72]];
 
   function buildHomepageAtmosphereScene(scene, config, seedKey) {
     const random = homepageAtmosphereRandom(homepageAtmosphereHash(seedKey));
-    const columns = normalizedAtmosphereWeights(6, 0.75, 0.60, random);
-    const rows = normalizedAtmosphereWeights(7, 0.75, 0.55, random);
-    const columnOffsets = atmosphereOffsets(columns);
-    const rowOffsets = atmosphereOffsets(rows);
     const fragment = document.createDocumentFragment();
 
-    const seededX = Math.round(25 + random() * 50);
-    const seededY = Math.round(15 + random() * 50);
-    scene.style.background =
-      "radial-gradient(circle at " + seededX + "% " + seededY + "%, " + config.palette[1] + ", transparent 62%), " +
-      "linear-gradient(135deg, " + config.base + ", " + config.palette[4] + ")";
-
-    const sceneFromX = (-6 + random() * 12).toFixed(2) + "px";
-    const sceneFromY = (-6 + random() * 12).toFixed(2) + "px";
-    const sceneToX = (-6 + random() * 12).toFixed(2) + "px";
-    const sceneToY = (-6 + random() * 12).toFixed(2) + "px";
-    const sceneDurationNum = 28 + random() * 8;
-    const sceneDuration = sceneDurationNum.toFixed(2) + "s";
-    const sceneDelay = (-(random() * sceneDurationNum)).toFixed(2) + "s";
-
-    scene.style.setProperty("--scene-from-x", sceneFromX);
-    scene.style.setProperty("--scene-from-y", sceneFromY);
-    scene.style.setProperty("--scene-to-x", sceneToX);
-    scene.style.setProperty("--scene-to-y", sceneToY);
-    scene.style.setProperty("--scene-duration", sceneDuration);
-    scene.style.setProperty("--scene-delay", sceneDelay);
-
-    for (let rowIndex = 0; rowIndex < 7; rowIndex++) {
-      let startColumn = 0;
-      let leftPair = "";
-
-      while (startColumn < 6) {
-        const remaining = 6 - startColumn;
-        const roll = random();
-        const wantedSpan = roll < 0.28 ? 1 : roll < 0.82 ? 2 : 3;
-        const span = Math.min(wantedSpan, remaining);
-        const quiet = rowIndex >= 5 && startColumn < 4;
-
-        let colors;
-        if (quiet) {
-          colors = [config.quiet[0], config.quiet[1]];
-          if (random() >= 0.5) colors = [config.quiet[1], config.quiet[0]];
-        } else {
-          const firstIdx = Math.floor(random() * config.palette.length);
-          const distRoll = random();
-          const dist = distRoll < 0.18 ? 3 : 1;
-          const secondIdx = (firstIdx + dist) % config.palette.length;
-          colors = [config.palette[firstIdx], config.palette[secondIdx]];
-          if (colors.join("|") === leftPair) {
-            colors = [colors[1], colors[0]];
-          }
-        }
-
-        const opacity = quiet ? (0.88 + random() * 0.08).toFixed(2) : (0.78 + random() * 0.18).toFixed(2);
-        const angles = [0, 90, 180, 270];
-        const angleBase = angles[Math.floor(random() * angles.length)];
-        const angleJitter = -18 + random() * 36;
-        const angle = (angleBase + angleJitter).toFixed(2) + "deg";
-        const glowX = (20 + random() * 60).toFixed(2) + "%";
-        const glowY = (20 + random() * 60).toFixed(2) + "%";
-        const tileDurationNum = quiet ? (36 + random() * 16) : (24 + random() * 16);
-        const tileDuration = tileDurationNum.toFixed(2) + "s";
-        const tileDelay = (-(random() * tileDurationNum)).toFixed(2) + "s";
-
-        const tileLeft = columnOffsets[startColumn].toFixed(4) + "%";
-        const tileTop = rowOffsets[rowIndex].toFixed(4) + "%";
-        const tileWidth = (columnOffsets[startColumn + span] - columnOffsets[startColumn]).toFixed(4) + "%";
-        const tileHeight = (rowOffsets[rowIndex + 1] - rowOffsets[rowIndex]).toFixed(4) + "%";
-
-        const tile = document.createElement("i");
-        tile.className = "home-atmosphere__tile" + (quiet ? " home-atmosphere__tile--quiet" : "");
-        tile.style.setProperty("--tile-left", tileLeft);
-        tile.style.setProperty("--tile-top", tileTop);
-        tile.style.setProperty("--tile-width", tileWidth);
-        tile.style.setProperty("--tile-height", tileHeight);
-        tile.style.setProperty("--tile-opacity", opacity);
-        tile.style.setProperty("--tile-angle", angle);
-        tile.style.setProperty("--tile-a", colors[0]);
-        tile.style.setProperty("--tile-b", colors[1]);
-        tile.style.setProperty("--tile-glow-x", glowX);
-        tile.style.setProperty("--tile-glow-y", glowY);
-        tile.style.setProperty("--tile-duration", tileDuration);
-        tile.style.setProperty("--tile-delay", tileDelay);
-
-        fragment.appendChild(tile);
-        leftPair = colors.join("|");
-        startColumn += span;
-      }
+    // Shuffled, not sampled: every field gets a different hue from the palette.
+    const picks = config.palette.slice();
+    for (let i = picks.length - 1; i > 0; i--) {
+      const j = Math.floor(random() * (i + 1));
+      const swap = picks[i];
+      picks[i] = picks[j];
+      picks[j] = swap;
     }
+
+    ATMOSPHERE_BLOB_ANCHORS.forEach((anchor, index) => {
+      const blob = document.createElement("i");
+      blob.className = "home-atmosphere__blob";
+      const duration = 26 + random() * 20;
+
+      blob.style.setProperty("--blob-color", picks[index % picks.length]);
+      blob.style.setProperty("--blob-x", (anchor[0] + (-13 + random() * 26)).toFixed(2) + "%");
+      blob.style.setProperty("--blob-y", (anchor[1] + (-13 + random() * 26)).toFixed(2) + "%");
+      blob.style.setProperty("--blob-size", (64 + random() * 46).toFixed(2) + "%");
+      blob.style.setProperty("--blob-opacity", ((0.58 + random() * 0.3) * (config.depth || 1)).toFixed(2));
+      /* Small travel on purpose. A mesh gradient should breathe; anything more
+         than a few percent reads as sliding wallpaper. */
+      blob.style.setProperty("--blob-from-x", (-5 + random() * 10).toFixed(2) + "%");
+      blob.style.setProperty("--blob-from-y", (-5 + random() * 10).toFixed(2) + "%");
+      blob.style.setProperty("--blob-to-x", (-5 + random() * 10).toFixed(2) + "%");
+      blob.style.setProperty("--blob-to-y", (-5 + random() * 10).toFixed(2) + "%");
+      blob.style.setProperty("--blob-from-scale", (0.9 + random() * 0.12).toFixed(3));
+      blob.style.setProperty("--blob-to-scale", (1.02 + random() * 0.14).toFixed(3));
+      blob.style.setProperty("--blob-duration", duration.toFixed(2) + "s");
+      // Negative delay drops each field somewhere else in its own cycle, so they
+      // never swing together.
+      blob.style.setProperty("--blob-delay", (-(random() * duration)).toFixed(2) + "s");
+
+      fragment.appendChild(blob);
+    });
 
     scene.replaceChildren(fragment);
   }
@@ -1671,6 +1613,10 @@ KK.app = (function () {
     }
     if (elements.homeAtmosphere) {
       elements.homeAtmosphere.style.setProperty("--home-atmosphere-base", config.base);
+      elements.homeAtmosphere.style.setProperty("--home-atmosphere-line", config.line);
+      // The greeting's safe area is the phase's own base colour, so it always
+      // pushes the field the way that phase's ink needs it to go.
+      elements.homeAtmosphere.style.setProperty("--home-atmosphere-scrim", config.scrim);
     }
 
     if (state.route && "customers" === state.route.view && elements.heroGreeting && elements.heroGreeting.textContent) {
@@ -2002,23 +1948,34 @@ KK.app = (function () {
   });
 
   elements.viewSchedules.addEventListener("pointerdown", (e) => {
-    const target = e.target.closest(".cust-nav-btn,.schedcal-nav-btn,.schedcal-day,.schedcal-panel__retry");
-    if (target) {
-      target.classList.add("is-pressed");
-      if (target.matches(".schedcal-nav-btn")) hapticTap();
-    }
+    const target = e.target.closest(".cust-nav-btn,.schedcal-day,.schedcal-panel__retry");
+    if (target) target.classList.add("is-pressed");
   });
 
   elements.viewSchedules.addEventListener("keydown", (e) => {
     if (" " !== e.key && "Enter" !== e.key) return;
-    const target = e.target.closest(".cust-nav-btn,.schedcal-nav-btn,.schedcal-day,.schedcal-panel__retry");
+    const target = e.target.closest(".cust-nav-btn,.schedcal-day,.schedcal-panel__retry");
     if (target) target.classList.add("is-pressed");
   });
 
-  /* The day sheet is a sibling of the views, not a descendant, so its keys need
-     their own pair of listeners to get the same press state everything else on
-     the page has. clearHomepagePresses sweeps the whole document, so release is
-     already handled. */
+  /* The month bar and the day sheet are siblings of the views, not descendants,
+     so their keys need their own listeners to get the same press state
+     everything else on the page has. clearHomepagePresses sweeps the whole
+     document, so release is already handled. */
+  elements.schedcalMonthbar.addEventListener("pointerdown", (e) => {
+    const target = e.target.closest(".schedcal-monthbar__btn");
+    if (target) {
+      target.classList.add("is-pressed");
+      hapticTap();
+    }
+  });
+
+  elements.schedcalMonthbar.addEventListener("keydown", (e) => {
+    if (" " !== e.key && "Enter" !== e.key) return;
+    const target = e.target.closest(".schedcal-monthbar__btn");
+    if (target) target.classList.add("is-pressed");
+  });
+
   elements.schedcalSheet.addEventListener("pointerdown", (e) => {
     const target = e.target.closest(".schedcal-sheet__link,.schedcal-sheet__close");
     if (target) target.classList.add("is-pressed");
@@ -2509,6 +2466,9 @@ KK.app = (function () {
        anything reading it aloud even though the year is set smaller. */
     elements.schedcalTitle.innerHTML = U.escapeHtml(U.MONTHS[sc.cursor.month]) +
       '<span class="schedcal-title__year">' + sc.cursor.year + '</span>';
+    // Same words in the bar, so the month is still on screen once the title has
+    // scrolled away. aria-hidden there, so it is announced once, not twice.
+    elements.schedcalMonthLabel.textContent = U.MONTHS[sc.cursor.month] + " " + sc.cursor.year;
     elements.schedcalBody.setAttribute("aria-busy", "loading" === sc.phase ? "true" : "false");
 
     if ("loading" === sc.phase) {
@@ -2715,9 +2675,18 @@ KK.app = (function () {
     }
   }
 
+  /* The bar is a real fixed bar, not an overlay, so it has to publish its height
+     and take it back off the page — otherwise the footer sits behind it. */
+  function showScheduleMonthbar(visible) {
+    elements.schedcalMonthbar.hidden = !visible;
+    document.body.classList.toggle("has-schedcal-monthbar", !!visible);
+    syncBottomBar();
+  }
+
   function cleanupSchedules() {
     const sc = sched();
     closeScheduleDay();
+    showScheduleMonthbar(false);
     sc.loadToken += 1;
     sc.phase = "idle";
     sc.items = [];
@@ -2737,6 +2706,7 @@ KK.app = (function () {
     const sc = sched();
     const params = queryParams || new URLSearchParams("");
     setChrome({ title: "Schedules", up: null, save: false, schedulespage: true });
+    showScheduleMonthbar(true);
 
     const focusParam = params.get("focus") || "";
     const monthParam = params.get("month") || "";

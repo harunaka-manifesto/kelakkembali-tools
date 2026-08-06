@@ -123,34 +123,63 @@ body.is-homepage .view { gap: 0; }
   background: var(--home-atmosphere-base, var(--home-white));
 }
 
+/* Five soft colour fields per scene, drifting past each other. Only `transform`
+   animates, so the whole field runs on the compositor: no layout, no paint, no
+   main-thread work per frame. The previous version animated background-position
+   on ~40 tiles, which repaints every one of them on every frame — that, not the
+   element count, was the cost. */
 .home-atmosphere__scene {
   position: absolute;
-  inset: -12px;
+  inset: 0;
   opacity: 0;
   overflow: hidden;
-  transform: scale(1.02);
   transition: opacity 900ms var(--ease-standard);
-  animation: home-atmosphere-drift var(--scene-duration) ease-in-out var(--scene-delay) infinite alternate;
 }
 
 .home-atmosphere__scene.is-visible { opacity: 1; }
 
-.home-atmosphere__tile {
+.home-atmosphere__blob {
   position: absolute;
-  left: var(--tile-left);
-  top: var(--tile-top);
-  width: calc(var(--tile-width) + .35%);
-  height: calc(var(--tile-height) + .35%);
-  opacity: var(--tile-opacity);
-  background:
-    radial-gradient(circle at var(--tile-glow-x) var(--tile-glow-y), rgba(255,255,255,.42), transparent 68%),
-    linear-gradient(var(--tile-angle), var(--tile-a), var(--tile-b));
-  background-size: 145% 145%, 125% 125%;
-  animation: home-atmosphere-tile-flow var(--tile-duration) ease-in-out var(--tile-delay) infinite alternate;
+  left: var(--blob-x);
+  top: var(--blob-y);
+  width: var(--blob-size);
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  opacity: var(--blob-opacity);
+  /* closest-side keeps the falloff circular in a non-square box, so the fields
+     stay round and blend instead of reading as ellipses. */
+  background: radial-gradient(circle closest-side, var(--blob-color), transparent 100%);
+  will-change: transform;
+  animation: home-atmosphere-blob var(--blob-duration) ease-in-out var(--blob-delay) infinite alternate;
 }
 
-.home-atmosphere__tile--quiet {
-  background-size: 125% 125%, 115% 115%;
+/* The pixel grid. One static element over the whole field — the colour moves
+   underneath it and the grid never does, which is what makes the motion read as
+   light behind a screen rather than as a texture sliding about. */
+.home-atmosphere__grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, var(--home-atmosphere-line, rgba(23,21,15,.10)) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--home-atmosphere-line, rgba(23,21,15,.10)) 1px, transparent 1px);
+  background-size: 9px 9px;
+}
+
+/* The greeting's safe area. A band rather than a box behind the words: a box
+   would read as a label stuck onto the picture, where a band reads as the field
+   settling into the page. It is the phase's own base colour, so it darkens the
+   dark phases and lightens the light ones — whichever direction that phase's ink
+   needs. Measured to hold at least 5.5:1 across a year of seeds and both ends of
+   the drift; see DESIGN-SYSTEM §7. */
+.home-atmosphere__scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    transparent 44%,
+    color-mix(in srgb, var(--home-atmosphere-scrim, var(--home-white)) 54%, transparent) 76%,
+    color-mix(in srgb, var(--home-atmosphere-scrim, var(--home-white)) 86%, transparent) 100%);
 }
 
 .home-state { position: relative; z-index: 1; width: 100%; }
@@ -700,22 +729,18 @@ body.is-homepage .btn--empty {
   50% { background-color: var(--home-hero-skeleton-peak, rgba(76,76,76,.32)); }
 }
 
-@keyframes home-atmosphere-drift {
-  from { transform: scale(1.02) translate3d(var(--scene-from-x), var(--scene-from-y), 0); }
-  to { transform: scale(1.05) translate3d(var(--scene-to-x), var(--scene-to-y), 0); }
-}
-
-@keyframes home-atmosphere-tile-flow {
-  from { background-position: 0% 0%, 0% 0%; }
-  to { background-position: 18% -12%, 12% 8%; }
+@keyframes home-atmosphere-blob {
+  from { transform: translate3d(var(--blob-from-x), var(--blob-from-y), 0) scale(var(--blob-from-scale)); }
+  to   { transform: translate3d(var(--blob-to-x), var(--blob-to-y), 0) scale(var(--blob-to-scale)); }
 }
 
 .home-atmosphere__scene.is-instant { transition: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  .home-atmosphere__scene,
-  .home-atmosphere__tile { animation: none; }
-  .home-atmosphere__scene { transition: none; transform: scale(1.02); }
+  /* Stopped at their seeded positions the fields are still a mesh gradient, so
+     reduced motion loses the drift and none of the picture. */
+  .home-atmosphere__blob { animation: none; }
+  .home-atmosphere__scene { transition: none; }
   .home-hero__greeting,
   .home-hero__deadline { transition: none; }
   .home-skel__block,
@@ -3475,14 +3500,9 @@ body.is-schedulespage .view { gap: 0; }
 
 .schedcal-titleband {
   padding: 12px 24px 14px;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px;
   border-top: 1px solid var(--home-grid);
   border-bottom: 1px solid var(--home-grid);
 }
-.schedcal-titleband__text { min-width: 0; }
 .schedcal-eyebrow {
   margin: 0 0 2px;
   color: var(--home-grid);
@@ -3493,9 +3513,8 @@ body.is-schedulespage .view { gap: 0; }
   text-transform: uppercase;
 }
 /* The month is the page title, at the same 32/40 the order and fitting-log
-   pages set theirs. "September 2026" at that size does not clear the two nav
-   keys on a 390px canvas, so the year is set at card-title size beside it —
-   which is also the right hierarchy: you page months, you read the year once. */
+   pages set theirs. The year is set at card-title size beside it because that
+   is the honest hierarchy — you page months, and you read the year once. */
 .schedcal-title {
   margin: 0;
   color: var(--home-white);
@@ -3515,14 +3534,53 @@ body.is-schedulespage .view { gap: 0; }
   font-variant-numeric: tabular-nums;
 }
 
-.schedcal-monthnav {
-  flex: none;
-  display: flex;
-  gap: 6px;
-  padding-bottom: 2px;
+/* ------------------------------- Month bar -------------------------------- */
+
+/* Fixed at the foot of the screen, because paging months is the one thing you
+   do over and over here and it was the furthest control from your thumb. Same
+   band as the fitting-detail bar (z 40): above the page, below the day sheet,
+   which is what lets the sheet's backdrop cover it.
+
+   It publishes its height through syncBottomBar like every other fixed bar, and
+   .has-schedcal-monthbar spends that height as page padding, so the footer
+   clears it instead of hiding behind it. */
+.schedcal-monthbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  background: var(--home-black);
+  border-top: 1px solid var(--home-grid);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
-.schedcal-nav-btn {
-  width: 40px;
+.schedcal-monthbar[hidden] { display: none; }
+.schedcal-monthbar__inner {
+  max-width: 390px;
+  margin: 0 auto;
+  padding: 12px 24px;
+  display: grid;
+  grid-template-columns: 72px 1fr 72px;
+  align-items: center;
+  gap: 12px;
+}
+.schedcal-monthbar__label {
+  margin: 0;
+  text-align: center;
+  color: var(--home-white);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+  letter-spacing: -.48px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 52 + 8 is the bottom-bar key from DESIGN-SYSTEM §4.3 — the heaviest key in
+   the system, which is right for the only control on the bar. */
+.schedcal-monthbar__btn {
+  min-width: 0;
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -3530,26 +3588,28 @@ body.is-schedulespage .view { gap: 0; }
   color: var(--home-black);
   font: inherit;
   display: grid;
-  grid-template-rows: 38px 6px;
+  grid-template-rows: 52px 8px;
   overflow: hidden;
   cursor: pointer;
   -webkit-appearance: none;
   appearance: none;
-  transition: grid-template-rows 120ms var(--ease-out-expo);
+  transition: grid-template-rows var(--motion-quick) var(--ease-standard);
 }
-.schedcal-nav-btn__face {
+.schedcal-monthbar__face {
   display: flex;
   align-items: center;
   justify-content: center;
   background: linear-gradient(180deg, rgba(0,0,0,.04), transparent), var(--home-white);
 }
-.schedcal-nav-btn__rail { display: block; background: var(--home-white-dark); }
-.schedcal-nav-btn:active,
-.schedcal-nav-btn.is-pressed { grid-template-rows: 42px 2px; }
-.schedcal-nav-btn:active .schedcal-nav-btn__face,
-.schedcal-nav-btn.is-pressed .schedcal-nav-btn__face {
+.schedcal-monthbar__rail { display: block; background: var(--home-white-dark); }
+.schedcal-monthbar__btn:active,
+.schedcal-monthbar__btn.is-pressed { grid-template-rows: 57px 3px; }
+.schedcal-monthbar__btn:active .schedcal-monthbar__face,
+.schedcal-monthbar__btn.is-pressed .schedcal-monthbar__face {
   background-image: linear-gradient(180deg, transparent, rgba(0,0,0,.06));
 }
+
+body.has-schedcal-monthbar .schedcal { padding-bottom: calc(var(--bottombar-h) + 8px); }
 
 /* The vertical ticks are real elements, not a background pattern, so they stay
    pixel-aligned whatever height a block ends up at. */
@@ -4096,11 +4156,18 @@ body.is-schedulespage button:focus-visible {
   outline-offset: 2px;
 }
 body.is-schedulespage .schedcal-day:focus-visible,
-body.is-schedulespage .schedcal-nav-btn:focus-visible,
+body.is-schedulespage .schedcal-monthbar__btn:focus-visible,
 body.is-schedulespage .cust-nav-btn:focus-visible {
   outline-color: var(--home-black);
   outline-offset: -2px;
 }
+/* The bar lives outside the view, so body.is-schedulespage still reaches it —
+   but its keys are paper faces, so the ring is ink. */
+.schedcal-monthbar__btn:focus-visible {
+  outline: 2px solid var(--home-black);
+  outline-offset: -2px;
+}
+
 /* Both of these are dark faces on paper, so the ring goes back to paper. */
 body.is-schedulespage .schedcal-panel__retry:focus-visible {
   outline-color: var(--home-white);
@@ -4121,7 +4188,7 @@ body.is-schedulespage .schedcal-panel__retry:focus-visible {
   .schedcal-skel__block { animation: none; background-color: rgba(76,76,76,.25); }
   .schedcal-sheet__panel { animation: none; }
   .schedcal-day,
-  .schedcal-nav-btn,
+  .schedcal-monthbar__btn,
   .schedcal-panel__retry,
   .schedcal-sheet__link,
   .schedcal-sheet__close { transition: none; }

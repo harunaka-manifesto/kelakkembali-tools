@@ -35,7 +35,8 @@ Column key: **app.js** = entry function + line ([MAP-app.md](MAP-app.md)) · **H
 - **Route** `#/`
 - **app.js** `showCustomers` **1414**; region **1240–1552**. Also `renderCustomerList` 4004, `homepageStatus` 4028, `compareHomepageCustomers` 4048, `nextDeadline` 4068
 - **HTML** `#viewCustomers` **117–175**
-- **CSS** `pages.css` 76–660 (hero 133, nav bar 177, shortcuts 240, submissions bar 294, search 342, ledger 367, skeleton 534, error 614)
+- **CSS** `pages.css` 76–690 (atmosphere 113, hero 205, nav bar 249, shortcuts 312, submissions bar 366, search 414, ledger 439, skeleton 606, error 686)
+- **Time field** the picture behind the greeting: five drifting colour fields under a fixed 9px pixel grid, plus a contrast band that keeps the hero text legible whatever drifts under it. `transform`-only motion, so it is compositor work and nothing else. Built by `buildHomepageAtmosphereScene` 1525, phase tokens at 1408, full spec in [HOMEPAGE-TIME-FIELD-SPEC.md](../HOMEPAGE-TIME-FIELD-SPEC.md) — **re-measure contrast before changing any palette**
 - **Data** `db.listCustomers`, `db.listAllOrders`, `db.listAllOrderEvents`, `db.listIntake('new')` · tables `customers`, `orders`, `order_events`, `intake_submissions`
 
 ## 2. Customer detail
@@ -167,7 +168,8 @@ Column key: **app.js** = entry function + line ([MAP-app.md](MAP-app.md)) · **H
 - **Route** `#/schedules` (not `#/calendar` — that is the Google connection settings page)
 - **app.js** `showSchedules` **2736**; region **2099–2789**. `buildScheduleItems` 2168, `indexScheduleItems` 2279, `scheduleItemHref` 2139, `renderSchedulesMonth` 2503, `schedcalCellHtml` 2348, `schedcalBandsHtml` 2398, `openScheduleDay` 2658, `handleSchedulesGridKey` 2692, `cleanupSchedules` 2718
 - **calendar.js** `monthGrid` (42 cells, always), `eventSpan` (production stage → its Monday–Sunday week), `assignLanes` (one lane per band, agreed across every cell it covers), `weekdayIndex`, `addMonths`, `monthRange`
-- **HTML** `#viewSchedules` **1297**, day sheet `#schedcalSheet` **1474** (outside `<main>`, so it is never inside a hidden view)
+- **HTML** `#viewSchedules` **1305**, month bar `#schedcalMonthbar` **1477**, day sheet `#schedcalSheet` **1493** (both outside `<main>`, so neither is ever inside a hidden view)
+- **Month bar** the `< >` keys are a fixed bar at the foot of the screen, not chrome beside the title — paging months is the one thing you do repeatedly here and it was the furthest control from a thumb. It is a real bar, so it joins `syncBottomBar`, publishes `--bottombar-h`, and `body.has-schedcal-monthbar` spends that height as page padding. Shown by `showScheduleMonthbar` 2680
 - **CSS** `pages.css` 3434+ (`.schedcal-*`). A day is a **physical key**: carrying something → a raised cream key; in the month but empty → the same key unpopped, its face sunk to the bottom of the box; outside the month → no key, only the ledger. Reading a month is reading a relief
 - **Week bands** are drawn **once per week row** (`schedcalBandsHtml`), positioned by `grid-column`, not as a strip inside each of seven cells. A production date means its whole Monday–Sunday week and the grid is Monday-first, so a band *is* a row-level object. That is what lets the cells carry real 3px gutters — the earlier per-cell version had to drop every vertical rule to keep its bands continuous, and lost the grid with it
 - **Fixed geometry** every week reserves its three lane tracks and closes with a 1px rule whether or not anything is in them, so skeleton, ready, empty, and every month are all exactly the same height

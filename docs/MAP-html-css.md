@@ -40,12 +40,12 @@ Structure: boot gate → auth gate → app shell (bar + header + all views) → 
 | 1117 | `#viewMoodboard` | `.view.moodboard-page` | `setupMoodboardListeners` 6970 |
 | 1259 | `#viewFittingJournal` | `.view` | `KK.fittings.renderJournal` |
 | 1264 | `#viewEnquiry` | `.view` | `acceptEnquiry` 5547 |
-| 1297 | `#viewSchedules` | `.view.schedcal` | `showSchedules` 2736 |
+| 1305 | `#viewSchedules` | `.view.schedcal` | `showSchedules` 2744 |
 | 1373 | `#viewDocuments` | `.view.doclist` | `showDocuments` 3721 |
 
 ### Overlays & bars — id → line
 
-`#docnewSheet` 1456 (new-document picker) · `#schedcalSheet` 1474 (calendar day sheet) · `#fittingCamera` 1285 · `#fittingConfirm` 1297 · `#fittingCaptionStep` 1302 · `#fittingPicker` 1307 · `#fittingEditSheet` 1309 · `#fittingPhotoViewer` 1313 · `#fitdetBar` 1321 · `#fiteditBar` 1335 · `#fitaddUndo` 1347 · `#fitaddBar` 1354 · `#fittingJournalBar` 1368 · `#savebar` 1372 · `#calcSheet` 1385 · `#routeLoader` 1424 · `#toast` 1546
+`#docnewSheet` 1456 (new-document picker) · `#schedcalMonthbar` 1477 (fixed month paging, measured by `syncBottomBar`) · `#schedcalSheet` 1493 (calendar day sheet) · `#fittingCamera` 1285 · `#fittingConfirm` 1297 · `#fittingCaptionStep` 1302 · `#fittingPicker` 1307 · `#fittingEditSheet` 1309 · `#fittingPhotoViewer` 1313 · `#fitdetBar` 1321 · `#fiteditBar` 1335 · `#fitaddUndo` 1347 · `#fitaddBar` 1354 · `#fittingJournalBar` 1368 · `#savebar` 1372 · `#calcSheet` 1385 · `#routeLoader` 1424 · `#toast` 1546
 
 Hidden file inputs: `#fitdetPhotoInput` 408 (multi-select entry from detail) · `#fitaddFileInput` 520 (append on the review page) · `#fiteditFileInput` 472 · `#fittingFileInput` 1295
 
@@ -95,7 +95,7 @@ Preceded by CDN: html2canvas 1.4.1, jsPDF 2.5.2, heic2any 0.0.4, supabase-js 2.4
 
 **Fitting logs:** 2113 · Title band 2153 · Search 2189 · Stage filters 2249 · Feed 2324 · Feed message panels 2434 · Skeletons 2478 · Feed card as link 2553 · Photo cards 2667 · Card actions 2753 · Fixed bottom bar 2804 · Delete block 2868 · Editor 2912 · **Add fitting photos 2978** · Inline caption editor 3051 · Undo toast 3105 · Add-page skeletons 3151 · Photo viewer 3187 · Detail focus rings 3239 · Detail route skeleton 3279
 
-**Schedules calendar:** 3364 · Title band 3395 · Month bar 3426 · Approximate notice 3471 · The grid 3504 · Panels and legend 3616 · Day sheet 3700
+**Schedules calendar:** 3461 · Title band 3499 · Month bar (fixed, foot of screen) 3537 · The grid 3620 · Week bands 3760 · Skeleton and states 3792 · Approximate-wedding note 3862 · Legend 3910 · Day sheet 3980
 
 **Quotations & invoices:** 3871 · Card 3937 · Panels, skeletons, footer 4035
 
@@ -115,7 +115,7 @@ Editor page 8 · Generated canvas 264 · Actions 352 · Full-screen overlay 437 
 
 | Prefix | Feature | File |
 | :--- | :--- | :--- |
-| `.schedcal-*` | Schedules calendar (day keys, per-week bands, day sheet) | `pages.css` 3434+ |
+| `.schedcal-*` | Schedules calendar (day keys, per-week bands, month bar, day sheet) | `pages.css` 3461+ |
 | `.doclist-*` | Quotations and invoices list (both routes) | `pages.css` 4130+ |
 | `.docnew*` | New-document picker — utility chrome, not ledger canvas | `shared.css` 2285+ |
 | `.fitlog-*` | Fitting logs feed (search block reused by `.doclist`) | `pages.css` 2113+ |
