@@ -31,6 +31,11 @@
   <span class="sr-only" role="status">Loading</span>
 </div>
 
+<!-- Sits above the boot curtain and the route loader so it is the one thing on
+     screen that keeps moving through every phase of a navigation. -->
+<div class="nav-progress" id="navProgress" hidden aria-hidden="true"
+     role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div>
+
 <!-- ============================== GATE ============================== -->
 <div class="gate" id="gate" hidden>
   <form class="gate__card" id="gateForm">
@@ -1888,6 +1893,7 @@
 <script src="moodboard.js"></script>
 <script src="fittings.js"></script>
 <script src="fitting-pdf.js"></script>
+<script src="progress.js"></script>
 <script src="db.js"></script>
 <script src="calendar.js"></script>
 <script src="app.js"></script>

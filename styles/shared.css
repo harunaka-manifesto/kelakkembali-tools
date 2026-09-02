@@ -20,11 +20,61 @@
 
 .boot[hidden] { display: none; }
 .boot.is-animating {
-  transition: transform 520ms var(--ease-emphasized, cubic-bezier(.76, 0, .24, 1));
+  transition: transform var(--motion-route-cover) var(--ease-emphasized, cubic-bezier(.76, 0, .24, 1));
 }
 .boot.is-below { transform: translateY(100%); }
 body.is-page-transitioning { overflow: hidden; pointer-events: none; }
 [tabindex="-1"]:focus { outline: none; }
+
+/* --------------------------- Route transition --------------------------- */
+
+/* Routes cross-fade with a short rise instead of waiting behind the curtain.
+   The leave is deliberately shorter than the enter: leaving should feel like a
+   dismissal, arriving like a settle. */
+.page.is-leaving {
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: opacity var(--motion-route-leave) var(--ease-standard),
+              transform var(--motion-route-leave) var(--ease-standard);
+}
+.page.is-entering {
+  opacity: 0;
+  transform: translateY(6px);
+}
+.page.is-entering.is-entered {
+  opacity: 1;
+  transform: none;
+  transition: opacity var(--motion-route-enter) var(--ease-out-expo),
+              transform var(--motion-route-enter) var(--ease-out-expo);
+}
+
+/* ------------------------- Navigation progress -------------------------- */
+
+.nav-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  /* Above .boot (400) and .route-loader (300): the indicator has to survive
+     every phase, including the gate. */
+  z-index: 500;
+  height: 2px;
+  padding-top: env(safe-area-inset-top, 0px);
+  pointer-events: none;
+  opacity: 1;
+}
+.nav-progress[hidden] { display: none; }
+.nav-progress i {
+  display: block;
+  height: 2px;
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  background: var(--home-orange, #ff6a00);
+  transition: transform 120ms linear;
+}
+.nav-progress.is-done { opacity: 0; transition: opacity 200ms ease; }
+.nav-progress.is-failed i { background: var(--danger, #b3261e); }
+.nav-progress.is-failed { opacity: 0; transition: opacity 200ms ease 400ms; }
 
 .boot__spin {
   width: 26px;
@@ -64,7 +114,7 @@ body.is-page-transitioning { overflow: hidden; pointer-events: none; }
 .route-loader.is-leaving {
   opacity: 0;
   pointer-events: none;
-  transition: opacity 180ms ease;
+  transition: opacity var(--motion-route-enter) ease;
 }
 
 .route-loader__canvas {
@@ -1966,11 +2016,18 @@ select.input {
 .savebar[hidden] { display: none; }
 
 .actionbar,
+/* The keyboard is reported in several steps as it animates, and `bottom` is a
+   layout property — so driving the bar with it made the bar jump from step to
+   step and reflowed the page under the caret each time. A transform is
+   compositor-only and can be transitioned, which turns the same steps into one
+   smooth move. */
 .savebar {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: var(--keyboard-offset);
+  bottom: 0;
+  transform: translateY(calc(-1 * var(--keyboard-offset)));
+  transition: transform var(--motion-keyboard) var(--ease-standard);
   z-index: 20;
   background: rgba(228, 226, 221, 0.94);
   backdrop-filter: saturate(150%) blur(12px);
@@ -2231,6 +2288,26 @@ body:not(.has-savebar) .toast {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* A bottom sheet arrives from off the bottom edge, not from 14px below where
+   it ends up — surface-rise is a card appearing, which is a different gesture.
+   The backdrop is animated separately so it can fade while the panel travels. */
+@keyframes sheet-rise {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+@keyframes sheet-fall {
+  from { transform: translateY(0); }
+  to { transform: translateY(100%); }
+}
+@keyframes sheet-veil-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes sheet-veil-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
 .appbar__up,
 .appbar__icon,
 .item__remove,
@@ -2293,52 +2370,84 @@ body:not(.has-savebar) .toast {
 .docnew__backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(13,13,13,.6);
+  background: rgba(13,13,13,.62);
+  animation: sheet-veil-in var(--motion-sheet-in) var(--ease-standard) both;
 }
+/* The same ledger the homepage that opens this sheet is drawn in: black panel,
+   grid rules, square corners, 24px inset. It used to arrive in the app-chrome
+   palette, which read as a different app sliding over the one you were in. */
 .docnew__panel {
   position: relative;
-  width: min(420px, 100%);
+  width: min(390px, 100%);
   max-height: 80svh;
-  padding: 20px 20px calc(20px + env(safe-area-inset-bottom, 0px));
+  padding: 20px 24px calc(24px + env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
   gap: 12px;
   overflow-y: auto;
-  background: var(--surface-2);
-  border-radius: var(--radius) var(--radius) 0 0;
-  animation: surface-rise 220ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+  background: var(--home-black);
+  border-top: 1px solid var(--home-grid);
+  animation: sheet-rise var(--motion-sheet-in) var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
 }
-.docnew__title { margin: 0; font-size: 20px; font-weight: 700; line-height: 28px; }
+/* Closing runs the same move backwards. app.js holds the sheet on screen for
+   --motion-sheet-out before setting hidden. */
+.docnew.is-closing .docnew__panel {
+  animation: sheet-fall var(--motion-sheet-out) var(--ease-standard) both;
+}
+.docnew.is-closing .docnew__backdrop {
+  animation: sheet-veil-out var(--motion-sheet-out) var(--ease-standard) both;
+}
+.docnew__title {
+  margin: 0;
+  color: var(--home-white);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 28px;
+  letter-spacing: -.6px;
+}
 .docnew__title:focus { outline: none; }
-.docnew__hint { margin: 0; color: var(--muted); font-size: 14px; line-height: 20px; }
+.docnew__hint {
+  margin: 0;
+  color: var(--home-grid);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+}
 .docnew__list {
   display: flex;
   flex-direction: column;
   gap: 8px;
   min-height: 64px;
 }
+/* A cream row on black, exactly as a customer or an order reads everywhere
+   else — square, ruled, no radius. */
 .docnew__row {
   width: 100%;
-  min-height: 48px;
-  padding: 12px 14px;
+  min-height: 52px;
+  padding: 14px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   text-align: left;
   font: inherit;
+  color: var(--home-black);
   cursor: pointer;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  background: var(--home-white);
+  border: 1px solid var(--home-grid);
+  border-radius: 0;
 }
-.docnew__row:hover { background: var(--bg); }
+.docnew__row:hover { background: var(--home-white-dark); }
 /* Dashed, because it does not stand for a record that exists — it makes one.
    Same row shape so it still scans as part of the list it heads. */
 .docnew__row--new {
+  color: var(--home-white);
   background: transparent;
   border-style: dashed;
 }
+.docnew__row--new:hover { background: rgba(254,250,241,.06); }
 .docnew__row--new .docnew__row-title::before { content: '+ '; }
 .docnew__row-title {
   min-width: 0;
@@ -2347,13 +2456,15 @@ body:not(.has-savebar) .toast {
   white-space: nowrap;
   font-size: 15px;
   font-weight: 600;
+  letter-spacing: -.45px;
 }
 .docnew__row-meta {
   flex: none;
-  color: var(--muted);
+  color: var(--home-grid);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
+.docnew__row--new .docnew__row-meta { color: rgba(254,250,241,.5); }
 /* Disabled because the order cannot produce a document yet. The reason sits
    beneath it and is wired through aria-describedby, so it is never carried by
    colour alone. */
@@ -2364,8 +2475,8 @@ body:not(.has-savebar) .toast {
 }
 .docnew__reason {
   margin: -4px 0 0;
-  padding: 0 14px;
-  color: var(--muted);
+  padding: 0 16px;
+  color: var(--home-grid);
   font-size: 12px;
   line-height: 16px;
 }
@@ -2374,27 +2485,27 @@ body:not(.has-savebar) .toast {
 .docnew__error {
   margin: 0;
   padding: 12px 2px;
-  color: var(--muted);
+  color: var(--home-grid);
   font-size: 14px;
   line-height: 20px;
 }
-.docnew__error { color: var(--danger); }
+.docnew__error { color: #e2705a; }
 .docnew__skeleton-row {
-  min-height: 48px;
-  padding: 12px 14px;
+  min-height: 52px;
+  padding: 14px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  background: var(--home-black-light);
+  border: 1px solid var(--home-grid);
+  border-radius: 0;
 }
 .docnew__skeleton-row i {
   width: 52%;
   height: 14px;
-  border-radius: 4px;
-  background: rgba(76,76,76,.16);
+  border-radius: 0;
+  background: rgba(254,250,241,.14);
   animation: home-shimmer 1.2s ease-in-out infinite;
 }
 .docnew__skeleton-row i + i { width: 24%; }
@@ -2405,7 +2516,36 @@ body:not(.has-savebar) .toast {
 .docnew__actions .btn[hidden] { display: none; }
 .docnew input[hidden] { display: none; }
 
+/* The search field and the two actions are the last app-chrome parts in here;
+   given the panel is now black, they have to be restated rather than inherited
+   or they read as cut out of a different picture. */
+.docnew .input--search {
+  min-height: 48px;
+  color: var(--home-white);
+  background: var(--home-black-light);
+  border: 1px solid var(--home-grid);
+  border-radius: 0;
+}
+.docnew .input--search::placeholder { color: rgba(254,250,241,.42); }
+.docnew .input--search:focus {
+  background-color: var(--home-black-light);
+  border-color: var(--home-white);
+  box-shadow: none;
+}
+.docnew__actions .btn {
+  min-height: 48px;
+  color: var(--home-white);
+  background: transparent;
+  border: 1px solid var(--home-grid);
+  border-radius: 0;
+}
+.docnew__actions .btn:hover:not(:disabled) { background: rgba(254,250,241,.06); }
+.docnew__actions .btn:disabled { opacity: .45; }
+
 @media (prefers-reduced-motion: reduce) {
-  .docnew__panel { animation: none; }
-  .docnew__skeleton-row i { animation: none; background-color: rgba(76,76,76,.22); }
+  .docnew__panel,
+  .docnew__backdrop,
+  .docnew.is-closing .docnew__panel,
+  .docnew.is-closing .docnew__backdrop { animation: none; }
+  .docnew__skeleton-row i { animation: none; background-color: rgba(254,250,241,.2); }
 }

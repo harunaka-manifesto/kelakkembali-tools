@@ -36,6 +36,11 @@ KK.app = (function () {
   const CHECK_IN_CONFIG = { label: "Check in", days: 3 };
   const FOLLOW_UP_CONFIG = { label: "Follow up moodboard", days: 3 };
 
+  /* Mirrors --motion-sheet-out in pages.css. The stylesheet owns the animation
+     and this owns how long the element stays mounted for it; if one changes the
+     other has to. */
+  const SHEET_OUT_MS = 180;
+
   /* Fittings are built and working but not yet part of the daily round, and the
      shortcut row is the one piece of screen where that matters — so the tile
      stands down and Moodboard takes its slot. Everything else about fittings is
@@ -58,6 +63,7 @@ KK.app = (function () {
 
   const elements = {
     boot: $("#boot"),
+    page: $("main.page"),
     gate: $("#gate"),
     gateForm: $("#gateForm"),
     gatePassword: $("#gatePassword"),
@@ -563,11 +569,50 @@ KK.app = (function () {
     );
   }
 
+  /* Publishes the keyboard's height and nothing else. It deliberately does not
+     re-measure the bars: a bar's height does not change because the keyboard
+     opened, and --bottombar-h feeds the page's bottom padding — so re-writing
+     it here reflowed the page several times per keyboard animation, under a
+     caret the user was aiming at. Bar heights are measured when a bar is shown
+     or hidden, which is when they actually change. */
   function syncVisualViewport() {
     const vp = window.visualViewport;
     const offset = vp ? Math.max(0, window.innerHeight - vp.height - vp.offsetTop) : 0;
     document.documentElement.style.setProperty("--keyboard-offset", Math.round(offset) + "px");
-    syncBottomBar();
+  }
+
+  /* ------------------------------ Sheet motion ---------------------------- */
+
+  /* A bottom sheet has to stay mounted while it slides back down, so hiding it
+     is deferred rather than immediate. Two things that costs us, both handled
+     here rather than at each call site:
+
+       - Reopening mid-close. The pending hide is cancelled on open, otherwise
+         the sheet you just reopened hides itself a beat later.
+       - Reduced motion. No animation runs, so nothing should be waited for. */
+  const sheetCloseTimers = new Map();
+
+  function cancelSheetClose(sheetEl) {
+    const pending = sheetCloseTimers.get(sheetEl);
+    if (pending) {
+      clearTimeout(pending);
+      sheetCloseTimers.delete(sheetEl);
+    }
+    sheetEl.classList.remove("is-closing");
+  }
+
+  function closeSheetElement(sheetEl) {
+    cancelSheetClose(sheetEl);
+    if (reducedMotion()) {
+      sheetEl.hidden = true;
+      return;
+    }
+    sheetEl.classList.add("is-closing");
+    sheetCloseTimers.set(sheetEl, setTimeout(() => {
+      sheetCloseTimers.delete(sheetEl);
+      sheetEl.classList.remove("is-closing");
+      sheetEl.hidden = true;
+    }, SHEET_OUT_MS));
   }
 
   function trapModalFocus(event, modalEl) {
@@ -608,6 +653,7 @@ KK.app = (function () {
     document.body.classList.toggle("is-homepage", !!cfg.homepage);
     document.body.classList.toggle("is-custpage", !!cfg.custpage);
     document.body.classList.toggle("is-custeditpage", !!cfg.custedit);
+    document.body.classList.toggle("is-ordereditpage", !!cfg.orderedit);
     document.body.classList.toggle("is-orderpage", !!cfg.orderpage);
     document.body.classList.toggle("is-moodboardpage", !!cfg.moodboardpage);
     document.body.classList.toggle("is-fittinglogspage", !!cfg.fittinglogspage);
@@ -650,12 +696,32 @@ KK.app = (function () {
 
   /* ------------------- Routing & View Transition ------------------ */
 
-  const CURTAIN_TRANSITION_MS = 520;
+  /* The curtain is no longer part of a route change. It survives for the two
+     moments that really are a whole-app context switch — cold boot and the
+     gate swap — where covering the screen is the point rather than a cost. */
+  const CURTAIN_TRANSITION_MS = 300;
+  const ROUTE_LEAVE_MS = 120;
+  const ROUTE_ENTER_MS = 180;
+  const SKELETON_DELAY_MS = 120;
+  const SKELETON_MIN_MS = 250;
+
   let curtainCovered = !elements.boot.hidden;
   let curtainCoverPromise = null;
   let routeLoaderShownAt = 0;
+  let routeLoaderTimer = 0;
 
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  /* A frame, or 32ms, whichever comes first. requestAnimationFrame does not
+     fire at all while the document is hidden, so anything that awaits a bare
+     frame stalls until the tab is looked at again — which for a route reveal
+     means a page that never arrives. */
+  const nextPaint = () => new Promise((resolve) => {
+    let settled = false;
+    const finish = () => { if (!settled) { settled = true; resolve(); } };
+    requestAnimationFrame(finish);
+    setTimeout(finish, 32);
+  });
 
   async function coverCurtain() {
     if (curtainCovered) return;
@@ -691,12 +757,89 @@ KK.app = (function () {
     document.body.classList.remove("is-page-transitioning");
   }
 
+  /* Route motion. leaveView runs while the data request is already in flight,
+     so the 120ms it costs is 120ms of the wait rather than 120ms on top of it.
+     Input is locked for that window only — long enough to stop a double tap
+     landing on a view that is halfway out, short enough not to feel dead. */
+  async function leaveView() {
+    if (curtainCovered) return;
+    if (reducedMotion()) return;
+    document.body.classList.add("is-page-transitioning");
+    elements.page.classList.remove("is-entering", "is-entered");
+    elements.page.classList.add("is-leaving");
+    await wait(ROUTE_LEAVE_MS);
+  }
+
+  function armEnterView() {
+    if (curtainCovered || reducedMotion()) return;
+    elements.page.classList.remove("is-leaving");
+    elements.page.classList.add("is-entering");
+  }
+
+  async function enterView() {
+    document.body.classList.remove("is-page-transitioning");
+    if (reducedMotion() || !elements.page.classList.contains("is-entering")) {
+      elements.page.classList.remove("is-leaving", "is-entering", "is-entered");
+      settlePageTransitions();
+      return;
+    }
+    /* A forced reflow, not requestAnimationFrame. The entering state has to be
+       committed before is-entered can transition off it, and rAF is paused in a
+       backgrounded tab — a navigation that happened while the tab was hidden
+       would otherwise sit at opacity 0 until the tab came back. */
+    void elements.page.offsetHeight;
+    elements.page.classList.add("is-entered");
+    await wait(ROUTE_ENTER_MS);
+    elements.page.classList.remove("is-entering", "is-entered");
+    settlePageTransitions();
+  }
+
+  /* A transition that started while the document was hidden is frozen at its
+     first frame — the animation clock does not run for a hidden document — and
+     dropping the class it came from does not unfreeze it. Finishing them
+     explicitly is what guarantees the page ends at its resting style rather
+     than at whatever opacity the interrupted fade was holding. */
+  function settlePageTransitions() {
+    if (!elements.page.getAnimations) return;
+    elements.page.getAnimations().forEach((anim) => {
+      try { anim.finish(); } catch (_) { /* already finished or not fillable */ }
+    });
+  }
+
+  /* is-entering holds the page at opacity 0, so anything that leaves it set is
+     a blank screen. Every exit from a navigation goes through here. */
+  function clearRouteMotion() {
+    document.body.classList.remove("is-page-transitioning");
+    elements.page.classList.remove("is-leaving", "is-entering", "is-entered");
+    settlePageTransitions();
+  }
+
   /* The add-photos page draws its own card skeletons inside the real ledger
      inset and reports its own load failure, so the generic route loader would
      only be a second, differently-shaped wait on top of it. */
   const routeHasOwnLoader = (r) =>
     "customers" === r.view || "order" === r.view || "fittingLogs" === r.view ||
     "fittingPhotoAdd" === r.view || "schedules" === r.view || "documents" === r.view;
+  /* Announced by both the progress bar and the skeleton's live region, so a
+     screen reader hears one name for the page rather than two. */
+  const ROUTE_PROGRESS_LABELS = {
+    customers: "customers",
+    customer: "customer",
+    customerEdit: "customer editor",
+    order: "order",
+    orderEdit: "order editor",
+    moodboard: "moodboard",
+    moodboardPreview: "moodboard",
+    fittingNew: "new fitting",
+    fittingLogs: "fitting logs",
+    fittingLogDetail: "fitting log",
+    fittingPhotoAdd: "fitting notes",
+    schedules: "schedules",
+    documents: "documents",
+    calendar: "calendar settings",
+    enquiry: "enquiry"
+  };
+
   const routeLoaderKind = (r) =>
     "fittingLogDetail" === r.view
       ? "fitdet"
@@ -706,7 +849,29 @@ KK.app = (function () {
       ? "moodboard"
       : "form";
 
-  function beginRouteLoader(r) {
+  /* The skeleton is armed, not shown. A route that resolves inside
+     SKELETON_DELAY_MS never paints one at all, which is what stops a warm
+     navigation from flashing a shimmer it does not need; a route that is
+     genuinely slow gets the skeleton and then holds it long enough to read. */
+  function armRouteLoader(r) {
+    cancelRouteLoader();
+    if (routeHasOwnLoader(r)) return hideRouteLoader(true);
+    /* The delay stands even under reduced motion: it is a debounce against a
+       skeleton nobody needed, not an animation. */
+    routeLoaderTimer = setTimeout(() => {
+      routeLoaderTimer = 0;
+      paintRouteLoader(r);
+    }, SKELETON_DELAY_MS);
+  }
+
+  function cancelRouteLoader() {
+    if (routeLoaderTimer) {
+      clearTimeout(routeLoaderTimer);
+      routeLoaderTimer = 0;
+    }
+  }
+
+  function paintRouteLoader(r) {
     if (routeHasOwnLoader(r)) return hideRouteLoader(true);
     routeLoaderShownAt = Date.now();
     elements.routeLoader.dataset.kind = routeLoaderKind(r);
@@ -714,34 +879,27 @@ KK.app = (function () {
     elements.routeLoader.classList.remove("is-leaving");
     $(".route-loader__canvas", elements.routeLoader).hidden = false;
     elements.routeLoaderError.hidden = true;
-
-    const labelMap = {
-      customer: "customer",
-      customerEdit: "customer editor",
-      orderEdit: "order editor",
-      moodboard: "moodboard",
-      fittingNew: "new fitting",
-      fittingLogDetail: "fitting log",
-      calendar: "calendar settings",
-      enquiry: "enquiry"
-    };
-
-    elements.routeLoaderStatus.textContent = "Loading " + (labelMap[r.view] || "page") + ".";
+    elements.routeLoaderStatus.textContent = "Loading " + (ROUTE_PROGRESS_LABELS[r.view] || "page") + ".";
     elements.routeLoader.hidden = false;
   }
 
   async function hideRouteLoader(force) {
+    // An armed-but-never-painted loader costs nothing to dismiss: cancelling
+    // the timer is the whole of it.
+    cancelRouteLoader();
     if (elements.routeLoader.hidden) return;
-    if (force || curtainCovered) {
+    if (force || curtainCovered || reducedMotion()) {
       elements.routeLoader.hidden = true;
       elements.routeLoader.setAttribute("aria-busy", "false");
       elements.routeLoader.classList.remove("is-leaving");
       elements.routeLoaderStatus.textContent = "";
       return;
     }
-    await wait(Math.max(0, 180 - (Date.now() - routeLoaderShownAt)));
+    // The minimum dwell only applies to a loader that actually reached the
+    // screen, so it can never be a floor on a fast route.
+    await wait(Math.max(0, SKELETON_MIN_MS - (Date.now() - routeLoaderShownAt)));
     elements.routeLoader.classList.add("is-leaving");
-    await wait(reducedMotion() ? 0 : 180);
+    await wait(ROUTE_ENTER_MS);
     elements.routeLoader.hidden = true;
     elements.routeLoader.setAttribute("aria-busy", "false");
     elements.routeLoader.classList.remove("is-leaving");
@@ -750,6 +908,7 @@ KK.app = (function () {
 
   function showRouteError(err, r) {
     console.error(err);
+    cancelRouteLoader();
     elements.routeLoader.dataset.kind = routeLoaderKind(r);
     elements.routeLoader.hidden = false;
     elements.routeLoader.classList.remove("is-leaving");
@@ -992,88 +1151,148 @@ KK.app = (function () {
   let currentHash = "";
   let lastVisitedHash = "";
 
+  /* Hash -> route descriptor. Extracted from handleRoute so prefetch can ask
+     what a link leads to without navigating to it. */
+  function parseRoute(hash) {
+    const hashStr = String(hash || "").replace(/^#\/?/, "");
+    const qIdx = hashStr.indexOf("?");
+    const segments = (-1 === qIdx ? hashStr : hashStr.slice(0, qIdx)).split("/").filter(Boolean);
+    const query = new URLSearchParams(-1 === qIdx ? "" : hashStr.slice(qIdx + 1));
+
+    if ("customer" === segments[0] && segments[1] && "edit" === segments[2]) {
+      return { view: "customerEdit", id: segments[1], query };
+    }
+    /* A new order is the one order route that cannot be keyed on an order id,
+       because there is no row yet — it is keyed on the customer it will
+       belong to, exactly as #/customer/new/edit is keyed on nothing at all.
+       Matched before the bare customer route, which would otherwise swallow
+       it on segments[1] alone. */
+    if ("customer" === segments[0] && segments[1] && "order" === segments[2] && "new" === segments[3] && "edit" === segments[4]) {
+      return { view: "orderEdit", id: "new", customerId: segments[1], query };
+    }
+    if ("customer" === segments[0] && segments[1]) {
+      return { view: "customer", id: segments[1], query };
+    }
+    if ("order" === segments[0] && segments[1] && "edit" === segments[2]) {
+      return { view: "orderEdit", id: segments[1], query };
+    }
+    if ("order" === segments[0] && segments[1] && "moodboard" === segments[2] && "preview" === segments[3]) {
+      return { view: "moodboardPreview", id: segments[1], query };
+    }
+    if ("order" === segments[0] && segments[1] && "moodboard" === segments[2]) {
+      return { view: "moodboard", id: segments[1], query };
+    }
+    if ("order" === segments[0] && segments[1] && "fitting" === segments[2] && "new" === segments[3]) {
+      return { view: "fittingNew", id: segments[1], query };
+    }
+    if ("order" === segments[0] && segments[1] && "fitting" === segments[2] && segments[3]) {
+      return { view: "fittingLogRedirect", id: segments[1], sessionId: segments[3], query };
+    }
+    if (("order" === segments[0] && segments[1] && "fittings" === segments[2]) || ("order" === segments[0] && segments[1])) {
+      return { view: "order", id: segments[1], query };
+    }
+    // Both fitting routes below are matched before the general feed, and each
+    // carries only ids: they fetch and validate their own records so a pasted
+    // URL behaves exactly like a tapped card.
+    /* The per-photo editor is retired: a caption and a mark were the only
+       things it could change, and the workspace changes both. An old link
+       still resolves — it opens the workspace on the photo it named. */
+    if ("fittings" === segments[0] && segments[1] && "photo" === segments[2] && segments[3] && "edit" === segments[4]) {
+      return { view: "fittingPhotoRedirect", sessionId: segments[1], photoId: segments[3], query };
+    }
+    if ("fittings" === segments[0] && segments[1] && "edit" === segments[2]) {
+      return { view: "fittingPhotoAdd", sessionId: segments[1], query };
+    }
+    // The workspace's first name, kept so an in-flight link still lands.
+    if ("fittings" === segments[0] && segments[1] && "photos" === segments[2] && "add" === segments[3]) {
+      return { view: "fittingPhotoAdd", sessionId: segments[1], query };
+    }
+    if ("fittings" === segments[0] && segments[1]) {
+      return { view: "fittingLogDetail", sessionId: segments[1], query };
+    }
+    if ("fittings" === segments[0]) {
+      return { view: "fittingLogs", query };
+    }
+    // Not "#/calendar" — that name already belongs to the Google Calendar
+    // connection settings, which is a different page about a different thing.
+    if ("schedules" === segments[0]) {
+      return { view: "schedules", query };
+    }
+    // One view, two routes: the kind is the only thing that differs.
+    if ("quotations" === segments[0]) {
+      return { view: "documents", kind: "quotation", query };
+    }
+    if ("invoices" === segments[0]) {
+      return { view: "documents", kind: "invoice", query };
+    }
+    if ("calendar" === segments[0]) {
+      return { view: "calendar", query };
+    }
+    if ("enquiry" === segments[0] && segments[1]) {
+      return { view: "enquiry", id: segments[1], query };
+    }
+    return { view: "customers", query };
+  }
+
+  /* ---------------------------- Prefetch on intent ------------------------ */
+
+  /* A tap is not the first moment we know where someone is going — pointerdown
+     is, and on a phone that lands 80–150ms before the hash changes; a desktop
+     hover buys longer still. Firing the route's opening query then means the
+     navigation frequently finds its answer already sitting in db's cache.
+
+     Only the first query of a route is warmed. The rest of the chain needs ids
+     this one has not returned yet, and speculatively fanning out on every link
+     someone's thumb brushes past is a good way to spend a data plan. */
+  const prefetched = new Map();
+  const PREFETCH_COOLDOWN_MS = 5000;
+
+  function prefetchRoute(hash) {
+    if (!hash || hash === location.hash) return;
+    const conn = navigator.connection;
+    if (conn && (conn.saveData || /2g/.test(String(conn.effectiveType || "")))) return;
+
+    const last = prefetched.get(hash);
+    if (last && Date.now() - last < PREFETCH_COOLDOWN_MS) return;
+    prefetched.set(hash, Date.now());
+
+    let route;
+    try { route = parseRoute(hash); } catch (_) { return; }
+
+    // Speculative: a failure here is not the user's problem, and the real
+    // navigation will surface it properly a moment later.
+    const swallow = (promise) => { if (promise && promise.catch) promise.catch(() => {}); };
+
+    if ("customer" === route.view || "customerEdit" === route.view) {
+      swallow(db.getCustomer(route.id));
+    } else if ("order" === route.view || "orderEdit" === route.view || "moodboard" === route.view ||
+               "moodboardPreview" === route.view || "fittingNew" === route.view) {
+      if ("new" !== route.id) swallow(db.getOrder(route.id));
+    } else if ("fittingLogDetail" === route.view || "fittingPhotoAdd" === route.view) {
+      swallow(db.getFittingSession(route.sessionId || route.id));
+    } else if ("customers" === route.view) {
+      swallow(db.listCustomers());
+    } else if ("enquiry" === route.view) {
+      swallow(db.getIntake(route.id));
+    }
+  }
+
+  function bindPrefetch() {
+    const hashFor = (target) => {
+      const link = target && target.closest && target.closest('a[href^="#/"]');
+      return link ? link.getAttribute("href") : "";
+    };
+    document.addEventListener("pointerdown", (ev) => prefetchRoute(hashFor(ev.target)), { passive: true });
+    // Hover is a much weaker signal than a press, so it is only trusted on
+    // pointers that can actually hover.
+    if (window.matchMedia && window.matchMedia("(hover: hover)").matches) {
+      document.addEventListener("pointerover", (ev) => prefetchRoute(hashFor(ev.target)), { passive: true });
+    }
+  }
+
   async function handleRoute(skipAnimationFlag) {
     const skipMotion = skipAnimationFlag === true;
-    const targetRoute = (function () {
-      const hashStr = String(location.hash || "").replace(/^#\/?/, "");
-      const qIdx = hashStr.indexOf("?");
-      const segments = (-1 === qIdx ? hashStr : hashStr.slice(0, qIdx)).split("/").filter(Boolean);
-      const query = new URLSearchParams(-1 === qIdx ? "" : hashStr.slice(qIdx + 1));
-
-      if ("customer" === segments[0] && segments[1] && "edit" === segments[2]) {
-        return { view: "customerEdit", id: segments[1], query };
-      }
-      /* A new order is the one order route that cannot be keyed on an order id,
-         because there is no row yet — it is keyed on the customer it will
-         belong to, exactly as #/customer/new/edit is keyed on nothing at all.
-         Matched before the bare customer route, which would otherwise swallow
-         it on segments[1] alone. */
-      if ("customer" === segments[0] && segments[1] && "order" === segments[2] && "new" === segments[3] && "edit" === segments[4]) {
-        return { view: "orderEdit", id: "new", customerId: segments[1], query };
-      }
-      if ("customer" === segments[0] && segments[1]) {
-        return { view: "customer", id: segments[1], query };
-      }
-      if ("order" === segments[0] && segments[1] && "edit" === segments[2]) {
-        return { view: "orderEdit", id: segments[1], query };
-      }
-      if ("order" === segments[0] && segments[1] && "moodboard" === segments[2] && "preview" === segments[3]) {
-        return { view: "moodboardPreview", id: segments[1], query };
-      }
-      if ("order" === segments[0] && segments[1] && "moodboard" === segments[2]) {
-        return { view: "moodboard", id: segments[1], query };
-      }
-      if ("order" === segments[0] && segments[1] && "fitting" === segments[2] && "new" === segments[3]) {
-        return { view: "fittingNew", id: segments[1], query };
-      }
-      if ("order" === segments[0] && segments[1] && "fitting" === segments[2] && segments[3]) {
-        return { view: "fittingLogRedirect", id: segments[1], sessionId: segments[3], query };
-      }
-      if (("order" === segments[0] && segments[1] && "fittings" === segments[2]) || ("order" === segments[0] && segments[1])) {
-        return { view: "order", id: segments[1], query };
-      }
-      // Both fitting-log detail routes are matched before the general feed, and
-      // each carries only ids: they fetch and validate their own records so a
-      // pasted URL behaves exactly like a tapped card.
-      /* The per-photo editor is retired: a caption and a mark were the only
-         things it could change, and the workspace changes both. An old link
-         still resolves — it opens the workspace on the photo it named. */
-      if ("fittings" === segments[0] && segments[1] && "photo" === segments[2] && segments[3] && "edit" === segments[4]) {
-        return { view: "fittingPhotoRedirect", sessionId: segments[1], photoId: segments[3], query };
-      }
-      if ("fittings" === segments[0] && segments[1] && "edit" === segments[2]) {
-        return { view: "fittingPhotoAdd", sessionId: segments[1], query };
-      }
-      // The workspace's first name, kept so an in-flight link still lands.
-      if ("fittings" === segments[0] && segments[1] && "photos" === segments[2] && "add" === segments[3]) {
-        return { view: "fittingPhotoAdd", sessionId: segments[1], query };
-      }
-      if ("fittings" === segments[0] && segments[1]) {
-        return { view: "fittingLogDetail", sessionId: segments[1], query };
-      }
-      if ("fittings" === segments[0]) {
-        return { view: "fittingLogs", query };
-      }
-      // Not "#/calendar" — that name already belongs to the Google Calendar
-      // connection settings, which is a different page about a different thing.
-      if ("schedules" === segments[0]) {
-        return { view: "schedules", query };
-      }
-      // One view, two routes: the kind is the only thing that differs.
-      if ("quotations" === segments[0]) {
-        return { view: "documents", kind: "quotation", query };
-      }
-      if ("invoices" === segments[0]) {
-        return { view: "documents", kind: "invoice", query };
-      }
-      if ("calendar" === segments[0]) {
-        return { view: "calendar", query };
-      }
-      if ("enquiry" === segments[0] && segments[1]) {
-        return { view: "enquiry", id: segments[1], query };
-      }
-      return { view: "customers", query };
-    })();
+    const targetRoute = parseRoute(location.hash);
 
     const prevRoute = state.route;
 
@@ -1091,7 +1310,10 @@ KK.app = (function () {
     currentHash = location.hash;
 
     const routeToken = ++state.navigation.token;
-    if (!skipMotion) await coverCurtain();
+    if (!skipMotion) {
+      KK.progress.start(ROUTE_PROGRESS_LABELS[targetRoute.view] || "page");
+      await leaveView();
+    }
     if (routeToken !== state.navigation.token) return;
 
     const wasMoodboard = prevRoute && ("moodboard" === prevRoute.view || "moodboardPreview" === prevRoute.view);
@@ -1171,7 +1393,8 @@ KK.app = (function () {
 
     syncBottomBar();
     window.scrollTo(0, 0);
-    beginRouteLoader(targetRoute);
+    armRouteLoader(targetRoute);
+    if (!skipMotion) armEnterView();
 
     const renderFn = async () => {
       if ("customers" === targetRoute.view) {
@@ -1197,8 +1420,9 @@ KK.app = (function () {
             state.schedule = null;
             state.customerOrders = [];
           } else {
-            state.order = await db.getOrder(orderId);
-            state.customer = await db.getCustomer(state.order.customer_id);
+            const rec = splitOrder(await db.getOrder(orderId));
+            state.order = rec.order;
+            state.customer = rec.customer || await db.getCustomer(rec.order.customer_id);
           }
 
           setChrome(isNew ? {
@@ -1207,12 +1431,14 @@ KK.app = (function () {
             // that one is shaped for the order page's back button, and the up
             // link names the page it returns to plainly.
             up: { label: (state.customer && state.customer.name) || "Customer", hash: "#/customer/" + encodeURIComponent(state.customer.id) },
-            save: true
+            save: true,
+            orderedit: true
           } : {
             title: "Edit order",
             up: { label: orderLabel(state.order), hash: "#/order/" + orderId },
             save: true,
-            destroy: "order"
+            destroy: "order",
+            orderedit: true
           });
           elements.oTitle.value = state.order.title || "";
           elements.oDocName.value = state.order.doc_name || "";
@@ -1248,8 +1474,12 @@ KK.app = (function () {
         })(targetRoute.id, targetRoute.customerId);
       } else if ("moodboard" === targetRoute.view) {
         await (async function (orderId) {
-          state.order = await db.getOrder(orderId);
-          const res = await Promise.all([db.getCustomer(state.order.customer_id), db.listOrders(state.order.customer_id)]);
+          const rec = splitOrder(await db.getOrder(orderId));
+          state.order = rec.order;
+          const res = await Promise.all([
+            rec.customer ? Promise.resolve(rec.customer) : db.getCustomer(rec.order.customer_id),
+            db.listOrders(rec.order.customer_id)
+          ]);
           state.customer = res[0];
           state.customerOrders = res[1];
 
@@ -1290,8 +1520,9 @@ KK.app = (function () {
         })(targetRoute.id);
       } else if ("fittingNew" === targetRoute.view) {
         await (async function (orderId) {
-          state.order = await db.getOrder(orderId);
-          state.customer = await db.getCustomer(state.order.customer_id);
+          const rec = splitOrder(await db.getOrder(orderId));
+          state.order = rec.order;
+          state.customer = rec.customer || await db.getCustomer(rec.order.customer_id);
           setChrome({ title: "New fitting", up: { label: orderLabel(state.order), hash: "#/order/" + orderId }, save: false });
 
           /* The workspace edits one durable fitting log, so the row exists
@@ -1393,31 +1624,62 @@ KK.app = (function () {
     })();
 
     const settledTask = loadTask.then(() => ({ ok: true }), (err) => ({ ok: false, error: err }));
-    let earlyResult = null;
 
-    if (!skipMotion) {
-      earlyResult = await Promise.race([settledTask, wait(400).then(() => null)]);
-      if (routeToken !== state.navigation.token) return;
+    /* No grace period and no second animation. The page appears the moment its
+       data is in, because the only motion left to pay for — the enter — was
+       already armed before the request settled. */
+    const finalResult = await settledTask;
+    if (routeToken !== state.navigation.token) {
+      // Superseded mid-flight: the navigation that replaced this one owns both
+      // the bar and the page's motion state, so neither is settled here.
+      return;
+    }
 
-      if (earlyResult && earlyResult.ok) {
-        await hideRouteLoader(true);
-      } else if (earlyResult && !earlyResult.ok && !routeHasOwnLoader(targetRoute)) {
-        showRouteError(earlyResult.error, targetRoute);
+    try {
+      if (curtainCovered) await revealCurtain();
+
+      if (finalResult.ok) {
+        await hideRouteLoader(false);
+        await enterView();
+        KK.progress.done();
+        focusRoute(targetRoute);
+      } else {
+        KK.progress.fail();
+        await enterView();
+        if (routeHasOwnLoader(targetRoute)) {
+          showToast((finalResult.error && finalResult.error.message) || "Could not load that");
+        } else {
+          showRouteError(finalResult.error, targetRoute);
+        }
       }
-      await revealCurtain();
+    } finally {
+      // Whatever went wrong above, the page does not get left at opacity 0 with
+      // input locked.
+      if (routeToken === state.navigation.token) {
+        clearRouteMotion();
+        cancelRouteLoader();
+        if (KK.progress.isActive()) KK.progress.done();
+      }
     }
+  }
 
-    const finalResult = earlyResult || (await settledTask);
-    if (routeToken !== state.navigation.token) return;
+  /* db.getOrder and db.getFittingSession embed their parent rows so one round
+     trip answers what used to take three or four. The embed is split off again
+     the moment it arrives: state.order has to stay the exact shape the order
+     writers send back to PostgREST, and a stray `customers` key on an update
+     payload is a 400. */
+  function splitOrder(rec) {
+    const order = Object.assign({}, rec);
+    const customer = rec.customers || null;
+    delete order.customers;
+    return { order, customer };
+  }
 
-    if (finalResult.ok) {
-      await hideRouteLoader(false);
-      focusRoute(targetRoute);
-    } else if (routeHasOwnLoader(targetRoute)) {
-      showToast((finalResult.error && finalResult.error.message) || "Could not load that");
-    } else {
-      showRouteError(finalResult.error, targetRoute);
-    }
+  function splitSession(rec) {
+    const session = Object.assign({}, rec);
+    delete session.orders;
+    const nested = rec.orders ? splitOrder(rec.orders) : { order: null, customer: null };
+    return { session, order: nested.order, customer: nested.customer };
   }
 
   const orNull = (str) => "" === String(str || "").trim() ? null : String(str).trim();
@@ -1891,8 +2153,10 @@ KK.app = (function () {
   }
 
   async function revealHomepage(token) {
-    await (document.fonts && document.fonts.ready || Promise.resolve());
-    await new Promise((res) => requestAnimationFrame(res));
+    /* This used to wait on document.fonts.ready before revealing anything,
+       which pinned first paint to a webfont that font-display already governs.
+       One frame is all the measurement below actually needs. */
+    await nextPaint();
     if (!isCurrentHomepageLoad(token)) return;
 
     elements.homeStage.style.height = Math.ceil(elements.homeReady.getBoundingClientRect().height || elements.homeReady.scrollHeight) + "px";
@@ -1900,7 +2164,7 @@ KK.app = (function () {
     elements.homeReady.classList.add("is-transitioning");
     elements.homeLoading.classList.add("is-transitioning");
 
-    requestAnimationFrame(() => {
+    nextPaint().then(() => {
       if (isCurrentHomepageLoad(token)) {
         elements.homeReady.classList.add("is-visible");
         elements.homeLoading.classList.add("is-hidden");
@@ -2675,6 +2939,9 @@ KK.app = (function () {
     sc.openDate = iso;
     sc.sheetReturn = returnEl || document.activeElement;
     renderScheduleSheet(iso);
+    // Tapping a second day while the first is still closing: cancel that hide
+    // before showing, or it lands on the sheet that just opened.
+    cancelSheetClose(elements.schedcalSheet);
     elements.schedcalSheet.hidden = false;
     document.body.classList.add("has-schedcal-sheet");
     const cell = scheduleCellFor(iso);
@@ -2696,7 +2963,7 @@ KK.app = (function () {
     const returnEl = sc.sheetReturn;
     sc.openDate = "";
     sc.sheetReturn = null;
-    elements.schedcalSheet.hidden = true;
+    closeSheetElement(elements.schedcalSheet);
     document.body.classList.remove("has-schedcal-sheet");
     if (returnEl && document.contains(returnEl)) returnEl.focus({ preventScroll: true });
   }
@@ -3961,6 +4228,9 @@ KK.app = (function () {
     pk.returnEl = document.activeElement;
 
     elements.docnewSearch.value = "";
+    // Reopening while the last close is still sliding: drop the pending hide,
+    // or it fires and takes this one with it.
+    cancelSheetClose(elements.docnewSheet);
     elements.docnewSheet.hidden = false;
     document.body.classList.add("has-docnew");
     pk.loading = !pk.customers;
@@ -3993,9 +4263,11 @@ KK.app = (function () {
     pk.open = false;
     pk.returnEl = null;
     pk.generating = false;
-    elements.docnewSheet.hidden = true;
+    closeSheetElement(elements.docnewSheet);
     document.body.classList.remove("has-docnew");
     elements.docnewStatus.textContent = "";
+    // Focus goes back now, not when the animation ends: it must never sit on a
+    // sheet that has already slid away.
     if (returnEl && document.contains(returnEl)) returnEl.focus({ preventScroll: true });
   }
 
@@ -4422,9 +4694,10 @@ KK.app = (function () {
     if (!photo.drive_file_id) throw new Error("This photo has no image to use.");
 
     const result = await db.driveGetFittingPhoto(photo.id);
-    const raw = atob(String(result.image_base64 || ""));
-    const bytes = new Uint8Array(raw.length);
-    for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+    // Uint8Array.from does the same walk in one native pass; the hand-rolled
+    // loop was several megabytes of scripting on a large photo.
+    const raw = String(result.image_base64 || "");
+    const bytes = Uint8Array.from(atob(raw), (ch) => ch.charCodeAt(0));
     const blob = new Blob([bytes], { type: result.mime_type || "image/jpeg" });
     d.blobCache.set(photo.id, blob);
     return blob;
@@ -4715,14 +4988,22 @@ KK.app = (function () {
     let customer;
     let photos;
     try {
-      session = await db.getFittingSession(sessionId);
-      order = await db.getOrder(session.order_id);
-      const res = await Promise.all([
-        db.getCustomer(order.customer_id),
-        db.listFittingPhotosBySession(sessionId)
+      // Session, order, customer and photos in one round trip apiece rather
+      // than a three-deep chain.
+      let landed = 0;
+      const countPart = (promise) => promise.then((value) => {
+        KK.progress.step(++landed, 2);
+        return value;
+      });
+      const parts = await Promise.all([
+        countPart(db.getFittingSession(sessionId)),
+        countPart(db.listFittingPhotosBySession(sessionId))
       ]);
-      customer = res[0];
-      photos = sortFittingPhotos(res[1]);
+      const rec = splitSession(parts[0]);
+      session = rec.session;
+      order = rec.order || await db.getOrder(session.order_id);
+      customer = rec.customer || await db.getCustomer(order.customer_id);
+      photos = sortFittingPhotos(parts[1]);
     } catch (err) {
       console.error(err);
       if (token !== d.loadToken) return;
@@ -6156,14 +6437,15 @@ KK.app = (function () {
     let customer;
     let photos;
     try {
-      session = await db.getFittingSession(sessionId);
-      order = await db.getOrder(session.order_id);
-      const res = await Promise.all([
-        db.getCustomer(order.customer_id),
+      const parts = await Promise.all([
+        db.getFittingSession(sessionId),
         db.listFittingPhotosBySession(sessionId)
       ]);
-      customer = res[0];
-      photos = sortFittingPhotos(res[1]);
+      const rec = splitSession(parts[0]);
+      session = rec.session;
+      order = rec.order || await db.getOrder(session.order_id);
+      customer = rec.customer || await db.getCustomer(order.customer_id);
+      photos = sortFittingPhotos(parts[1]);
     } catch (err) {
       console.error(err);
       if (token !== a.loadToken) return;
@@ -7072,8 +7354,7 @@ KK.app = (function () {
   }
 
   async function revealOrder(token) {
-    await (document.fonts && document.fonts.ready || Promise.resolve());
-    await new Promise((res) => requestAnimationFrame(res));
+    await nextPaint();
     if (!isCurrentOrderLoad(token, state.orderDetail.orderId)) return;
 
     elements.orderStage.style.height = Math.ceil(elements.orderReady.getBoundingClientRect().height || elements.orderReady.scrollHeight) + "px";
@@ -7081,7 +7362,7 @@ KK.app = (function () {
     elements.orderReady.classList.add("is-transitioning");
     elements.orderLoading.classList.add("is-transitioning");
 
-    requestAnimationFrame(() => {
+    nextPaint().then(() => {
       if (isCurrentOrderLoad(token, state.orderDetail.orderId)) {
         elements.orderReady.classList.add("is-visible");
         elements.orderLoading.classList.add("is-hidden");
@@ -7106,37 +7387,57 @@ KK.app = (function () {
     setDirty(false);
     const token = beginOrderLoad(orderId);
 
+    /* Two rounds, not four. The order arrives with its customer embedded, and
+       everything that hangs off the order id goes out together instead of
+       history waiting behind the customer for no reason. Each landing part
+       advances the global progress bar, so this page reports real progress
+       rather than an indefinite shimmer. */
+    const ORDER_LOAD_PARTS = 5;
     let ordRec, custRec;
     try {
-      ordRec = await db.getOrder(orderId);
+      const rec = splitOrder(await db.getOrder(orderId));
       if (!isCurrentOrderLoad(token, orderId)) return;
-      custRec = await db.getCustomer(ordRec.customer_id);
+      KK.progress.step(1, ORDER_LOAD_PARTS);
+      ordRec = rec.order;
+      custRec = rec.customer || await db.getCustomer(ordRec.customer_id);
     } catch (err) {
       if (db.isStaleToken(err)) throw err;
       return renderOrderError(err, token, orderId, ordRec && ordRec.customer_id);
     }
 
     if (!isCurrentOrderLoad(token, orderId)) return;
+    KK.progress.step(2, ORDER_LOAD_PARTS);
     state.order = ordRec;
     state.customer = custRec;
 
     let historyList = null;
     let historyErr = false;
-    try {
-      historyList = await db.listOrderHistory(orderId);
-    } catch (err) {
-      if (db.isStaleToken(err)) throw err;
-      console.error(err);
-      historyErr = true;
-    }
-    if (!isCurrentOrderLoad(token, orderId)) return;
 
     let eventsList = [];
     let sessionsList = [];
     let photosList = [];
-    const fittingParts = await Promise.allSettled([
-      db.listOrderEvents(orderId), db.listFittingSessions(orderId), db.listFittingPhotos(orderId)
+    let landed = 2;
+    const countPart = (promise) => promise.then(
+      (value) => { KK.progress.step(++landed, ORDER_LOAD_PARTS); return value; },
+      (err) => { KK.progress.step(++landed, ORDER_LOAD_PARTS); throw err; }
+    );
+
+    const [historyPart, ...fittingParts] = await Promise.allSettled([
+      countPart(db.listOrderHistory(orderId)),
+      countPart(db.listOrderEvents(orderId)),
+      countPart(db.listFittingSessions(orderId)),
+      countPart(db.listFittingPhotos(orderId))
     ]);
+
+    if ("fulfilled" === historyPart.status) {
+      historyList = historyPart.value;
+    } else {
+      if (db.isStaleToken(historyPart.reason)) throw historyPart.reason;
+      console.error(historyPart.reason);
+      historyErr = true;
+    }
+    if (!isCurrentOrderLoad(token, orderId)) return;
+
     fittingParts.forEach((part) => { if ("rejected" === part.status) console.error(part.reason); });
     if ("fulfilled" === fittingParts[0].status) eventsList = fittingParts[0].value;
     if ("fulfilled" === fittingParts[1].status) sessionsList = fittingParts[1].value;
@@ -8429,6 +8730,7 @@ KK.app = (function () {
 
   function bindEvents() {
     window.addEventListener("hashchange", handleRoute);
+    bindPrefetch();
 
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible" && state.route && "customers" === state.route.view) {
@@ -8787,6 +9089,10 @@ KK.app = (function () {
     ["resize", "orientationchange"].forEach((evtName) =>
       window.addEventListener(evtName, () => {
         syncVisualViewport();
+        // Turning the phone is the one thing that genuinely changes a bar's
+        // height, so this is where the bars get re-measured now that the
+        // keyboard's own updates no longer do it.
+        syncBottomBar();
         fitMoodboardBoard();
         renderMoodboardOverlay(false);
       })

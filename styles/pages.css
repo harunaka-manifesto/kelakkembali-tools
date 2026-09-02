@@ -46,6 +46,20 @@
   --motion-quick: 140ms;
   --motion-standard: 240ms;
   --motion-enter: 320ms;
+  /* Route transition budget. The old black curtain cost 520ms out and 520ms
+     back before a single row had been fetched; these are what replaced it. */
+  --motion-route-leave: 120ms;
+  --motion-route-enter: 180ms;
+  --motion-route-cover: 300ms;   /* boot/gate curtain only */
+  --motion-skeleton-delay: 120ms;
+  /* Bottom sheets. Out is shorter than in for the same reason the route leave
+     is: arriving should settle, dismissing should just go. */
+  --motion-sheet-in: 260ms;
+  --motion-sheet-out: 180ms;
+  /* Long enough to smooth the steps iOS reports the keyboard in, short enough
+     that the bar still reads as attached to it. */
+  --motion-keyboard: 220ms;
+  --motion-skeleton-min: 250ms;
 }
 
 * { box-sizing: border-box; }
@@ -213,7 +227,7 @@ body.is-homepage .view { gap: 0; }
   position: absolute;
   inset: 0;
   opacity: 0;
-  transition: opacity 160ms ease;
+  transition: opacity var(--motion-route-enter) ease;
 }
 .home-state.is-transitioning.is-visible { opacity: 1; }
 .home-state--loading.is-hidden { opacity: 0; }
@@ -1221,10 +1235,16 @@ body.is-custeditpage .view { gap: 0; }
 
 .custedit-field[hidden] { display: none; }
 .custedit-card {
-  padding: 12px;
+  /* Most of the room a form wants is vertical, and that is where this spends
+     it: 16/16 with an 8px gap instead of 12/12 and 6. Sideways it stays near
+     the 12px every other ledger card uses (homepage customer card, order
+     card) — pushing the text to the 24px inset looked roomier in isolation but
+     put this form's left edge somewhere nothing else on the page sits, and
+     squeezed the wedding-date toggles while it was at it. */
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   background: var(--home-white);
   border-left: 1px solid var(--home-grid);
   border-right: 1px solid var(--home-grid);
@@ -1252,8 +1272,8 @@ body.is-custeditpage .view { gap: 0; }
    off the rail into the face, so the field's total height never changes and
    the fields below it hold still while you tab through the form. */
 .custedit-card:focus-within {
-  padding-top: 16px;
-  padding-bottom: 16px;
+  padding-top: 20px;
+  padding-bottom: 20px;
   background: linear-gradient(180deg, transparent, rgba(0,0,0,.06)), var(--home-white);
 }
 .custedit-card:focus-within + .custedit-card__rail { height: 4px; }
@@ -1433,10 +1453,14 @@ body.is-custeditpage .view { gap: 0; }
 
 /* The app's own save bar, re-skinned rather than replaced, so the dirty and
    saving states keep driving it. */
-body.is-custeditpage .savebar {
+body.is-custeditpage .savebar,
+body.is-ordereditpage .savebar {
   left: 50%;
   right: auto;
-  transform: translateX(-50%);
+  /* Centring and the keyboard offset share the one transform: setting only
+     translateX here would drop the Y the base rule applies, and this is the
+     page where the bar most needs to follow the keyboard. */
+  transform: translate(-50%, calc(-1 * var(--keyboard-offset)));
   width: min(390px, 100%);
   max-width: 390px;
   padding: 0;
@@ -1445,12 +1469,14 @@ body.is-custeditpage .savebar {
   backdrop-filter: none;
   box-shadow: none;
 }
-body.is-custeditpage .savebar__inner {
+body.is-custeditpage .savebar__inner,
+body.is-ordereditpage .savebar__inner {
   max-width: none;
   padding: 0 0 env(safe-area-inset-bottom, 0px);
   gap: 0;
 }
-body.is-custeditpage #saveBtn {
+body.is-custeditpage #saveBtn,
+body.is-ordereditpage #saveBtn {
   width: 100%;
   height: 64px;
   padding: 0;
@@ -1469,7 +1495,8 @@ body.is-custeditpage #saveBtn {
   overflow: hidden;
   transition: grid-template-rows 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
 }
-body.is-custeditpage #saveBtn .btn__label {
+body.is-custeditpage #saveBtn .btn__label,
+body.is-ordereditpage #saveBtn .btn__label {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1482,12 +1509,15 @@ body.is-custeditpage #saveBtn .btn__label {
 /* The rail is a real element rather than a pseudo, so it is never at the mercy
    of the base button's own box. */
 .btn__rail { display: none; }
-body.is-custeditpage #saveBtn .btn__rail {
+body.is-custeditpage #saveBtn .btn__rail,
+body.is-ordereditpage #saveBtn .btn__rail {
   display: block;
   background: #128f10;
 }
-body.is-custeditpage #saveBtn:disabled { cursor: default; }
-body.is-custeditpage #saveBtn:disabled .btn__label {
+body.is-custeditpage #saveBtn:disabled,
+body.is-ordereditpage #saveBtn:disabled { cursor: default; }
+body.is-custeditpage #saveBtn:disabled .btn__label,
+body.is-ordereditpage #saveBtn:disabled .btn__label {
   background: var(--home-black-light);
   color: var(--home-grid);
 }
@@ -1572,7 +1602,7 @@ body.is-orderpage .view { gap: 0; }
   position: absolute;
   inset: 0;
   opacity: 0;
-  transition: opacity 180ms ease;
+  transition: opacity var(--motion-route-enter) ease;
 }
 .order-state.is-transitioning.is-visible { opacity: 1; }
 .order-state--loading.is-hidden { opacity: 0; }
@@ -4148,6 +4178,7 @@ body.has-schedcal-monthbar .schedcal { padding-bottom: calc(var(--bottombar-h) +
   position: absolute;
   inset: 0;
   background: rgba(13,13,13,.62);
+  animation: sheet-veil-in var(--motion-sheet-in) var(--ease-standard) both;
 }
 .schedcal-sheet__panel {
   position: relative;
@@ -4159,7 +4190,15 @@ body.has-schedcal-monthbar .schedcal { padding-bottom: calc(var(--bottombar-h) +
   overflow-y: auto;
   background: var(--home-black);
   border-top: 1px solid var(--home-grid);
-  animation: surface-rise 220ms var(--ease-out-expo);
+  animation: sheet-rise var(--motion-sheet-in) var(--ease-out-expo);
+}
+/* Closing is the same move backwards; app.js keeps the sheet mounted for
+   --motion-sheet-out before it sets hidden. */
+.schedcal-sheet.is-closing .schedcal-sheet__panel {
+  animation: sheet-fall var(--motion-sheet-out) var(--ease-standard) both;
+}
+.schedcal-sheet.is-closing .schedcal-sheet__backdrop {
+  animation: sheet-veil-out var(--motion-sheet-out) var(--ease-standard) both;
 }
 .schedcal-sheet__head {
   padding: 16px 24px 14px;
@@ -4333,7 +4372,10 @@ body.is-schedulespage .schedcal-panel__retry:focus-visible {
 
 @media (prefers-reduced-motion: reduce) {
   .schedcal-skel__block { animation: none; background-color: rgba(76,76,76,.25); }
-  .schedcal-sheet__panel { animation: none; }
+  .schedcal-sheet__panel,
+  .schedcal-sheet__backdrop,
+  .schedcal-sheet.is-closing .schedcal-sheet__panel,
+  .schedcal-sheet.is-closing .schedcal-sheet__backdrop { animation: none; }
   .schedcal-day,
   .schedcal-monthbar__btn,
   .schedcal-panel__retry,
@@ -4602,3 +4644,240 @@ body.is-doclistpage .fitlog-search__clear:focus-visible {
   .doclist-card,
   .doclist-card__rail { transition: none; }
 }
+
+/* ------------------------- Order editor (ledger) ------------------------- */
+
+/* The last form still speaking the app-chrome language: light rounded cards on
+   grey, opened from a page drawn as a black ledger. Everything below re-skins
+   it in place — scoped to this page so the shared .card / .field / .input the
+   fitting editor and intake review use are untouched, and keyed off the same
+   class names the JS already builds (.item, .term, .chip), so no template
+   string had to be rewritten to change how any of this looks. */
+
+body.is-ordereditpage { background: #292929; overflow-x: hidden; }
+
+/* Unlike the customer editor this page has no nav of its own, so the app bar
+   stays — dressed for the ledger rather than hidden and replaced. */
+body.is-ordereditpage .appbar {
+  background: var(--home-black);
+  border-bottom: 1px solid var(--home-grid);
+  backdrop-filter: none;
+}
+body.is-ordereditpage .appbar,
+body.is-ordereditpage .appbar a,
+body.is-ordereditpage .appbar button { color: var(--home-white); }
+
+/* The title sits in the ledger the way the customer editor's does — the same
+   32px paper heading, inside the black rather than above it. */
+body.is-ordereditpage .pagehead {
+  margin: 0;
+  padding: 24px 24px 20px;
+}
+body.is-ordereditpage .pagehead__title {
+  color: var(--home-white);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 40px;
+  letter-spacing: -.96px;
+}
+body.is-ordereditpage .page,
+body.is-ordereditpage.has-savebar .page {
+  width: min(390px, 100%);
+  max-width: 390px;
+  min-height: 100svh;
+  margin: 0 auto;
+  padding: 0 0 calc(var(--bottombar-h, 0px) + 24px);
+  background: var(--home-black);
+}
+/* Sections are separated by the ledger's own dark gap, not by a flex gap. */
+body.is-ordereditpage .view { gap: 0; }
+
+/* A card becomes a ledger block: cream, square, ruled down both sides, with the
+   grey rail under it that every other block on every other page has. */
+body.is-ordereditpage .card {
+  margin: 0 24px 24px;
+  padding: 16px;
+  gap: 12px;
+  background: var(--home-white);
+  border: 1px solid var(--home-grid);
+  border-radius: 0;
+  position: relative;
+}
+body.is-ordereditpage .card::after {
+  content: '';
+  position: absolute;
+  left: -1px;
+  right: -1px;
+  bottom: -13px;
+  height: 12px;
+  background: var(--home-white-dark);
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
+}
+body.is-ordereditpage .card__title,
+body.is-ordereditpage .field__label {
+  color: var(--home-grid);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+}
+body.is-ordereditpage .card__head { align-items: baseline; }
+body.is-ordereditpage .card__count,
+body.is-ordereditpage .card__hint,
+body.is-ordereditpage .field__hint { color: rgba(13,13,13,.55); }
+body.is-ordereditpage .field { gap: 6px; }
+
+/* Borderless on the cream, exactly as the customer editor's fields are: the
+   block is the field, so a second box drawn inside it says nothing. */
+body.is-ordereditpage .input {
+  min-height: 32px;
+  padding: 0;
+  color: var(--home-black);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -.48px;
+}
+body.is-ordereditpage .input::placeholder { color: rgba(13,13,13,.38); }
+/* The Rp and % affixes are positioned absolutely and paid for by the input's
+   own padding, so zeroing that padding above would have the affix sitting on
+   top of the number. Restated here against the affix's own left/right rather
+   than the boxed field's. */
+body.is-ordereditpage .prefixed .prefix { left: 0; color: rgba(13,13,13,.5); }
+body.is-ordereditpage .prefixed .input { padding-left: 26px; }
+body.is-ordereditpage .prefixed--suffix .suffix { right: 0; color: rgba(13,13,13,.5); }
+body.is-ordereditpage .prefixed--suffix .input { padding-left: 0; padding-right: 20px; }
+body.is-ordereditpage .input:focus { box-shadow: none; }
+body.is-ordereditpage .input--area { min-height: 72px; }
+body.is-ordereditpage select.input { appearance: none; }
+body.is-ordereditpage .input.is-invalid { color: var(--danger); box-shadow: none; }
+
+/* An item and a term are blocks within the block: separated by a rule rather
+   than by a border box, so the nesting reads as one ledger and not as cards
+   inside cards. */
+body.is-ordereditpage .item,
+body.is-ordereditpage .term {
+  padding: 12px 0 0;
+  border-top: 1px solid rgba(13,13,13,.16);
+  border-radius: 0;
+  background: transparent;
+}
+body.is-ordereditpage .items > .item:first-child,
+body.is-ordereditpage .termlist > .term:first-child { border-top: 0; padding-top: 0; }
+body.is-ordereditpage .item__sum,
+body.is-ordereditpage .termsum { color: var(--home-black); font-weight: 700; }
+body.is-ordereditpage .prefix,
+body.is-ordereditpage .suffix { color: rgba(13,13,13,.5); }
+body.is-ordereditpage .tag {
+  color: var(--home-white);
+  background: var(--home-grid);
+  border-radius: 0;
+}
+
+/* Chips and buttons: paper-on-cream, square, so nothing in here carries a
+   radius the rest of the page does not have. */
+body.is-ordereditpage .chip {
+  border-radius: 0;
+  border-color: var(--home-grid);
+}
+body.is-ordereditpage .chip.is-checked {
+  color: var(--home-white);
+  background: var(--home-black);
+  border-color: var(--home-black);
+}
+body.is-ordereditpage .chip__box { border-radius: 0; border-color: var(--home-grid); }
+body.is-ordereditpage .chip.is-checked .chip__box { border-color: var(--home-white); }
+body.is-ordereditpage .chip__remove { border-radius: 0; }
+body.is-ordereditpage .btn--outline {
+  color: var(--home-black);
+  background: transparent;
+  border: 1px dashed var(--home-grid);
+  border-radius: 0;
+}
+body.is-ordereditpage .btn--outline:hover:not(:disabled) { background: rgba(13,13,13,.05); }
+body.is-ordereditpage .hintbox {
+  color: rgba(13,13,13,.62);
+  background: rgba(13,13,13,.05);
+  border: 0;
+  border-left: 2px solid var(--home-grid);
+  border-radius: 0;
+}
+
+/* Same as the customer editor: over a black ledger the ink focus ring vanishes,
+   so anything focusable on the dark takes the paper colour instead. */
+body.is-ordereditpage a:focus-visible,
+body.is-ordereditpage button:focus-visible { outline: 2px solid var(--home-white); outline-offset: 2px; }
+body.is-ordereditpage .card a:focus-visible,
+body.is-ordereditpage .card button:focus-visible,
+body.is-ordereditpage .card .input:focus-visible {
+  outline: 2px solid var(--home-black);
+  outline-offset: 1px;
+}
+
+/* ------------------ Cost sheet, over the order editor ------------------- */
+
+/* It opens from the editor and covers it entirely, so leaving it in the light
+   card language would only move the seam one tap deeper.
+
+   Scoped to the page rather than written as a bare `.calcsheet` because
+   shared.css is loaded *after* this file: an equal-specificity rule there wins
+   on source order, so `.calcsheet { background: var(--bg) }` would quietly beat
+   anything stated here without the page class in front of it. */
+body.is-ordereditpage .calcsheet { background: var(--home-black); }
+body.is-ordereditpage .calcsheet__head {
+  background: var(--home-black);
+  border-bottom: 1px solid var(--home-grid);
+}
+body.is-ordereditpage .calcsheet__title { color: var(--home-white); }
+body.is-ordereditpage .calcsheet__sub { color: rgba(254,250,241,.6); }
+body.is-ordereditpage .calcrow {
+  padding: 16px;
+  background: var(--home-white);
+  border: 1px solid var(--home-grid);
+  border-radius: 0;
+}
+body.is-ordereditpage .calcrow__remove { border-radius: 0; }
+body.is-ordereditpage .calcsheet .input {
+  min-height: 32px;
+  padding: 0;
+  color: var(--home-black);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+body.is-ordereditpage .calcsheet .input:focus { box-shadow: none; }
+body.is-ordereditpage .calcsheet .prefixed .prefix { left: 0; color: rgba(13,13,13,.5); }
+body.is-ordereditpage .calcsheet .prefixed .input { padding-left: 26px; }
+body.is-ordereditpage .calcsheet .btn--outline {
+  color: var(--home-white);
+  background: transparent;
+  border: 1px dashed var(--home-grid);
+  border-radius: 0;
+}
+body.is-ordereditpage .calcsheet .btn--outline:hover:not(:disabled) { background: rgba(254,250,241,.06); }
+body.is-ordereditpage .actionbar {
+  background: var(--home-black);
+  border-top: 1px solid var(--home-grid);
+  backdrop-filter: none;
+}
+body.is-ordereditpage .actionbar__label { color: rgba(254,250,241,.6); }
+body.is-ordereditpage .actionbar__amount { color: var(--home-white); }
+body.is-ordereditpage .actionbar .btn { border-radius: 0; }
+body.is-ordereditpage .actionbar .btn--secondary {
+  color: var(--home-white);
+  background: transparent;
+  border: 1px solid var(--home-grid);
+}
+body.is-ordereditpage .actionbar .btn--primary {
+  color: var(--home-white);
+  background: var(--home-green, #23b620);
+  border: 0;
+}
+body.is-ordereditpage .calcsheet a:focus-visible,
+body.is-ordereditpage .calcsheet button:focus-visible { outline: 2px solid var(--home-white); outline-offset: 2px; }
+body.is-ordereditpage .calcrow button:focus-visible,
+body.is-ordereditpage .calcrow .input:focus-visible { outline: 2px solid var(--home-black); outline-offset: 1px; }
