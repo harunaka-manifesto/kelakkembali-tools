@@ -404,20 +404,34 @@ reconnect Google once so the stored refresh token includes the new permission.
 Every order has at most one photo-first revision log per fitting stage —
 Sizing, Fitting 1, Fitting 2, Fitting 3, Final fitting — and each one is
 independent of whether that stage has a planned week. Staff always pick the
-stage explicitly; nothing is chosen from today's date. Select a photo from the
-native camera/library chooser, add an optional note, and it appears in the
-timeline immediately. The browser compresses it to a 1600px JPEG before a
-background archive upload to `Kelak Kembali Fittings/{customer}/{order}/{stage}`
-in Google Drive. A failed archive does not remove the log row; its captured
-photo remains available in the current browser session. Photos can be opened,
-shared as a Drive link, or removed from the app (the Drive copy is retained).
+stage explicitly; nothing is chosen from today's date.
 
-A log is only written to the database when its first photo and note are
-confirmed, so an abandoned capture leaves nothing behind. **Save log** marks it
-saved and returns to the order; saved is a state, not a lock — photos can still
-be added, replaced, recaptioned, or deleted afterwards. **Delete fitting log**
+A fitting log is a **visual notebook**, not a camera. Pick several photos at
+once from the device gallery and they open in one scrollable workspace. For each
+photo you can draw a red mark over the problem area and write a note beneath it,
+then save the whole log in one go. Nothing is written until you save: captions,
+marks, deletions and new photos are all local proposals until then, and one
+database transaction applies the lot. A saved log stays editable — reopen it to
+change a note, redraw a mark, add photos, or delete one.
+
+Marks are stored as vector strokes on the photo record, not painted into the
+image, so the Google Drive archive keeps the clean original, a mark can always
+be edited later, and the same strokes redraw correctly at any size. The browser
+prepares every photo to a 2560px JPEG before a background archive upload to
+`Kelak Kembali Fittings/{customer}/{order}/{stage}` in Google Drive. A failed
+archive does not remove the log row; the photo remains available in the current
+browser session. Photos can be opened full screen, shared as a real image file,
+or removed from the app (the Drive copy is retained).
+
+Starting a log from an order creates it as soon as you pick the stage, and it
+deletes itself again if you leave without adding a photo. **Delete fitting log**
 on the detail page removes the whole stage log and its photo records from the
 app; the Google Drive archive copies stay where they are.
+
+**Download PDF** on the detail page produces the tailor's handoff sheet: one
+fitting photo per page, no cover page, each page carrying the customer, stage
+and date, the photo as large as the page allows at its natural ratio, the red
+marks exactly where they were drawn, and the note in readable body text.
 
 After applying the SQL migration, deploy the updated Drive function:
 

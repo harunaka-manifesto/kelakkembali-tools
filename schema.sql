@@ -17,6 +17,7 @@
 --   "fitting revisions log"            fitting sessions and journal photos
 --   "atomic fitting photo batches"     save_fitting_photo_batch RPC
 --   "quotation and invoice feeds"      document_feed read model + paging index
+--   "fitting photo annotations"       fitting_photos.annotation + batch RPC v2
 
 create extension if not exists pgcrypto;
 
@@ -1217,3 +1218,232 @@ from resolved r;
 -- security_invoker keeps every underlying table's own RLS in force, so this
 -- grants nobody a row they could not already read.
 grant select on public.document_feed to authenticated;
+
+
+-- =========================================================================
+-- Migration — "fitting photo annotations"
+--
+-- A fitting photo can now carry a red markup: the circle a fitter draws round
+-- the seam that has to move. It is stored as vector strokes rather than a
+-- second, flattened image, because the marks have to stay editable, the Drive
+-- archive has to keep holding the clean original, and the same coordinates
+-- have to redraw identically in the browser and in the PDF.
+--
+-- Points live in normalized image space (0..1 of the natural image), so a
+-- stroke survives every resolution, screen width, orientation and page size it
+-- is ever drawn at. Stroke width is a fraction of the longest edge for the
+-- same reason. Shape:
+--
+--   { "v": 1, "w": 2560, "h": 1706,
+--     "strokes": [ { "width": 0.006, "points": [[0.12,0.33],[0.13,0.34]] } ] }
+--
+-- null — the default, and every row that predates this — means no annotation.
+-- =========================================================================
+
+alter table public.fitting_photos
+  add column if not exists annotation jsonb;
+
+-- A backstop, not the real limit: the browser caps strokes and points long
+-- before this. It exists so a stuck pointer or a hand-written payload cannot
+-- push a megabyte into a row the feed and the detail page both read.
+alter table public.fitting_photos
+  drop constraint if exists fitting_photos_annotation_check;
+alter table public.fitting_photos
+  add constraint fitting_photos_annotation_check
+  check (
+    annotation is null
+    or (jsonb_typeof(annotation) = 'object' and pg_column_size(annotation) <= 65536)
+  );
+
+-- The batch RPC's second argument stops being captions-only, so it is renamed
+-- from p_caption_updates to p_photo_updates. Postgres refuses to rename a
+-- parameter through create or replace, and leaving the old four-argument
+-- function in place beside a new one would make every call ambiguous, so the
+-- old signature is dropped first. The argument list stays four wide.
+drop function if exists public.save_fitting_photo_batch(uuid, jsonb, uuid[], jsonb);
+
+create or replace function public.save_fitting_photo_batch(
+  p_session_id    uuid,
+  p_photo_updates jsonb default '[]'::jsonb,
+  p_delete_ids    uuid[] default '{}'::uuid[],
+  p_new_photos    jsonb default '[]'::jsonb
+) returns jsonb
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_session   public.fitting_sessions%rowtype;
+  v_updates   jsonb  := coalesce(p_photo_updates, '[]'::jsonb);
+  v_new       jsonb  := coalesce(p_new_photos, '[]'::jsonb);
+  v_deletes   uuid[] := coalesce(p_delete_ids, '{}'::uuid[]);
+  v_delete_n  int    := coalesce(array_length(coalesce(p_delete_ids, '{}'::uuid[]), 1), 0);
+  v_existing  int;
+  v_retained  int;
+  v_created   jsonb;
+  v_photos    jsonb;
+begin
+  if p_session_id is null then
+    raise exception 'A fitting log id is required.';
+  end if;
+  if jsonb_typeof(v_updates) <> 'array' or jsonb_typeof(v_new) <> 'array' then
+    raise exception 'Invalid photo payload.';
+  end if;
+
+  -- Locked first: capacity, order_id and stage are all read from this row, so
+  -- a second batch cannot slip past the 20-photo ceiling between the check and
+  -- the insert.
+  select * into v_session from public.fitting_sessions where id = p_session_id for update;
+  if not found then
+    raise exception 'That fitting log is no longer available.';
+  end if;
+
+  if exists (
+    select 1 from jsonb_array_elements(v_updates) u
+    group by (u ->> 'id') having count(*) > 1
+  ) then
+    raise exception 'The same photo was edited twice in one batch.';
+  end if;
+
+  -- Key presence is the contract: an absent key leaves its column alone, a key
+  -- present with null clears it. An entry carrying neither is a caller bug, not
+  -- a no-op worth silently accepting.
+  if exists (
+    select 1 from jsonb_array_elements(v_updates) u
+    where not (u ? 'caption') and not (u ? 'annotation')
+  ) then
+    raise exception 'A photo edit changed nothing.';
+  end if;
+
+  if exists (
+    select 1 from jsonb_array_elements(v_updates) u
+    where (u ? 'annotation') and jsonb_typeof(u -> 'annotation') not in ('object', 'null')
+  ) or exists (
+    select 1 from jsonb_array_elements(v_new) n
+    where (n ? 'annotation') and jsonb_typeof(n -> 'annotation') not in ('object', 'null')
+  ) then
+    raise exception 'Invalid annotation payload.';
+  end if;
+
+  if (select count(distinct d) from unnest(v_deletes) d) <> v_delete_n then
+    raise exception 'The same photo was deleted twice in one batch.';
+  end if;
+
+  if exists (
+    select 1 from jsonb_array_elements(v_updates) u
+    where (u ->> 'id')::uuid = any (v_deletes)
+  ) then
+    raise exception 'A photo cannot be edited and deleted in the same batch.';
+  end if;
+
+  if exists (
+    select 1 from jsonb_array_elements(v_new) n
+    where nullif(btrim(coalesce(n ->> 'client_key', '')), '') is null
+  ) then
+    raise exception 'Every new photo needs a client key.';
+  end if;
+
+  if exists (
+    select 1 from jsonb_array_elements(v_new) n
+    group by (n ->> 'client_key') having count(*) > 1
+  ) then
+    raise exception 'Two new photos share one client key.';
+  end if;
+
+  -- A photo id from another log is a wrong payload, not a partial save: the
+  -- whole batch fails before anything is written.
+  if exists (
+    select 1 from jsonb_array_elements(v_updates) u
+    where not exists (
+      select 1 from public.fitting_photos p
+      where p.id = (u ->> 'id')::uuid and p.session_id = p_session_id
+    )
+  ) then
+    raise exception 'A photo edit points at a photo from a different fitting log.';
+  end if;
+
+  if exists (
+    select 1 from unnest(v_deletes) d
+    where not exists (
+      select 1 from public.fitting_photos p
+      where p.id = d and p.session_id = p_session_id
+    )
+  ) then
+    raise exception 'A deletion points at a photo from a different fitting log.';
+  end if;
+
+  select count(*)::int into v_existing
+  from public.fitting_photos where session_id = p_session_id;
+
+  -- Only additions are capped. A legacy log that already holds more than 20
+  -- stays fully editable: captions, marks and deletions never make it worse.
+  if jsonb_array_length(v_new) > 0
+     and (v_existing - v_delete_n + jsonb_array_length(v_new)) > 20 then
+    raise exception 'A fitting log can hold at most 20 photos.';
+  end if;
+
+  update public.fitting_photos p
+  set caption    = case when u.has_caption    then u.caption    else p.caption    end,
+      annotation = case when u.has_annotation then u.annotation else p.annotation end
+  from (
+    select (e ->> 'id')::uuid                               as id,
+           (e ? 'caption')                                  as has_caption,
+           nullif(btrim(coalesce(e ->> 'caption', '')), '') as caption,
+           (e ? 'annotation')                               as has_annotation,
+           case when jsonb_typeof(e -> 'annotation') = 'null'
+                then null else e -> 'annotation' end        as annotation
+    from jsonb_array_elements(v_updates) e
+  ) u
+  where p.id = u.id and p.session_id = p_session_id;
+
+  delete from public.fitting_photos
+  where session_id = p_session_id and id = any (v_deletes);
+
+  -- Deleting from the middle leaves gaps; the detail page, the share filename
+  -- and the PDF all number photos from `position`, so it is closed here.
+  with ordered as (
+    select id, (row_number() over (order by position, created_at, id) - 1)::smallint as new_position
+    from public.fitting_photos where session_id = p_session_id
+  )
+  update public.fitting_photos p
+  set position = ordered.new_position
+  from ordered
+  where ordered.id = p.id and p.position is distinct from ordered.new_position;
+
+  select count(*)::int into v_retained
+  from public.fitting_photos where session_id = p_session_id;
+
+  -- order_id and stage come from the locked session, never from the browser.
+  -- Drive ids stay null: archival is the post-commit phase.
+  with incoming as (
+    select e.value ->> 'client_key' as client_key,
+           nullif(btrim(coalesce(e.value ->> 'caption', '')), '') as caption,
+           case when jsonb_typeof(e.value -> 'annotation') = 'object'
+                then e.value -> 'annotation' else null end as annotation,
+           (e.ordinality - 1)::int as idx
+    from jsonb_array_elements(v_new) with ordinality as e(value, ordinality)
+  ), inserted as (
+    insert into public.fitting_photos
+      (order_id, session_id, stage, caption, annotation, position, drive_file_id, drive_link)
+    select v_session.order_id, p_session_id, v_session.stage, i.caption, i.annotation,
+           (v_retained + i.idx)::smallint, null, null
+    from incoming i
+    returning *
+  )
+  select coalesce(
+    jsonb_agg(jsonb_build_object('client_key', i.client_key, 'photo', to_jsonb(ins)) order by ins.position),
+    '[]'::jsonb
+  ) into v_created
+  from inserted ins
+  join incoming i on i.idx = ins.position - v_retained;
+
+  select coalesce(jsonb_agg(to_jsonb(p) order by p.position, p.created_at, p.id), '[]'::jsonb)
+  into v_photos
+  from public.fitting_photos p where p.session_id = p_session_id;
+
+  return jsonb_build_object('photos', v_photos, 'created', coalesce(v_created, '[]'::jsonb));
+end;
+$$;
+
+revoke all on function public.save_fitting_photo_batch(uuid, jsonb, uuid[], jsonb) from public;
+grant execute on function public.save_fitting_photo_batch(uuid, jsonb, uuid[], jsonb) to authenticated;

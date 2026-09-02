@@ -124,20 +124,41 @@ test('Sizing anchors the five canonical production stages', () => {
   assert.equal(new Set(calendar.PRODUCTION_STAGES.map(s => util.fittingStage(s).label)).size, 5);
 });
 
-test('no shipped source still speaks the retired Body measurements stage', () => {
+const SHIPPED_SOURCES = [
+  'app.js', 'db.js', 'util.js', 'calendar.js', 'config.js', 'docs.js',
+  'fittings.js', 'fitting-pdf.js', 'moodboard.js', 'index.html', 'styles/pages.css',
+];
+
+const readShipped = (file) => {
   const fs = require('node:fs');
   const path = require('node:path');
-  const root = path.join(__dirname, '..');
-  const shipped = [
-    'app.js', 'db.js', 'util.js', 'calendar.js', 'config.js', 'docs.js',
-    'fittings.js', 'fitting-pdf.js', 'moodboard.js', 'index.html', 'styles/pages.css',
-  ];
-  shipped.forEach((file) => {
+  return fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
+};
+
+test('no shipped source still speaks the retired Body measurements stage', () => {
+  SHIPPED_SOURCES.forEach((file) => {
     assert.equal(
-      fs.readFileSync(path.join(root, file), 'utf8').includes('Body measurements'),
+      readShipped(file).includes('Body measurements'),
       false,
       file + ' still mentions the retired stage name',
     );
+  });
+});
+
+/* The camera journal and the per-photo editor were retired, not hidden. A
+   grep guard is the only thing that keeps an unreachable overlay or a dangling
+   element handle from surviving as debt nobody notices. */
+test('no shipped source still reaches for the retired camera or photo editor', () => {
+  const retired = [
+    'fittingCamera', 'fittingConfirm', 'fittingCaptionStep', 'fittingEditSheet',
+    'fittingJournal', 'renderJournal', 'renderHistoryList', 'attachSession',
+    'viewFittingPhotoEdit', 'fiteditBar', 'has-fitting-journal-bar',
+  ];
+  SHIPPED_SOURCES.concat(['styles/shared.css', 'styles/moodboard.css']).forEach((file) => {
+    const source = readShipped(file);
+    retired.forEach((name) => {
+      assert.equal(source.includes(name), false, file + ' still mentions ' + name);
+    });
   });
 });
 
@@ -385,6 +406,106 @@ test('captions shrink the photo only down to a readable minimum image area', () 
   assert.ok(fittingPdf.captionPageCapacity() > 0);
 });
 
+test('marks map onto the box the photo actually occupies on the page', () => {
+  const box = { x: 48, y: 82, w: 499.28, h: 332.85 };
+  const segments = fittingPdf.annotationSegments(
+    { v: 1, w: 2560, h: 1706, strokes: [{ width: 0.006, points: [[0, 0], [1, 1], [0.5, 0.25]] }] },
+    box,
+  );
+
+  assert.equal(segments.length, 1);
+  assert.deepEqual(segments[0].start, [box.x, box.y]);
+
+  // jsPDF draws in deltas, so the sum has to land on the last stored point.
+  const end = segments[0].deltas.reduce(
+    (point, delta) => [point[0] + delta[0], point[1] + delta[1]],
+    segments[0].start,
+  );
+  assert.ok(Math.abs(end[0] - (box.x + 0.5 * box.w)) < 1e-9);
+  assert.ok(Math.abs(end[1] - (box.y + 0.25 * box.h)) < 1e-9);
+
+  // Width is a fraction of the longest edge, so the pen scales with the page.
+  assert.ok(Math.abs(segments[0].width - 0.006 * box.w) < 1e-9);
+});
+
+test('a page with no marks, or broken ones, simply prints the photo', () => {
+  const box = { x: 48, y: 82, w: 400, h: 300 };
+  assert.deepEqual(fittingPdf.annotationSegments(null, box), []);
+  assert.deepEqual(fittingPdf.annotationSegments('scribble', box), []);
+  assert.deepEqual(fittingPdf.annotationSegments({ v: 1, w: 10, h: 10, strokes: [] }, box), []);
+});
+
+/* The pagination rule the tailor actually feels: six photos, six pages. It is
+   asserted against a recording stub rather than a real jsPDF because the claim
+   is about page count and draw order, not about PDF bytes. */
+function recordingPdfDoc() {
+  const calls = { pages: 1, images: [], lines: [], circles: [], texts: [] };
+  const doc = {
+    addPage: () => { calls.pages++; },
+    setFillColor: () => doc, setTextColor: () => doc, setDrawColor: () => doc,
+    setFont: () => doc, setFontSize: () => doc, setLineWidth: () => doc,
+    setLineCap: () => doc, setLineJoin: () => doc,
+    rect: () => doc, line: () => doc,
+    circle: (x, y, r) => { calls.circles.push([x, y, r]); return doc; },
+    lines: (deltas, x, y) => { calls.lines.push({ deltas, x, y }); return doc; },
+    addImage: (data, fmt, x, y, w, h) => { calls.images.push({ x, y, w, h }); return doc; },
+    text: (value) => { calls.texts.push(String(value)); return doc; },
+    splitTextToSize: (text) => String(text).match(/.{1,90}/g) || [''],
+  };
+  return { doc, calls };
+}
+
+async function renderFittingPdf(photos) {
+  const recorder = recordingPdfDoc();
+  window.jspdf = { jsPDF: function () { return recorder.doc; } };
+  try {
+    await fittingPdf.generate({
+      session: { stage: 'Fitting 2', created_at: '2026-08-24T02:00:00Z' },
+      customer: { name: 'Nadia' },
+      photos,
+      resolveImage: () => ({ dataUrl: 'data:image/jpeg;base64,AA', width: 2560, height: 1706 }),
+    });
+  } finally {
+    delete window.jspdf;
+  }
+  return recorder.calls;
+}
+
+test('one fitting photo is one page, and there is no cover page', async () => {
+  const six = Array.from({ length: 6 }, (_, i) => ({ id: 'p' + i, caption: 'Note ' + i }));
+  const calls = await renderFittingPdf(six);
+
+  assert.equal(calls.pages, 6, 'six photos must produce six pages, not seven');
+  assert.equal(calls.images.length, 6);
+
+  const one = await renderFittingPdf([{ id: 'p1', caption: '' }]);
+  assert.equal(one.pages, 1);
+  // Page one is the photo. A cover would have drawn the customer name alone.
+  assert.equal(one.images.length, 1);
+});
+
+test('the exported PDF carries the marks, never the clean original alone', async () => {
+  const marked = {
+    id: 'p1',
+    caption: 'Pinggang longgar 2 cm.',
+    annotation: { v: 1, w: 2560, h: 1706, strokes: [{ width: 0.006, points: [[0.2, 0.3], [0.4, 0.5]] }] },
+  };
+  const calls = await renderFittingPdf([marked]);
+
+  assert.equal(calls.pages, 1);
+  assert.equal(calls.lines.length, 1, 'the stroke has to reach the page');
+
+  // The stroke starts inside the image box the same page just drew.
+  const image = calls.images[0];
+  assert.ok(Math.abs(calls.lines[0].x - (image.x + 0.2 * image.w)) < 1e-9);
+  assert.ok(Math.abs(calls.lines[0].y - (image.y + 0.3 * image.h)) < 1e-9);
+
+  // A log that predates annotations prints exactly as it always did.
+  const legacy = await renderFittingPdf([{ id: 'p1', caption: 'Old note', annotation: null }]);
+  assert.equal(legacy.lines.length, 0);
+  assert.equal(legacy.pages, 1);
+});
+
 test('the PDF refuses a zero-photo session and a missing image source', async () => {
   await assert.rejects(
     fittingPdf.generate({ session: {}, customer: {}, photos: [], resolveImage: () => ({}) }),
@@ -401,14 +522,84 @@ test('the PDF refuses a zero-photo session and a missing image source', async ()
 /* app.js is a DOM composition root, so the decision itself is restated here as
    the predicate it implements: only movement inside the fitting-log route
    family keeps the feed's loaded pages and offset alive. */
-const FITTING_ROUTE_FAMILY = ['fittingLogs', 'fittingLogDetail', 'fittingPhotoEdit', 'fittingPhotoAdd'];
+const FITTING_ROUTE_FAMILY = ['fittingLogs', 'fittingLogDetail', 'fittingPhotoAdd'];
 const inFittingFamily = route => !!route && FITTING_ROUTE_FAMILY.includes(route.view);
+
+/* ---------------------------- Photo annotations --------------------------- */
+
+/* Marks are the one piece of fitting data that has to survive two renderers and
+   every screen size, so the normalizer and the coordinate mapping are pinned
+   here rather than trusted to the browser. */
+
+const annotationOf = strokes => ({ v: 1, w: 2560, h: 1706, strokes });
+
+test('annotation normalization clamps, rounds, and keeps stroke order', () => {
+  const value = util.normalizeAnnotation(annotationOf([
+    { width: 0.006, points: [[-0.4, 1.7], [0.1234567, 0.5]] },
+    { points: [[0.9, 0.9]] },
+  ]));
+
+  assert.deepEqual(value.strokes[0].points, [[0, 1], [0.1235, 0.5]]);
+  // A stroke with no width of its own still draws at the standard pen width.
+  assert.equal(value.strokes[1].width, util.ANNOTATION_DEFAULT_WIDTH);
+  assert.equal(value.v, util.ANNOTATION_VERSION);
+  assert.equal(value.w, 2560);
+});
+
+test('an empty annotation is null, so cleared and never-marked are one state', () => {
+  assert.equal(util.normalizeAnnotation(null), null);
+  assert.equal(util.normalizeAnnotation({}), null);
+  assert.equal(util.normalizeAnnotation(annotationOf([])), null);
+  assert.equal(util.normalizeAnnotation(annotationOf([{ points: [] }])), null);
+  assert.equal(util.normalizeAnnotation(annotationOf([{ points: [['a', 'b']] }])), null);
+});
+
+test('annotation normalization refuses anything that is not an annotation', () => {
+  assert.equal(util.normalizeAnnotation('circle the waist'), null);
+  assert.equal(util.normalizeAnnotation([1, 2, 3]), null);
+  // Without a natural size there is no space for the points to be normalized in.
+  assert.equal(util.normalizeAnnotation({ w: 0, h: 10, strokes: [{ points: [[0.5, 0.5]] }] }), null);
+  assert.equal(util.normalizeAnnotation({ w: 10, h: -1, strokes: [{ points: [[0.5, 0.5]] }] }), null);
+});
+
+test('annotation caps hold, so a stuck pointer cannot fill a database row', () => {
+  const manyStrokes = util.normalizeAnnotation(
+    annotationOf(Array.from({ length: 200 }, () => ({ points: [[0.5, 0.5]] }))),
+  );
+  assert.equal(manyStrokes.strokes.length, util.ANNOTATION_MAX_STROKES);
+
+  const manyPoints = util.normalizeAnnotation(
+    annotationOf([{ points: Array.from({ length: 9000 }, (_, i) => [i / 9000, 0.5]) }]),
+  );
+  assert.equal(manyPoints.strokes[0].points.length, util.ANNOTATION_MAX_POINTS);
+});
+
+test('the annotation overlay letterboxes with its photo rather than beside it', () => {
+  const svg = util.annotationSvg(annotationOf([{ width: 0.006, points: [[0, 0], [1, 1]] }]));
+
+  /* The viewBox is the natural image size and the aspect ratio is preserved, so
+     this <svg> and an object-fit:contain <img> in the same box land on exactly
+     the same pixels without a single measurement in JavaScript. */
+  assert.match(svg, /viewBox="0 0 2560 1706"/);
+  assert.match(svg, /preserveAspectRatio="xMidYMid meet"/);
+  assert.match(svg, /d="M0 0L2560 1706"/);
+  assert.match(svg, /stroke-width="15\.36"/);
+  assert.match(svg, new RegExp('stroke="' + util.ANNOTATION_COLOR + '"'));
+  assert.equal(util.annotationSvg(null), '');
+});
+
+test('a tapped mark draws a dot, not a zero-length path', () => {
+  const svg = util.annotationSvg(annotationOf([{ width: 0.006, points: [[0.5, 0.25]] }]));
+  assert.match(svg, /<circle cx="1280" cy="426\.5" r="7\.68"/);
+  assert.equal(svg.includes('<path'), false);
+});
 
 test('only the fitting-log route family retains the feed', () => {
   assert.equal(inFittingFamily({ view: 'fittingLogDetail' }), true);
-  assert.equal(inFittingFamily({ view: 'fittingPhotoEdit' }), true);
   assert.equal(inFittingFamily({ view: 'fittingPhotoAdd' }), true);
   assert.equal(inFittingFamily({ view: 'fittingLogs' }), true);
+  // The per-photo editor is retired; its route redirects into the workspace.
+  assert.equal(inFittingFamily({ view: 'fittingPhotoEdit' }), false);
   assert.equal(inFittingFamily({ view: 'customer' }), false);
   assert.equal(inFittingFamily({ view: 'order' }), false);
   assert.equal(inFittingFamily(null), false);

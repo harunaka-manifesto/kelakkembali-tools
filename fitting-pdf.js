@@ -1,7 +1,7 @@
-/* Client-ready A4 snapshot of one fitting session.
+/* The fitting handoff sheet: one A4 page per fitting photo, for the tailor.
 
-   - Owns: A4 page geometry, natural-ratio image fitting, caption flow and
-     overflow decisions, brand cover layout, and the generated jsPDF document.
+   - Owns: A4 page geometry, natural-ratio image fitting, red markup rendering,
+     caption flow and overflow decisions, and the generated jsPDF document.
    - Does NOT own: database access, Drive retrieval, toasts, busy UI, or saving
      the file. app.js resolves every image and decides what to do with the doc.
    - Used by: app.js
@@ -21,27 +21,34 @@ KK.fittingPdf = (function () {
   const MARGIN = 48;
   const CONTENT_W = PAGE_W - MARGIN * 2;
 
-  /* Reserved strip at the foot of every photo page for the page number and the
-     signature line, so neither can ever collide with a tall image. */
+  /* Reserved strips at the head and foot of every page: who this is for at the
+     top, the page number at the bottom, and neither can ever collide with a
+     tall image. There is no cover page — this is a working instruction sheet,
+     not a presentation, so page 1 is the first fitting photo. */
+  const HEADER_H = 34;
   const FOOTER_H = 40;
-  const BODY_TOP = MARGIN;
-  const BODY_H = PAGE_H - MARGIN - FOOTER_H - MARGIN;
+  const BODY_TOP = MARGIN + HEADER_H;
+  const BODY_H = PAGE_H - MARGIN - FOOTER_H - MARGIN - HEADER_H;
 
   const CAPTION_GAP = 16;
-  const CAPTION_SIZE = 10;
-  const CAPTION_LINE_H = 14;
+  /* The tailor reads this on paper or on a phone and acts on it. Readable beats
+     compact, so the note is set at body size rather than at footnote size. */
+  const CAPTION_SIZE = 12;
+  const CAPTION_LINE_H = 16;
 
   /* Below this the photo stops being the point of the page, so the caption
-     yields instead and its tail continues on a branded caption page. */
-  const MIN_IMAGE_H = 260;
+     yields instead and its tail continues on a plain caption page. */
+  const MIN_IMAGE_H = 300;
 
   const CREAM = [254, 250, 241];
-  const BLACK = [13, 13, 13];
   const INK_SOFT = [41, 41, 41];
   const RULE = [76, 76, 76];
   const ORANGE = [255, 106, 0];
+  /* The one red pen, matching --fit-mark in styles/pages.css exactly. A mark
+     that changed colour between the screen and the page would be a different
+     mark. */
+  const MARK = [255, 42, 42];
 
-  const LOGO_SRC = 'assets/logo-signature.png';
   const FOOTER_TEXT = 'Made with love for Ichaku';
 
   /* --------------------------- Pure layout maths --------------------------- */
@@ -91,6 +98,21 @@ KK.fittingPdf = (function () {
     return { image, linesOnPage, overflowLines: lineCount - linesOnPage };
   }
 
+  /* Marks are drawn from the same normalized points the browser drew, mapped
+     onto the box the image actually occupies on this page. Nothing is baked
+     into the photo, so the archived original stays clean and a stroke stays
+     sharp however large the page prints it. */
+  function annotationSegments(annotation, box) {
+    const a = U.normalizeAnnotation(annotation);
+    if (!a || !box) return [];
+    const longest = Math.max(box.w, box.h);
+    return a.strokes.map((stroke) => {
+      const pts = stroke.points.map((p) => [box.x + p[0] * box.w, box.y + p[1] * box.h]);
+      const deltas = pts.slice(1).map((p, i) => [p[0] - pts[i][0], p[1] - pts[i][1]]);
+      return { start: pts[0], deltas, width: stroke.width * longest };
+    });
+  }
+
   /* Customer-Stage-YYYY-MM-DD.pdf, with every reserved filename character and
      separator already gone through sanitizeForFilename. */
   function buildFilename(context) {
@@ -103,22 +125,6 @@ KK.fittingPdf = (function () {
       U.jakartaDateISO(session.created_at) || U.todayISO()
     ];
     return parts.join('-') + '.pdf';
-  }
-
-  /* ------------------------------ Asset loading ---------------------------- */
-
-  let logoPromise = null;
-
-  function loadLogo() {
-    if (logoPromise) return logoPromise;
-    logoPromise = new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      // A missing brand asset must not cost the user their document.
-      img.onerror = () => resolve(null);
-      img.src = LOGO_SRC;
-    });
-    return logoPromise;
   }
 
   /* ------------------------------ Page painting ---------------------------- */
@@ -144,41 +150,52 @@ KK.fittingPdf = (function () {
     doc.text(String(pageNumber), PAGE_W - MARGIN, baseline, { align: 'right' });
   }
 
-  function paintCover(doc, session, customer, logo) {
-    paintPage(doc);
-
-    setFill(doc, BLACK);
-    doc.rect(0, 0, PAGE_W, 8, 'F');
-    setFill(doc, ORANGE);
-    doc.rect(0, 8, PAGE_W, 4, 'F');
-
-    if (logo) {
-      const box = fitContain(logo.naturalWidth, logo.naturalHeight, 200, 96);
-      doc.addImage(logo, 'PNG', (PAGE_W - box.w) / 2, 150, box.w, box.h, undefined, 'FAST');
-    }
-
-    const stage = U.fittingStage(session.stage);
+  /* Who, which fitting, and when — on every page, because a tailor works from
+     one sheet at a time and a cover page they never printed cannot tell them. */
+  function paintHeader(doc, session, customer) {
+    const baseline = MARGIN + 12;
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(30);
-    setText(doc, BLACK);
-    doc.text(String(customer.name || 'Unnamed customer'), PAGE_W / 2, 360, {
-      align: 'center',
-      maxWidth: CONTENT_W
-    });
+    doc.setFontSize(12);
+    setText(doc, INK_SOFT);
+    doc.text(String(customer.name || 'Unnamed customer'), MARGIN, baseline, { maxWidth: CONTENT_W * 0.6 });
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(14);
-    setText(doc, INK_SOFT);
-    doc.text(stage.label, PAGE_W / 2, 396, { align: 'center' });
-    doc.text(U.formatJakartaLongDate(session.created_at), PAGE_W / 2, 418, { align: 'center' });
+    doc.setFontSize(10);
+    setText(doc, RULE);
+    doc.text(
+      U.fittingStage(session.stage).label + '  ·  ' + U.formatJakartaLongDate(session.created_at),
+      PAGE_W - MARGIN,
+      baseline,
+      { align: 'right' }
+    );
 
     setFill(doc, ORANGE);
-    doc.rect(PAGE_W / 2 - 24, 444, 48, 3, 'F');
+    doc.rect(MARGIN, MARGIN + 20, CONTENT_W, 3, 'F');
+  }
 
-    doc.setFontSize(9);
-    setText(doc, RULE);
-    doc.text(FOOTER_TEXT, PAGE_W / 2, PAGE_H - MARGIN, { align: 'center' });
+  /* The same strokes the fitter drew, at the same place on the photo. A
+     document that quietly printed the clean original would be describing a
+     revision nobody can see. */
+  function paintAnnotation(doc, annotation, box) {
+    const segments = annotationSegments(annotation, box);
+    if (!segments.length) return;
+
+    doc.setDrawColor(MARK[0], MARK[1], MARK[2]);
+    setFill(doc, MARK);
+    doc.setLineCap('round');
+    doc.setLineJoin('round');
+
+    segments.forEach((seg) => {
+      doc.setLineWidth(seg.width);
+      if (seg.deltas.length) doc.lines(seg.deltas, seg.start[0], seg.start[1]);
+      // A tap is a mark too, and a zero-length path draws nothing.
+      else doc.circle(seg.start[0], seg.start[1], seg.width / 2, 'F');
+    });
+
+    // The footer rule is drawn after this and must not inherit a round cap.
+    doc.setLineCap('butt');
+    doc.setLineJoin('miter');
   }
 
   function captionLinesFor(doc, caption) {
@@ -201,7 +218,11 @@ KK.fittingPdf = (function () {
 
   /* -------------------------------- Document ------------------------------- */
 
-  /* Every photo must already be resolvable; a missing one is the caller's to
+  /* One fitting photo, one page — six photos make six pages, and there is no
+     seventh. The tailor should never have to zoom, so the photo takes the whole
+     page it can and the note keeps its body size underneath it.
+
+     Every photo must already be resolvable; a missing one is the caller's to
      report before it ever gets here, because a half-complete client document
      is worse than none. */
   async function generate(context) {
@@ -217,21 +238,21 @@ KK.fittingPdf = (function () {
     const jsPDFCtor = (window.jspdf || {}).jsPDF;
     if (!jsPDFCtor) throw new Error('The PDF library is not available.');
 
-    const logo = await loadLogo();
     const doc = new jsPDFCtor({ unit: 'pt', format: 'a4', orientation: 'portrait', compress: true });
 
-    paintCover(doc, session, customer, logo);
-
-    let pageNumber = 1;
+    let pageNumber = 0;
     const capacity = captionPageCapacity();
 
-    for (const photo of photos) {
+    for (let index = 0; index < photos.length; index++) {
+      const photo = photos[index];
       const resolved = await resolveImage(photo);
       if (!resolved || !resolved.dataUrl) throw new Error('An image could not be prepared.');
 
-      doc.addPage();
+      // The first photo is page one; jsPDF opens with a blank page already.
+      if (pageNumber) doc.addPage();
       pageNumber++;
       paintPage(doc);
+      paintHeader(doc, session, customer);
 
       const lines = photo.caption ? captionLinesFor(doc, photo.caption) : [];
       const plan = planPhotoPage({
@@ -240,27 +261,31 @@ KK.fittingPdf = (function () {
         lineCount: lines.length
       });
 
-      doc.addImage(
-        resolved.dataUrl,
-        resolved.format || 'JPEG',
-        MARGIN + (CONTENT_W - plan.image.w) / 2,
-        BODY_TOP,
-        plan.image.w,
-        plan.image.h,
-        undefined,
-        'FAST'
-      );
+      const box = {
+        x: MARGIN + (CONTENT_W - plan.image.w) / 2,
+        y: BODY_TOP,
+        w: plan.image.w,
+        h: plan.image.h
+      };
+
+      doc.addImage(resolved.dataUrl, resolved.format || 'JPEG', box.x, box.y, box.w, box.h, undefined, 'FAST');
+      paintAnnotation(doc, photo.annotation, box);
 
       if (plan.linesOnPage) {
         paintCaptionBlock(doc, lines.slice(0, plan.linesOnPage), BODY_TOP + plan.image.h + CAPTION_GAP);
       }
       paintFooter(doc, pageNumber);
 
+      /* Only an extreme note gets here: the image gives way first, and only
+         once it is down to MIN_IMAGE_H does the caption continue overleaf. It
+         is never truncated and never set smaller — a fitting instruction the
+         tailor cannot read is worse than one that takes a second page. */
       let remaining = lines.slice(plan.linesOnPage);
       while (remaining.length) {
         doc.addPage();
         pageNumber++;
         paintPage(doc);
+        paintHeader(doc, session, customer);
         paintCaptionBlock(doc, remaining.slice(0, capacity), BODY_TOP);
         paintFooter(doc, pageNumber);
         remaining = remaining.slice(capacity);
@@ -277,13 +302,17 @@ KK.fittingPdf = (function () {
     PAGE_H,
     MARGIN,
     CONTENT_W,
+    HEADER_H,
+    BODY_TOP,
     BODY_H,
     CAPTION_LINE_H,
     CAPTION_GAP,
     MIN_IMAGE_H,
+    MARK,
     fitContain,
     captionPageCapacity,
     planPhotoPage,
+    annotationSegments,
     buildFilename,
     generate
   };

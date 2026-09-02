@@ -143,6 +143,7 @@ KK.app = (function () {
     fitdetStatus: $("#fitdetStatus"),
     fitdetBar: $("#fitdetBar"),
     fitdetAddBtn: $("#fitdetAddBtn"),
+    fitdetEditBtn: $("#fitdetEditBtn"),
     fitdetDeleteBtn: $("#fitdetDeleteBtn"),
     fitdetPhotoInput: $("#fitdetPhotoInput"),
     viewFittingPhotoAdd: $("#viewFittingPhotoAdd"),
@@ -164,18 +165,18 @@ KK.app = (function () {
     fitaddUndo: $("#fitaddUndo"),
     fitaddUndoCopy: $("#fitaddUndoCopy"),
     fitaddUndoBtn: $("#fitaddUndoBtn"),
-    viewFittingPhotoEdit: $("#viewFittingPhotoEdit"),
-    fiteditBackBtn: $("#fiteditBackBtn"),
-    fiteditTitle: $("#fiteditTitle"),
-    fiteditPreview: $("#fiteditPreview"),
-    fiteditReplaceBtn: $("#fiteditReplaceBtn"),
-    fiteditCaption: $("#fiteditCaption"),
-    fiteditDeleteBtn: $("#fiteditDeleteBtn"),
-    fiteditFileInput: $("#fiteditFileInput"),
-    fiteditStatus: $("#fiteditStatus"),
-    fiteditBar: $("#fiteditBar"),
-    fiteditSaveBtn: $("#fiteditSaveBtn"),
+    fitmark: $("#fitmark"),
+    fitmarkTitle: $("#fitmarkTitle"),
+    fitmarkStage: $("#fitmarkStage"),
+    fitmarkImage: $("#fitmarkImage"),
+    fitmarkCanvas: $("#fitmarkCanvas"),
+    fitmarkCancel: $("#fitmarkCancel"),
+    fitmarkDone: $("#fitmarkDone"),
+    fitmarkUndo: $("#fitmarkUndo"),
+    fitmarkClear: $("#fitmarkClear"),
+    fitmarkStatus: $("#fitmarkStatus"),
     fittingPhotoViewer: $("#fittingPhotoViewer"),
+    fittingPhotoViewerFrame: $("#fittingPhotoViewerFrame"),
     fittingPhotoViewerImage: $("#fittingPhotoViewerImage"),
     fittingPhotoViewerCaption: $("#fittingPhotoViewerCaption"),
     fittingPhotoViewerClose: $("#fittingPhotoViewerClose"),
@@ -237,13 +238,9 @@ KK.app = (function () {
     enquiryAccept: $("#enquiryAccept"),
     enquiryDismiss: $("#enquiryDismiss"),
     viewMoodboard: $("#viewMoodboard"),
-    viewFittingJournal: $("#viewFittingJournal"),
     mbBackBtn: $("#mbBackBtn"),
     mbBackLabel: $("#mbBackLabel"),
     mbTitle: $("#mbTitle"),
-    fittingJournal: $("#fittingJournal"),
-    fittingJournalBar: $("#fittingJournalBar"),
-    fittingJournalAdd: $("#fittingJournalAdd"),
     viewOrderEdit: $("#viewOrderEdit"),
     oTitle: $("#oTitle"),
     oDocName: $("#oDocName"),
@@ -395,31 +392,17 @@ KK.app = (function () {
       order: null,
       customer: null,
       photos: [],
-      bridge: null, // shared object handed to KK.fittings for Add photo
       pdfBusy: false,
       sharingId: null,
       blobCache: new Map(), // photoId -> { blob, url } for this page lifetime
       viewerReturn: null,
       source: "feed"
     },
-    fittingEditor: {
-      phase: "idle",
-      loadToken: 0,
-      sessionId: null,
-      photoId: null,
-      photo: null,
-      session: null,
-      order: null,
-      customer: null,
-      staged: null, // { blob, url } prepared replacement, not yet uploaded
-      uploaded: null, // { drive_file_id, drive_link } kept for a retry
-      saving: false,
-      source: "feed"
-    },
-    /* The Add fitting photos review page. Nothing here is written until Save
-       changes: captions, deletions and selected files are all local proposals,
-       which is why the persisted records and the local edits are kept apart
-       rather than merged into one mutable list. */
+    /* The fitting workspace — the one place a fitting log is edited. Nothing
+       here is written until Save fitting log: captions, marks, deletions and
+       selected files are all local proposals, which is why the persisted
+       records and the local edits are kept apart rather than merged into one
+       mutable list. */
     fittingPhotoAdd: {
       phase: "idle", // idle | loading | ready | error | saving
       loadToken: 0,
@@ -437,6 +420,30 @@ KK.app = (function () {
          can restore the previous value and Save changes can tell an untouched
          open editor from an edited one. */
       editorDrafts: new Map(), // card key -> current textarea text
+      /* Marks follow captions exactly: a local proposal until Save changes.
+         A value of null is a cleared annotation, which is why this is a Map
+         and not a sparse patch on the record. */
+      annotationPatches: new Map(), // photoId -> normalized annotation | null
+      /* Set when this page created the fitting log on its way in, from the
+         order page or the calendar. Leaving without saving a single photo
+         deletes it again rather than leaving an empty log in the feed. */
+      provisionalSessionId: null,
+      focusPhotoId: null, // ?focus= target, scrolled to once after the first ready render
+      /* The marking overlay. It is modal, and it resolves through Done or
+         Cancel before anything else on the page can run, so its working strokes
+         never have to take part in the page's dirty calculation. */
+      mark: {
+        open: false,
+        key: null,
+        kind: null, // existing | new
+        natW: 0,
+        natH: 0,
+        strokes: [],
+        baseline: "null", // JSON of the strokes at open, for Cancel
+        drawing: false,
+        pointerId: null,
+        last: null
+      },
       keySeq: 0,
       seeded: false, // drafts staged by the detail picker before navigation
       preparing: false,
@@ -546,9 +553,7 @@ KK.app = (function () {
     // toasts, and focus targets clear exactly one of them.
     const activeBar = [
       elements.savebar,
-      elements.fittingJournalBar,
       elements.fitdetBar,
-      elements.fiteditBar,
       elements.fitaddBar,
       elements.schedcalMonthbar
     ].filter((bar) => bar && !bar.hidden)[0] || null;
@@ -695,7 +700,7 @@ KK.app = (function () {
   const routeLoaderKind = (r) =>
     "fittingLogDetail" === r.view
       ? "fitdet"
-      : "customer" === r.view || "customerEdit" === r.view || "fittingPhotoEdit" === r.view
+      : "customer" === r.view || "customerEdit" === r.view
       ? "ledger"
       : "moodboard" === r.view || "moodboardPreview" === r.view
       ? "moodboard"
@@ -715,10 +720,8 @@ KK.app = (function () {
       customerEdit: "customer editor",
       orderEdit: "order editor",
       moodboard: "moodboard",
-      fittingNew: "fitting journal",
-      fittingJournal: "fitting journal",
+      fittingNew: "new fitting",
       fittingLogDetail: "fitting log",
-      fittingPhotoEdit: "photo editor",
       calendar: "calendar settings",
       enquiry: "enquiry"
     };
@@ -790,8 +793,6 @@ KK.app = (function () {
         ? elements.fitlogTitle
         : "fittingLogDetail" === r.view
         ? elements.fitdetTitle
-        : "fittingPhotoEdit" === r.view
-        ? elements.fiteditTitle
         : "fittingPhotoAdd" === r.view
         ? elements.fitaddTitle
         : elements.viewTitle;
@@ -1026,7 +1027,7 @@ KK.app = (function () {
         return { view: "fittingNew", id: segments[1], query };
       }
       if ("order" === segments[0] && segments[1] && "fitting" === segments[2] && segments[3]) {
-        return { view: "fittingJournal", id: segments[1], sessionId: segments[3], query };
+        return { view: "fittingLogRedirect", id: segments[1], sessionId: segments[3], query };
       }
       if (("order" === segments[0] && segments[1] && "fittings" === segments[2]) || ("order" === segments[0] && segments[1])) {
         return { view: "order", id: segments[1], query };
@@ -1034,9 +1035,16 @@ KK.app = (function () {
       // Both fitting-log detail routes are matched before the general feed, and
       // each carries only ids: they fetch and validate their own records so a
       // pasted URL behaves exactly like a tapped card.
+      /* The per-photo editor is retired: a caption and a mark were the only
+         things it could change, and the workspace changes both. An old link
+         still resolves — it opens the workspace on the photo it named. */
       if ("fittings" === segments[0] && segments[1] && "photo" === segments[2] && segments[3] && "edit" === segments[4]) {
-        return { view: "fittingPhotoEdit", sessionId: segments[1], photoId: segments[3], query };
+        return { view: "fittingPhotoRedirect", sessionId: segments[1], photoId: segments[3], query };
       }
+      if ("fittings" === segments[0] && segments[1] && "edit" === segments[2]) {
+        return { view: "fittingPhotoAdd", sessionId: segments[1], query };
+      }
+      // The workspace's first name, kept so an in-flight link still lands.
       if ("fittings" === segments[0] && segments[1] && "photos" === segments[2] && "add" === segments[3]) {
         return { view: "fittingPhotoAdd", sessionId: segments[1], query };
       }
@@ -1108,12 +1116,8 @@ KK.app = (function () {
     elements.viewOrder.hidden = "order" !== targetRoute.view;
     elements.viewOrderEdit.hidden = "orderEdit" !== targetRoute.view;
     elements.viewMoodboard.hidden = !isMoodboard;
-    elements.viewFittingJournal.hidden = "fittingNew" !== targetRoute.view && "fittingJournal" !== targetRoute.view;
-    elements.fittingJournalBar.hidden = "fittingJournal" !== targetRoute.view && "fittingNew" !== targetRoute.view;
-    document.body.classList.toggle("has-fitting-journal-bar", !elements.fittingJournalBar.hidden);
     elements.viewFittingLogs.hidden = "fittingLogs" !== targetRoute.view;
     elements.viewFittingDetail.hidden = "fittingLogDetail" !== targetRoute.view;
-    elements.viewFittingPhotoEdit.hidden = "fittingPhotoEdit" !== targetRoute.view;
     elements.viewFittingPhotoAdd.hidden = "fittingPhotoAdd" !== targetRoute.view;
     elements.viewCalendar.hidden = "calendar" !== targetRoute.view;
     elements.viewEnquiry.hidden = "enquiry" !== targetRoute.view;
@@ -1127,14 +1131,10 @@ KK.app = (function () {
     if (!inFittingFamily(targetRoute)) {
       if (prevRoute && "fittingLogs" === prevRoute.view) cleanupFittingLogs();
       cleanupFittingDetail();
-      cleanupFittingEditor();
       cleanupFittingPhotoAdd();
     } else {
       if (prevRoute && "fittingLogs" === prevRoute.view && "fittingLogs" !== targetRoute.view) {
         parkFittingLogs();
-      }
-      if (prevRoute && "fittingPhotoEdit" === prevRoute.view && "fittingPhotoEdit" !== targetRoute.view) {
-        cleanupFittingEditor();
       }
       if (prevRoute && "fittingPhotoAdd" === prevRoute.view && "fittingPhotoAdd" !== targetRoute.view) {
         cleanupFittingPhotoAdd();
@@ -1159,22 +1159,15 @@ KK.app = (function () {
       else cleanupDocuments();
     }
     if ("documents" !== targetRoute.view) closeDocumentPicker(true);
-    if ("fittingPhotoEdit" !== targetRoute.view) {
-      elements.fiteditBar.hidden = true;
-      document.body.classList.remove("has-fitedit-bar");
-    }
     if ("fittingPhotoAdd" !== targetRoute.view) {
       elements.fitaddBar.hidden = true;
       elements.fitaddUndo.hidden = true;
       document.body.classList.remove("has-fitadd-bar");
     }
 
-    if (!prevRoute || ("fittingNew" !== prevRoute.view && "fittingJournal" !== prevRoute.view) ||
-        (targetRoute.view === prevRoute.view && targetRoute.id === prevRoute.id && targetRoute.sessionId === prevRoute.sessionId)) {
-      // Keep fitting overlay active
-    } else {
-      KK.fittings.closeAll();
-    }
+    // The stage picker is the only fitting overlay left, and it belongs to the
+    // one route that opens it.
+    if ("fittingNew" !== targetRoute.view) KK.fittings.closeAll();
 
     syncBottomBar();
     window.scrollTo(0, 0);
@@ -1300,66 +1293,40 @@ KK.app = (function () {
           state.order = await db.getOrder(orderId);
           state.customer = await db.getCustomer(state.order.customer_id);
           setChrome({ title: "New fitting", up: { label: orderLabel(state.order), hash: "#/order/" + orderId }, save: false });
-          elements.fittingJournalBar.hidden = true;
-          document.body.classList.remove("has-fitting-journal-bar");
-          syncBottomBar();
 
-          const startSessionFn = async (stageName) => {
+          /* The workspace edits one durable fitting log, so the row exists
+             before its route does. Creating it here rather than lazily at the
+             first save keeps every part of that page — capacity, undo, backup,
+             the atomic batch — working against a real session id instead of a
+             null one. Leaving without saving a single photo deletes it again,
+             so an abandoned pick still costs nothing. */
+          const openStage = async (stageName) => {
             try {
               if (calendar.PRODUCTION_STAGES.indexOf(stageName) === -1) throw new Error("Choose a valid fitting stage");
-              const existing = await db.getFittingSessionByStage(orderId, stageName);
-              if (existing) return go("#/fittings/" + existing.id + "?source=order");
 
-              const draft = {
-                order: state.order,
-                customer: state.customer,
-                session: null,
-                stage: stageName,
-                photos: [],
-                onToast: showToast,
-                ensureSession: async () => {
-                  if (draft.session) return draft.session;
-                  try {
-                    draft.session = await db.createFittingSession({ order_id: orderId, stage: stageName, status: "active" });
-                  } catch (err) {
-                    if (!err || "23505" !== err.code) throw err;
-                    draft.session = await db.getFittingSessionByStage(orderId, stageName);
-                    if (!draft.session) throw err;
-                  }
-                  return draft.session;
-                },
-                onSession: (session) => { draft.session = session; },
-                onChange: () => {
-                  KK.fittings.renderJournal(elements.fittingJournal, draft);
-                  elements.pageAction.disabled = !draft.photos.length;
-                }
-              };
-              setChrome({
-                title: U.fittingStage(stageName).label,
-                up: { label: orderLabel(state.order), hash: "#/order/" + orderId },
-                action: { label: "Save log", onClick: () => KK.fittings.endSession(draft.session, () => go("#/order/" + orderId)) },
-                save: false
-              });
-              elements.pageAction.disabled = true;
-              elements.fittingJournalBar.hidden = false;
-              document.body.classList.add("has-fitting-journal-bar");
-              syncBottomBar();
-              KK.fittings.renderJournal(elements.fittingJournal, draft);
-              KK.fittings.attachSession(draft);
-              KK.fittings.addPhoto();
+              const existing = await db.getFittingSessionByStage(orderId, stageName);
+              if (existing) return go("#/fittings/" + encodeURIComponent(existing.id) + "/edit?source=order");
+
+              let created;
+              try {
+                created = await db.createFittingSession({ order_id: orderId, stage: stageName, status: "active" });
+              } catch (err) {
+                // Another tab won the race for this order and stage; join its log.
+                if (!err || "23505" !== err.code) throw err;
+                created = await db.getFittingSessionByStage(orderId, stageName);
+                if (!created) throw err;
+              }
+              go("#/fittings/" + encodeURIComponent(created.id) + "/edit?source=order&new=1");
             } catch (err) {
               showToast(err.message || "Could not start fitting log");
             }
           };
 
           const explicitStage = targetRoute.query.get("stage");
-          if (calendar.PRODUCTION_STAGES.indexOf(explicitStage) !== -1) {
-            await startSessionFn(explicitStage);
-          } else {
-            KK.fittings.showStagePicker([], startSessionFn, () => go("#/order/" + orderId));
-          }
+          if (calendar.PRODUCTION_STAGES.indexOf(explicitStage) !== -1) await openStage(explicitStage);
+          else KK.fittings.showStagePicker([], openStage, () => go("#/order/" + orderId));
         })(targetRoute.id);
-      } else if ("fittingJournal" === targetRoute.view) {
+      } else if ("fittingLogRedirect" === targetRoute.view) {
         // Old order-scoped bookmarks join the canonical detail route.
         return go("#/fittings/" + encodeURIComponent(targetRoute.sessionId) + "?source=order");
       } else if ("schedules" === targetRoute.view) {
@@ -1370,8 +1337,12 @@ KK.app = (function () {
         await showFittingLogs(targetRoute.query);
       } else if ("fittingLogDetail" === targetRoute.view) {
         await showFittingLogDetail(targetRoute.sessionId, targetRoute.query);
-      } else if ("fittingPhotoEdit" === targetRoute.view) {
-        await showFittingPhotoEditor(targetRoute.sessionId, targetRoute.photoId, targetRoute.query);
+      } else if ("fittingPhotoRedirect" === targetRoute.view) {
+        const editSource = "order" === targetRoute.query.get("source") ? "order" : "feed";
+        return go(
+          "#/fittings/" + encodeURIComponent(targetRoute.sessionId) +
+          "/edit?source=" + editSource + "&focus=" + encodeURIComponent(targetRoute.photoId)
+        );
       } else if ("fittingPhotoAdd" === targetRoute.view) {
         await showFittingPhotoAdd(targetRoute.sessionId, targetRoute.query);
       } else if ("calendar" === targetRoute.view) {
@@ -3200,7 +3171,7 @@ KK.app = (function () {
   /* The three routes that are one experience. Moving between them keeps the
      feed's search, filters, loaded pages, DOM, and offset alive; leaving them
      for anything else is an ordinary teardown. */
-  const FITTING_ROUTE_FAMILY = ["fittingLogs", "fittingLogDetail", "fittingPhotoEdit", "fittingPhotoAdd"];
+  const FITTING_ROUTE_FAMILY = ["fittingLogs", "fittingLogDetail", "fittingPhotoAdd"];
   const inFittingFamily = (r) => !!r && FITTING_ROUTE_FAMILY.indexOf(r.view) !== -1;
 
   /* Everything with a timer or a callback stops; everything with a result
@@ -4277,9 +4248,7 @@ KK.app = (function () {
      identical state. */
 
   const detail = () => state.fittingDetail;
-  const editor = () => state.fittingEditor;
   const isDetailRoute = () => !!state.route && "fittingLogDetail" === state.route.view;
-  const isEditorRoute = () => !!state.route && "fittingPhotoEdit" === state.route.view;
 
   /* Drive thumbnail width only. Image preparation itself lives in
      KK.fittings.prepareImage, which owns the 2560px / 0.90 contract every
@@ -4332,6 +4301,8 @@ KK.app = (function () {
       : '<button type="button" class="fitdet-card__frame js-fitdet-open" data-id="' + U.escapeHtml(photo.id) + '" ' +
           'aria-label="Open photo ' + (index + 1) + ' full screen">' +
           '<img class="fitdet-card__image" src="' + U.escapeHtml(url) + '" alt="' + U.escapeHtml(alt) + '" loading="lazy" decoding="async">' +
+          // Drawn over the photo, never into it: the archived original is clean.
+          U.annotationSvg(photo.annotation) +
         '</button>';
 
     const pending = "backing-up" === displayState
@@ -4349,8 +4320,11 @@ KK.app = (function () {
       ? "Share photo " + (index + 1) + " (unavailable — this photo has no image to share)"
       : "Share photo " + (index + 1);
 
+    /* One editor for the whole log, opened on the photo you tapped. There is no
+       per-photo route any more: a caption and a mark were the only things it
+       could change, and both live in the workspace now. */
     const editHref = "#/fittings/" + encodeURIComponent(d.sessionId) +
-      "/photo/" + encodeURIComponent(photo.id) + "/edit?source=" + d.source;
+      "/edit?source=" + d.source + "&focus=" + encodeURIComponent(photo.id);
 
     return '<div class="fitlog-grid-spacer" aria-hidden="true"></div>' +
       '<div class="fitlog-grid-rule" aria-hidden="true"></div>' +
@@ -4612,10 +4586,17 @@ KK.app = (function () {
 
   /* ------------------------------ Photo viewer ----------------------------- */
 
-  function openFittingPhotoViewerImage(url, caption, alt, originButton) {
+  function openFittingPhotoViewerImage(url, caption, alt, originButton, annotation) {
     if (!url) return;
     const d = detail();
     d.viewerReturn = originButton || null;
+    /* The marks belong to the photo, so enlarging it enlarges them. A viewer
+       that quietly showed the clean original would be describing a revision
+       nobody can see. */
+    const existingLayer = $(".fitmark-layer", elements.fittingPhotoViewerFrame);
+    if (existingLayer) existingLayer.remove();
+    const layer = U.annotationSvg(annotation);
+    if (layer) elements.fittingPhotoViewerFrame.insertAdjacentHTML("beforeend", layer);
     elements.fittingPhotoViewerImage.src = url;
     elements.fittingPhotoViewerImage.alt = alt || caption || "Fitting photo";
     elements.fittingPhotoViewerCaption.textContent = caption || "";
@@ -4632,7 +4613,8 @@ KK.app = (function () {
       fittingPhotoDisplayURL(photo),
       photo.caption,
       photo.caption || "Fitting photo",
-      originButton
+      originButton,
+      photo.annotation
     );
   }
 
@@ -4641,36 +4623,19 @@ KK.app = (function () {
     const d = detail();
     elements.fittingPhotoViewer.hidden = true;
     elements.fittingPhotoViewerImage.removeAttribute("src");
+    const layer = $(".fitmark-layer", elements.fittingPhotoViewerFrame);
+    if (layer) layer.remove();
     document.body.classList.remove("has-modal");
     if (d.viewerReturn && document.contains(d.viewerReturn)) d.viewerReturn.focus();
     d.viewerReturn = null;
   }
 
-  /* --------------------------- Active-session actions ---------------------- */
-
-  /* The capture, compression, and Drive archival path is the journal's; only
-     the surface it renders into is this page's. */
-  function fittingDetailBridge() {
-    const d = detail();
-    return {
-      order: d.order,
-      customer: d.customer,
-      session: d.session,
-      photos: d.photos,
-      onToast: showToast,
-      onChange: (sessionState) => {
-        if (!isDetailRoute()) return;
-        d.photos = sortFittingPhotos(sessionState.photos);
-        sessionState.photos = d.photos;
-        invalidateFittingFeed();
-        renderFittingDetail();
-      }
-    };
-  }
+  /* --------------------------- Photo entry & deletion ---------------------- */
 
   /* Gallery first, and native: the studio adds photos it already took far more
-     often than it shoots into the app, and the custom camera overlay cannot
-     select several at once. The journal keeps the camera flow untouched. */
+     often than it shoots into the app, and the native sheet is the only picker
+     that can return several at once. It also already offers Take Photo, which
+     is why this app no longer owns a camera of its own. */
   function addFittingDetailPhoto() {
     const d = detail();
     if (!d.session) return;
@@ -4684,7 +4649,7 @@ KK.app = (function () {
     const files = Array.from(fileList || []);
     if (!files.length || !d.session) return;
     seedFittingPhotoAdd(files);
-    go("#/fittings/" + encodeURIComponent(d.sessionId) + "/photos/add?source=" + d.source);
+    go("#/fittings/" + encodeURIComponent(d.sessionId) + "/edit?source=" + d.source);
   }
 
   async function deleteFittingDetailLog() {
@@ -4718,9 +4683,6 @@ KK.app = (function () {
     d.blobCache.clear();
     d.pdfBusy = false;
     d.sharingId = null;
-    if (d.bridge) KK.fittings.detachSession(d.bridge);
-    d.bridge = null;
-    KK.fittings.closeAll();
     closeFittingPhotoViewer();
   }
 
@@ -4776,253 +4738,18 @@ KK.app = (function () {
     d.customer = customer;
     d.photos = photos;
     d.phase = "ready";
-    d.bridge = fittingDetailBridge();
     elements.fitdetBackBtn.href = "order" === d.source ? "#/order/" + encodeURIComponent(order.id) : (feed().retainHash || "#/fittings");
     elements.fitdetDeleteBtn.disabled = false;
-    KK.fittings.attachSession(d.bridge);
 
     renderFittingDetail();
   }
 
-  /* ========================= Fitting photo editor ========================== */
-
-  /* Temporary layout, permanent contract: caption, replacement, and deletion
-     behave the same however this page is later redrawn. */
-
-  function fittingEditorDirty() {
-    const ed = editor();
-    if (!ed.photo) return false;
-    if (ed.staged || ed.uploaded) return true;
-    return elements.fiteditCaption.value !== String(ed.photo.caption || "");
-  }
-
-  function syncFittingEditorDirty() {
-    setDirty(fittingEditorDirty());
-  }
-
-  function renderFittingEditor() {
-    const ed = editor();
-    if (!ed.photo) return;
-
-    const url = ed.staged ? ed.staged.url : fittingPhotoDisplayURL(ed.photo);
-    if (url) {
-      elements.fiteditPreview.src = url;
-      elements.fiteditPreview.hidden = false;
-    } else {
-      elements.fiteditPreview.removeAttribute("src");
-      elements.fiteditPreview.hidden = true;
-    }
-
-    const busy = ed.saving;
-    elements.fiteditSaveBtn.disabled = busy;
-    elements.fiteditSaveBtn.setAttribute("aria-busy", busy ? "true" : "false");
-    $(".fitdet-bar__face", elements.fiteditSaveBtn).textContent = busy ? "Saving…" : "Save changes";
-    elements.fiteditReplaceBtn.disabled = busy;
-    elements.fiteditDeleteBtn.disabled = busy;
-    elements.fiteditCaption.disabled = busy;
-  }
-
-  function clearStagedReplacement() {
-    const ed = editor();
-    if (ed.staged && ed.staged.url) URL.revokeObjectURL(ed.staged.url);
-    ed.staged = null;
-  }
-
-  async function stageFittingReplacement(file) {
-    const ed = editor();
-    try {
-      const prepared = await KK.fittings.prepareImage(file);
-      if (!isEditorRoute()) return;
-      clearStagedReplacement();
-      // A staged replacement is only a picture on screen until Save succeeds;
-      // the stored record and its Drive file are untouched until then.
-      ed.staged = { blob: prepared, url: URL.createObjectURL(prepared) };
-      ed.uploaded = null;
-      renderFittingEditor();
-      syncFittingEditorDirty();
-      elements.fiteditStatus.textContent = "Replacement ready. Save changes to keep it.";
-    } catch (err) {
-      console.error(err);
-      showToast(err.message || "Could not prepare that photo");
-    }
-  }
-
-  /* Upload first, write once. The old record and its image stay usable until
-     the single update lands, so a failed upload costs nothing, and a failed
-     update can be retried without uploading a second copy. */
-  async function saveFittingEditor() {
-    const ed = editor();
-    if (ed.saving || !ed.photo) return;
-
-    const caption = elements.fiteditCaption.value.trim();
-    if (!fittingEditorDirty()) {
-      elements.fiteditStatus.textContent = "Nothing to save.";
-      return;
-    }
-
-    ed.saving = true;
-    renderFittingEditor();
-    elements.fiteditStatus.textContent = ed.staged ? "Uploading the replacement…" : "Saving…";
-
-    try {
-      if (ed.staged && !ed.uploaded) {
-        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-        const result = await KK.db.driveSaveFittingPhoto(
-          await KK.fittings.base64(ed.staged.blob),
-          "image/jpeg",
-          "Fitting-" + ed.photo.stage + "-" + timestamp + ".jpg",
-          (ed.customer && ed.customer.name) || "Unnamed customer",
-          (ed.order && (ed.order.title || ed.order.doc_name)) || "Untitled order",
-          ed.photo.stage
-        );
-        ed.uploaded = { drive_file_id: result.file_id, drive_link: result.drive_link };
-      }
-
-      const patch = { caption: caption || null };
-      if (ed.uploaded) {
-        patch.drive_file_id = ed.uploaded.drive_file_id;
-        patch.drive_link = ed.uploaded.drive_link;
-      }
-      const updated = await KK.db.updateFittingPhoto(ed.photo.id, patch);
-
-      if (ed.staged) {
-        KK.fittings.adoptLocalURL(updated.id, ed.staged.url);
-        ed.staged = null; // ownership moved to the shared local-URL map
-      }
-      ed.photo = updated;
-      ed.uploaded = null;
-      invalidateFittingFeed();
-
-      // The detail page holds this record too; update it in place so returning
-      // does not need a second round trip.
-      const d = detail();
-      const idx = d.photos.findIndex((p) => p.id === updated.id);
-      if (idx !== -1) {
-        d.photos[idx] = updated;
-        d.blobCache.delete(updated.id);
-      }
-
-      ed.saving = false;
-      setDirty(false);
-      showToast("Photo updated");
-      leaveFormFor("#/fittings/" + encodeURIComponent(ed.sessionId) + "?source=" + ed.source);
-    } catch (err) {
-      console.error(err);
-      ed.saving = false;
-      renderFittingEditor();
-      elements.fiteditStatus.textContent = "";
-      showToast((err && err.message) || "Could not save those changes");
-    }
-  }
-
-  async function deleteFittingEditorPhoto() {
-    const ed = editor();
-    if (ed.saving || !ed.photo) return;
-    if (!window.confirm("Delete this photo from the fitting log? It disappears from the log, and its Google Drive archive copy is kept.")) return;
-
-    ed.saving = true;
-    renderFittingEditor();
-
-    try {
-      await db.deleteFittingPhoto(ed.photo.id);
-      KK.fittings.releaseLocalURL(ed.photo.id);
-      clearStagedReplacement();
-
-      const d = detail();
-      d.photos = d.photos.filter((p) => p.id !== ed.photo.id);
-      d.blobCache.delete(ed.photo.id);
-      if (d.bridge) d.bridge.photos = d.photos;
-      invalidateFittingFeed();
-
-      ed.saving = false;
-      setDirty(false);
-      showToast("Photo deleted");
-      leaveFormFor("#/fittings/" + encodeURIComponent(ed.sessionId) + "?source=" + ed.source);
-    } catch (err) {
-      console.error(err);
-      ed.saving = false;
-      renderFittingEditor();
-      showToast((err && err.message) || "Could not delete that photo");
-    }
-  }
-
-  function cleanupFittingEditor() {
-    const ed = editor();
-    ed.loadToken++;
-    clearStagedReplacement();
-    ed.uploaded = null;
-    ed.saving = false;
-    ed.phase = "idle";
-    ed.photo = null;
-    elements.fiteditStatus.textContent = "";
-    setDirty(false);
-  }
-
-  async function showFittingPhotoEditor(sessionId, photoId, queryParams) {
-    const ed = editor();
-    const token = ++ed.loadToken;
-    const source = queryParams && "order" === queryParams.get("source") ? "order" : "feed";
-    const detailHash = "#/fittings/" + encodeURIComponent(sessionId) + "?source=" + source;
-
-    setChrome({ title: "Edit photo", save: false, fitdetailpage: true });
-    setSaveBar(false);
-    setDirty(false);
-
-    clearStagedReplacement();
-    ed.uploaded = null;
-    ed.saving = false;
-    ed.sessionId = sessionId;
-    ed.source = source;
-    ed.photoId = photoId;
-    ed.photo = null;
-    elements.fiteditStatus.textContent = "";
-    elements.fiteditBackBtn.href = detailHash;
-
-    let session;
-    let photo;
-    let order;
-    let customer;
-    try {
-      const res = await Promise.all([db.getFittingSession(sessionId), db.getFittingPhoto(photoId)]);
-      session = res[0];
-      photo = res[1];
-
-      // A photo id from another session is a wrong URL, not a permission story.
-      if (photo.session_id !== session.id) {
-        showToast("That photo belongs to a different fitting log");
-        return go(detailHash);
-      }
-
-      order = await db.getOrder(session.order_id);
-      customer = await db.getCustomer(order.customer_id);
-    } catch (err) {
-      console.error(err);
-      if (token !== ed.loadToken) return;
-      showToast("That photo is no longer available");
-      return go(detailHash);
-    }
-    if (token !== ed.loadToken || !isEditorRoute()) return;
-
-    ed.session = session;
-    ed.photo = photo;
-    ed.order = order;
-    ed.customer = customer;
-    ed.phase = "ready";
-
-    elements.fiteditTitle.textContent = "Edit photo";
-    elements.fiteditCaption.value = String(photo.caption || "");
-    elements.fiteditBar.hidden = false;
-    document.body.classList.add("has-fitedit-bar");
-    renderFittingEditor();
-    syncBottomBar();
-  }
-
-  /* ---------------------- Detail & editor event wiring --------------------- */
+  /* -------------------------- Detail event wiring -------------------------- */
 
   function setupFittingDetailListeners() {
-    const pressable = ".cust-nav-btn,.fitdet-action,.fitdet-bar__btn,.fitdet-delete,.fitedit-delete";
+    const pressable = ".cust-nav-btn,.fitdet-action,.fitdet-bar__btn,.fitdet-delete";
 
-    [elements.viewFittingDetail, elements.viewFittingPhotoEdit, elements.viewFittingPhotoAdd].forEach((view) => {
+    [elements.viewFittingDetail, elements.viewFittingPhotoAdd].forEach((view) => {
       view.addEventListener("pointerdown", (e) => {
         const target = e.target.closest(pressable);
         if (target && !target.disabled) target.classList.add("is-pressed");
@@ -5034,7 +4761,7 @@ KK.app = (function () {
       });
     });
 
-    [elements.fitdetBar, elements.fiteditBar, elements.fitaddBar].forEach((bar) => {
+    [elements.fitdetBar, elements.fitaddBar].forEach((bar) => {
       bar.addEventListener("pointerdown", (e) => {
         const target = e.target.closest(".fitdet-bar__btn");
         if (target && !target.disabled) target.classList.add("is-pressed");
@@ -5049,13 +4776,15 @@ KK.app = (function () {
       leaveFormFor("order" === d.source && d.order ? "#/order/" + encodeURIComponent(d.order.id) : (feed().retainHash || "#/fittings"));
     });
 
-    elements.fiteditBackBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      const ed = editor();
-      leaveFormFor("#/fittings/" + encodeURIComponent(ed.sessionId || "") + "?source=" + ed.source);
-    });
-
     elements.fitdetPdfBtn.addEventListener("click", downloadFittingPdf);
+    /* Two doors into the same workspace. Edit opens it on what is already
+       saved; Add photos opens the gallery sheet first and only then navigates,
+       so a dismissed picker leaves this page exactly as it was. */
+    elements.fitdetEditBtn.addEventListener("click", () => {
+      const d = detail();
+      if (!d.session) return;
+      go("#/fittings/" + encodeURIComponent(d.sessionId) + "/edit?source=" + d.source);
+    });
     elements.fitdetAddBtn.addEventListener("click", addFittingDetailPhoto);
     elements.fitdetPhotoInput.addEventListener("change", (e) => {
       const files = e.target.files;
@@ -5076,16 +4805,6 @@ KK.app = (function () {
     });
 
     elements.fittingPhotoViewerClose.addEventListener("click", closeFittingPhotoViewer);
-
-    elements.fiteditReplaceBtn.addEventListener("click", () => elements.fiteditFileInput.click());
-    elements.fiteditFileInput.addEventListener("change", (e) => {
-      const file = e.target.files && e.target.files[0];
-      e.target.value = "";
-      if (file) stageFittingReplacement(file);
-    });
-    elements.fiteditCaption.addEventListener("input", syncFittingEditorDirty);
-    elements.fiteditSaveBtn.addEventListener("click", saveFittingEditor);
-    elements.fiteditDeleteBtn.addEventListener("click", deleteFittingEditorPhoto);
 
     document.addEventListener("keydown", (e) => {
       if (elements.fittingPhotoViewer.hidden) return;
@@ -5125,6 +4844,16 @@ KK.app = (function () {
     return a.captionPatches.has(photo.id) ? a.captionPatches.get(photo.id) : String(photo.caption || "");
   }
 
+  /* The marks a card would show right now: the local proposal if one exists,
+     otherwise whatever was last saved. The caption twin of this is addCaptionFor,
+     and the two are deliberately identical in shape. */
+  function addAnnotationFor(photo) {
+    const a = add();
+    return a.annotationPatches.has(photo.id)
+      ? a.annotationPatches.get(photo.id)
+      : U.normalizeAnnotation(photo.annotation);
+  }
+
   const addDraftByKey = (key) => add().newPhotos.filter((draft) => draft.clientKey === key)[0] || null;
   const addExistingById = (id) => add().existing.filter((photo) => photo.id === id)[0] || null;
 
@@ -5136,6 +4865,10 @@ KK.app = (function () {
     return photo ? addCaptionFor(photo) : "";
   }
 
+  /* Both sides of an annotation comparison go through normalizeAnnotation, so
+     key order is fixed and the JSON comparison is honest rather than accidental. */
+  const addAnnotationJson = (value) => JSON.stringify(U.normalizeAnnotation(value));
+
   function addDirty() {
     const a = add();
     if (a.newPhotos.length || a.deleted.size) return true;
@@ -5144,6 +4877,12 @@ KK.app = (function () {
     a.captionPatches.forEach((caption, id) => {
       const photo = addExistingById(id);
       if (photo && String(photo.caption || "") !== caption) changed = true;
+    });
+    if (changed) return true;
+
+    a.annotationPatches.forEach((annotation, id) => {
+      const photo = addExistingById(id);
+      if (photo && addAnnotationJson(annotation) !== addAnnotationJson(photo.annotation)) changed = true;
     });
     if (changed) return true;
 
@@ -5182,7 +4921,8 @@ KK.app = (function () {
       preparedBlob: null,
       preparedUrl: null,
       status: "queued", // queued | preparing | ready
-      caption: ""
+      caption: "",
+      annotation: null
     };
   }
 
@@ -5353,7 +5093,7 @@ KK.app = (function () {
 
   /* --------------------------------- Render -------------------------------- */
 
-  function fitaddStageHtml(url, alt, eager, statusHtml, key, kind) {
+  function fitaddStageHtml(url, alt, eager, statusHtml, key, kind, annotation) {
     if (!url) {
       return '<div class="fitadd-stage fitadd-stage--missing">' +
         '<div class="fitadd-stage__missing">' +
@@ -5366,6 +5106,8 @@ KK.app = (function () {
       '" data-kind="' + U.escapeHtml(kind) + '" aria-label="Enlarge ' + U.escapeHtml(alt) + '">' +
       '<img class="fitadd-stage__image" data-role="image" src="' + U.escapeHtml(url) + '" ' +
         'alt="' + U.escapeHtml(alt) + '" loading="' + (eager ? "eager" : "lazy") + '" decoding="async">' +
+      // The marks sit over the pixels, not in them: the stored photo is clean.
+      U.annotationSvg(annotation) +
       (statusHtml || '') +
     '</button>';
   }
@@ -5410,6 +5152,16 @@ KK.app = (function () {
       ? '<p class="fitdet-card__caption">' + U.escapeHtml(caption) + '</p>'
       : '';
 
+    /* Resting: delete, mark, caption. The mark label says what tapping it does
+       to the marks that are already there, and a photo with no image on this
+       device says so rather than opening an editor over nothing. */
+    const markLabel = options.hasMark ? "Edit mark" : "Mark";
+    const markAria = !options.canMark
+      ? "Mark photo " + number + " (this photo has no image to mark)"
+      : options.hasMark
+      ? "Edit the marks on photo " + number
+      : "Draw a mark on photo " + number;
+
     const actions = editing
       ? fitaddActionHtml("fitadd-action--cancel js-fitadd-cancel", key, options.kind, "Cancel",
           "Cancel the caption for photo " + number, fitaddIconHtml("cancel"), busy) +
@@ -5417,17 +5169,20 @@ KK.app = (function () {
         fitaddActionHtml("fitadd-action--save js-fitadd-save", key, options.kind, "Save",
           "Save the caption for photo " + number, fitaddIconHtml("save"), busy)
       : fitaddActionHtml("js-fitadd-delete", key, options.kind, "Delete",
-          "Delete photo " + number, fitaddIconHtml("delete"), busy || !options.canDelete) +
+          "Delete photo " + number, "", busy || !options.canDelete) +
+        '<span class="fitdet-actions__rule" aria-hidden="true"></span>' +
+        fitaddActionHtml("js-fitadd-mark", key, options.kind, markLabel, markAria,
+          "", busy || !options.canMark) +
         '<span class="fitdet-actions__rule" aria-hidden="true"></span>' +
         fitaddActionHtml("js-fitadd-caption", key, options.kind, caption ? "Edit caption" : "Add caption",
           (caption ? "Edit the caption for photo " : "Add a caption to photo ") + number,
-          fitaddIconHtml("edit"), busy || !options.canCaption);
+          "", busy || !options.canCaption);
 
     return '<div class="fitlog-grid-spacer" aria-hidden="true"></div>' +
       '<div class="fitlog-grid-rule" aria-hidden="true"></div>' +
       '<div class="fitdet-inset" data-key="' + U.escapeHtml(key) + '" data-kind="' + options.kind + '">' +
         '<article class="fitdet-card">' + options.stage + body + '</article>' +
-        '<div class="fitdet-actions">' + actions + '</div>' +
+        '<div class="fitdet-actions' + (editing ? '' : ' fitdet-actions--trio') + '">' + actions + '</div>' +
       '</div>' +
       '<div class="fitlog-grid-rule" aria-hidden="true"></div>';
   }
@@ -5531,6 +5286,7 @@ KK.app = (function () {
 
     const existingHtml = visible.map((photo, index) => {
       const caption = addCaptionFor(photo);
+      const annotation = addAnnotationFor(photo);
       const number = index + 1;
       const url = fittingPhotoDisplayURL(photo);
       const alt = caption ? "Fitting photo: " + caption : "Fitting photo " + number;
@@ -5541,7 +5297,10 @@ KK.app = (function () {
         caption,
         canDelete: true,
         canCaption: true,
-        stage: fitaddStageHtml(url, alt, 0 === index, '', photo.id, "existing")
+        // You cannot mark what you cannot see; the note stays editable either way.
+        canMark: !!url,
+        hasMark: !!annotation,
+        stage: fitaddStageHtml(url, alt, 0 === index, '', photo.id, "existing", annotation)
       }) + '</li>';
     }).join('');
 
@@ -5557,7 +5316,11 @@ KK.app = (function () {
         caption: draft.caption,
         canDelete: true,
         canCaption: true,
-        stage: fitaddStageHtml(url, alt, true, fitaddDraftStatusHtml(draft), draft.clientKey, "new")
+        // Marking a half-prepared photo would measure the raw file and then
+        // have its coordinates replaced under it.
+        canMark: "ready" === draft.status,
+        hasMark: !!draft.annotation,
+        stage: fitaddStageHtml(url, alt, true, fitaddDraftStatusHtml(draft), draft.clientKey, "new", draft.annotation)
       }) + '</li>';
     }).join('');
 
@@ -5588,6 +5351,9 @@ KK.app = (function () {
     const url = draft.preparedUrl || draft.sourceUrl || "";
     const img = $(".fitadd-stage__image", stage);
     if (!url || !img || img.getAttribute("src") === url) return;
+    // A draft cannot be marked before it is ready, so there is no marks layer
+    // here to preserve across the swap — only the image element itself.
+
 
     // Reuse the same <img> so focus and the action state survive preparation;
     // its natural ratio may refine once the prepared pixels replace the source.
@@ -5622,7 +5388,7 @@ KK.app = (function () {
     // user is told which caption is still unsaved.
     elements.fitaddSaveBtn.disabled = !ready || a.saving || !(addDirty() || a.openEditors.size);
     elements.fitaddSaveBtn.setAttribute("aria-busy", a.saving ? "true" : "false");
-    elements.fitaddSaveFace.textContent = a.saving ? "Saving…" : "Save changes";
+    elements.fitaddSaveFace.textContent = a.saving ? "Saving…" : "Save fitting log";
 
     syncBottomBar();
   }
@@ -5717,6 +5483,351 @@ KK.app = (function () {
     }, reducedMotion() ? 0 : 280);
   }
 
+  /* ---------------------------- Photo annotation --------------------------- */
+
+  /* A red pen over one fitting photo, and nothing more: no colours, no shapes,
+     no text. The job is to circle the seam that has to move.
+
+     Full screen on purpose. Drawing inside the scrolling card list would put
+     every stroke in a fight with the page scroll on a phone, and the card image
+     is too small to circle anything accurately. */
+
+  const mark = () => add().mark;
+  const markStrokesJson = () => JSON.stringify(mark().strokes);
+
+  /* The photo a card is showing right now — a prepared draft, a local image, or
+     a Drive thumbnail. Marking never fetches its own copy. */
+  function fittingMarkSource(key, kind) {
+    if ("new" === kind) {
+      const draft = addDraftByKey(key);
+      if (!draft || "ready" !== draft.status) return null;
+      return { url: draft.preparedUrl || draft.sourceUrl || "", annotation: draft.annotation };
+    }
+    const photo = addExistingById(key);
+    if (!photo) return null;
+    return { url: fittingPhotoDisplayURL(photo), annotation: addAnnotationFor(photo) };
+  }
+
+  /* The card's own number, so the overlay title and the announcement agree with
+     what the list behind it says. */
+  function fittingMarkNumber(key, kind) {
+    const a = add();
+    const visible = addVisibleExisting();
+    if ("new" === kind) {
+      const index = a.newPhotos.findIndex((draft) => draft.clientKey === key);
+      return -1 === index ? 0 : visible.length + index + 1;
+    }
+    const index = visible.findIndex((photo) => photo.id === key);
+    return index + 1;
+  }
+
+  /* The canvas covers the image, not the stage. object-fit: contain letterboxes
+     a photo inside a box of a different shape, and a canvas stretched over the
+     whole box would put every mark in the wrong place by exactly the size of
+     those bars. */
+  function layoutFittingMark() {
+    const m = mark();
+    if (!m.open || !m.natW || !m.natH) return;
+
+    const box = elements.fitmarkStage.getBoundingClientRect();
+    if (!box.width || !box.height) return;
+
+    const fit = KK.fittingPdf.fitContain(m.natW, m.natH, box.width, box.height);
+    const canvas = elements.fitmarkCanvas;
+    canvas.style.left = ((box.width - fit.w) / 2) + "px";
+    canvas.style.top = ((box.height - fit.h) / 2) + "px";
+    canvas.style.width = fit.w + "px";
+    canvas.style.height = fit.h + "px";
+
+    /* Capped at 3: beyond that the backing store costs memory a phone would
+       rather spend on the photo itself, and no eye can tell. */
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    canvas.width = Math.max(1, Math.round(fit.w * dpr));
+    canvas.height = Math.max(1, Math.round(fit.h * dpr));
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    redrawFittingMark();
+  }
+
+  /* Canvas pixels are never read back, so a rotation or a resize is lossless:
+     every stroke redraws from the normalized array it was stored in. */
+  function redrawFittingMark() {
+    const canvas = elements.fitmarkCanvas;
+    const ctx = canvas.getContext("2d");
+    const width = parseFloat(canvas.style.width) || 0;
+    const height = parseFloat(canvas.style.height) || 0;
+    ctx.clearRect(0, 0, width, height);
+    mark().strokes.forEach((stroke) => drawFittingMarkStroke(stroke));
+  }
+
+  function drawFittingMarkStroke(stroke) {
+    const canvas = elements.fitmarkCanvas;
+    const ctx = canvas.getContext("2d");
+    const width = parseFloat(canvas.style.width) || 0;
+    const height = parseFloat(canvas.style.height) || 0;
+    if (!stroke.points.length) return;
+
+    /* The stored width is a fraction of the image's longest edge, so it stays
+       the same mark whether it is drawn on a phone or printed on A4. The floor
+       keeps it visible on a small screen. */
+    ctx.lineWidth = Math.max(2, stroke.width * Math.max(width, height));
+    ctx.strokeStyle = U.ANNOTATION_COLOR;
+    ctx.fillStyle = U.ANNOTATION_COLOR;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    // A tap is a mark too, and a path of one point draws nothing.
+    if (1 === stroke.points.length) {
+      ctx.beginPath();
+      ctx.arc(stroke.points[0][0] * width, stroke.points[0][1] * height, ctx.lineWidth / 2, 0, Math.PI * 2);
+      ctx.fill();
+      return;
+    }
+
+    ctx.beginPath();
+    stroke.points.forEach((point, index) => {
+      const x = point[0] * width;
+      const y = point[1] * height;
+      if (index) ctx.lineTo(x, y);
+      else ctx.moveTo(x, y);
+    });
+    ctx.stroke();
+  }
+
+  /* Clamped, so a finger dragged past the edge of the photo stops at the edge
+     instead of storing a point that is not on the image at all. */
+  function fittingMarkPoint(e) {
+    const box = elements.fitmarkCanvas.getBoundingClientRect();
+    const x = box.width ? (e.clientX - box.left) / box.width : 0;
+    const y = box.height ? (e.clientY - box.top) / box.height : 0;
+    return [Math.min(1, Math.max(0, x)), Math.min(1, Math.max(0, y))];
+  }
+
+  function onFittingMarkDown(e) {
+    const m = mark();
+    // Only the first pointer draws: a second finger must not fork the stroke.
+    if (!m.open || m.drawing) return;
+    if (m.strokes.length >= U.ANNOTATION_MAX_STROKES) {
+      elements.fitmarkStatus.textContent = "This photo has as many marks as it can hold";
+      return;
+    }
+
+    e.preventDefault();
+    m.drawing = true;
+    m.pointerId = e.pointerId;
+    try {
+      elements.fitmarkCanvas.setPointerCapture(e.pointerId);
+    } catch (_) {
+      // Capture is a convenience; the pointerup handler works without it.
+    }
+
+    const point = fittingMarkPoint(e);
+    m.last = point;
+    m.strokes.push({ width: U.ANNOTATION_DEFAULT_WIDTH, points: [point] });
+    drawFittingMarkStroke(m.strokes[m.strokes.length - 1]);
+    syncFittingMarkTools();
+  }
+
+  function onFittingMarkMove(e) {
+    const m = mark();
+    if (!m.drawing || e.pointerId !== m.pointerId) return;
+    e.preventDefault();
+
+    const stroke = m.strokes[m.strokes.length - 1];
+    if (!stroke) return;
+
+    const box = elements.fitmarkCanvas.getBoundingClientRect();
+    const point = fittingMarkPoint(e);
+    /* A raw 120Hz pointer stream is thousands of points describing the same
+       curve. Dropping anything under 1.5 CSS px keeps the stroke identical and
+       the payload small. */
+    const movedX = Math.abs(point[0] - m.last[0]) * box.width;
+    const movedY = Math.abs(point[1] - m.last[1]) * box.height;
+    if (movedX < 1.5 && movedY < 1.5) return;
+
+    stroke.points.push(point);
+    m.last = point;
+
+    // Draw only the new segment; a full redraw per pointermove is what makes a
+    // canvas feel laggy under a finger.
+    const ctx = elements.fitmarkCanvas.getContext("2d");
+    const width = parseFloat(elements.fitmarkCanvas.style.width) || 0;
+    const height = parseFloat(elements.fitmarkCanvas.style.height) || 0;
+    const previous = stroke.points[stroke.points.length - 2];
+    ctx.lineWidth = Math.max(2, stroke.width * Math.max(width, height));
+    ctx.strokeStyle = U.ANNOTATION_COLOR;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    ctx.moveTo(previous[0] * width, previous[1] * height);
+    ctx.lineTo(point[0] * width, point[1] * height);
+    ctx.stroke();
+  }
+
+  /* A stroke a system gesture interrupted is still a stroke; it is kept rather
+     than thrown away, because losing a mark is worse than keeping a short one. */
+  function onFittingMarkUp(e) {
+    const m = mark();
+    if (!m.drawing || e.pointerId !== m.pointerId) return;
+    m.drawing = false;
+    m.pointerId = null;
+    m.last = null;
+    try {
+      elements.fitmarkCanvas.releasePointerCapture(e.pointerId);
+    } catch (_) {
+      // Already released, or never captured.
+    }
+    syncFittingMarkTools();
+  }
+
+  function undoFittingMark() {
+    const m = mark();
+    if (!m.strokes.length) return;
+    m.strokes.pop();
+    redrawFittingMark();
+    syncFittingMarkTools();
+    elements.fitmarkStatus.textContent = m.strokes.length
+      ? m.strokes.length + (1 === m.strokes.length ? " mark" : " marks") + " on this photo"
+      : "No marks on this photo";
+  }
+
+  function clearFittingMark() {
+    const m = mark();
+    if (!m.strokes.length) return;
+    m.strokes = [];
+    redrawFittingMark();
+    syncFittingMarkTools();
+    elements.fitmarkStatus.textContent = "Marks cleared";
+  }
+
+  function syncFittingMarkTools() {
+    const empty = !mark().strokes.length;
+    elements.fitmarkUndo.disabled = empty;
+    elements.fitmarkClear.disabled = empty;
+  }
+
+  function fittingMarkImageReady(img) {
+    if (img.complete && img.naturalWidth) return Promise.resolve();
+    return new Promise((resolve) => {
+      const settle = () => {
+        img.removeEventListener("load", settle);
+        img.removeEventListener("error", settle);
+        resolve();
+      };
+      img.addEventListener("load", settle);
+      img.addEventListener("error", settle);
+    });
+  }
+
+  async function openFittingMark(key, kind) {
+    const a = add();
+    if (a.saving || a.mark.open) return;
+
+    const source = fittingMarkSource(key, kind);
+    if (!source || !source.url) return showToast("That photo has no image to mark");
+
+    const number = fittingMarkNumber(key, kind);
+    const existing = U.normalizeAnnotation(source.annotation);
+    const m = a.mark;
+    m.open = true;
+    m.key = key;
+    m.kind = kind;
+    m.natW = 0;
+    m.natH = 0;
+    m.strokes = existing ? existing.strokes.map((stroke) => ({ width: stroke.width, points: stroke.points.slice() })) : [];
+    m.baseline = markStrokesJson();
+    m.drawing = false;
+    m.pointerId = null;
+    m.last = null;
+
+    elements.fitmarkTitle.textContent = "Photo " + number + " of " + (addVisibleCount() || 1);
+    elements.fitmarkStatus.textContent = "";
+    elements.fitmark.classList.add("is-loading");
+    elements.fitmark.hidden = false;
+    document.body.classList.add("has-modal");
+    syncFittingMarkTools();
+
+    const img = elements.fitmarkImage;
+    img.alt = "Fitting photo " + number;
+    if (img.getAttribute("src") !== source.url) img.src = source.url;
+
+    /* Load first, decode second. decode() is the nicer wait — it avoids a paint
+       hitch — but it rejects on sources that load perfectly well, and treating
+       that rejection as "no image" closed the overlay on a photo that was
+       merely still arriving. */
+    await fittingMarkImageReady(img);
+    try {
+      if (img.decode) await img.decode();
+    } catch (_) {
+      // A decode that refuses still leaves a loaded image behind.
+    }
+    // Re-entrancy: a fast Cancel can close this overlay while the image loads.
+    if (!m.open || m.key !== key) return;
+
+    if (!img.naturalWidth || !img.naturalHeight) {
+      closeFittingMark(false);
+      return showToast("That photo has no image to mark");
+    }
+
+    m.natW = img.naturalWidth;
+    m.natH = img.naturalHeight;
+    elements.fitmark.classList.remove("is-loading");
+    layoutFittingMark();
+    window.addEventListener("resize", layoutFittingMark);
+    window.addEventListener("orientationchange", layoutFittingMark);
+    requestAnimationFrame(() => elements.fitmarkDone.focus());
+  }
+
+  /* Done writes a local proposal, exactly like a caption's card Save. An empty
+     stroke list commits null, so "cleared" and "never marked" are one state. */
+  function commitFittingMark() {
+    const a = add();
+    const m = a.mark;
+    const value = U.normalizeAnnotation({ v: U.ANNOTATION_VERSION, w: m.natW, h: m.natH, strokes: m.strokes });
+
+    if ("new" === m.kind) {
+      const draft = addDraftByKey(m.key);
+      if (draft) draft.annotation = value;
+    } else if (addExistingById(m.key)) {
+      a.annotationPatches.set(m.key, value);
+    }
+
+    const count = value ? value.strokes.length : 0;
+    announceAddStatus(count ? "Marks saved on this photo" : "Marks cleared from this photo");
+  }
+
+  function closeFittingMark(commit) {
+    const a = add();
+    const m = a.mark;
+    if (!m.open) return;
+
+    if (commit) commitFittingMark();
+
+    window.removeEventListener("resize", layoutFittingMark);
+    window.removeEventListener("orientationchange", layoutFittingMark);
+
+    const key = m.key;
+    m.open = false;
+    m.drawing = false;
+    m.pointerId = null;
+    m.last = null;
+    m.strokes = [];
+    m.key = null;
+    m.kind = null;
+
+    elements.fitmark.hidden = true;
+    elements.fitmark.classList.remove("is-loading");
+    elements.fitmarkImage.removeAttribute("src");
+    document.body.classList.remove("has-modal");
+
+    renderFittingPhotoAdd();
+    syncAddDirty();
+
+    const button = elements.fitaddList.querySelector('.js-fitadd-mark[data-key="' + cssEscapeAttr(key) + '"]');
+    if (button) button.focus({ preventScroll: true });
+  }
+
   /* ------------------------------ Picker entry ----------------------------- */
 
   function addPhotosFromReview() {
@@ -5766,16 +5877,32 @@ KK.app = (function () {
       return;
     }
 
-    const captionUpdates = [];
+    /* One entry per photo, carrying only the keys that actually changed. The
+       RPC reads key presence, so a caption edit never silently overwrites a
+       mark the same batch did not touch. */
+    const updates = new Map();
     a.captionPatches.forEach((caption, id) => {
       if (a.deleted.has(id)) return;
       const photo = addExistingById(id);
       if (!photo || String(photo.caption || "") === caption) return;
-      captionUpdates.push({ id, caption: caption || null });
+      updates.set(id, Object.assign(updates.get(id) || { id }, { caption: caption || null }));
     });
+    a.annotationPatches.forEach((annotation, id) => {
+      if (a.deleted.has(id)) return;
+      const photo = addExistingById(id);
+      if (!photo) return;
+      const next = U.normalizeAnnotation(annotation);
+      if (addAnnotationJson(next) === addAnnotationJson(photo.annotation)) return;
+      updates.set(id, Object.assign(updates.get(id) || { id }, { annotation: next }));
+    });
+    const photoUpdates = Array.from(updates.values());
     const deleteIds = Array.from(a.deleted.keys());
     const drafts = a.newPhotos.slice();
-    const newPhotos = drafts.map((draft) => ({ client_key: draft.clientKey, caption: draft.caption || null }));
+    const newPhotos = drafts.map((draft) => ({
+      client_key: draft.clientKey,
+      caption: draft.caption || null,
+      annotation: U.normalizeAnnotation(draft.annotation)
+    }));
 
     const sessionId = a.sessionId;
     const source = a.source;
@@ -5787,7 +5914,7 @@ KK.app = (function () {
 
     let result;
     try {
-      result = await db.saveFittingPhotoBatch(sessionId, captionUpdates, deleteIds, newPhotos);
+      result = await db.saveFittingPhotoBatch(sessionId, photoUpdates, deleteIds, newPhotos);
     } catch (err) {
       console.error(err);
       // Every draft, caption and staged deletion survives for the retry.
@@ -5820,7 +5947,6 @@ KK.app = (function () {
     if (d.sessionId === sessionId) {
       d.photos = photos;
       d.blobCache.clear();
-      if (d.bridge) d.bridge.photos = photos;
     }
     invalidateFittingFeed();
 
@@ -5834,10 +5960,13 @@ KK.app = (function () {
 
     a.newPhotos = [];
     a.captionPatches.clear();
+    a.annotationPatches.clear();
     a.deleted.clear();
     a.openEditors.clear();
     a.editorDrafts.clear();
     a.existing = photos;
+    // A log holding a committed photo is no longer a log nobody asked for.
+    a.provisionalSessionId = null;
     a.saving = false;
     setDirty(false);
 
@@ -5862,7 +5991,6 @@ KK.app = (function () {
     if (!photo || d.sessionId !== sessionId) return;
     const idx = d.photos.findIndex((entry) => entry.id === photo.id);
     if (-1 !== idx) d.photos[idx] = photo;
-    if (d.bridge) d.bridge.photos = d.photos;
     if (isDetailRoute()) renderFittingDetail();
   }
 
@@ -5902,10 +6030,12 @@ KK.app = (function () {
     a.newPhotos.forEach((draft) => releaseAddDraft(draft, false));
     a.newPhotos = [];
     a.captionPatches.clear();
+    a.annotationPatches.clear();
     a.deleted.clear();
     a.openEditors.clear();
     a.editorDrafts.clear();
     a.existing = [];
+    a.focusPhotoId = null;
     a.session = null;
     a.order = null;
     a.customer = null;
@@ -5920,6 +6050,8 @@ KK.app = (function () {
     a.seeded = false;
     a.loadError = null;
     a.lastStatus = "";
+    a.provisionalSessionId = null;
+    closeFittingMark(false);
     elements.fitaddBackLabel.textContent = "Fitting log";
     elements.fitaddStage.hidden = true;
     elements.fitaddCustomer.textContent = "";
@@ -5928,7 +6060,20 @@ KK.app = (function () {
     clearAddUndo();
   }
 
+  /* A fitting log created on the way in and left without a single photo should
+     not survive as an empty row in the feed. Best effort on purpose: a failed
+     delete leaves a log the user can still delete from its own detail page,
+     which is better than holding navigation hostage to a network call. */
+  function discardProvisionalFittingLog() {
+    const a = add();
+    const sessionId = a.provisionalSessionId;
+    a.provisionalSessionId = null;
+    if (!sessionId || a.existing.length || a.newPhotos.length) return;
+    db.deleteFittingSession(sessionId).then(invalidateFittingFeed, (err) => console.error(err));
+  }
+
   function cleanupFittingPhotoAdd() {
+    discardProvisionalFittingLog();
     resetFittingPhotoAdd();
     elements.fitaddBar.hidden = true;
     document.body.classList.remove("has-fitadd-bar");
@@ -5955,20 +6100,40 @@ KK.app = (function () {
 
   /* -------------------------------- Route entry ---------------------------- */
 
+  /* An old per-photo editor link, and the detail page's own per-card Edit, both
+     name the photo they were about; the workspace scrolls to it rather than
+     dropping the reader at the top of a twenty-card list. */
+  function scrollToFocusPhoto() {
+    const a = add();
+    const photoId = a.focusPhotoId;
+    a.focusPhotoId = null;
+    if (!photoId) return;
+    requestAnimationFrame(() => {
+      const card = elements.fitaddList.querySelector('[data-kind="existing"][data-key="' + cssEscapeAttr(photoId) + '"]');
+      if (card) card.scrollIntoView({ block: "center", behavior: reducedMotion() ? "auto" : "smooth" });
+    });
+  }
+
   async function showFittingPhotoAdd(sessionId, queryParams) {
     const a = add();
     const seeded = a.seeded && a.sessionId === sessionId;
     const source = queryParams && "order" === queryParams.get("source") ? "order" : "feed";
+    const focusId = (queryParams && queryParams.get("focus")) || null;
+    /* Set by the order page's stage entry, which created this log a moment ago.
+       It is what lets an abandoned empty log delete itself again. */
+    const provisional = !!(queryParams && "1" === queryParams.get("new"));
 
-    setChrome({ title: "Add fitting photos", save: false, fitdetailpage: true });
+    setChrome({ title: "Fitting notes", save: false, fitdetailpage: true });
     setSaveBar(false);
 
     if (seeded) {
       a.seeded = false;
       a.source = source;
+      a.focusPhotoId = focusId;
       elements.fitaddBackBtn.href = addDetailHash();
       renderFittingPhotoAdd();
       syncAddDirty();
+      scrollToFocusPhoto();
       runAddPreparationQueue();
       return;
     }
@@ -5977,6 +6142,8 @@ KK.app = (function () {
     const token = a.loadToken;
     a.sessionId = sessionId;
     a.source = source;
+    a.focusPhotoId = focusId;
+    a.provisionalSessionId = provisional ? sessionId : null;
     a.phase = "loading";
     elements.fitaddBackBtn.href = addDetailHash();
     elements.fitaddBar.hidden = true;
@@ -6018,6 +6185,7 @@ KK.app = (function () {
     a.phase = "ready";
     renderFittingPhotoAdd();
     syncAddDirty();
+    scrollToFocusPhoto();
     announceAddStatus(
       photos.length
         ? photos.length + (1 === photos.length ? " photo in this fitting log" : " photos in this fitting log")
@@ -6057,17 +6225,44 @@ KK.app = (function () {
           ? draft.preparedUrl || draft.sourceUrl || ""
           : photo ? fittingPhotoDisplayURL(photo) : "";
         const caption = draft ? draft.caption : photo ? addCaptionFor(photo) : "";
+        // The marks on screen, not the marks in the database: an unsaved edit
+        // is what this card is showing.
+        const annotation = draft ? draft.annotation : photo ? addAnnotationFor(photo) : null;
         const image = opener.querySelector("img");
-        return openFittingPhotoViewerImage(url, caption, image && image.alt, opener);
+        return openFittingPhotoViewerImage(url, caption, image && image.alt, opener, annotation);
       }
       const action = e.target.closest(".fitdet-action");
       if (!action || action.disabled) return;
       const key = action.dataset.key;
       const kind = action.dataset.kind;
       if (action.matches(".js-fitadd-delete")) deleteAddCard(key, kind);
+      else if (action.matches(".js-fitadd-mark")) openFittingMark(key, kind);
       else if (action.matches(".js-fitadd-caption")) openAddEditor(key);
       else if (action.matches(".js-fitadd-cancel")) closeAddEditor(key, true);
       else if (action.matches(".js-fitadd-save")) saveAddEditor(key);
+    });
+
+    /* Pointer Events only: one code path covers touch, pen and mouse, and
+       pointer capture is what keeps a stroke alive when the finger leaves the
+       canvas mid-drag. The canvas carries touch-action: none, which is what
+       stops the page scrolling under the stroke. */
+    elements.fitmarkCanvas.addEventListener("pointerdown", onFittingMarkDown);
+    elements.fitmarkCanvas.addEventListener("pointermove", onFittingMarkMove);
+    elements.fitmarkCanvas.addEventListener("pointerup", onFittingMarkUp);
+    elements.fitmarkCanvas.addEventListener("pointercancel", onFittingMarkUp);
+
+    elements.fitmarkUndo.addEventListener("click", undoFittingMark);
+    elements.fitmarkClear.addEventListener("click", clearFittingMark);
+    elements.fitmarkCancel.addEventListener("click", () => closeFittingMark(false));
+    elements.fitmarkDone.addEventListener("click", () => closeFittingMark(true));
+
+    document.addEventListener("keydown", (e) => {
+      if (elements.fitmark.hidden) return;
+      trapModalFocus(e, elements.fitmark);
+      if ("Escape" === e.key) {
+        e.preventDefault();
+        closeFittingMark(false);
+      }
     });
 
     elements.fitaddList.addEventListener("input", (e) => {
@@ -8437,7 +8632,6 @@ KK.app = (function () {
       if (state.order) go("#/order/" + state.order.id + "/fitting/new");
     });
 
-    elements.fittingJournalAdd.addEventListener("click", () => KK.fittings.openCamera());
     KK.fittings.bindOverlays();
     setupFittingDetailListeners();
     setupFittingPhotoAddListeners();
@@ -8632,7 +8826,7 @@ KK.app = (function () {
     document.addEventListener("keydown", (e) => {
       trapModalFocus(e, elements.calcSheet);
       trapModalFocus(e, elements.mbOverlay);
-      ["fittingCamera", "fittingConfirm", "fittingCaptionStep", "fittingPicker", "fittingEditSheet"].forEach((id) => trapModalFocus(e, $("#" + id)));
+      trapModalFocus(e, $("#fittingPicker"));
       if (elements.calcSheet.hidden) {
         handleMoodboardOverlayKey(e);
       } else if ("Escape" === e.key) {

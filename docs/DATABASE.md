@@ -34,27 +34,56 @@ Stage set: `Design phase`, `Design deadline`, `Sizing`, `Fitting 1`, `Fitting 2`
 ### `fitting_sessions` — one durable log per stage
 `id` · `order_id` fk cascade · `stage` (5 canonical: `Sizing`, `Fitting 1`, `Fitting 2`, `Fitting 3`, `Final fitting`) · `status` (`active|completed`) · `created_at` · `completed_at`.
 
+The row is created when a stage is picked on the order page, not when the first photo lands, so the workspace always has a real session id to work against; a log left without a single photo deletes itself again on the way out. `status` and `completed_at` are legacy: the camera journal's Save log was the only writer, and nothing branches on them — the feed, the detail page and the PDF all read a log the same way whatever it says.
+
 ### `fitting_photos`
-`id` · `order_id` fk cascade · `session_id` fk→fitting_sessions **nullable** (photos predate sessions) · `stage` · `caption` · `drive_file_id` · `drive_link` · `position` smallint · `created_at`.
+`id` · `order_id` fk cascade · `session_id` fk→fitting_sessions **nullable** (photos predate sessions) · `stage` · `caption` · **`annotation` jsonb nullable** · `drive_file_id` · `drive_link` · `position` smallint · `created_at`.
+
+`annotation` holds the photo's red markup as vector strokes, never as pixels —
+the Drive archive keeps holding the clean original, the marks stay editable, and
+the browser and the PDF redraw from one array. Points are normalized to the
+natural image, so a stroke survives every resolution, screen width, orientation
+and page size it is drawn at:
+
+```json
+{ "v": 1, "w": 2560, "h": 1706,
+  "strokes": [ { "width": 0.006, "points": [[0.12, 0.33], [0.13, 0.34]] } ] }
+```
+
+`width` is a fraction of `max(w, h)`. `null` — the default, and every row that
+predates the feature — means no annotation, and an empty stroke list is stored as
+`null` too, so cleared and never-marked are one state. `KK.util.normalizeAnnotation`
+is the one gate the value passes through in either direction; a check constraint
+caps the column at 64 KB.
 
 ### RPC `public.save_fitting_photo_batch` (security_invoker)
 
-The Add fitting photos page's single write. Signature:
+The fitting workspace's single write. Signature:
 
 ```sql
 save_fitting_photo_batch(
-  p_session_id      uuid,
-  p_caption_updates jsonb,   -- [{ id, caption|null }]
-  p_delete_ids      uuid[],
-  p_new_photos      jsonb    -- [{ client_key, caption|null }]
-) returns jsonb              -- { photos: [row], created: [{ client_key, photo }] }
+  p_session_id    uuid,
+  p_photo_updates jsonb,   -- [{ id, caption?, annotation? }]
+  p_delete_ids    uuid[],
+  p_new_photos    jsonb    -- [{ client_key, caption|null, annotation|null }]
+) returns jsonb            -- { photos: [row], created: [{ client_key, photo }] }
 ```
 
-One transaction, in this order: lock the session row · reject duplicate ids, an id that is both edited and deleted, a missing/duplicate `client_key`, and any photo belonging to another session · cap additions at **20** photos (`existing - deletions + additions`) · apply captions · delete staged rows · reindex the retained rows to gap-free zero-based `position` · insert the new rows with `order_id`/`stage` taken from the **locked session**, never from the browser, and `drive_file_id`/`drive_link` null.
+**Key presence is the contract.** In `p_photo_updates`, an absent key leaves its
+column alone and a key present with `null` clears it, so one entry per photo can
+carry a caption edit, a mark edit, or both — and a caption edit can never
+silently overwrite a mark the same batch did not touch. An entry carrying neither
+key raises.
 
-Captions and deletions are never capacity-checked, so a legacy log already above 20 photos stays editable; only additions are refused. Drive archival happens after this commits — uploading first would strand archive files whenever the transaction failed.
+One transaction, in this order: lock the session row · reject duplicate ids, an entry that changes nothing, a malformed annotation, an id that is both edited and deleted, a missing/duplicate `client_key`, and any photo belonging to another session · cap additions at **20** photos (`existing - deletions + additions`) · apply caption and annotation updates · delete staged rows · reindex the retained rows to gap-free zero-based `position` · insert the new rows with `order_id`/`stage` taken from the **locked session**, never from the browser, and `drive_file_id`/`drive_link` null.
+
+Edits and deletions are never capacity-checked, so a legacy log already above 20 photos stays editable; only additions are refused. Drive archival happens after this commits — uploading first would strand archive files whenever the transaction failed.
 
 Any violation raises, so `unwrap` surfaces it and nothing is written. Granted to `authenticated` only; `security_invoker` keeps the table's own RLS in force.
+
+The migration that added `annotation` drops the four-argument function and
+recreates it, because Postgres refuses to rename a parameter through `create or
+replace` and a second overload of the same arity would make every call ambiguous.
 
 ### `intake_submissions` — Tally landing table
 `id` · `payload` jsonb **verbatim, the record of truth** · `name` · `phone` · `instagram` · `source` (**unconstrained on purpose** — a stranger's answer must never reject the insert) · `wedding_date` · `wedding_date_precision` · `notes` · `status` (`new|accepted|dismissed`) · `customer_id` fk set-null · `created_at` · `reviewed_at`.
@@ -91,7 +120,7 @@ Append-only. To change the schema:
 2. Add that title to the navigation list at `schema.sql` lines 8–18.
 3. Never edit an applied block — the file is re-run whole after every pull.
 
-Existing migration titles (grep any of these to jump): `dashboard UX overhaul` · `document name + payment schemes` · `fitting schedule + Google` · `the real lifecycle` · `status stops being` · `schedule gets a second anchor` · `moodboard generator` · `fitting revisions log` · `atomic fitting photo batches` · `quotation and invoice feeds`.
+Existing migration titles (grep any of these to jump): `dashboard UX overhaul` · `document name + payment schemes` · `fitting schedule + Google` · `the real lifecycle` · `status stops being` · `schedule gets a second anchor` · `moodboard generator` · `fitting revisions log` · `atomic fitting photo batches` · `quotation and invoice feeds` · `fitting photo annotations`.
 
 ---
 
@@ -111,7 +140,9 @@ Everything below is on `window.KK.db`. All async unless noted.
 
 **Fitting sessions** — `listFittingSessions(orderId)` 335 · `getFittingSession(id)` 346 · `getFittingSessionByStage(orderId, stage)` 350 · `createFittingSession` 359 · `updateFittingSession(id, record)` 363 · `deleteFittingSession(id)` 367
 
-**Fitting feed & photos** — **`listFittingLogs(options)` 386** (cursor paging, returns `{ rows, nextCursor }`) · `listFittingPhotos(orderId)` 463 · `listFittingPhotosBySession(sessionId)` 470 · `getFittingPhoto(id)` 477 · `createFittingPhoto` 481 · `updateFittingPhoto(id, record)` 485 · `deleteFittingPhoto(id)` 489 · **`saveFittingPhotoBatch(sessionId, captionUpdates, deleteIds, newPhotos)` 499** — the atomic RPC above; the only `.rpc(` call in the file
+**Fitting feed & photos** — **`listFittingLogs(options)` 386** (cursor paging, returns `{ rows, nextCursor }`) · `listFittingPhotos(orderId)` 463 · `listFittingPhotosBySession(sessionId)` 470 · `getFittingPhoto(id)` 477 · `createFittingPhoto` 481 · `updateFittingPhoto(id, record)` 485 (Drive ids, written by `archivePhoto`) · `deleteFittingPhoto(id)` 489 · **`saveFittingPhotoBatch(sessionId, photoUpdates, deleteIds, newPhotos)` 499** — the atomic RPC above; the only `.rpc(` call in the file
+
+`PROJECTION_FITTING_PHOTOS` carries `annotation`. `PROJECTION_FITTING_FEED` deliberately does not: feed previews are three ~100px thumbnails, where a mark would be a smudge, and the jsonb would cost every page load.
 
 **Document feed** — **`listDocumentFeed(options)` 427** — one kind per call, cursor paging, server-side `ilike`; same shape and same guarantees as `listFittingLogs`. `normalizeDocumentKind` rejects anything but `quotation`/`invoice` so a routing bug fails loudly instead of showing both.
 
@@ -140,6 +171,8 @@ Holds the service-role read of `google_credentials`. Sync preserves `google_even
 `save_moodboard_pdf` · `save_fitting_photo` · `get_fitting_photo`
 
 `get_fitting_photo { photo_id }` resolves the Drive id **server-side** from the photo record — an arbitrary Drive id can never be requested. It is the byte source for photo sharing and for the fitting-log PDF.
+
+Drive holds the **original photo and only the original photo**. Marks are vector data on the row, so nothing about them is uploaded and no derivative image exists; the PDF is the shareable annotated artifact. `save_fitting_photo` runs after the metadata commit, never before.
 
 ### `intake/index.ts` (211 lines)
 Public Tally webhook. Writes the verbatim body to `intake_submissions.payload` plus convenience columns. Never rejects on a bad dropdown value.

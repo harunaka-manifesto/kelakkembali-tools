@@ -575,9 +575,8 @@ body.is-page-transitioning { overflow: hidden; pointer-events: none; }
 }
 
 /* Clearance for whichever fixed bottom bar is up, measured rather than
-   guessed — the save bar and the fitting bar are different heights. */
-body.has-savebar .page,
-body.has-fitting-journal-bar .page {
+   guessed — the fitting pages publish their own heights. */
+body.has-savebar .page {
   padding-bottom: calc(var(--bottombar-h) + 32px);
 }
 
@@ -2216,7 +2215,7 @@ select.input {
 
 /* With no bar up, --bottombar-h is 0 and the toast still needs to clear the
    home indicator on its own. */
-body:not(.has-savebar):not(.has-fitting-journal-bar) .toast {
+body:not(.has-savebar) .toast {
   bottom: calc(24px + env(safe-area-inset-bottom, 0px));
 }
 

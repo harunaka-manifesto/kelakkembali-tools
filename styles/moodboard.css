@@ -1,4 +1,4 @@
-/* Moodboard UI/document canvas plus the fitting-journal presentation. It owns
+/* Moodboard UI/document canvas plus the fitting stage picker. It owns
    media-workflow styling only; behavior remains in moodboard.js/fittings.js. */
 
 /* =========================================================================
@@ -499,65 +499,18 @@ body.is-moodboardpage .view { gap: 0; }
 
 body.moodboard-presenting { overflow: hidden; }
 
-/* ---------------------------- Fitting journal ---------------------------- */
-.fitting-card { display: flex; gap: 12px; padding: 12px; margin-bottom: 10px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); }
-.fitting-card__image { width: 64%; aspect-ratio: 3 / 4; overflow: hidden; border: 0; border-radius: 9px; background: var(--surface); padding: 0; }
-.fitting-card__image img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.fitting-card__body { min-width: 0; flex: 1; display: flex; flex-direction: column; }
-.fitting-card__caption { margin: 0; font-size: 14px; line-height: 1.45; white-space: pre-wrap; }
-.fitting-card__caption--empty { color: var(--muted); }
-.fitting-card__actions { display: flex; gap: 4px; margin-top: auto; justify-content: flex-end; }
-.fitting-card__icon { width: 44px; height: 44px; border: 0; border-radius: 50%; background: none; color: var(--muted); font-size: 20px; cursor: pointer; }
-.fitting-card__icon { transition: transform var(--motion-quick) var(--ease-standard), background-color var(--motion-standard) var(--ease-standard), color var(--motion-standard) var(--ease-standard); }
-.fitting-card__icon:hover { background: rgba(23,21,15,.05); color: var(--ink); }
-.fitting-card__icon:active { background: rgba(23,21,15,.1); transform: scale(.92); }
-.fitting-empty { margin: 0; color: var(--muted); text-align: center; padding: 36px 14px; }
-.fitting-history-row { display: flex; align-items: center; width: 100%; min-height: 56px; gap: 10px; padding: 10px 0; border: 0; border-top: 1px solid var(--line); background: none; color: inherit; text-align: left; cursor: pointer; }
-.fitting-history-row:first-child { border-top: 0; }
-.fitting-history-row { transition: background-color var(--motion-standard) var(--ease-standard); }
-.fitting-history-row:hover { background: rgba(23,21,15,.035); }
-.fitting-history-row:active { background: rgba(23,21,15,.07); }
-.fitting-history-row__thumbs { display: flex; width: 64px; padding-left: 8px; }
-.fitting-history-row__thumb { width: 32px; height: 32px; margin-left: -8px; overflow: hidden; border: 2px solid var(--surface-2); border-radius: 50%; background: var(--surface); }
-.fitting-history-row__thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.fitting-history-row__text { min-width: 0; flex: 1; }
-.fitting-history-row__stage { display: block; font-weight: 600; font-size: 14px; }
-.fitting-history-row__date { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; }
-.fitting-journal__bar { position: fixed; z-index: 90; right: 0; bottom: 0; left: 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); background: var(--surface-2); border-top: 1px solid var(--line); }
-.fitting-journal__bar-inner { max-width: 720px; margin: auto; }
-.fitting-camera, .fitting-confirm, .fitting-caption-step { position: fixed; z-index: 200; inset: 0; width: 100%; height: 100vh; height: 100dvh; }
-.fitting-camera[hidden], .fitting-confirm[hidden], .fitting-caption-step[hidden], .fitting-picker[hidden], .fitting-edit-sheet[hidden] { display: none; }
-.fitting-camera { background: #000; animation: presentation-in var(--motion-enter) var(--ease-standard) both; }
-.fitting-camera video { width: 100%; height: 100%; object-fit: cover; }
-.fitting-camera__close { position: absolute; top: calc(14px + env(safe-area-inset-top, 0px)); left: calc(14px + env(safe-area-inset-left, 0px)); width: 44px; height: 44px; border: 0; border-radius: 50%; background: rgba(0,0,0,.55); color: #fff; font-size: 30px; cursor: pointer; }
-.fitting-camera__status { position: absolute; top: 50%; left: 50%; margin: 0; padding: 8px 12px; transform: translate(-50%,-50%); border-radius: 999px; background: rgba(0,0,0,.58); color: #fff; font-size: 13px; pointer-events: none; }
-.fitting-camera__status[hidden] { display: none; }
-.fitting-camera__controls { position: absolute; right: 0; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); left: 0; display: flex; align-items: center; justify-content: center; gap: 28px; }
-.fitting-camera__button, .fitting-camera__shutter { border-radius: 50%; cursor: pointer; }
-.fitting-camera__button { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid rgba(255,255,255,.75); background: rgba(0,0,0,.32); color: #fff; font-size: 24px; line-height: 1; }
-.fitting-camera__button svg { display: block; width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
-.fitting-camera__shutter { width: 68px; height: 68px; border: 5px solid #fff; background: transparent; box-shadow: inset 0 0 0 3px #000; }
-.fitting-camera__shutter { transition: transform var(--motion-quick) var(--ease-standard), background-color var(--motion-standard) var(--ease-standard), opacity var(--motion-standard) var(--ease-standard); }
-.fitting-camera__shutter:active:not(:disabled) { transform: scale(.9); background: rgba(255,255,255,.28); }
-.fitting-camera__shutter:disabled { opacity: .45; }
-.fitting-confirm { display: flex; flex-direction: column; background: #111; padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px)); }
-.fitting-confirm img { min-height: 0; flex: 1; width: 100%; object-fit: contain; }
-.fitting-confirm__actions, .fitting-caption-step__actions { display: flex; gap: 10px; margin-top: 12px; }
-.fitting-confirm__actions .btn, .fitting-caption-step__actions .btn { flex: 1; }
-.fitting-confirm .btn--outline { color: #fff; border-color: rgba(255,255,255,.7); }
-.fitting-caption-step { display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; background: var(--surface); }
-.fitting-caption-step__preview { flex: 1 1 55%; min-height: 180px; padding: 14px; background: var(--surface-2); }
-.fitting-caption-step__preview img { width: 100%; height: 100%; object-fit: contain; }
-.fitting-caption-step__form { flex: none; padding: 16px max(16px, env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); background: var(--surface); }
-.fitting-caption-step textarea { display: block; width: 100%; min-height: 44px; max-height: 120px; margin-top: 6px; resize: none; }
-.fitting-picker, .fitting-edit-sheet { position: fixed; z-index: 210; inset: 0; }
-.fitting-picker__backdrop, .fitting-edit-sheet__backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.48); animation: backdrop-in var(--motion-standard) ease-out both; }
-.fitting-picker__sheet, .fitting-edit-sheet__sheet { position: absolute; right: 0; bottom: 0; left: 0; max-height: 88vh; max-height: 88dvh; overflow-y: auto; overscroll-behavior: contain; padding: 20px max(16px, env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); background: var(--surface-2); border-radius: 16px 16px 0 0; animation: sheet-rise var(--motion-enter) var(--ease-standard) both; }
+/* ------------------------- Fitting stage picker --------------------------- */
+/* All that is left of the fitting journal: the sheet that asks which fitting
+   a new log is for. The camera, its confirmation step, its caption step and
+   the journal cards went with the gallery-first workspace. */
+.fitting-picker { position: fixed; z-index: 210; inset: 0; }
+.fitting-picker__backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.48); animation: backdrop-in var(--motion-standard) ease-out both; }
+.fitting-picker__sheet { position: absolute; right: 0; bottom: 0; left: 0; max-height: 88vh; max-height: 88dvh; overflow-y: auto; overscroll-behavior: contain; padding: 20px max(16px, env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); background: var(--surface-2); border-radius: 16px 16px 0 0; animation: sheet-rise var(--motion-enter) var(--ease-standard) both; }
 .fitting-picker__sheet .card__title { margin-bottom: 10px; }
 .fitting-picker__option { width: 100%; min-height: 44px; padding: 13px 2px; border: 0; border-top: 1px solid var(--line); background: none; color: inherit; text-align: left; font: inherit; cursor: pointer; }
 .fitting-picker__option { transition: background-color var(--motion-standard) var(--ease-standard), padding-left var(--motion-standard) var(--ease-standard); }
 .fitting-picker__option:hover { padding-left: 8px; background: rgba(23,21,15,.04); }
-.fitting-picker__sheet .btn, .fitting-edit-sheet__sheet .btn { margin-top: 10px; }
+.fitting-picker__sheet .btn { margin-top: 10px; }
 
 @keyframes presentation-in {
   from { opacity: 0; }
@@ -572,11 +525,6 @@ body.moodboard-presenting { overflow: hidden; }
 @keyframes sheet-rise {
   from { transform: translateY(28px); opacity: .7; }
   to { transform: translateY(0); opacity: 1; }
-}
-
-@media (max-height: 540px) {
-  .fitting-caption-step__preview { flex-basis: 34%; min-height: 110px; }
-  .fitting-caption-step__form { padding-top: 10px; }
 }
 
 /* =================== Moodboard document (off-screen) ==================== */

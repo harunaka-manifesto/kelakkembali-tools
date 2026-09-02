@@ -446,70 +446,6 @@
     <footer class="fitlog-footer">Made with love for Ichaku</footer>
   </section>
 
-  <!-- ------------------------ Fitting photo editor ------------------------ -->
-  <!-- Deliberately temporary layout built from the current black-ledger/cream
-       vocabulary: caption, replacement, and deletion are the contract, and the
-       visual design is expected to be replaced without touching either. -->
-  <section class="view fitedit" id="viewFittingPhotoEdit" hidden>
-    <nav class="cust-nav" aria-label="Photo editor navigation">
-      <a class="cust-nav-btn" id="fiteditBackBtn" href="#/fittings">
-        <span class="cust-nav-btn__face">
-          <img src="assets/cust-back-icon.svg" alt="" width="24" height="24">
-          <span>Fitting log</span>
-        </span>
-        <span class="cust-nav-btn__rail" aria-hidden="true"></span>
-      </a>
-    </nav>
-
-    <header class="fitdet-head">
-      <div class="fitlog-grid-spacer" aria-hidden="true"></div>
-      <div class="fitdet-identity">
-        <h1 class="fitdet-title" id="fiteditTitle">Edit photo</h1>
-      </div>
-      <div class="fitlog-grid-spacer" aria-hidden="true"></div>
-    </header>
-
-    <div class="fitdet-body">
-      <div class="fitlog-grid-rule" aria-hidden="true"></div>
-      <div class="fitdet-inset">
-        <div class="fitdet-card">
-          <div class="fitdet-card__frame">
-            <img class="fitdet-card__image" id="fiteditPreview" alt="Photo being edited">
-          </div>
-        </div>
-        <div class="fitdet-actions fitdet-actions--single">
-          <button type="button" class="fitdet-action" id="fiteditReplaceBtn">
-            <span class="fitdet-action__face">
-              <img src="assets/fitlog-edit-icon.svg" alt="" width="20" height="20">
-              <span>Replace photo</span>
-            </span>
-            <span class="fitdet-action__rail" aria-hidden="true"></span>
-          </button>
-        </div>
-      </div>
-      <div class="fitlog-grid-rule" aria-hidden="true"></div>
-      <div class="fitlog-grid-spacer" aria-hidden="true"></div>
-      <div class="fitlog-grid-rule" aria-hidden="true"></div>
-
-      <div class="fitdet-inset">
-        <div class="fitedit-field">
-          <label class="fitedit-label" for="fiteditCaption">Caption</label>
-          <textarea class="fitedit-caption" id="fiteditCaption" rows="4" placeholder="What changed in this fitting?" enterkeyhint="done"></textarea>
-        </div>
-        <button type="button" class="fitedit-delete" id="fiteditDeleteBtn">
-          <span class="fitedit-delete__face">Delete photo</span>
-          <span class="fitedit-delete__rail" aria-hidden="true"></span>
-        </button>
-      </div>
-      <div class="fitlog-grid-rule" aria-hidden="true"></div>
-      <div class="fitlog-grid-spacer" aria-hidden="true"></div>
-    </div>
-    <p class="sr-only" id="fiteditStatus" role="status" aria-live="polite"></p>
-
-    <input id="fiteditFileInput" type="file" accept="image/png, image/jpeg, image/webp, image/heic, image/heif" hidden>
-    <footer class="fitlog-footer">Made with love for Ichaku</footer>
-  </section>
-
   <!-- ----------------------- Add fitting photos (review) ------------------- -->
   <!-- Figma 266:3522. A staging page, not a writer: every caption edit, every
        deletion and every selected file lives in local state until one atomic
@@ -530,7 +466,7 @@
     <header class="fitdet-head">
       <div class="fitlog-grid-spacer" aria-hidden="true"></div>
       <div class="fitdet-titleband">
-        <h1 class="fitdet-title" id="fitaddTitle">Add fitting photos</h1>
+        <h1 class="fitdet-title" id="fitaddTitle">Fitting notes</h1>
       </div>
       <div class="fitdet-meta">
         <span class="fitdet-stage" id="fitaddStage" hidden></span>
@@ -1286,11 +1222,6 @@
     </section>
   </section>
 
-  <!-- ------------------------------ Fitting log --------------------------- -->
-  <section class="view" id="viewFittingJournal" hidden>
-    <div id="fittingJournal"></div>
-  </section>
-
   <!-- ---------------------------- Enquiry review --------------------------- -->
   <section class="view" id="viewEnquiry" hidden>
     <section class="card">
@@ -1442,29 +1373,6 @@
 
 </main>
 
-<!-- Fitting journal overlays stay outside the page flow. -->
-<section class="fitting-camera" id="fittingCamera" hidden aria-label="Take fitting photo" role="dialog" aria-modal="true">
-  <video id="fittingCameraVideo" autoplay playsinline muted></video>
-  <p class="fitting-camera__status" id="fittingCameraStatus" role="status">Starting camera…</p>
-  <button type="button" class="fitting-camera__close" id="fittingCameraClose" aria-label="Close camera">×</button>
-  <div class="fitting-camera__controls">
-    <button type="button" class="fitting-camera__button" id="fittingGallery" aria-label="Choose from gallery"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1"></rect><path d="m5 9 10 10M5 5l14 14M9 5l10 10M5 13l6 6"></path></svg></button>
-    <button type="button" class="fitting-camera__shutter" id="fittingShutter" aria-label="Take photo" disabled></button>
-    <button type="button" class="fitting-camera__button" id="fittingFlip" aria-label="Flip camera"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 8a8 8 0 1 0 1 7"></path><path d="M19 4v4h-4"></path></svg></button>
-  </div>
-  <input id="fittingFileInput" type="file" accept="image/png, image/jpeg, image/webp, image/heic, image/heif" hidden>
-</section>
-
-<section class="fitting-confirm" id="fittingConfirm" hidden aria-label="Confirm fitting photo" role="dialog" aria-modal="true">
-  <img id="fittingConfirmPreview" alt="Captured fitting photo">
-  <div class="fitting-confirm__actions"><button type="button" class="btn btn--outline" id="fittingRetake">Retake</button><button type="button" class="btn btn--primary" id="fittingUsePhoto">Use Photo</button></div>
-</section>
-
-<section class="fitting-caption-step" id="fittingCaptionStep" hidden aria-label="Caption fitting photo" role="dialog" aria-modal="true">
-  <div class="fitting-caption-step__preview"><img id="fittingCaptionPreview" alt="Selected fitting photo"></div>
-  <div class="fitting-caption-step__form"><label class="field__label" for="fittingCaption">Revision note</label><textarea class="input" id="fittingCaption" rows="1" placeholder="What changed?" enterkeyhint="done"></textarea><div class="fitting-caption-step__actions"><button type="button" class="btn btn--outline" id="fittingCaptionCancel">Cancel</button><button type="button" class="btn btn--primary" id="fittingCaptionSave">Save</button></div></div>
-</section>
-
 <!-- Pick a customer, then one of their orders, then generate. A sheet rather
      than a route: the choice is transient, has nothing worth sharing or
      reloading, and a two-step route would leave a back-button trap between the
@@ -1524,33 +1432,56 @@
   </div>
 </section>
 
+<!-- Which fitting is this? Asked once, from the order page, before a log
+     exists. The only fitting overlay left: the camera, its confirmation and
+     its caption step went with the journal. -->
 <section class="fitting-picker" id="fittingPicker" hidden aria-label="Choose fitting stage" role="dialog" aria-modal="true"><div class="fitting-picker__backdrop"></div><div class="fitting-picker__sheet"><h2 class="card__title">Which fitting is this?</h2><div id="fittingPickerOptions"></div><button type="button" class="btn btn--outline btn--block" id="fittingPickerCancel">Cancel</button></div></section>
-
-<section class="fitting-edit-sheet" id="fittingEditSheet" hidden aria-label="Edit fitting photo" role="dialog" aria-modal="true"><div class="fitting-edit-sheet__backdrop"></div><div class="fitting-edit-sheet__sheet"><button type="button" class="btn btn--outline btn--block" id="fittingEditCaption">Edit caption</button><button type="button" class="btn btn--outline btn--block" id="fittingRetakePhoto">Retake photo</button><button type="button" class="btn btn--danger btn--block" id="fittingDeletePhoto">Delete</button><button type="button" class="btn btn--outline btn--block" id="fittingEditCancel">Cancel</button></div></section>
 
 <!-- One selected photo, full screen. Deliberately not a gallery: no swipe, no
      next/previous, nothing to get lost inside. -->
 <section class="fitview" id="fittingPhotoViewer" hidden role="dialog" aria-modal="true" aria-label="Fitting photo">
   <button type="button" class="fitview__close" id="fittingPhotoViewerClose" aria-label="Close photo">×</button>
-  <div class="fitview__stage"><img id="fittingPhotoViewerImage" alt=""></div>
+  <!-- The frame shrink-wraps the contained image, so the marks layer inside it
+       covers the photo and not the black around it. -->
+  <div class="fitview__stage"><div class="fitview__frame" id="fittingPhotoViewerFrame"><img id="fittingPhotoViewerImage" alt=""></div></div>
   <p class="fitview__caption" id="fittingPhotoViewerCaption"></p>
 </section>
 
-<!-- Fitting log detail page bottom bar — single "Add photos" action button,
-     safe-area aware, its height published through --bottombar-h. -->
-<div class="fitdet-bar fitdet-bar--single" id="fitdetBar" hidden>
+<!-- One red pen over one fitting photo. A full-screen mode rather than an
+     inline canvas, because drawing inside a scrolling list means every stroke
+     fights the scroll on a phone, and the inline image is too small to mark
+     accurately. The canvas is sized to the contained image, never to this
+     stage, so a mark lands where it was drawn on any screen and in any
+     orientation. -->
+<section class="fitmark" id="fitmark" hidden role="dialog" aria-modal="true" aria-label="Mark fitting photo">
+  <div class="fitmark__bar fitmark__bar--top">
+    <button type="button" class="fitmark__btn" id="fitmarkCancel">Cancel</button>
+    <p class="fitmark__title" id="fitmarkTitle"></p>
+    <button type="button" class="fitmark__btn fitmark__btn--primary" id="fitmarkDone">Done</button>
+  </div>
+  <div class="fitmark__stage" id="fitmarkStage">
+    <img class="fitmark__image" id="fitmarkImage" alt="">
+    <canvas class="fitmark__canvas" id="fitmarkCanvas"></canvas>
+  </div>
+  <div class="fitmark__bar fitmark__bar--tools">
+    <button type="button" class="fitmark__btn" id="fitmarkUndo" disabled>Undo</button>
+    <button type="button" class="fitmark__btn" id="fitmarkClear" disabled>Clear</button>
+  </div>
+  <p class="sr-only" id="fitmarkStatus" role="status" aria-live="polite"></p>
+</section>
+
+<!-- Fitting log detail page bottom bar. Two doors into the workspace: Edit for
+     the log you already have, Add photos for the ones still on the phone. Both
+     land on the same page; Add photos just opens the gallery sheet first. -->
+<div class="fitdet-bar" id="fitdetBar" hidden>
   <div class="fitdet-bar__inner">
-    <button type="button" class="fitdet-bar__btn fitdet-bar__btn--primary" id="fitdetAddBtn">
-      <span class="fitdet-bar__face"><img src="assets/fitlog-add-icon.svg" alt="" width="20" height="20"><span>Add photos</span></span>
+    <button type="button" class="fitdet-bar__btn fitdet-bar__btn--secondary" id="fitdetEditBtn">
+      <span class="fitdet-bar__face"><img src="assets/fitlog-edit-icon.svg" alt="" width="20" height="20"><span>Edit log</span></span>
       <span class="fitdet-bar__rail" aria-hidden="true"></span>
     </button>
-  </div>
-</div>
-
-<div class="fitdet-bar fitdet-bar--single" id="fiteditBar" hidden>
-  <div class="fitdet-bar__inner">
-    <button type="button" class="fitdet-bar__btn fitdet-bar__btn--primary" id="fiteditSaveBtn">
-      <span class="fitdet-bar__face">Save changes</span>
+    <span class="fitdet-bar__rule" aria-hidden="true"></span>
+    <button type="button" class="fitdet-bar__btn fitdet-bar__btn--primary" id="fitdetAddBtn">
+      <span class="fitdet-bar__face"><img src="assets/fitlog-add-icon.svg" alt="" width="20" height="20"><span>Add photos</span></span>
       <span class="fitdet-bar__rail" aria-hidden="true"></span>
     </button>
   </div>
@@ -1574,13 +1505,12 @@
     </button>
     <span class="fitdet-bar__rule" aria-hidden="true"></span>
     <button type="button" class="fitdet-bar__btn fitdet-bar__btn--primary" id="fitaddSaveBtn">
-      <span class="fitdet-bar__face"><span class="fitadd-bar__icon-frame" aria-hidden="true"><svg class="fitadd-bar__icon fitadd-bar__icon--save" viewBox="0 0 16 16"><use href="assets/fitadd-icons.svg#save"></use></svg></span><span id="fitaddSaveFace">Save changes</span></span>
+      <span class="fitdet-bar__face"><span class="fitadd-bar__icon-frame" aria-hidden="true"><svg class="fitadd-bar__icon fitadd-bar__icon--save" viewBox="0 0 16 16"><use href="assets/fitadd-icons.svg#save"></use></svg></span><span id="fitaddSaveFace">Save fitting log</span></span>
       <span class="fitdet-bar__rail" aria-hidden="true"></span>
     </button>
   </div>
 </div>
 
-<div class="fitting-journal__bar" id="fittingJournalBar" hidden><div class="fitting-journal__bar-inner"><button type="button" class="btn btn--primary btn--block" id="fittingJournalAdd">Add Photo</button></div></div>
 
 <!-- Editing views only. Save is the primary action, so it sits in the thumb
      zone rather than in the top-right corner of the app bar. -->

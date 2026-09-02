@@ -7,20 +7,24 @@ Every file is an IIFE assigning one `window.KK.<name>` object at the bottom.
 | Module | `window.KK` name | Lines | Owns | Never does |
 | :--- | :--- | ---: | :--- | :--- |
 | `config.js` | `config` | 27 | Supabase URL, anon key, shared email | Hold secrets |
-| `util.js` | `util` | 214 | Pure formatting, HEIC decode, icons, stage vocabulary | DOM writes, network |
+| `util.js` | `util` | 326 | Pure formatting, HEIC decode, icons, stage vocabulary, annotation data | DOM writes, network |
 | `calendar.js` | `cal` | 460 | Pure date arithmetic, schedule generation, month-grid math | DOM, network |
 | `docs.js` | `docs` | 353 | Quotation/invoice layout, watermark, PDF export | Touch the database |
 | `moodboard.js` | `moodboard` | 724 | Canvas layout solver, mosaic engine, PDF snapshot | Routing |
-| `fittings.js` | `fittings` | 731 | Journal UI adapter, camera overlays, image preparation, Drive archival | Own a route |
-| `fitting-pdf.js` | `fittingPdf` | 290 | Pure A4 page geometry for the fitting-log snapshot | DB, Drive, toast, save |
+| `fittings.js` | `fittings` | 284 | Image preparation, local URL ownership, Drive archival, stage picker | Own a route, render a page |
+| `fitting-pdf.js` | `fittingPdf` | 319 | Pure A4 page geometry and red-mark rendering for the fitting handoff sheet | DB, Drive, toast, save |
 | `db.js` | `db` | 556 | **Sole** Supabase + Edge Function gateway | Render |
-| `app.js` | (composition root) | 8120 | Router, state, all controllers, all listeners | — see [MAP-app.md](MAP-app.md) |
+| `app.js` | (composition root) | 8943 | Router, state, all controllers, all listeners | — see [MAP-app.md](MAP-app.md) |
 
 ---
 
-## util.js — `KK.util` (read whole, 214 lines; tested)
+## util.js — `KK.util` (read whole, 326 lines; tested)
 
-`MONTHS` · `ICONS` · `FITTING_STAGES` · `fittingStage` · `jakartaDateISO` · `formatJakartaLongDate` · `$` · `$$` · `digitsOnly` · `escapeHtml` · `formatRupiah` · `groupDigits` · `reformatPriceField` · `formatLongDate` · `formatShortDate` · `todayISO` · `sanitizeForFilename` · `isHeic` · `convertHeicToJpeg` · `hashString`
+`MONTHS` · `ICONS` · `FITTING_STAGES` · `fittingStage` · `jakartaDateISO` · `formatJakartaLongDate` · `$` · `$$` · `digitsOnly` · `escapeHtml` · `formatRupiah` · `groupDigits` · `reformatPriceField` · `formatLongDate` · `formatShortDate` · `todayISO` · `sanitizeForFilename` · `isHeic` · `convertHeicToJpeg` · `hashString` · `mulberry32`
+
+Annotations: `ANNOTATION_VERSION` · `ANNOTATION_MAX_STROKES` · `ANNOTATION_MAX_POINTS` · `ANNOTATION_COLOR` · `ANNOTATION_DEFAULT_WIDTH` · **`normalizeAnnotation`** · `annotationStrokeCount` · **`annotationSvg`**
+
+`normalizeAnnotation` is the one gate a photo's red markup passes through, on the way in from the canvas and on the way out of the database alike: it clamps every coordinate to 0..1, rounds to 4 decimals, drops malformed strokes, enforces the caps, and returns `null` rather than an empty object. `annotationSvg` builds the read-only overlay — its `viewBox` is the natural image size, so it letterboxes exactly the way an `object-fit: contain` `<img>` in the same box does and needs no measurement in JavaScript.
 
 Pure. Covered by `tests/pure-modules.test.cjs`. Any change here needs the test suite run.
 
@@ -47,12 +51,14 @@ The month-grid half serves the schedules calendar. Three rules live there rather
 
 Receives an order object, fills `#quotation` / `#invoice` in `index.html` (locked spec, lines 1412–1577), snapshots via html2canvas + jsPDF. Never queries. `app.js` `downloadDocument` (4825) supplies data and logs the result.
 
-## fitting-pdf.js — `KK.fittingPdf` (read whole, 290 lines)
+## fitting-pdf.js — `KK.fittingPdf` (read whole, 319 lines)
 
-Geometry constants: `PAGE_W` `PAGE_H` `MARGIN` `CONTENT_W` `BODY_H` `CAPTION_LINE_H` `CAPTION_GAP` `MIN_IMAGE_H`
-Functions: `fitContain` · `captionPageCapacity` · `planPhotoPage` · `buildFilename`
+Geometry constants: `PAGE_W` `PAGE_H` `MARGIN` `CONTENT_W` `HEADER_H` `BODY_TOP` `BODY_H` `CAPTION_LINE_H` `CAPTION_GAP` `MIN_IMAGE_H` `MARK`
+Functions: `fitContain` · `captionPageCapacity` · `planPhotoPage` · `annotationSegments` · `buildFilename` · `generate`
 
-Pure. Given image dimensions and captions it returns a page plan. `app.js` `downloadFittingPdf` (2338) resolves every image, owns busy UI, and saves.
+Pure. Given image dimensions, captions and annotations it returns a page plan and paints the document. `app.js` `downloadFittingPdf` (4520) resolves every image, owns busy UI, and saves.
+
+**No cover page; one fitting photo is one page.** Six photos make six pages. `annotationSegments` maps normalized strokes onto the box the image actually occupies on the page and is exported so the coordinate mapping is unit-tested without a PDF engine. `fitContain` is also what `app.js` uses to size the annotation canvas, so the browser and the page agree on where a mark belongs.
 
 ## moodboard.js — `KK.moodboard` (724 lines)
 
@@ -60,19 +66,36 @@ Pure. Given image dimensions and captions it returns a page plan. `app.js` `down
 
 Layout solver for 16:9 and 9:16 mosaics; both orientations are exact counterparts (asserted in tests). `app.js` moodboard region (4278–4687) owns the route, gestures, and export.
 
-## fittings.js — `KK.fittings` (731 lines)
+## fittings.js — `KK.fittings` (284 lines)
 
-`usableBlob` · `compressImage` · **`prepareImage`** · `FITTING_IMAGE_MAX_DIMENSION` · `FITTING_IMAGE_QUALITY` · `base64` · `thumbURL` · `imageURL` · `localURLs` · `archivePhoto` · **`backupPhoto`** · **`waitForSessionBackups`** · `isBackingUp(photoId)` · `hasPendingBackups(sessionId)` · `consumeBackupFailures` · **`attachSession(state)`** · `detachSession` · `addPhoto` · `releaseLocalURL` · `adoptLocalURL` · `showStagePicker` · `endSession` · `renderJournal` · `renderHistoryList` · `bindOverlays` · `openCamera` · `closeCamera` · `closeAll`
+`isHeic` · `usableBlob` · `compressImage` · **`prepareImage`** · `FITTING_IMAGE_MAX_DIMENSION` · `FITTING_IMAGE_QUALITY` · `base64` · `thumbURL` · `imageURL` · `localURLs` · `releaseLocalURL` · `adoptLocalURL` · `archivePhoto` · **`backupPhoto`** · **`waitForSessionBackups`** · `isBackingUp(photoId)` · `hasPendingBackups(sessionId)` · `consumeBackupFailures` · `showStagePicker` · `bindOverlays` · `closeAll`
 
-**Shared image-preparation contract:** every fitting photo — journal capture, gallery selection, the Add fitting photos batch, and individual replacement — goes through `prepareImage(fileOrBlob)`, which converts HEIC when needed and returns an `image/jpeg` blob scaled so its **longest edge is at most `FITTING_IMAGE_MAX_DIMENSION` (2560)** at **`FITTING_IMAGE_QUALITY` (0.90)**. `compressImage(file, maxDimension, quality)` stays exported for callers that need other numbers; it scales on `Math.max(naturalWidth, naturalHeight)`, so a portrait photo is capped by its height. Do not inline new size or quality constants.
+The camera journal is retired. This module owns no route, draws no page, and has
+one overlay left — the stage picker that asks which fitting a new log is for.
 
-`backupPhoto(photoRecord, pendingRecord, sessionState)` is the archival half of the save path for a page that already owns the durable record: it registers the upload with the pending-backup set (so `isBackingUp` / `hasPendingBackups` / `consumeBackupFailures` stay truthful) and returns the tracked promise. `app.js` `startAddBackups` uses it after the atomic metadata save.
+**Shared image-preparation contract:** every fitting photo goes through
+`prepareImage(fileOrBlob)`, which converts HEIC when needed and returns an
+`image/jpeg` blob scaled so its **longest edge is at most
+`FITTING_IMAGE_MAX_DIMENSION` (2560)** at **`FITTING_IMAGE_QUALITY` (0.90)**.
+`compressImage(file, maxDimension, quality)` stays exported for callers that need
+other numbers; it scales on `Math.max(naturalWidth, naturalHeight)`, so a portrait
+photo is capped by its height. Do not inline new size or quality constants.
 
-Two integration styles:
-- A page that owns its own markup calls `attachSession({ …, onChange })` — this is what the fitting-log detail page does.
-- The journal route calls `renderJournal` and lets `fittings.js` draw.
+**Archival contract:** Drive holds the original photo and only the original
+photo. A red mark is vector data on the row, so nothing about it is uploaded and
+no derivative image is ever created — the clean original stays the truth, and the
+PDF is the shareable annotated artifact.
 
-`waitForSessionBackups` is the pending-Drive-upload registry. Never mark a session complete without awaiting it.
+`backupPhoto(photoRecord, pendingRecord, context)` is the archival half of the
+save path for a page that already owns the durable record: it registers the
+upload with the pending-backup set (so `isBackingUp` / `hasPendingBackups` /
+`consumeBackupFailures` stay truthful) and returns the tracked promise. `app.js`
+`startAddBackups` uses it **after** the atomic metadata save — uploading first
+would strand archive files whenever the transaction failed. A Drive failure is
+reported once and never rolls back a saved log.
+
+`waitForSessionBackups` is the pending-Drive-upload registry; `downloadFittingPdf`
+awaits it so the document and the archive describe the same session.
 
 ---
 

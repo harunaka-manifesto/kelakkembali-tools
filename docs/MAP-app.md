@@ -1,4 +1,4 @@
-# MAP — app.js (8507 lines, ~338 KB)
+# MAP — app.js (8943 lines, ~356 KB)
 
 **Never read this file whole.** It costs ~60k tokens. Jump to a region below, read ≤400 lines.
 
@@ -12,70 +12,77 @@ One IIFE. Everything is file-scoped; there is no class, no module, no split. Reg
 | ---: | :--- | :--- | :--- |
 | 1–11 | File header, `window.KK` root | `SPA composition root` | Never |
 | 12–21 | Dependency aliases (`db`, `util`, `cal`, `docs`…) | `Core Dependencies & Helper Aliases` | Resolving what `u.` / `cal.` mean |
-| 22–38 | Domain constants (statuses, stages, copy) | `Domain Constants` | Adding a status/stage value |
-| 39–44 | SVG icon aliases | `SVG Icons` | Adding an icon |
-| 45–324 | **Element registry** — every `$("#id")` handle | `Element Registry` | You added DOM to `index.html` and need a handle |
-| 325–507 | **Application state** object | `Application State` | Adding page state; read 322–503 in full |
-| 508–623 | UI chrome: toast, dirty flag, save bar, app bar, menu | `UI Utilities & Chrome` | Changing bars, toasts, page actions |
-| 624–783 | **Router**: curtain, route loader, error, focus | `Routing & View Transition` | Adding a route |
-| 784–2083 | Status derivation, lifecycle, follow-up, `handleRoute` dispatch, homepage | `Status Helpers & Data Transformations` | Status/pipeline logic, route dispatch, homepage |
-| 2084–2710 | **Schedules calendar** (month grid, lanes, day sheet, keyboard) | `Schedules calendar` | Calendar work |
-| 2711–3302 | **Fitting logs feed** (list, paging, filters, parking) | `Fitting logs feed` | Feed work |
-| 3303–4070 | **Document feed** (quotations + invoices list, new-document picker) | `Document feed` | Quotation/invoice list work |
-| 4071–4586 | **Fitting log detail** (photos, share, PDF, viewer) | `Fitting log session detail` | Detail page work |
-| 4587–4900 | **Fitting photo editor** (caption, replace, delete) | `Fitting photo editor` | Editor work |
-| 4901–6065 | **Add fitting photos** (batch review, captions, staged deletes, atomic save) | `Add fitting photos` | Batch add/edit page work |
-| 6066–6346 | **Customer detail + editor** (and enquiry review) | `Customer Detail & Edit Controller` | Customer pages, Tally intake UI |
-| 6347–6926 | **Order detail** view model, render, schedule, payments | `Order Detail ViewModel & UI` | Order detail page |
-| 6927–7323 | **Order editor + cost calculator** (items, terms, chips) | `Order Editor & Cost Calculator` | Order editing, pricing |
-| 7324–7733 | **Moodboard integration** (canvas, overlay, gestures) | `Moodboard Integration` | Moodboard page glue |
-| 7734–8003 | **Exports**: PDFs, deposit logging, Drive reconnect | `Exports` | Document/PDF export flows |
-| 8004–8455 | **`bindEvents`** — every listener, one function | `Boot & Event Listeners` | Wiring a new control |
-| 8456–8507 | Gate, boot, session restore | `App Boot` | Auth/boot changes |
+| 22–50 | Domain constants (statuses, stages, copy) | `Domain Constants` | Adding a status/stage value |
+| 51–56 | SVG icon aliases | `SVG Icons` | Adding an icon |
+| 57–338 | **Element registry** — every `$("#id")` handle | `Element Registry` | You added DOM to `index.html` and need a handle |
+| 339–535 | **Application state** object | `Application State` | Adding page state; read 339–535 in full |
+| 536–650 | UI chrome: toast, dirty flag, save bar, app bar, menu | `UI Utilities & Chrome` | Changing bars, toasts, page actions |
+| 651–806 | **Router**: curtain, route loader, error, focus | `Routing & View Transition` | Adding a route |
+| 807–2109 | Status derivation, lifecycle, follow-up, `handleRoute` dispatch, homepage | `Status Helpers & Data Transformations` | Status/pipeline logic, route dispatch, homepage |
+| 2110–2814 | **Schedules calendar** (month grid, lanes, day sheet, keyboard) | `Schedules calendar` | Calendar work |
+| 2815–3406 | **Fitting logs feed** (list, paging, filters, parking) | `Fitting logs feed` | Feed work |
+| 3407–4242 | **Document feed** (quotations + invoices list, new-document picker) | `Document feed` | Quotation/invoice list work |
+| 4243–4819 | **Fitting log detail** (photos, marks, share, PDF, viewer) | `Fitting log session detail` | Detail page work |
+| 4820–6294 | **Fitting workspace** (photos, captions, red marks, staged deletes, atomic save) | `Add fitting photos` | Workspace work — includes the `Photo annotation` sub-region at 5486 |
+| 6295–6760 | **Customer detail + editor** (and enquiry review) | `Customer Detail & Edit Controller` | Customer pages, Tally intake UI |
+| 6761–7340 | **Order detail** view model, render, schedule, payments | `Order Detail ViewModel & UI` | Order detail page |
+| 7341–7747 | **Order editor + cost calculator** (items, terms, chips) | `Order Editor & Cost Calculator` | Order editing, pricing |
+| 7748–8157 | **Moodboard integration** (canvas, overlay, gestures) | `Moodboard Integration` | Moodboard page glue |
+| 8158–8427 | **Exports**: PDFs, deposit logging, Drive reconnect | `Exports` | Document/PDF export flows |
+| 8428–8892 | **`bindEvents`** — every listener, one function | `Boot & Event Listeners` | Wiring a new control |
+| 8893–8943 | Gate, boot, session restore | `App Boot` | Auth/boot changes |
 
 ### Region read recipes
 
 ```
-Read app.js offset=45   limit=231   # element registry
-Read app.js offset=322  limit=182   # state shape
-Read app.js offset=620  limit=160   # router
-Read app.js offset=1722 limit=400   # schedules calendar (first half)
-Read app.js offset=2941 limit=400   # document feed (first half)
-Read app.js offset=5973 limit=400   # order detail (first half)
-Read app.js offset=7630 limit=440   # bindEvents
+Read app.js offset=57   limit=282   # element registry
+Read app.js offset=339  limit=197   # state shape
+Read app.js offset=651  limit=156   # router
+Read app.js offset=2110 limit=400   # schedules calendar (first half)
+Read app.js offset=3407 limit=400   # document feed (first half)
+Read app.js offset=4243 limit=400   # fitting log detail
+Read app.js offset=5486 limit=345   # photo annotation overlay
+Read app.js offset=6761 limit=400   # order detail (first half)
+Read app.js offset=8428 limit=400   # bindEvents
 ```
 
 ---
 
 ## 2. Routes → handler
 
-Parsed in `handleRoute` at **968** (hash segments). Each returns `{ view, id?, kind?, sessionId?, photoId?, query }`.
+Parsed in `handleRoute` at **995** (hash segments). Each returns `{ view, id?, kind?, sessionId?, photoId?, query }`.
 
 | Hash | `view` | Entry function | Line |
 | :--- | :--- | :--- | ---: |
-| `#/` | `customers` | `showCustomers` | 1565 |
-| `#/customer/:id` | `customer` | `showCustomerDetail` | 5694 |
-| `#/customer/:id/edit` | `customerEdit` | `showCustomerEdit` | 5719 |
-| `#/order/:id` | `order` | `showOrderDetail` | 6316 |
+| `#/` | `customers` | `showCustomers` | 1923 |
+| `#/customer/:id` | `customer` | `showCustomerDetail` | 6482 |
+| `#/customer/:id/edit` | `customerEdit` | `showCustomerEdit` | 6507 |
+| `#/order/:id` | `order` | `showOrderDetail` | 7104 |
 | `#/order/:id/edit` | `orderEdit` | (dispatch in `handleRoute`) | — |
 | `#/customer/:id/order/new/edit` | `orderEdit` (`id` is `"new"`) | (dispatch in `handleRoute`) | — |
-| `#/order/:id/moodboard` | `moodboard` | `setupMoodboardListeners` | 6970 |
-| `#/order/:id/moodboard/preview` | `moodboardPreview` | `openMoodboardCanvas` | 7102 |
-| `#/schedules` | `schedules` | `showSchedules` | 2294 |
-| `#/quotations` | `documents` (kind `quotation`) | `showDocuments` | 3279 |
-| `#/invoices` | `documents` (kind `invoice`) | `showDocuments` | 3279 |
-| `#/fittings` | `fittingLogs` | `showFittingLogs` | 2865 |
-| `#/fittings/:sessionId` | `fittingLogDetail` | `showFittingLogDetail` | 4165 |
-| `#/fittings/:sessionId/photo/:photoId/edit` | `fittingPhotoEdit` | `showFittingPhotoEditor` | 4397 |
-| `#/fittings/:sessionId/photos/add` | `fittingPhotoAdd` | `showFittingPhotoAdd` | 5394 |
-| `#/order/:id/fitting/new` | `fittingNew` | (dispatch in `handleRoute`) | — |
-| `#/order/:id/fitting/:sessionId` | `fittingJournal` | (dispatch in `handleRoute`) | — |
-| `#/calendar` | `calendar` | `showCalendarSettings` | 6581 |
-| `#/enquiry/:id` | `enquiry` | `readableAnswer` / `acceptEnquiry` | 5536 |
+| `#/order/:id/moodboard` | `moodboard` | `setupMoodboardListeners` | 7768 |
+| `#/order/:id/moodboard/preview` | `moodboardPreview` | `openMoodboardCanvas` | 7900 |
+| `#/schedules` | `schedules` | `showSchedules` | 2759 |
+| `#/quotations` | `documents` (kind `quotation`) | `showDocuments` | 3745 |
+| `#/invoices` | `documents` (kind `invoice`) | `showDocuments` | 3745 |
+| `#/fittings` | `fittingLogs` | `showFittingLogs` | 3331 |
+| `#/fittings/:sessionId` | `fittingLogDetail` | `showFittingLogDetail` | 4691 |
+| `#/fittings/:sessionId/edit` | `fittingPhotoAdd` | `showFittingPhotoAdd` | 6117 |
+| `#/fittings/:sessionId/photos/add` | `fittingPhotoAdd` (synonym) | `showFittingPhotoAdd` | 6117 |
+| `#/fittings/:sessionId/photo/:photoId/edit` | `fittingPhotoRedirect` | (redirect in `handleRoute`) | — |
+| `#/order/:id/fitting/new` | `fittingNew` | (dispatch in `handleRoute`) | 1326 |
+| `#/order/:id/fitting/:sessionId` | `fittingLogRedirect` | (redirect in `handleRoute`) | — |
+| `#/calendar` | `calendar` | `showCalendarSettings` | 7369 |
+| `#/enquiry/:id` | `enquiry` | `readableAnswer` / `acceptEnquiry` | 6306 |
+
+Two fitting routes exist only to keep old links working, and neither renders a
+view: `fittingPhotoRedirect` is the retired per-photo editor, which now opens the
+workspace on the photo it named, and `fittingLogRedirect` is the retired
+order-scoped journal, which joins the canonical detail route.
 
 `#/calendar` is the Google Calendar **connection settings**, not the month view. The month view is `#/schedules` — that collision is why it is not called `#/calendar`.
 
-**Adding a route:** add a segment case in the parse block inside `handleRoute`, add a `showX` entry function in the matching region, add the `<section class="view" id="viewX" hidden>` to `index.html`, register its elements at 45–321, add state at 322–503 if it needs any. Then check the five other route surfaces the same edit touches: view toggling, `routeHasOwnLoader`/`routeLoaderKind`, `focusRoute`, `syncBottomBar`, and cleanup on leaving. That is the whole checklist.
+**Adding a route:** add a segment case in the parse block inside `handleRoute`, add a `showX` entry function in the matching region, add the `<section class="view" id="viewX" hidden>` to `index.html`, register its elements at 57–338, add state at 339–535 if it needs any. Then check the five other route surfaces the same edit touches: view toggling, `routeHasOwnLoader`/`routeLoaderKind`, `focusRoute`, `syncBottomBar`, and cleanup on leaving. That is the whole checklist.
 
 **Route coupling worth knowing:** the fitting feed keeps its state across the whole `FITTING_ROUTE_FAMILY`; the document feed has no family and parks **only** on the `documents → order` hop, because that is the one navigation that leaves the list and comes straight back. The schedules calendar never parks — its data is a snapshot that must not survive a write — but it does retain the month on screen.
 
@@ -109,16 +116,16 @@ Look up here instead of grepping. Arrow-function helpers are marked `→`.
 `handleSchedulesGridKey` 2250 · `cleanupSchedules` 2276 · **`showSchedules`** 2294
 
 ### Fitting logs feed
-`feed` →2373 · `isFittingRoute` →2374 · `fittingStageLabel` 2376 · `fittingStageListText` 2381 · `fittingPhotoText` →2387 · `fittingBlockHtml` 2391 · `fittingCardHtml` 2398 · `fittingSkeletonHtml` 2448 · `fittingPanelHtml` 2466 · `fittingEmptyHtml` 2477 · `fittingStateHtml` 2501 · `announceFittingStatus` 2532 · `renderFittingStages` 2539 · `renderFittingSearchClear` 2546 · `renderFittingFeed` 2554 · `fittingPhotoSuffix` →2581
+`feed` →2839 · `isFittingRoute` →2840 · `fittingStageLabel` 2842 · `fittingStageListText` 2847 · `fittingPhotoText` →2853 · `fittingBlockHtml` 2857 · `fittingCardHtml` 2864 · `fittingSkeletonHtml` 2914 · `fittingPanelHtml` 2932 · `fittingEmptyHtml` 2943 · `fittingStateHtml` 2967 · `announceFittingStatus` 2998 · `renderFittingStages` 3005 · `renderFittingSearchClear` 3012 · `renderFittingFeed` 3020 · `fittingPhotoSuffix` →3047
 
 ### Feed requests & paging
-`fittingRequestArgs` 2585 · `ensureFittingObserver` 2597 · `stopFittingObserver` 2606 · `startFittingFirstPage` 2614 · `loadMoreFittingLogs` 2647 · `cleanupFittingLogs` 2687 · `inFittingFamily` →2709 · `parkFittingLogs` 2714
+`fittingRequestArgs` 3051 · `ensureFittingObserver` 3063 · `stopFittingObserver` 3072 · `startFittingFirstPage` 3080 · `loadMoreFittingLogs` 3113 · `cleanupFittingLogs` 3153 · `inFittingFamily` →3175 · `parkFittingLogs` 3180
 
 ### Search focus space
-`alignLedgerSearch` 2732 · `alignFittingSearch` 2746 · `scheduleFittingSearchAlign` 2753
+`alignLedgerSearch` 3198 · `alignFittingSearch` 3212 · `scheduleFittingSearchAlign` 3219
 
 ### Route entry
-**`showFittingLogs`** 2865 · `restoreFittingScroll` 2923 · `setFittingBackControl` 2934 · **`showFittingLogDetail`** 4165 · **`showFittingPhotoAdd`** 5394
+**`showFittingLogs`** 3331 · `restoreFittingScroll` 3389 · `setFittingBackControl` 3400 · **`showFittingLogDetail`** 4691 · **`showFittingPhotoAdd`** 6117
 
 ### Document feed
 `docFeed` →2954 · `isDocumentsRoute` →2955 · `documentKindName` →2957 · `documentKindPlural` →2958 · `documentRouteFor` →2959 · `documentBlockHtml` 2961 · `documentCardHtml` 2968 · `documentSkeletonHtml` 3007 · `documentPanelHtml` 3025 · `documentEmptyHtml` 3035 · `documentStateHtml` 3052 · `announceDocumentStatus` 3082 · `renderDocumentSearchClear` 3089 · `renderDocumentFeed` 3093 · `documentRequestArgs` 3122 · `ensureDocumentObserver` 3132 · `stopDocumentObserver` 3141 · `startDocumentFirstPage` 3149 · `loadMoreDocuments` 3180 · `cleanupDocuments` 3216 · `parkDocuments` 3237 · `alignDocumentSearch` 3246 · `scheduleDocumentSearchAlign` 3251 · `setDocumentBackControl` 3261 · `restoreDocumentScroll` 3268 · **`showDocuments`** 3279
@@ -130,67 +137,73 @@ Look up here instead of grepping. Arrow-function helpers are marked `→`.
 `openDocumentPickerReload` 3679
 
 ### Fitting log session detail
-`detail` →3715 · `editor` →3716 · `isDetailRoute` →3717 · `isEditorRoute` →3718 · `invalidateFittingFeed` 3725 · `sortFittingPhotos` 3736 · `fittingPhotoState` 3744 · `fittingPhotoDisplayURL` →3752
+`detail` →4250 · `isDetailRoute` →4251 · `FITTING_IMAGE_MAX` →4256 · `invalidateFittingFeed` 4258 · `sortFittingPhotos` 4269 · `fittingPhotoState` 4277 · `fittingPhotoDisplayURL` →4285
 
 ### Detail render
-`fittingDetailCardHtml` 3757 · `fittingDetailEmptyHtml` 3811 · `announceDetailStatus` 3824 · `renderFittingDetail` 3829
+`fittingDetailCardHtml` 4290 · `fittingDetailEmptyHtml` 4349 · `announceDetailStatus` 4362 · `renderFittingDetail` 4367
 
 ### Photo bytes
-`fittingPhotoBlob` 3872 · `blobToDataUrl` 3895 · `measureImage` 3904 · `fittingShareFilename` 3913
+`fittingPhotoBlob` 4410 · `blobToDataUrl` 4433 · `measureImage` 4442 · `fittingShareFilename` 4451
 
 ### Sharing
-`shareFittingPhoto` 3928
+`shareFittingPhoto` 4466
 
 ### PDF download
-**`downloadFittingPdf`** 3982
+**`downloadFittingPdf`** 4520
 
 ### Photo viewer
-`openFittingPhotoViewerImage` 4051 · `openFittingPhotoViewer` 4063 · `closeFittingPhotoViewer` 4075
+`openFittingPhotoViewerImage` 4589 · `openFittingPhotoViewer` 4608 · `closeFittingPhotoViewer` 4621
 
-### Active-session actions
-`fittingDetailBridge` 4089 · `addFittingDetailPhoto` 4110 · `detailPhotosPicked` 4118 · `deleteFittingDetailLog` 4126 · `cleanupFittingDetail` 4150
+### Photo entry & deletion
+`addFittingDetailPhoto` 4639 · `detailPhotosPicked` 4647 · `deleteFittingDetailLog` 4655 · `cleanupFittingDetail` 4679 · **`showFittingLogDetail`** 4691
 
-### Fitting photo editor
-`fittingEditorDirty` 4228 · `syncFittingEditorDirty` 4235 · `renderFittingEditor` 4239 · `clearStagedReplacement` 4261 · `stageFittingReplacement` 4267 · `saveFittingEditor` 4289 · `deleteFittingEditorPhoto` 4354 · `cleanupFittingEditor` 4385 · **`showFittingPhotoEditor`** 4397
+### Detail event wiring
+`setupFittingDetailListeners` 4749
 
-### Detail & editor event wiring
-`setupFittingDetailListeners` 4458
-
-### Add fitting photos
-`add` →4544 · `isAddRoute` →4545 · `addDetailHash` →4550
+### Fitting workspace
+`add` →4827 · `isAddRoute` →4828 · `FITTING_PHOTO_LIMIT` →4830 · `FITTING_UNDO_MS` →4831 · `addDetailHash` →4833
 
 ### Derived state
-`addVisibleExisting` →4555 · `addVisibleCount` →4556 · `addRemainingSlots` →4557 · `addCaptionFor` 4559 · `addDraftByKey` →4564 · `addExistingById` →4565 · `addSavedCaptionForKey` 4568 · `addDirty` 4575 · `syncAddDirty` →4592 · `announceAddStatus` 4594
+`addVisibleExisting` →4838 · `addVisibleCount` →4839 · `addRemainingSlots` →4840 · `addCaptionFor` 4842 · `addAnnotationFor` 4850 · `addDraftByKey` →4857 · `addExistingById` →4858 · `addSavedCaptionForKey` 4861 · `addAnnotationJson` →4870 · `addDirty` 4872 · `syncAddDirty` →4895 · `announceAddStatus` 4897
 
 ### Local drafts
-`makeAddDraft` 4606 · `releaseAddDraft` 4627 · `removeAddDraft` 4634 · `admitAddFiles` 4644
+`makeAddDraft` 4909 · `releaseAddDraft` 4931 · `removeAddDraft` 4938 · `admitAddFiles` 4948
 
 ### Sequential preparation
-`runAddPreparationQueue` 4668 · `reportAddPreparationFailures` 4720
+`runAddPreparationQueue` 4972 · `reportAddPreparationFailures` 5024
 
 ### Undo toast
-`clearAddUndo` 4741 · `showAddUndo` 4750 · `undoAddDeletion` 4761 · `cssEscapeAttr` →4788
+`clearAddUndo` 5045 · `showAddUndo` 5054 · `undoAddDeletion` 5065 · `cssEscapeAttr` →5092
 
 ### Render
-`fitaddStageHtml` 4792 · `fitaddIconHtml` 4809 · `fitaddActionHtml` 4814 · `fitaddCardHtml` 4826 · `fitaddDraftStatusHtml` 4871 · `fitaddSkeletonHtml` 4879 · `fitaddStateHtml` 4889 · `captureAddFocus` 4914 · `restoreAddFocus` 4920 · **`renderFittingPhotoAdd`** 4933 · `patchAddDraftCard` 5011 · `renderAddBar` 5043
+`fitaddStageHtml` 5096 · `fitaddIconHtml` 5115 · `fitaddActionHtml` 5120 · `fitaddCardHtml` 5132 · `fitaddDraftStatusHtml` 5190 · `fitaddSkeletonHtml` 5198 · `fitaddStateHtml` 5208 · `captureAddFocus` 5233 · `restoreAddFocus` 5239 · **`renderFittingPhotoAdd`** 5252 · `patchAddDraftCard` 5338 · `renderAddBar` 5373
 
 ### Card actions
-`growAddTextarea` 5068 · `openAddEditor` 5073 · `closeAddEditor` 5092 · `saveAddEditor` 5103 · `deleteAddCard` 5119 · `focusFirstOpenAddEditor` 5146
+`growAddTextarea` 5398 · `openAddEditor` 5403 · `closeAddEditor` 5422 · `saveAddEditor` 5433 · `deleteAddCard` 5449 · `focusFirstOpenAddEditor` 5476
+
+### Photo annotation
+`mark` →5495 · `markStrokesJson` →5496 · `fittingMarkSource` 5500 · `fittingMarkNumber` 5513 · **`layoutFittingMark`** 5528 · `redrawFittingMark` 5555 · `drawFittingMarkStroke` 5564 · **`fittingMarkPoint`** 5600 · `onFittingMarkDown` 5607 · `onFittingMarkMove` 5632 · `onFittingMarkUp` 5670 · `undoFittingMark` 5684 · `clearFittingMark` 5695 · `syncFittingMarkTools` 5704 · `fittingMarkImageReady` 5710 · **`openFittingMark`** 5723 · `commitFittingMark` 5784 · `closeFittingMark` 5800
+
+`layoutFittingMark` is the one that matters: it sizes the canvas to the box the
+photo actually occupies (`KK.fittingPdf.fitContain`), not to the stage around it.
+A canvas stretched over the whole stage would put every mark off by exactly the
+letterbox bars. `fittingMarkPoint` then reads pointer coordinates against that
+canvas and clamps them to 0..1, so nothing is ever stored outside the image.
 
 ### Picker entry
-`addPhotosFromReview` 5158 · `addPhotosPicked` 5164
+`addPhotosFromReview` 5833 · `addPhotosPicked` 5839
 
 ### Saving
-**`saveFittingPhotoAdd`** 5184
+**`saveFittingPhotoAdd`** 5859
 
 ### Drive backup handoff
-`applyAddBackupResult` 5296 · `startAddBackups` 5305
+`applyAddBackupResult` 5989 · `startAddBackups` 5997
 
 ### Lifecycle
-`resetFittingPhotoAdd` 5335 · `cleanupFittingPhotoAdd` 5367 · `seedFittingPhotoAdd` 5377
+`resetFittingPhotoAdd` 6027 · `discardProvisionalFittingLog` 6067 · `cleanupFittingPhotoAdd` 6075 · `seedFittingPhotoAdd` 6086 · `scrollToFocusPhoto` 6106 · **`showFittingPhotoAdd`** 6117
 
 ### Event wiring
-`setupFittingPhotoAddListeners` 5466 · `readableAnswer` 5536 · `acceptEnquiry` 5547 · `dismissEnquiry` 5578 · `renderCustomerList` 5592 · `homepageStatus` 5616 · `compareHomepageCustomers` 5636 · `isActive` →5654 · `nextDeadline` 5656 · `relativeDays` →5669 · `firstName` →5670 · `daysUntil` →5682 · `isApproximateWedding` →5683 · `weddingText` 5685
+`setupFittingPhotoAddListeners` 6198 · `readableAnswer` 6295 · `acceptEnquiry` 6306 · `dismissEnquiry` 6337 · `renderCustomerList` 6351 · `homepageStatus` 6387 · `compareHomepageCustomers` 6407 · `isActive` →6425 · `nextDeadline` 6427 · `relativeDays` →6440 · `firstName` →6441 · `daysUntil` →6470 · `isApproximateWedding` →6471 · `weddingText` 6473
 
 ### Customer Detail & Edit Controller
 **`showCustomerDetail`** 5694 · **`showCustomerEdit`** 5719 · `renderCustomerReadOnly` 5763 · `custNextEvent` 5773 · `custOrderStatus` 5795 · `renderCustomerDetail` 5803 · `relativeToToday` 5849 · `fillCustomerForm` 5856 · `setNameError` 5873 · `setWeddingPrecision` 5881 · `weddingPrecision` →5892 · `lastDayOfMonth` 5894 · **`saveCustomer`** 5901 · `scheduleFor` →5970
@@ -214,7 +227,8 @@ Look up here instead of grepping. Arrow-function helpers are marked `→`.
 
 ## 4. Coupling notes (read before a broad refactor)
 
-- `bindEvents` (6017–6361) is one function holding every listener. Adding a control means adding one block here — do not split it. The fitting pages keep their own wiring in `setupFittingDetailListeners` 2904 and `setupFittingPhotoAddListeners` 3893, both called from it.
-- The element registry (45–275) and `state` (276–400) are the two shared surfaces every region touches. A change here is repo-wide; treat it as a >5-file edit.
-- The four fitting routes (feed / detail / editor / add) share `state.fittingLogs` parking, and detail + add share photo records through `state.fittingDetail.photos`. Changing one usually means checking `parkFittingLogs` 1918, `cleanupFittingLogs` 1891, and `setFittingBackControl` 2130.
+- `bindEvents` (8428–8892) is one function holding every listener. Adding a control means adding one block here — do not split it. The fitting pages keep their own wiring in `setupFittingDetailListeners` 4749 and `setupFittingPhotoAddListeners` 6198, both called from it.
+- The element registry (57–338) and `state` (339–535) are the two shared surfaces every region touches. A change here is repo-wide; treat it as a >5-file edit.
+- The three fitting routes (feed / detail / workspace) share `state.fittingLogs` parking, and detail + workspace share photo records through `state.fittingDetail.photos`. Changing one usually means checking `parkFittingLogs` 3079, `cleanupFittingLogs` 3052, and `setFittingBackControl` 3400.
+- The workspace owns the annotation overlay outright: `state.fittingPhotoAdd.mark` is the only place a stroke lives before it is committed, and `closeFittingMark` is the only writer of `annotationPatches`. The detail page and the PDF are pure readers of `photo.annotation`.
 - Order detail and order editor share nothing but `db.getOrder`. Editing one does not require reading the other.

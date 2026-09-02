@@ -55,7 +55,7 @@ KK.db = (function () {
   const PROJECTION_CUSTOMERS = 'id,name,phone,instagram,source,wedding_date,wedding_date_precision,notes,moodboard_date,cancelled_at,cancelled_reason,follow_up_date,follow_up_label,follow_up_google_event_id,follow_up_synced_at,created_at';
   const PROJECTION_ORDERS = 'id,customer_id,title,doc_name,document_date,status,items,includes,payment_scheme,payment_terms,first_payment_date,second_payment_date,final_payment_date,created_at';
   const PROJECTION_ORDER_EVENTS = 'id,order_id,stage,event_date,end_date,pinned,google_event_id,synced_at';
-  const PROJECTION_FITTING_PHOTOS = 'id,order_id,session_id,stage,caption,drive_file_id,drive_link,position,created_at';
+  const PROJECTION_FITTING_PHOTOS = 'id,order_id,session_id,stage,caption,annotation,drive_file_id,drive_link,position,created_at';
   const PROJECTION_FITTING_SESSIONS = 'id,order_id,stage,status,created_at,completed_at';
   const PROJECTION_INTAKE = 'id,payload,name,phone,instagram,source,wedding_date,wedding_date_precision,notes,status,customer_id,created_at,reviewed_at';
   const PROJECTION_FITTING_FEED = 'id,order_id,customer_id,customer_name,order_title,order_label,stage_key,stage_label,status,created_at,log_date,photo_count,preview_photos';
@@ -496,10 +496,10 @@ KK.db = (function () {
        whole batch or none of it, and derives order_id/stage/position from the
        locked session rather than from anything sent here.
        -> { photos: [row], created: [{ client_key, photo }] } */
-    saveFittingPhotoBatch: async function (sessionId, captionUpdates, deleteIds, newPhotos) {
+    saveFittingPhotoBatch: async function (sessionId, photoUpdates, deleteIds, newPhotos) {
       return unwrap(await init().rpc('save_fitting_photo_batch', {
         p_session_id: sessionId,
-        p_caption_updates: captionUpdates || [],
+        p_photo_updates: photoUpdates || [],
         p_delete_ids: deleteIds || [],
         p_new_photos: newPhotos || []
       }));

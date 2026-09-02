@@ -17,9 +17,9 @@ Column key: **app.js** = entry function + line ([MAP-app.md](MAP-app.md)) · **H
 | schedule dates, fitting weeks, rescheduling | [6](#6-fitting-schedule-computation) |
 | fitting feed, filters, infinite scroll | [7](#7-fitting-logs-feed) |
 | one fitting log, photo cards, share, log PDF | [8](#8-fitting-log-detail), [9](#9-fitting-log-pdf) |
-| caption edit, replace photo, delete photo | [10](#10-fitting-photo-editor) |
-| add photos, batch captions, staged delete, undo, 20-photo cap | [11](#11-add-fitting-photos-batch-review) |
-| camera, capture, journal, Drive upload | [12](#12-fitting-journal--camera) |
+| add photos, captions, red marks, annotation, staged delete, undo, 20-photo cap | [10](#10-fitting-workspace-photos-notes-marks) |
+| starting a log, stage picker, empty log | [11](#11-starting-a-fitting-log) |
+| HEIC, image compression, Drive upload, backup registry | [12](#12-fitting-image-preparation--drive-archival) |
 | moodboard, mosaic, canvas, zoom | [13](#13-moodboard) |
 | quotation, invoice, watermark, PDF layout | [14](#14-quotation--invoice-documents) |
 | Tally, enquiry, intake | [15](#15-intake--enquiry-review) |
@@ -84,42 +84,43 @@ Column key: **app.js** = entry function + line ([MAP-app.md](MAP-app.md)) · **H
 - **Data** `db.listFittingLogs(options)` (cursor paging) · view `fitting_log_feed` — search and stage filtering happen in the view, never client-side
 
 ## 8. Fitting log detail
-- **Route** `#/fittings/:sessionId`
-- **app.js** `showFittingLogDetail` **2601**; region **2137–2668**. `renderFittingDetail` 2261, `fittingDetailCardHtml` 2189, `shareFittingPhoto` 2364, `fittingPhotoBlob` 2308, `openFittingPhotoViewer` 2499, `addFittingDetailPhoto` 2546, `deleteFittingDetailLog` 2562, `setupFittingDetailListeners` 2881
-- **HTML** `#viewFittingDetail` **355–411**, `#fittingPhotoViewer` 1306, `#fitdetBar` 1314, `#fitdetPhotoInput` 408
-- **CSS** `pages.css` `.fitdet-*` 2667–2977 (photo cards 2667, actions 2753, bottom bar 2804, delete block 2868, viewer 3163)
-- **Data** `db.getFittingSession`, `db.listFittingPhotosBySession`, `db.driveGetFittingPhoto`, `db.updateFittingSession`, `db.deleteFittingSession` · tables `fitting_sessions`, `fitting_photos`
+- **Route** `#/fittings/:sessionId?source=feed|order`
+- **app.js** `showFittingLogDetail` **4691**; region **4243–4818**. `renderFittingDetail` 4367, `fittingDetailCardHtml` 4290, `shareFittingPhoto` 4466, `fittingPhotoBlob` 4410, `openFittingPhotoViewer` 4608, `addFittingDetailPhoto` 4639, `deleteFittingDetailLog` 4655, `setupFittingDetailListeners` 4749
+- **HTML** `#viewFittingDetail` **392–453**, `#fittingPhotoViewer` 1442, `#fitdetBar` 1476 (two buttons: `#fitdetEditBtn`, `#fitdetAddBtn`), `#fitdetPhotoInput` 445
+- **CSS** `pages.css` `.fitdet-*` 2862–3118 (photo cards 2862, actions 2950, bottom bar 3001, delete block 3075, marks layer 3322, viewer 3433)
+- **Data** `db.getFittingSession`, `db.listFittingPhotosBySession`, `db.driveGetFittingPhoto`, `db.deleteFittingSession` · tables `fitting_sessions`, `fitting_photos`
+- **Reads, never edits.** Every card shows its annotated image and its note; `Edit` on a card and `Edit log` in the bar both open the workspace (§10), the former with `?focus=<photoId>`. Marks render through `U.annotationSvg` over the `<img>` — nothing is drawn into the stored pixels
 
 ## 9. Fitting log PDF
-- **Entry** `fitting-pdf.js` (whole file, 290 lines — **pure geometry**)
-- **app.js** `downloadFittingPdf` **2415** (resolves images, owns busy UI and save), `measureImage` 2337, `blobToDataUrl` 2328, `fittingShareFilename` 2346
+- **Entry** `fitting-pdf.js` (whole file, 319 lines — **pure geometry**)
+- **app.js** `downloadFittingPdf` **4520** (resolves images, owns busy UI and save), `measureImage` 4442, `blobToDataUrl` 4433, `fittingShareFilename` 4451
 - **Data** `google-drive` action `get_fitting_photo { photo_id }` — resolves the Drive id server-side
+- **Layout** **no cover page; one fitting photo is one page.** Six photos make six pages. Every page carries a customer/stage/date header, the photo contained at its natural ratio, its red marks at image-relative coordinates, and a 12pt note. An extreme note takes space from the image only down to `MIN_IMAGE_H` (300pt) and then continues on a plain caption page — it is never shrunk and never truncated
 - **Do not** add DB, Drive, toast, or save calls to `fitting-pdf.js`
 
-## 10. Fitting photo editor
-- **Route** `#/fittings/:sessionId/photo/:photoId/edit`
-- **app.js** `showFittingPhotoEditor` **2843**; region **2669–2983**. `renderFittingEditor` 2685, `stageFittingReplacement` 2713, `saveFittingEditor` 2735, `deleteFittingEditorPhoto` 2800, `fittingEditorDirty` 2674, `cleanupFittingEditor` 2831
-- **HTML** `#viewFittingPhotoEdit` **416–474**, `#fiteditBar` 1328
-- **CSS** `pages.css` `.fitedit-*` 2912–2977
-- **Data** `db.updateFittingPhoto`, `db.deleteFittingPhoto`, `db.driveSaveFittingPhoto` · table `fitting_photos`
-- **Note** upload first, write once — the old record and image stay usable until the new one lands
-
-## 11. Add fitting photos (batch review)
-- **Route** `#/fittings/:sessionId/photos/add?source=feed|order` — reached from Add photos on fitting-log detail, which opens the native multi-select gallery sheet first and only navigates once a file comes back
-- **app.js** `showFittingPhotoAdd` **3821**; region **2984–3947**. `renderFittingPhotoAdd` 3383, `runAddPreparationQueue` 3115, `patchAddDraftCard` 3453, `openAddEditor` 3504, `saveAddEditor` 3535, `deleteAddCard` 3551, `undoAddDeletion` 3208, `saveFittingPhotoAdd` **3615**, `startAddBackups` 3736, `seedFittingPhotoAdd` 3803, `cleanupFittingPhotoAdd` 3793, `setupFittingPhotoAddListeners` 3893
-- **HTML** `#viewFittingPhotoAdd` **482–516**, `#fitaddFileInput` 513, `#fitaddUndo` 1340, `#fitaddBar` 1347, and `#fitdetPhotoInput` 408 on the detail page
-- **CSS** `pages.css` `.fitadd-*` 2978–3162 (4:3 stage 2985, inline caption editor 3049, undo toast 3081, skeletons 3127); cards, actions and the bottom bar reuse `.fitdet-*` 2667+
-- **Data** **`db.saveFittingPhotoBatch(sessionId, captionUpdates, deleteIds, newPhotos)`** → RPC `save_fitting_photo_batch` · table `fitting_photos`. Also `db.getFittingSession`, `db.getOrder`, `db.getCustomer`, `db.listFittingPhotosBySession` on direct entry
+## 10. Fitting workspace (photos, notes, marks)
+- **Routes** `#/fittings/:sessionId/edit?source=feed|order&focus=<photoId>&new=1` · `…/photos/add` is kept as a synonym · `…/photo/:photoId/edit` **redirects here** (the per-photo editor is retired)
+- **app.js** `showFittingPhotoAdd` **6117**; region **4820–6294**. `renderFittingPhotoAdd` 5252, `runAddPreparationQueue` 4972, `patchAddDraftCard` 5338, `openAddEditor` 5403, `saveAddEditor` 5433, `deleteAddCard` 5449, `undoAddDeletion` 5065, **`saveFittingPhotoAdd` 5859**, `startAddBackups` 5997, `seedFittingPhotoAdd` 6086, `discardProvisionalFittingLog` 6067, `cleanupFittingPhotoAdd` 6075, `setupFittingPhotoAddListeners` 6198
+- **Annotation** sub-region **5486–5830**: `openFittingMark` 5723, `layoutFittingMark` 5528, `redrawFittingMark` 5555, `drawFittingMarkStroke` 5564, `fittingMarkPoint` 5600, `onFittingMarkDown` 5607 / `Move` 5632 / `Up` 5670, `undoFittingMark` 5684, `clearFittingMark` 5695, `commitFittingMark` 5784, `closeFittingMark` 5800
+- **HTML** `#viewFittingPhotoAdd` **455–499**, `#fitaddFileInput` 488, `#fitmark` overlay **1456–1474**, `#fitaddUndo` 1493, `#fitaddBar` 1500, and `#fitdetPhotoInput` 445 on the detail page
+- **CSS** `pages.css` `.fitadd-*` 3119–3321 (stage 3124, inline caption editor 3192, undo toast 3240, skeletons 3286) and `.fitmark-*` 3322–3432; cards, actions and the bottom bar reuse `.fitdet-*` 2862+
+- **Data** **`db.saveFittingPhotoBatch(sessionId, photoUpdates, deleteIds, newPhotos)`** → RPC `save_fitting_photo_batch` · table `fitting_photos`. Also `db.getFittingSession`, `db.getOrder`, `db.getCustomer`, `db.listFittingPhotosBySession` on direct entry
 - **Image prep** `KK.fittings.prepareImage` — 2560px longest edge, quality 0.90, one file at a time
-- **Invariants** nothing is written until Save changes; captions, deletions and additions apply in **one transaction**; a staged existing-photo deletion offers a 5s Undo and never touches its Drive archive copy; the log caps at **20** photos, enforced again in the RPC; Drive backup runs **after** the commit through `KK.fittings.backupPhoto`, never before
+- **Marks** one red pen, full-screen mode, Pointer Events on a canvas sized to the **contained image** (`KK.fittingPdf.fitContain`), never to the stage. Strokes are normalized `0..1` image-space points; `U.normalizeAnnotation` is the one gate, and an empty stroke list stores `null` so cleared and never-marked are one state
+- **Invariants** nothing is written until Save fitting log; caption edits, mark edits, deletions and additions apply in **one transaction**; an update entry carries only the keys that changed, and the RPC reads key presence, so a caption edit never overwrites a mark; a staged existing-photo deletion offers a 5s Undo and never touches its Drive archive copy; the log caps at **20** photos, enforced again in the RPC; Drive backup runs **after** the commit through `KK.fittings.backupPhoto`, never before
 
-## 12. Fitting journal & camera
-- **Routes** `#/order/:id/fitting/new`, `#/order/:id/fitting/:sessionId` (dispatch at `handleRoute` 874/877)
-- **Entry** `fittings.js` (whole file, 731 lines)
-- **HTML** `#viewFittingJournal` **1246–1249**, overlays **1278–1374** (`#fittingCamera`, `#fittingConfirm`, `#fittingCaptionStep`, `#fittingPicker`, `#fittingEditSheet`)
-- **CSS** `moodboard.css` fitting journal 502–581
-- **Data** `db.createFittingSession`, `db.createFittingPhoto`, `db.driveSaveFittingPhoto` · tables `fitting_sessions`, `fitting_photos`
-- **Invariant** never complete a session without awaiting `fittings.waitForSessionBackups`
+## 11. Starting a fitting log
+- **Route** `#/order/:id/fitting/new?stage=` — dispatch in `handleRoute` **1326**. `#/order/:id/fitting/:sessionId` still redirects to the canonical detail route
+- **Entry** `KK.fittings.showStagePicker` when no `?stage` is given; `#fittingPicker` **1438** is the only fitting overlay left
+- **Behavior** resolve or create the `fitting_sessions` row for this order and stage, then open the workspace. An existing log is joined; a `23505` race joins the winner's. The row is created **before** the workspace opens, so every part of that page works against a real session id — and `discardProvisionalFittingLog` deletes it again if the log is left without a single photo
+- **Data** `db.getFittingSessionByStage`, `db.createFittingSession`, `db.deleteFittingSession`
+
+## 12. Fitting image preparation & Drive archival
+- **Entry** `fittings.js` (whole file, 284 lines) — no route, no page markup, no camera
+- **Owns** `prepareImage` (HEIC → 2560px JPEG at 0.90), `localURLs` ownership, `backupPhoto` / `waitForSessionBackups` / `isBackingUp` / `hasPendingBackups` / `consumeBackupFailures`, and the stage picker
+- **Archive contract** Drive holds the **original photo and only the original photo**. Marks are vector data on the row, so nothing about them is uploaded and no derivative image exists. The PDF is the shareable annotated artifact
+- **Data** `db.driveSaveFittingPhoto`, `db.updateFittingPhoto` · table `fitting_photos`
+- **Invariant** archival runs **after** the metadata commit. A Drive failure is reported once and never rolls back a saved log
 
 ## 13. Moodboard
 - **Routes** `#/order/:id/moodboard`, `#/order/:id/moodboard/preview`

@@ -168,6 +168,109 @@ KK.util = (function () {
 
   /* --------------------------- PRNG & Hashing ----------------------------- */
 
+  /* -------------------------- Photo annotations --------------------------- */
+
+  /* A fitting photo's red markup is vector data, never baked pixels: the Drive
+     archive keeps holding the clean original, the marks stay editable, and the
+     browser and the PDF redraw from one array.
+
+     Points are normalized to the natural image (0..1 on each axis) so a stroke
+     survives every resolution, screen width, orientation and page size it is
+     drawn at. Stroke width is a fraction of the longest edge for the same
+     reason. `w`/`h` are the natural pixels the marks were made over, carried so
+     a later render can rebuild the space without loading the image.
+
+       { v: 1, w: 2560, h: 1706,
+         strokes: [ { width: 0.006, points: [[0.12, 0.33], [0.13, 0.34]] } ] }
+
+     null is the whole absence case — no marks, cleared marks, and every row
+     that predates the feature all read the same. */
+  const ANNOTATION_VERSION = 1;
+  const ANNOTATION_MAX_STROKES = 120;
+  const ANNOTATION_MAX_POINTS = 4000;
+  const ANNOTATION_COLOR = '#ff2a2a';
+  const ANNOTATION_DEFAULT_WIDTH = 0.006;
+
+  const annotationRound = (n) => Math.round(n * 10000) / 10000;
+  const annotationClamp = (n) => (n < 0 ? 0 : n > 1 ? 1 : n);
+
+  /* The one gate every annotation passes through, on the way in from the canvas
+     and on the way out of the database alike. A row edited by hand cannot inject
+     anything, because what leaves here is only ever numbers. */
+  function normalizeAnnotation(value) {
+    if (!value || 'object' !== typeof value || Array.isArray(value)) return null;
+
+    const w = Math.round(Number(value.w));
+    const h = Math.round(Number(value.h));
+    if (!(w > 0) || !(h > 0)) return null;
+
+    const source = Array.isArray(value.strokes) ? value.strokes : [];
+    const strokes = [];
+    let points = 0;
+
+    for (let i = 0; i < source.length && strokes.length < ANNOTATION_MAX_STROKES; i++) {
+      const stroke = source[i];
+      if (!stroke || 'object' !== typeof stroke || !Array.isArray(stroke.points)) continue;
+
+      const kept = [];
+      for (let j = 0; j < stroke.points.length && points < ANNOTATION_MAX_POINTS; j++) {
+        const point = stroke.points[j];
+        if (!Array.isArray(point) || point.length < 2) continue;
+        const x = Number(point[0]);
+        const y = Number(point[1]);
+        if (!isFinite(x) || !isFinite(y)) continue;
+        kept.push([annotationRound(annotationClamp(x)), annotationRound(annotationClamp(y))]);
+        points++;
+      }
+      if (!kept.length) continue;
+
+      const width = Number(stroke.width);
+      strokes.push({
+        width: isFinite(width) && width > 0 ? annotationRound(width) : ANNOTATION_DEFAULT_WIDTH,
+        points: kept
+      });
+    }
+
+    if (!strokes.length) return null;
+    return { v: ANNOTATION_VERSION, w, h, strokes };
+  }
+
+  const annotationStrokeCount = (value) => {
+    const a = normalizeAnnotation(value);
+    return a ? a.strokes.length : 0;
+  };
+
+  /* The read-only overlay, for every surface that shows a marked photo without
+     letting it be edited.
+
+     The viewBox is the natural image size and preserveAspectRatio is left at
+     its default, so this <svg> and an object-fit:contain <img> given the same
+     box letterbox identically. That is what makes the marks land without a
+     single measurement in JavaScript, at any width and in any orientation.
+
+     Every number here is generated, so nothing needs escaping — but nothing
+     interpolated from a record reaches the output either. */
+  function annotationSvg(value, className) {
+    const a = normalizeAnnotation(value);
+    if (!a) return '';
+
+    const body = a.strokes.map((stroke) => {
+      const width = annotationRound(stroke.width * Math.max(a.w, a.h));
+      const pts = stroke.points.map((p) => [annotationRound(p[0] * a.w), annotationRound(p[1] * a.h)]);
+      // A tap is a legitimate mark; a zero-length path would draw nothing.
+      if (1 === pts.length) {
+        return '<circle cx="' + pts[0][0] + '" cy="' + pts[0][1] + '" r="' + (width / 2) +
+          '" fill="' + ANNOTATION_COLOR + '"/>';
+      }
+      const d = pts.map((p, i) => (i ? 'L' : 'M') + p[0] + ' ' + p[1]).join('');
+      return '<path d="' + d + '" fill="none" stroke="' + ANNOTATION_COLOR + '" stroke-width="' + width +
+        '" stroke-linecap="round" stroke-linejoin="round"/>';
+    }).join('');
+
+    return '<svg class="' + escapeHtml(className || 'fitmark-layer') + '" viewBox="0 0 ' + a.w + ' ' + a.h +
+      '" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">' + body + '</svg>';
+  }
+
   function hashString(str) {
     let hash = 2166136261;
     for (let i = 0; i < str.length; i++) {
@@ -210,6 +313,14 @@ KK.util = (function () {
     isHeic,
     convertHeicToJpeg,
     hashString,
-    mulberry32
+    mulberry32,
+    ANNOTATION_VERSION,
+    ANNOTATION_MAX_STROKES,
+    ANNOTATION_MAX_POINTS,
+    ANNOTATION_COLOR,
+    ANNOTATION_DEFAULT_WIDTH,
+    normalizeAnnotation,
+    annotationStrokeCount,
+    annotationSvg
   };
 })();

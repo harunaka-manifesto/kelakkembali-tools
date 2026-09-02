@@ -26,6 +26,10 @@
   --line:      rgba(23, 21, 15, 0.13);
   --line-2:    rgba(23, 21, 15, 0.22);
   --danger:    #A4341F;
+  /* The fitting pen. One colour, no picker: the mark exists to say "here",
+     not to be designed. fitting-pdf.js repeats it as RGB 255,42,42 so a mark
+     never changes colour between the screen and the printed sheet. */
+  --fit-mark:  #ff2a2a;
   --radius:    12px;
   /* Height of whichever fixed bottom bar is showing, published by app.js so the
      toast can clear it instead of guessing. */
@@ -2762,7 +2766,6 @@ body.is-fittinglogspage #fitlogNewBtn:disabled {
    colours are redeclared here rather than inherited, because .fitlog is a
    sibling view and not an ancestor of this one. */
 .fitdet,
-.fitedit,
 .fitadd {
   display: flex;
   flex-direction: column;
@@ -2879,6 +2882,8 @@ body.is-fittinglogspage #fitlogNewBtn:disabled {
 /* No forced ratio: the frame takes whatever height the natural image needs, and
    stays black until the bytes arrive so nothing flashes cream then dark. */
 .fitdet-card__frame {
+  /* The annotation layer is absolutely positioned inside this box. */
+  position: relative;
   display: block;
   width: 100%;
   padding: 0;
@@ -2954,6 +2959,16 @@ button.fitdet-card__frame { appearance: none; -webkit-appearance: none; }
   border-right: 1px solid var(--home-grid);
 }
 .fitdet-actions--single { grid-template-columns: 1fr; }
+/* The workspace card carries a third action — delete, mark, caption. Three
+   labels in the width of two only fit without their icons, and the icons were
+   decorative anyway: every one of them is aria-hidden beside a real label. */
+.fitdet-actions--trio { grid-template-columns: 1fr 1px 1fr 1px 1fr; }
+.fitdet-actions--trio .fitdet-action__face {
+  gap: 4px;
+  font-size: 14px;
+  line-height: 18px;
+  letter-spacing: -.28px;
+}
 .fitdet-actions__rule { background: var(--home-grid); }
 .fitdet-action {
   min-width: 0;
@@ -3110,72 +3125,6 @@ button.fitdet-card__frame { appearance: none; -webkit-appearance: none; }
 .fitdet-delete:active,
 .fitdet-delete.is-pressed { grid-template-rows: 57px 3px; }
 .fitdet-delete:disabled { opacity: .5; cursor: default; }
-
-/* --------------------------------- Editor -------------------------------- */
-
-.fitedit-field { padding: 16px 0 8px; }
-.fitedit-label {
-  display: block;
-  margin-bottom: 8px;
-  color: var(--home-grid);
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 16px;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-}
-.fitedit-caption {
-  width: 100%;
-  min-height: 120px;
-  padding: 12px;
-  border: 1px solid var(--home-grid);
-  border-radius: 0;
-  background: var(--home-white);
-  color: var(--home-black);
-  font: 400 16px/22px 'Plus Jakarta Sans', sans-serif;
-  letter-spacing: -.32px;
-  resize: vertical;
-  /* Keeps the field clear of the fixed Save bar when the keyboard opens. */
-  scroll-margin-bottom: calc(var(--bottombar-h) + 24px);
-}
-/* Same face-over-rail block every other control on the black pages uses, in the
-   destructive palette: the deletion reads as part of the ledger, not as a
-   foreign outlined chip. */
-.fitedit-delete {
-  width: 100%;
-  margin: 16px 0 24px;
-  padding: 0;
-  border: 1px solid #7a1f11;
-  border-radius: 4px;
-  background: transparent;
-  font: inherit;
-  color: inherit;
-  display: grid;
-  grid-template-rows: 41px 7px;
-  overflow: hidden;
-  cursor: pointer;
-  -webkit-appearance: none;
-  appearance: none;
-  transition: grid-template-rows var(--motion-quick) var(--ease-standard);
-}
-.fitedit-delete__face {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  background: #2a0f09;
-  color: #ff8a72;
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 20px;
-  letter-spacing: -.3px;
-  white-space: nowrap;
-}
-.fitedit-delete__rail { display: block; background: #7a1f11; }
-.fitedit-delete:active,
-.fitedit-delete.is-pressed { grid-template-rows: 46px 2px; }
-.fitedit-delete:disabled { opacity: .5; cursor: default; }
 
 /* --------------------------- Add fitting photos --------------------------- */
 
@@ -3380,6 +3329,117 @@ button.fitdet-card__frame { appearance: none; -webkit-appearance: none; }
   .fitadd-skel__actions { animation: none; }
 }
 
+/* ------------------------------ Photo annotation -------------------------- */
+
+/* The read-only marks, on every surface that shows a marked photo: the detail
+   card, the workspace card, the full-screen viewer. The SVG carries the natural
+   image size as its viewBox, so it letterboxes exactly the way the <img> beside
+   it does and needs no measuring in JavaScript at any width. */
+.fitmark-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* Marking mode. Full screen because a stroke drawn inside a scrolling list
+   fights the scroll, and because the card image is too small to circle a seam
+   accurately. */
+.fitmark {
+  position: fixed;
+  inset: 0;
+  /* Above the photo viewer, which is above the page's fixed navigation. */
+  z-index: 130;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+  padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
+}
+.fitmark[hidden] { display: none; }
+
+.fitmark__bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 56px;
+  padding: 0 12px;
+  background: var(--home-black);
+}
+.fitmark__bar--top { justify-content: space-between; }
+.fitmark__bar--tools {
+  justify-content: center;
+  gap: 12px;
+  border-top: 1px solid rgba(255,255,255,.14);
+}
+.fitmark__title {
+  margin: 0;
+  flex: 1 1 auto;
+  text-align: center;
+  color: var(--home-white);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+}
+.fitmark__btn {
+  min-height: 44px;
+  min-width: 88px;
+  padding: 0 16px;
+  border: 1px solid rgba(255,255,255,.4);
+  border-radius: 0;
+  background: none;
+  color: var(--home-white);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--motion-quick) var(--ease-standard);
+}
+.fitmark__btn:hover { background: rgba(255,255,255,.1); }
+.fitmark__btn:active,
+.fitmark__btn.is-pressed { background: rgba(255,255,255,.2); }
+.fitmark__btn:focus-visible { outline: 2px solid var(--home-white); outline-offset: -4px; }
+.fitmark__btn[disabled] { opacity: .4; cursor: default; }
+.fitmark__btn--primary {
+  border-color: var(--home-green);
+  background: var(--home-green);
+  color: var(--home-black);
+}
+.fitmark__btn--primary:hover { background: #1e9c1b; }
+.fitmark__btn--primary:active,
+.fitmark__btn--primary.is-pressed { background: #178014; }
+
+.fitmark__stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  background: #000;
+}
+.fitmark__image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+/* touch-action:none is the load-bearing line: without it the first drag scrolls
+   the page instead of drawing. It is scoped to the canvas, so the letterbox
+   around the photo still behaves like an ordinary surface. */
+.fitmark__canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  touch-action: none;
+  cursor: crosshair;
+}
+.fitmark.is-loading .fitmark__canvas { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fitmark__btn { transition: none; }
+}
+
 /* ------------------------------- Photo viewer ----------------------------- */
 
 .fitview {
@@ -3400,7 +3460,14 @@ button.fitdet-card__frame { appearance: none; -webkit-appearance: none; }
   align-items: center;
   justify-content: center;
 }
+.fitview__frame {
+  position: relative;
+  display: flex;
+  max-width: 100%;
+  max-height: 100%;
+}
 .fitview__stage img {
+  display: block;
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
@@ -3467,9 +3534,6 @@ body.is-fitdetailpage .cust-nav-btn:disabled { opacity: .48; filter: saturate(0)
    clearance sits on the view rather than the photo list so the footer below the
    delete block clears the bar too. */
 body.has-fitdet-bar .fitdet,
-body.has-fitdet-bar .fitedit,
-body.has-fitedit-bar .fitdet,
-body.has-fitedit-bar .fitedit,
 body.has-fitadd-bar .fitadd { padding-bottom: calc(var(--bottombar-h) + 8px); }
 
 /* --------------------------- Detail route skeleton ------------------------ */
