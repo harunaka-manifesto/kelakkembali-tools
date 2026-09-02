@@ -36,6 +36,18 @@ KK.app = (function () {
   const CHECK_IN_CONFIG = { label: "Check in", days: 3 };
   const FOLLOW_UP_CONFIG = { label: "Follow up moodboard", days: 3 };
 
+  /* Fittings are built and working but not yet part of the daily round, and the
+     shortcut row is the one piece of screen where that matters — so the tile
+     stands down and Moodboard takes its slot. Everything else about fittings is
+     untouched: #/fittings still loads, the order page still starts one, and a
+     scheduled fitting still appears on the calendar and in the deadline line.
+
+     A flag rather than a `hidden` attribute because flipping it back has to
+     produce a correct row, not five tiles in a four-column grid. It also sets
+     body.has-fitting-shortcut, which is what returns Moodboard to the
+     full-width row it occupies when there are five of them. */
+  const SHOW_FITTING_SHORTCUT = false;
+
   /* ------------------------------- SVG Icons ------------------------------ */
 
   const SVG_TRASH = U.ICONS.trash;
@@ -213,7 +225,9 @@ KK.app = (function () {
     gcalConnect: $("#gcalConnect"),
     gcalDisconnect: $("#gcalDisconnect"),
     gcalErr: $("#gcalErr"),
+    homeFittingBtn: $("#homeFittingBtn"),
     homeMoodboardBtn: $("#homeMoodboardBtn"),
+    homeAddOrderBtn: $("#homeAddOrderBtn"),
     enquiriesCard: $("#enquiriesCard"),
     enquiriesCount: $("#enquiriesCount"),
     viewEnquiry: $("#viewEnquiry"),
@@ -3843,8 +3857,15 @@ KK.app = (function () {
     '</button>';
   }
 
+  /* Four modes, in two shapes. quotation and invoice run both steps and end in
+     a generated PDF; moodboard runs both steps and ends in a navigation;
+     neworder stops after the customer, because the order it is about does not
+     exist yet. Named neworder rather than order: pk.step already spends the
+     word "order" on the second step. */
   const isMoodboardPicker = () => "moodboard" === picker().mode;
-  const pickerThingName = () => isMoodboardPicker() ? "Moodboard" : documentKindName(picker().mode);
+  const isNewOrderPicker = () => "neworder" === picker().mode;
+  const PICKER_THING_NAMES = { moodboard: "Moodboard", neworder: "Order", invoice: "Invoice", quotation: "Quotation" };
+  const pickerThingName = () => PICKER_THING_NAMES[picker().mode] || "Quotation";
 
   function renderDocumentPicker() {
     const pk = picker();
@@ -4009,6 +4030,16 @@ KK.app = (function () {
 
   async function pickDocumentCustomer(customerId) {
     const pk = picker();
+
+    /* Adding an order needs the customer and nothing else, so this is the whole
+       flow — there is no order step to advance to, and fetching the orders of a
+       customer whose order is about to be written would only be a wait. */
+    if (isNewOrderPicker()) {
+      closeDocumentPicker();
+      go("#/customer/" + encodeURIComponent(customerId) + "/order/new/edit");
+      return;
+    }
+
     const token = ++pk.orderToken;
     pk.customerId = customerId;
     pk.customer = (pk.customers || []).filter((c) => c.id === customerId)[0] || null;
@@ -6128,11 +6159,23 @@ KK.app = (function () {
       .filter((c) => !query || [c.name, c.phone, c.instagram].some((val) => String(val || "").toLowerCase().includes(query)))
       .sort(compareHomepageCustomers);
 
+    /* Adding a customer happens here and nowhere else, so this branch has to
+       offer it whether the ledger is empty because the search missed or because
+       there is nothing in it yet. It used to offer it only on a miss, which
+       reads fine until the day the table is actually empty — and then the one
+       way into the app is a URL typed by hand. */
     if (!filtered.length) {
       const searchVal = elements.customerSearch.value.trim();
-      elements.customerList.innerHTML = state.customers.length
-        ? '<p class="empty">No match for “' + U.escapeHtml(searchVal) + '”.</p><a class="btn btn--outline btn--new btn--block btn--empty" href="#/customer/new/edit?name=' + encodeURIComponent(searchVal) + '">+ Add “' + U.escapeHtml(searchVal) + '” as a new customer</a>'
-        : '<p class="empty">No customers yet.</p>';
+      const addHref = "#/customer/new/edit" + (searchVal ? "?name=" + encodeURIComponent(searchVal) : "");
+      const addLabel = searchVal
+        ? '+ Add “' + U.escapeHtml(searchVal) + '” as a new customer'
+        : "+ Add a customer";
+
+      elements.customerList.innerHTML =
+        '<p class="empty">' + (state.customers.length
+          ? 'No match for “' + U.escapeHtml(searchVal) + '”.'
+          : "No customers yet.") + '</p>' +
+        '<a class="btn btn--outline btn--new btn--block btn--empty" href="' + addHref + '">' + addLabel + '</a>';
       return;
     }
 
@@ -8277,9 +8320,17 @@ KK.app = (function () {
       }
     });
 
-    // The one shortcut with no page behind it: a moodboard is only ever made
-    // for an order, so the picker is the whole entry point.
+    /* One flag, applied once. The class is what the stylesheet reads to decide
+       whether the row holds four tiles or five, so both have to move together —
+       hence here rather than in the markup. */
+    elements.homeFittingBtn.hidden = !SHOW_FITTING_SHORTCUT;
+    document.body.classList.toggle("has-fitting-shortcut", SHOW_FITTING_SHORTCUT);
+
+    // The two shortcuts with no page behind them: a moodboard is only ever made
+    // for an order, and an order is only ever made for a customer, so in both
+    // cases the picker is the whole entry point.
     elements.homeMoodboardBtn.addEventListener("click", () => openDocumentPicker("moodboard"));
+    elements.homeAddOrderBtn.addEventListener("click", () => openDocumentPicker("neworder"));
 
     if (elements.homeNavHome) {
       elements.homeNavHome.addEventListener("click", () => {
