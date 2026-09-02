@@ -185,13 +185,13 @@
                list it landed on instead of bouncing back home. -->
           <a class="home-action home-action--quotation" href="#/quotations?new=1"><span class="home-action__face"><img src="assets/home-quote-icon.svg" alt="">Quotation</span><span class="home-action__rail"></span></a>
           <a class="home-action home-action--invoice" href="#/invoices?new=1"><span class="home-action__face"><img src="assets/home-invoice-icon.svg" alt="">Invoice</span><span class="home-action__rail"></span></a>
-          <!-- Stood down by SHOW_FITTING_SHORTCUT, not deleted: the page it
-               leads to and everything behind it still work, and this is the
-               tile that comes back when fittings rejoin the daily round. -->
-          <a class="home-action home-action--fitting" id="homeFittingBtn" href="#/fittings" hidden><span class="home-action__face"><img src="assets/home-fitting-icon.svg" alt="">Fitting</span><span class="home-action__rail"></span></a>
-          <!-- A button, not a link: a moodboard has no list page to land on, so
-               this opens the same customer-then-order picker directly. -->
+          <!-- The second row: two tiles at half width each. A button, not a
+               link, for Moodboard — it has no list page to land on, so this
+               opens the same customer-then-order picker directly. -->
           <button type="button" class="home-action home-action--moodboard" id="homeMoodboardBtn"><span class="home-action__face"><img src="assets/order-moodboard-icon.svg" alt="">Moodboard</span><span class="home-action__rail"></span></button>
+          <!-- Shown or stood down by SHOW_FITTING_SHORTCUT. Hidden, Moodboard
+               has this row to itself and spans it. -->
+          <a class="home-action home-action--fitting" id="homeFittingBtn" href="#/fittings" hidden><span class="home-action__face"><img src="assets/home-fitting-icon.svg" alt="">Fitting</span><span class="home-action__rail"></span></a>
         </section>
         <!-- The two records everything else hangs off, and until now the only
              two with no button anywhere on this page. Neutral on purpose: they

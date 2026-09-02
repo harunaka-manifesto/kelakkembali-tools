@@ -41,17 +41,14 @@ KK.app = (function () {
      other has to. */
   const SHEET_OUT_MS = 180;
 
-  /* Fittings are built and working but not yet part of the daily round, and the
-     shortcut row is the one piece of screen where that matters — so the tile
-     stands down and Moodboard takes its slot. Everything else about fittings is
-     untouched: #/fittings still loads, the order page still starts one, and a
-     scheduled fitting still appears on the calendar and in the deadline line.
+  /* Fittings are part of the daily round again, so the tile is on the shortcut
+     row with the rest of them.
 
-     A flag rather than a `hidden` attribute because flipping it back has to
-     produce a correct row, not five tiles in a four-column grid. It also sets
-     body.has-fitting-shortcut, which is what returns Moodboard to the
-     full-width row it occupies when there are five of them. */
-  const SHOW_FITTING_SHORTCUT = false;
+     A flag rather than a `hidden` attribute because the row's shape depends on
+     it: it also sets body.has-fitting-shortcut, which is what pairs Moodboard
+     with Fitting on the second row. Off, Moodboard has no partner and spans
+     that row alone as a band. */
+  const SHOW_FITTING_SHORTCUT = true;
 
   /* ------------------------------- SVG Icons ------------------------------ */
 
@@ -8818,8 +8815,8 @@ KK.app = (function () {
     });
 
     /* One flag, applied once. The class is what the stylesheet reads to decide
-       whether the row holds four tiles or five, so both have to move together —
-       hence here rather than in the markup. */
+       whether the second row holds one tile or two, so both have to move
+       together — hence here rather than in the markup. */
     elements.homeFittingBtn.hidden = !SHOW_FITTING_SHORTCUT;
     document.body.classList.toggle("has-fitting-shortcut", SHOW_FITTING_SHORTCUT);
 

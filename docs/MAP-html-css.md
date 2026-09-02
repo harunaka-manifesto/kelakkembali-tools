@@ -93,7 +93,7 @@ Preceded by CDN: html2canvas 1.4.1, jsPDF 2.5.2, heic2any 0.0.4, supabase-js 2.4
 
 ### styles/pages.css (4594 lines) — section → line
 
-**Homepage:** Customers homepage 76 · Stage and layers 106 · Hero 133 · Fixed nav bar 177 · Shortcut row 240 · Submissions bar 294 · Search 342 · Customer ledger 367 · Footer 518 · Loading skeleton 534 · Error state 614
+**Homepage:** Customers homepage 94 · Stage and layers 124 · Hero 235 · Fixed nav bar 281 · **Shortcut row 344** (six-column grid: 3 + 2, then the neutral add row) · Submissions bar 473 · Search 521 · Customer ledger 546 · Footer 703 · Loading skeleton 719 · Error state 817
 
 **Customer detail:** 661 · Navigation 686 · Hero 753 · Banners 771 · Order ledger 851
 

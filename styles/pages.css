@@ -345,16 +345,23 @@ body:not(.is-homepage) .home-nav { display: none; }
 
 /* Each cell stays exactly 98px in every state; pressing only moves the split
    between the face and the rail, so neighbours never shift. */
-/* Four coloured tiles, then a neutral row of two. Height is auto rather than
-   the old fixed 98px because there is now more than one row here. */
+/* Three coloured tiles, then two, then a neutral row of two. Six columns
+   rather than three, because that is the smallest track count both rows divide
+   into: the first row spans two each, the second spans three. Height is auto
+   rather than a fixed 98px because there is more than one row here. */
 .home-actions {
   height: auto;
   padding: 0;
   background: none;
   border: 0;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(6, 1fr);
 }
+.home-action--schedule,
+.home-action--quotation,
+.home-action--invoice { grid-column: span 2; }
+.home-action--moodboard,
+.home-action--fitting { grid-column: span 3; }
 .home-actions--add { grid-template-columns: repeat(2, 1fr); }
 /* display:grid below outranks the user agent's [hidden] rule, so a tile stood
    down by a flag would still draw. Same reason .home-alert[hidden] exists. */
@@ -372,10 +379,11 @@ body:not(.is-homepage) .home-nav { display: none; }
 }
 .home-action__face {
   min-width: 0;
-  /* 4px, not 12: the labels are centred, so side padding buys nothing visually
-     and only narrows the box the longest of them has to fit in. "Moodboard" is
-     78px at this weight and was spilling to the tile edge with 12. */
-  padding: 10px 4px;
+  /* Back to 12px of side padding. It had been cut to 4 to stop "Moodboard"
+     spilling to the edge of a 98px tile in the old four-column row; the
+     narrowest tile here is a third of the width, which is comfortably wider
+     than the longest label. */
+  padding: 10px 12px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -398,11 +406,11 @@ body:not(.is-homepage) .home-nav { display: none; }
 .home-action--invoice   .home-action__rail { background: #1866da; }
 .home-action--fitting   .home-action__face { background: linear-gradient(180deg, rgba(0,0,0,.06), transparent), #fc4fac; }
 .home-action--fitting   .home-action__rail { background: #e72a90; }
-/* Moodboard stands in Fitting's slot and wears its colour, so the row's rhythm
-   is unchanged and only the label and icon differ. The pink is Fitting's again
-   the moment the shortcut comes back — see the five-tile rule below. */
-.home-action--moodboard .home-action__face { background: linear-gradient(180deg, rgba(0,0,0,.06), transparent), #fc4fac; }
-.home-action--moodboard .home-action__rail { background: #e72a90; }
+/* Moodboard's own violet, so the second row reads as two distinct sections
+   rather than one colour split down the middle. It borrows Fitting's pink only
+   when Fitting is not on screen to claim it — see the lone-tile rule below. */
+.home-action--moodboard .home-action__face { background: linear-gradient(180deg, rgba(0,0,0,.04), transparent), #8b4ff6; }
+.home-action--moodboard .home-action__rail { background: #7a3ee4; }
 /* Making a record, not opening a section: no category colour to claim. */
 .home-action--add .home-action__face { background: linear-gradient(180deg, rgba(255,255,255,.1), transparent), #292929; }
 .home-action--add .home-action__rail { background: #1a1a1a; }
@@ -418,18 +426,21 @@ body:not(.is-homepage) .home-nav { display: none; }
    a 56px face.
 
    Used by the add row always, and by Moodboard only when SHOW_FITTING_SHORTCUT
-   puts a fifth tile back in a four-column grid and something has to give. */
+   is off and it has the second row to itself — a lone 98px tile running the
+   whole width would read as a section anyway, so it may as well be shaped like
+   one. With Fitting on, Moodboard is an ordinary tile beside it. */
 .home-action--add,
-body.has-fitting-shortcut .home-action--moodboard {
+body:not(.has-fitting-shortcut) .home-action--moodboard {
   height: 63px;
   grid-template-rows: 56px 7px;
 }
-body.has-fitting-shortcut .home-action--moodboard { grid-column: 1 / -1; }
-/* Pink belongs to Fitting whenever Fitting is on screen. */
-body.has-fitting-shortcut .home-action--moodboard .home-action__face { background: linear-gradient(180deg, rgba(0,0,0,.04), transparent), #8b4ff6; }
-body.has-fitting-shortcut .home-action--moodboard .home-action__rail { background: #7a3ee4; }
+body:not(.has-fitting-shortcut) .home-action--moodboard { grid-column: 1 / -1; }
+/* Pink is Fitting's whenever Fitting is on screen; Moodboard inherits it only
+   in Fitting's absence, so the row is never a colour short. */
+body:not(.has-fitting-shortcut) .home-action--moodboard .home-action__face { background: linear-gradient(180deg, rgba(0,0,0,.06), transparent), #fc4fac; }
+body:not(.has-fitting-shortcut) .home-action--moodboard .home-action__rail { background: #e72a90; }
 .home-action--add .home-action__face,
-body.has-fitting-shortcut .home-action--moodboard .home-action__face {
+body:not(.has-fitting-shortcut) .home-action--moodboard .home-action__face {
   flex-direction: row;
   gap: 8px;
   padding: 16px;
@@ -438,13 +449,26 @@ body.has-fitting-shortcut .home-action--moodboard .home-action__face {
   letter-spacing: -.48px;
 }
 .home-action--add .home-action__face img,
-body.has-fitting-shortcut .home-action--moodboard .home-action__face img { flex: none; }
+body:not(.has-fitting-shortcut) .home-action--moodboard .home-action__face img { flex: none; }
 .home-action--add:active,
 .home-action--add.is-pressed,
 .home-action--add.is-appear-pressed,
-body.has-fitting-shortcut .home-action--moodboard:active,
-body.has-fitting-shortcut .home-action--moodboard.is-pressed,
-body.has-fitting-shortcut .home-action--moodboard.is-appear-pressed { grid-template-rows: 61px 2px; }
+body:not(.has-fitting-shortcut) .home-action--moodboard:active,
+body:not(.has-fitting-shortcut) .home-action--moodboard.is-pressed,
+body:not(.has-fitting-shortcut) .home-action--moodboard.is-appear-pressed { grid-template-rows: 61px 2px; }
+
+/* Narrow phones: "Add customer" is the longest label on the row and wrapped to
+   two lines at 320px while "Add order" stayed on one, which left the pair
+   visibly lopsided. Trimming the side padding and a point of type keeps both on
+   one line; the icon and gap are load-bearing and stay put. */
+@media (max-width: 389px) {
+  .home-action--add .home-action__face {
+    padding: 16px 12px;
+    gap: 6px;
+    font-size: 15px;
+    letter-spacing: -.45px;
+  }
+}
 
 /* -------------------------- Submissions bar ----------------------------- */
 
@@ -663,6 +687,12 @@ body.is-homepage .empty {
   text-align: center;
 }
 body.is-homepage .btn--empty {
+  /* .btn--block sets width:100%, which resolves against the ledger's full
+     width and then the 24px side margins push the button past the right edge —
+     24px of horizontal page scroll on every empty ledger. auto lets a
+     block-level box fill what is left after its own margins, which is what the
+     inset wanted in the first place. */
+  width: auto;
   margin: 0 24px 24px;
   background: var(--home-white);
   color: var(--home-black);
