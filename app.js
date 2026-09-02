@@ -213,6 +213,7 @@ KK.app = (function () {
     gcalConnect: $("#gcalConnect"),
     gcalDisconnect: $("#gcalDisconnect"),
     gcalErr: $("#gcalErr"),
+    homeMoodboardBtn: $("#homeMoodboardBtn"),
     enquiriesCard: $("#enquiriesCard"),
     enquiriesCount: $("#enquiriesCount"),
     viewEnquiry: $("#viewEnquiry"),
@@ -489,6 +490,10 @@ KK.app = (function () {
          cannot corrupt what that page is showing. */
       picker: {
         open: false,
+        /* Not read off the enclosing feed's kind: the feed's kind is set by the
+           documents route, and the picker also opens for a moodboard, which has
+           no route of its own to set it. Whoever opens the sheet says what for. */
+        mode: "quotation", // quotation | invoice | moodboard
         step: "customer", // customer | order
         orderToken: 0,
         customers: null,
@@ -983,6 +988,14 @@ KK.app = (function () {
       if ("customer" === segments[0] && segments[1] && "edit" === segments[2]) {
         return { view: "customerEdit", id: segments[1], query };
       }
+      /* A new order is the one order route that cannot be keyed on an order id,
+         because there is no row yet — it is keyed on the customer it will
+         belong to, exactly as #/customer/new/edit is keyed on nothing at all.
+         Matched before the bare customer route, which would otherwise swallow
+         it on segments[1] alone. */
+      if ("customer" === segments[0] && segments[1] && "order" === segments[2] && "new" === segments[3] && "edit" === segments[4]) {
+        return { view: "orderEdit", id: "new", customerId: segments[1], query };
+      }
       if ("customer" === segments[0] && segments[1]) {
         return { view: "customer", id: segments[1], query };
       }
@@ -1161,10 +1174,34 @@ KK.app = (function () {
       } else if ("customerEdit" === targetRoute.view) {
         await showCustomerEdit(targetRoute.id, targetRoute.query);
       } else if ("orderEdit" === targetRoute.view) {
-        await (async function (orderId) {
-          state.order = await db.getOrder(orderId);
-          state.customer = await db.getCustomer(state.order.customer_id);
-          setChrome({
+        await (async function (orderId, newCustomerId) {
+          /* The one difference a new order makes is where the record comes
+             from — a template instead of the database, and the customer read
+             straight off the route. Everything below it fills the same form
+             from the same shape, which is the whole reason this is the order
+             editor rather than a second, smaller one bolted onto the picker. */
+          const isNew = "new" === orderId;
+
+          if (isNew) {
+            state.order = Object.assign({}, NEW_ORDER_TEMPLATE);
+            state.customer = await db.getCustomer(newCustomerId);
+            // Stale from whichever order was open before; the schedule hint
+            // reads it for pins and a new order has none.
+            state.schedule = null;
+            state.customerOrders = [];
+          } else {
+            state.order = await db.getOrder(orderId);
+            state.customer = await db.getCustomer(state.order.customer_id);
+          }
+
+          setChrome(isNew ? {
+            title: "New order",
+            // The customer's own name, not orderFirstName's parenthesised form:
+            // that one is shaped for the order page's back button, and the up
+            // link names the page it returns to plainly.
+            up: { label: (state.customer && state.customer.name) || "Customer", hash: "#/customer/" + encodeURIComponent(state.customer.id) },
+            save: true
+          } : {
             title: "Edit order",
             up: { label: orderLabel(state.order), hash: "#/order/" + orderId },
             save: true,
@@ -1200,7 +1237,8 @@ KK.app = (function () {
           elements.customInclude.value = "";
           refreshItemTotals();
           setDirty(false);
-        })(targetRoute.id);
+          if (isNew) elements.oTitle.focus({ preventScroll: true });
+        })(targetRoute.id, targetRoute.customerId);
       } else if ("moodboard" === targetRoute.view) {
         await (async function (orderId) {
           state.order = await db.getOrder(orderId);
@@ -1948,16 +1986,20 @@ KK.app = (function () {
     if (target) {
       target.classList.add("is-pressed");
       if (target.matches(".home-action")) hapticTap();
-      if (target.matches(".home-action,.home-alert,.home-nav-btn") && !target.matches("a.home-action")) e.preventDefault();
+      /* Only the inert card. Every shortcut here is a <button>, and cancelling
+         the key that presses one cancels the click it would have synthesised —
+         so a blanket preventDefault leaves them mouse-only. */
+      if (target.matches('[aria-disabled="true"]')) e.preventDefault();
     }
   });
 
   window.addEventListener("keyup", clearHomepagePresses);
-  /* A shortcut leads somewhere iff it is an <a>. Naming the live one instead
-     would mean editing this line every time another is finished; as written it
-     maintains itself. Enquiries is the last one still inert. */
+  /* Enquiries is the one shortcut that still leads nowhere, and it says so in
+     the markup rather than here — naming it would mean editing this line the
+     day it is finished. Everything else either navigates as an <a> or has its
+     own handler, and must be left alone. */
   elements.homeReady.addEventListener("click", (e) => {
-    if (e.target.closest(".home-action,.home-alert") && !e.target.closest("a.home-action")) e.preventDefault();
+    if (e.target.closest('.home-action[aria-disabled="true"],.home-alert[aria-disabled="true"]')) e.preventDefault();
   });
 
   elements.viewCustomer.addEventListener("pointerdown", (e) => {
@@ -3735,6 +3777,22 @@ KK.app = (function () {
     elements.doclistNewBtn.setAttribute("title", "New " + documentKindName(wanted).toLowerCase());
     elements.doclistSearch.setAttribute("placeholder", "Search customer, order, or date");
 
+    /* The homepage shortcut lands here with ?new=1 rather than opening the
+       sheet itself, so the kind comes from the route that is already about to
+       set it. The flag is then dropped from the hash: it describes one arrival,
+       and leaving it in would reopen the sheet on every refresh and on the way
+       back from whatever the picker opened. currentHash moves with it, or the
+       next navigation would file the stripped hash as a different page and
+       throw away the feed it is holding. */
+    if (params.get("new")) {
+      params.delete("new");
+      const rest = params.toString();
+      const cleanHash = documentRouteFor(wanted) + (rest ? "?" + rest : "");
+      history.replaceState(null, "", location.pathname + location.search + cleanHash);
+      currentHash = cleanHash;
+      openDocumentPicker(wanted);
+    }
+
     // Coming back from the order a row opened, in the same history visit: the
     // rows, cursor, DOM and offset are all still here. A kind change is never
     // that, whatever the hash says.
@@ -3785,10 +3843,12 @@ KK.app = (function () {
     '</button>';
   }
 
+  const isMoodboardPicker = () => "moodboard" === picker().mode;
+  const pickerThingName = () => isMoodboardPicker() ? "Moodboard" : documentKindName(picker().mode);
+
   function renderDocumentPicker() {
     const pk = picker();
-    const ds = docFeed();
-    const kindLabel = documentKindName(ds.kind);
+    const kindLabel = pickerThingName();
 
     elements.docnewTitle.textContent = "New " + kindLabel.toLowerCase();
     elements.docnewBack.hidden = "customer" !== pk.step ? false : true;
@@ -3849,26 +3909,29 @@ KK.app = (function () {
       return;
     }
 
-    /* An order is the only thing a document can be rendered from, and orders
-       are still created directly in the studio database rather than in this
-       app — db.createOrder has no caller. Saying so plainly beats a dead end
-       the operator has to guess their way out of. */
+    /* An order is the only thing a document or a moodboard hangs off, so a
+       customer with none used to be a dead end here. It leads to the order
+       editor now — the same one the edit route opens, because a new order needs
+       priced items before it is worth anything, and that is the form that
+       takes them. */
+    const addRow = docnewRowHtml(
+      ' data-new-order="1"', "Add new order",
+      pk.orders.length ? "" : "This customer has none yet",
+      ' docnew__row--new');
+
     if (!pk.orders.length) {
-      elements.docnewList.innerHTML =
-        '<div class="docnew__panel">' +
-          '<p class="docnew__panel-title">No orders for this customer yet</p>' +
-          '<p class="docnew__panel-copy">A ' + U.escapeHtml(kindLabel.toLowerCase()) +
-            ' is a rendering of an order, and orders are still created in the studio ' +
-            'database rather than in the app. Open the customer to check their details, ' +
-            'or pick someone else.</p>' +
-          '<button type="button" class="btn btn--outline js-docnew-open-customer">Open customer</button>' +
-        '</div>';
+      elements.docnewList.innerHTML = addRow;
       announceDocumentPickerStatus("No orders for this customer");
       return;
     }
 
-    elements.docnewList.innerHTML = pk.orders.map((order, index) => {
-      const ready = documentReadiness(order, pk.customer);
+    /* A moodboard is not a rendering of the order's items — it needs the order
+       only for whose it is — so the readiness gate that blocks an unpriced
+       order from becoming a quotation must not block it from becoming one. */
+    const gated = !isMoodboardPicker();
+
+    elements.docnewList.innerHTML = addRow + pk.orders.map((order, index) => {
+      const ready = gated ? documentReadiness(order, pk.customer) : { canDownload: true, disabledReason: "" };
       const itemCount = (order.items || []).length;
       const meta = itemCount + (1 === itemCount ? " item" : " items") + " · " +
         U.formatRupiah(docs.computeTotal(order.items));
@@ -3890,11 +3953,12 @@ KK.app = (function () {
     elements.docnewStatus.textContent = text;
   }
 
-  async function openDocumentPicker() {
+  async function openDocumentPicker(mode) {
     const pk = picker();
     if (pk.open) return;
 
     pk.open = true;
+    pk.mode = mode || "quotation";
     pk.step = "customer";
     pk.customerId = null;
     pk.customer = null;
@@ -3988,11 +4052,12 @@ KK.app = (function () {
      issuing a document from a list page possible at all. */
   async function generateDocumentFor(orderId) {
     const pk = picker();
-    const ds = docFeed();
     const order = (pk.orders || []).filter((o) => o.id === orderId)[0];
     if (!order || pk.generating) return;
 
-    const kind = ds.kind;
+    // pk.mode, not the feed's kind: the sheet opens from the homepage too,
+    // where the feed carries whichever kind was last looked at.
+    const kind = pk.mode;
     pk.generating = true;
     elements.docnewSheet.setAttribute("aria-busy", "true");
     renderDocumentPicker();
@@ -4080,7 +4145,7 @@ KK.app = (function () {
 
   elements.viewDocuments.addEventListener("click", (e) => {
     if (e.target.closest("#doclistNewBtn")) {
-      openDocumentPicker();
+      openDocumentPicker(docFeed().kind);
       return;
     }
     if (e.target.closest(".doclist-card-link")) {
@@ -4118,16 +4183,30 @@ KK.app = (function () {
       }
       return;
     }
-    if (e.target.closest(".js-docnew-open-customer")) {
-      const customerId = pk.customerId;
-      closeDocumentPicker();
-      if (customerId) go("#/customer/" + encodeURIComponent(customerId));
-      return;
-    }
     const row = e.target.closest(".docnew__row");
     if (!row || row.disabled) return;
-    if (row.dataset.customer) pickDocumentCustomer(row.dataset.customer);
-    else if (row.dataset.order) generateDocumentFor(row.dataset.order);
+
+    if (row.dataset.customer) {
+      pickDocumentCustomer(row.dataset.customer);
+      return;
+    }
+    if (row.dataset.newOrder) {
+      const customerId = pk.customerId;
+      closeDocumentPicker();
+      if (customerId) go("#/customer/" + encodeURIComponent(customerId) + "/order/new/edit");
+      return;
+    }
+    if (!row.dataset.order) return;
+
+    /* A moodboard is not generated from the order, only anchored to it, so
+       there is nothing to wait on here — the sheet closes and the editor opens. */
+    if (isMoodboardPicker()) {
+      const orderId = row.dataset.order;
+      closeDocumentPicker();
+      go("#/order/" + encodeURIComponent(orderId) + "/moodboard");
+      return;
+    }
+    generateDocumentFor(row.dataset.order);
   });
 
   async function openDocumentPickerReload() {
@@ -6133,6 +6212,23 @@ KK.app = (function () {
     notes: ""
   };
 
+  /* A null id is what saveOrder reads to decide between an insert and an
+     update, so it is the field that matters here; the rest exist only so the
+     form fills from the same shape a real row has. No customer_id: the route
+     supplies it, and a template carrying a stale one would be a bug waiting. */
+  const NEW_ORDER_TEMPLATE = {
+    id: null,
+    title: "",
+    doc_name: "",
+    items: [],
+    includes: [],
+    payment_scheme: "standard",
+    payment_terms: [],
+    first_payment_date: null,
+    second_payment_date: null,
+    final_payment_date: null
+  };
+
   const daysUntil = (targetIso) => Math.round((new Date(targetIso) - new Date(U.todayISO())) / 86400000);
   const isApproximateWedding = (cust) => !(!cust || !cust.wedding_date || "month" !== cust.wedding_date_precision);
 
@@ -7086,7 +7182,7 @@ KK.app = (function () {
 
     const schemeVal = "other" === elements.oScheme.value ? "other" : "standard";
 
-    state.order = await db.updateOrder(state.order.id, {
+    const payload = {
       title: orNull(elements.oTitle.value),
       doc_name: orNull(elements.oDocName.value),
       items: itemsPayload,
@@ -7096,12 +7192,22 @@ KK.app = (function () {
       first_payment_date: orNull(elements.oFirstPayment.value),
       second_payment_date: orNull(elements.oSecondPayment.value),
       final_payment_date: orNull(elements.oFinalPayment.value)
-    });
+    };
+
+    /* Only the write differs. Everything after this point — the history entry,
+       the schedule rebuild that syncs Google Calendar — has to run for a new
+       order exactly as it does for an edited one, which is why creating one
+       goes through here rather than calling db.createOrder from the picker. */
+    const isNew = !state.order.id;
+
+    state.order = isNew
+      ? await db.createOrder(Object.assign({ customer_id: state.customer.id }, payload))
+      : await db.updateOrder(state.order.id, payload);
 
     setDirty(false);
 
     try {
-      await db.logOrderHistory(state.order.id, "updated", {});
+      await db.logOrderHistory(state.order.id, isNew ? "created" : "updated", {});
     } catch (err) {
       console.error(err);
     }
@@ -8155,10 +8261,12 @@ KK.app = (function () {
         if ("customer" === state.route.view) {
           await saveCustomer();
         } else if ("orderEdit" === state.route.view) {
-          const ordId = state.order.id;
+          const wasNew = !state.order.id;
           if (!await saveOrder()) return;
-          showToast("Order saved");
-          leaveFormFor("#/order/" + ordId);
+          // Read after the save, never before: a new order has no id until the
+          // insert comes back, and saveOrder replaces state.order with the row.
+          showToast(wasNew ? "Order created" : "Order saved");
+          leaveFormFor("#/order/" + state.order.id);
         }
       } catch (err) {
         console.error(err);
@@ -8168,6 +8276,10 @@ KK.app = (function () {
         setDirty(state.dirty);
       }
     });
+
+    // The one shortcut with no page behind it: a moodboard is only ever made
+    // for an order, so the picker is the whole entry point.
+    elements.homeMoodboardBtn.addEventListener("click", () => openDocumentPicker("moodboard"));
 
     if (elements.homeNavHome) {
       elements.homeNavHome.addEventListener("click", () => {

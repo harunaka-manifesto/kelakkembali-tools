@@ -61,7 +61,7 @@ Column key: **app.js** = entry function + line ([MAP-app.md](MAP-app.md)) · **H
 - **Data** `db.getOrder`, `db.listOrderEvents`, `db.listDocumentLog`, `db.listOrderHistory`, `db.logOrderHistory`, `db.listFittingSessions`, `db.listFittingPhotos` · tables `orders`, `order_events`, `document_log`, `order_history`
 
 ## 5. Order editor & cost calculator
-- **Route** `#/order/:id/edit`
+- **Route** `#/order/:id/edit`, and `#/customer/:id/order/new/edit` for one that does not exist yet — `route.id` is the string `"new"` and `route.customerId` carries whose it will be. `state.order` comes from `NEW_ORDER_TEMPLATE` instead of the database and the Delete order menu item is withheld; the form below it fills identically, and `saveOrder` branches on `state.order.id` alone
 - **app.js** region **3881–4277**. `saveOrder` **5008**, `readItems` 5131, `addItemRow` 5067, `refreshItemTotals` 5096, `readTerms` 5216, `buildTerms` 5241, `validateTerms` 5053, `syncSchemeCard` 5251, `applyCostCalc` 5326, `closeCostCalc` 5310
 - **HTML** `#viewOrderEdit` **681–774**, `#calcSheet` **1302–1340**
 - **CSS** `shared.css` item rows 1586, payment terms 1689, chips 1753, cost sheet 2052, cost calc trigger 2158
@@ -186,4 +186,6 @@ Column key: **app.js** = entry function + line ([MAP-app.md](MAP-app.md)) · **H
 - **Data** `db.listDocumentFeed({kind, …})` (cursor paging, server-side `ilike`) · view `document_feed` · `db.logDocument` on create
 - **The amount shown is the logged `total`, never recomputed** from the order's current items — see [14](#14-quotation--invoice-documents) and `document_log` in [DATABASE.md](DATABASE.md)
 - **Create flow** New → pick customer → pick order → `docs.download` → `db.logDocument` → status advances via `advancedStatus` (forward only). Readiness comes from `documentReadiness`, shared with the order page so the two can never disagree
-- **Known gap** `db.createOrder` has zero call sites, so a customer with no orders is a real dead end. The picker says so plainly rather than pretending otherwise
+- **Entry points** The homepage Quotation and Invoice shortcuts link to `#/quotations?new=1` / `#/invoices?new=1`; `showDocuments` opens the picker and strips the flag from the hash. The kind therefore always comes from the route, never from whichever feed was last looked at
+- **The picker also makes moodboards** `picker.mode` is `quotation | invoice | moodboard`, set by whoever opens the sheet. In moodboard mode the `documentReadiness` gate is skipped — a moodboard is anchored to an order, not rendered from its items — and picking an order routes to `#/order/:id/moodboard` instead of generating anything
+- **A customer with no orders is no longer a dead end** Every order step offers **Add new order**, which leads to `#/customer/:id/order/new/edit` — the same order editor the edit route opens, so `db.createOrder` runs through `saveOrder` and inherits its history entry and schedule rebuild. Nothing is written until Save

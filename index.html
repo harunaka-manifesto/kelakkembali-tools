@@ -153,7 +153,7 @@
             <div class="home-skel__line"><span class="home-skel__block" style="width:220px;height:32px"></span></div>
             <div class="home-skel__lines"><span class="home-skel__block" style="width:100%;height:14px"></span><span class="home-skel__block" style="width:172px;height:14px"></span></div>
           </div>
-          <div class="home-skel__actions"><i></i><i></i><i></i><i></i></div>
+          <div class="home-skel__actions"><i></i><i></i><i></i><i></i><i class="home-skel__actions--wide"></i></div>
           <div class="home-skel__search"></div>
           <div class="home-skel__rail"></div>
           <div class="home-skel__ledger">
@@ -173,9 +173,16 @@
         <section class="home-hero" id="homeHero" aria-label="Today"><div class="home-hero__content"><h1 class="home-hero__greeting" id="heroGreeting"></h1><p class="home-hero__deadline" id="heroDeadline"></p></div></section>
         <section class="home-actions" id="homeActions" aria-label="Shortcuts">
           <a class="home-action home-action--schedule" href="#/schedules"><span class="home-action__face"><img src="assets/home-schedule-icon.svg" alt="">Schedule</span><span class="home-action__rail"></span></a>
-          <a class="home-action home-action--quotation" href="#/quotations"><span class="home-action__face"><img src="assets/home-quote-icon.svg" alt="">Quotation</span><span class="home-action__rail"></span></a>
-          <a class="home-action home-action--invoice" href="#/invoices"><span class="home-action__face"><img src="assets/home-invoice-icon.svg" alt="">Invoice</span><span class="home-action__rail"></span></a>
+          <!-- ?new=1 rather than opening the picker from here: the route is what
+               sets which kind the picker is for, so going through it means the
+               sheet cannot inherit the last kind visited. Cancelling reveals the
+               list it landed on instead of bouncing back home. -->
+          <a class="home-action home-action--quotation" href="#/quotations?new=1"><span class="home-action__face"><img src="assets/home-quote-icon.svg" alt="">Quotation</span><span class="home-action__rail"></span></a>
+          <a class="home-action home-action--invoice" href="#/invoices?new=1"><span class="home-action__face"><img src="assets/home-invoice-icon.svg" alt="">Invoice</span><span class="home-action__rail"></span></a>
           <a class="home-action home-action--fitting" href="#/fittings"><span class="home-action__face"><img src="assets/home-fitting-icon.svg" alt="">Fitting</span><span class="home-action__rail"></span></a>
+          <!-- A button, not a link: a moodboard has no list page to land on, so
+               this opens the same customer-then-order picker directly. -->
+          <button type="button" class="home-action home-action--moodboard" id="homeMoodboardBtn"><span class="home-action__face"><img src="assets/order-moodboard-icon.svg" alt="">Moodboard</span><span class="home-action__rail"></span></button>
         </section>
         <button type="button" class="home-alert" id="enquiriesCard" aria-disabled="true" hidden><span class="home-alert__face"><img class="home-alert__icon" src="assets/home-alert-icon.svg" alt=""><span id="enquiriesCount"></span><img class="home-alert__chevron" src="assets/home-chevron-icon.svg" alt=""></span><span class="home-alert__rail"></span></button>
         <section class="home-search-section" aria-label="Customer search"><label class="home-search" for="customerSearch"><img class="home-search__icon" src="assets/home-search-icon.svg" alt=""><input id="customerSearch" type="search" enterkeyhint="search" placeholder="Search customer name" autocapitalize="none" spellcheck="false"></label><div class="home-search__rail" aria-hidden="true"></div></section>

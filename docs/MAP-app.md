@@ -58,6 +58,7 @@ Parsed in `handleRoute` at **968** (hash segments). Each returns `{ view, id?, k
 | `#/customer/:id/edit` | `customerEdit` | `showCustomerEdit` | 5719 |
 | `#/order/:id` | `order` | `showOrderDetail` | 6316 |
 | `#/order/:id/edit` | `orderEdit` | (dispatch in `handleRoute`) | — |
+| `#/customer/:id/order/new/edit` | `orderEdit` (`id` is `"new"`) | (dispatch in `handleRoute`) | — |
 | `#/order/:id/moodboard` | `moodboard` | `setupMoodboardListeners` | 6970 |
 | `#/order/:id/moodboard/preview` | `moodboardPreview` | `openMoodboardCanvas` | 7102 |
 | `#/schedules` | `schedules` | `showSchedules` | 2294 |

@@ -2334,6 +2334,13 @@ body:not(.has-savebar):not(.has-fitting-journal-bar) .toast {
   border-radius: 8px;
 }
 .docnew__row:hover { background: var(--bg); }
+/* Dashed, because it does not stand for a record that exists — it makes one.
+   Same row shape so it still scans as part of the list it heads. */
+.docnew__row--new {
+  background: transparent;
+  border-style: dashed;
+}
+.docnew__row--new .docnew__row-title::before { content: '+ '; }
 .docnew__row-title {
   min-width: 0;
   overflow: hidden;

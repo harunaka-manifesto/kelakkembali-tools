@@ -103,7 +103,7 @@ Everything below is on `window.KK.db`. All async unless noted.
 
 **Customers** — `listCustomers` 204 · `getCustomer(id)` 208 · `createCustomer(record)` 212 · `updateCustomer(id, record)` 216 · `deleteCustomer(id)` 220
 
-**Orders** — `listOrders(customerId)` 226 · `listAllOrders` 230 (carries `title` for the calendar) · `getOrder(id)` 234 · `createOrder` 238 **— zero call sites; orders are still inserted by hand in Supabase** · `updateOrder(id, record)` 242 · `deleteOrder(id)` 246
+**Orders** — `listOrders(customerId)` 226 · `listAllOrders` 230 (carries `title` for the calendar) · `getOrder(id)` 234 · `createOrder` 238 (called only from `saveOrder`, on the `#/customer/:id/order/new/edit` route) · `updateOrder(id, record)` 242 · `deleteOrder(id)` 246
 
 **Documents & history** — `logDocument(orderId, kind, total)` 252 · `listDocumentLog(orderId)` 256 · `logOrderHistory(orderId, action, detail)` 264 · `listOrderHistory(orderId)` 268
 

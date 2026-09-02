@@ -327,8 +327,12 @@ body:not(.is-homepage) .home-nav { display: none; }
 
 /* Each cell stays exactly 98px in every state; pressing only moves the split
    between the face and the rail, so neighbours never shift. */
+/* Four tiles across, then Moodboard on its own full-width row. Five across
+   would leave "Moodboard" about 51px of content box at 375px, and the face
+   clips rather than wraps — so the fifth gets the width it needs instead of
+   the label being cut to fit the grid. */
 .home-actions {
-  height: 98px;
+  height: auto;
   padding: 0;
   background: none;
   border: 0;
@@ -371,11 +375,34 @@ body:not(.is-homepage) .home-nav { display: none; }
 .home-action--invoice   .home-action__rail { background: #1866da; }
 .home-action--fitting   .home-action__face { background: linear-gradient(180deg, rgba(0,0,0,.06), transparent), #fc4fac; }
 .home-action--fitting   .home-action__rail { background: #e72a90; }
+.home-action--moodboard .home-action__face { background: linear-gradient(180deg, rgba(0,0,0,.04), transparent), #8b4ff6; }
+.home-action--moodboard .home-action__rail { background: #7a3ee4; }
 .home-action:active,
 .home-action.is-pressed,
 .home-action.is-appear-pressed { grid-template-rows: 96px 2px; }
 .home-action:active .home-action__face,
 .home-action.is-pressed .home-action__face { background-image: linear-gradient(180deg, transparent, rgba(0,0,0,.10)); }
+
+/* The wide one takes the submissions bar's proportions rather than the tile's:
+   a 98px band running the full width reads as a section, not a shortcut. Its
+   own pressed rule for the same reason — the shared one squashes a 56px face. */
+.home-action--moodboard {
+  grid-column: 1 / -1;
+  height: 63px;
+  grid-template-rows: 56px 7px;
+}
+.home-action--moodboard .home-action__face {
+  flex-direction: row;
+  gap: 8px;
+  padding: 16px;
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: -.48px;
+}
+.home-action--moodboard .home-action__face img { flex: none; }
+.home-action--moodboard:active,
+.home-action--moodboard.is-pressed,
+.home-action--moodboard.is-appear-pressed { grid-template-rows: 61px 2px; }
 
 /* -------------------------- Submissions bar ----------------------------- */
 
@@ -647,12 +674,15 @@ body.is-homepage .btn--empty {
 .home-skel__line { height: 40px; display: flex; align-items: center; }
 .home-skel__lines { height: 40px; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
 .home-skel__actions {
-  height: 98px;
+  height: 161px;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   background: var(--home-white);
 }
 .home-skel__actions i { display: grid; grid-template-rows: 86px 12px; }
+/* Mirrors .home-action--moodboard, so the row does not resize when the real
+   shortcuts replace the skeleton. */
+.home-skel__actions i.home-skel__actions--wide { grid-column: 1 / -1; grid-template-rows: 56px 7px; }
 .home-skel__actions i::before,
 .home-skel__actions i::after { content: ''; display: block; }
 .home-skel__actions i::before { background: rgba(76,76,76,.18); animation: home-shimmer 1.2s ease-in-out infinite; }
