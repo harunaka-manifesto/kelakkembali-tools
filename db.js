@@ -50,6 +50,56 @@ KK.db = (function () {
     return res.data;
   }
 
+  /* ------------------------------ Read cache ------------------------------ */
+
+  /* Navigation prefetches a route's first query on pointerdown, which is 80ms
+     to half a second before the hash actually changes. That is only worth
+     anything if the real navigation can find the result waiting for it, so
+     reads go through here: a short-lived result cache plus an in-flight map so
+     the prefetch and the navigation share one request rather than racing.
+
+     Correctness rests on one rule — every write bumps `epoch`, which orphans
+     every entry cached before it. A stale row is never served across a write. */
+  const CACHE_TTL_MS = 30000;
+  const cache = new Map();
+  const inflight = new Map();
+  let epoch = 0;
+
+  function invalidate() {
+    epoch += 1;
+    cache.clear();
+    inflight.clear();
+  }
+
+  /* Wraps a read so repeat calls inside the TTL are free. `key` must describe
+     the query completely; anything left out of it is a cross-talk bug. */
+  function cached(key, run) {
+    const now = Date.now();
+    const hit = cache.get(key);
+    if (hit && hit.epoch === epoch && now - hit.at < CACHE_TTL_MS) {
+      return Promise.resolve(hit.value);
+    }
+    const pending = inflight.get(key);
+    if (pending && pending.epoch === epoch) return pending.promise;
+
+    const startedEpoch = epoch;
+    const promise = run().then(
+      (value) => {
+        inflight.delete(key);
+        // A write landed while this was in the air: the result may already be
+        // stale, so hand it back but do not remember it.
+        if (startedEpoch === epoch) cache.set(key, { value, at: Date.now(), epoch });
+        return value;
+      },
+      (err) => {
+        inflight.delete(key);
+        throw err;
+      }
+    );
+    inflight.set(key, { promise, epoch: startedEpoch });
+    return promise;
+  }
+
   /* -------------------------- Table Column Projections -------------------- */
 
   const PROJECTION_CUSTOMERS = 'id,name,phone,instagram,source,wedding_date,wedding_date_precision,notes,moodboard_date,cancelled_at,cancelled_reason,follow_up_date,follow_up_label,follow_up_google_event_id,follow_up_synced_at,created_at';
@@ -155,6 +205,7 @@ KK.db = (function () {
     },
 
     signIn: async function (password, rememberMe) {
+      invalidate();
       localStorage.setItem(STORAGE_KEY_REMEMBER, rememberMe ? '1' : '0');
       client = null; // Reset client to use selected storage
       if (!init()) throw new Error('Supabase is not configured — see config.js');
@@ -176,6 +227,7 @@ KK.db = (function () {
     },
 
     signOut: async function () {
+      invalidate();
       if (init()) {
         await client.auth.signOut();
         clearSavedPassword();
@@ -195,61 +247,84 @@ KK.db = (function () {
 
     rememberPreference,
 
+    /* Anything that writes outside this module (the fitting RPC path, an Edge
+       Function that mutates rows) must call this or the next read may serve a
+       row from before the write. */
+    invalidate,
+
     savedPassword: function () {
       return localStorage.getItem(STORAGE_KEY_PASSWORD) || '';
     },
 
     /* ----------------------------- Customer CRUD --------------------------- */
 
-    listCustomers: async function () {
-      return unwrap(await init().from('customers').select(PROJECTION_CUSTOMERS).order('wedding_date', { ascending: true, nullsFirst: false }).order('name', { ascending: true }));
+    listCustomers: function () {
+      return cached('customers:all', async () =>
+        unwrap(await init().from('customers').select(PROJECTION_CUSTOMERS).order('wedding_date', { ascending: true, nullsFirst: false }).order('name', { ascending: true })));
     },
 
-    getCustomer: async function (id) {
-      return unwrap(await init().from('customers').select(PROJECTION_CUSTOMERS).eq('id', id).single());
+    getCustomer: function (id) {
+      return cached('customer:' + id, async () =>
+        unwrap(await init().from('customers').select(PROJECTION_CUSTOMERS).eq('id', id).single()));
     },
 
     createCustomer: async function (record) {
+      invalidate();
       return unwrap(await init().from('customers').insert(record).select(PROJECTION_CUSTOMERS).single());
     },
 
     updateCustomer: async function (id, record) {
+      invalidate();
       return unwrap(await init().from('customers').update(record).eq('id', id).select(PROJECTION_CUSTOMERS).single());
     },
 
     deleteCustomer: async function (id) {
+      invalidate();
       unwrap(await init().from('customers').delete().eq('id', id));
     },
 
     /* ------------------------------ Order CRUD ----------------------------- */
 
-    listOrders: async function (customerId) {
-      return unwrap(await init().from('orders').select(PROJECTION_ORDERS).eq('customer_id', customerId).order('document_date', { ascending: false }));
+    listOrders: function (customerId) {
+      return cached('orders:customer:' + customerId, async () =>
+        unwrap(await init().from('orders').select(PROJECTION_ORDERS).eq('customer_id', customerId).order('document_date', { ascending: false })));
     },
 
-    listAllOrders: async function () {
-      return unwrap(await init().from('orders').select('id,customer_id,title,status,items,first_payment_date,second_payment_date,final_payment_date'));
+    listAllOrders: function () {
+      return cached('orders:all', async () =>
+        unwrap(await init().from('orders').select('id,customer_id,title,status,items,first_payment_date,second_payment_date,final_payment_date')));
     },
 
-    getOrder: async function (id) {
-      return unwrap(await init().from('orders').select(PROJECTION_ORDERS).eq('id', id).single());
+    /* The customer comes back embedded because every caller needs it and the
+       page used to pay a second round trip for one row it already knew the id
+       of. Callers that only want the order can ignore `customers`; the column
+       list is otherwise unchanged. */
+    getOrder: function (id) {
+      return cached('order:' + id, async () =>
+        unwrap(await init().from('orders')
+          .select(PROJECTION_ORDERS + ',customers(' + PROJECTION_CUSTOMERS + ')')
+          .eq('id', id).single()));
     },
 
     createOrder: async function (record) {
+      invalidate();
       return unwrap(await init().from('orders').insert(record).select(PROJECTION_ORDERS).single());
     },
 
     updateOrder: async function (id, record) {
+      invalidate();
       return unwrap(await init().from('orders').update(record).eq('id', id).select(PROJECTION_ORDERS).single());
     },
 
     deleteOrder: async function (id) {
+      invalidate();
       unwrap(await init().from('orders').delete().eq('id', id));
     },
 
     /* --------------------------- Document & History ------------------------ */
 
     logDocument: async function (orderId, kind, total) {
+      invalidate();
       unwrap(await init().from('document_log').insert({ order_id: orderId, kind, total }));
     },
 
@@ -262,17 +337,20 @@ KK.db = (function () {
     },
 
     logOrderHistory: async function (orderId, action, detail) {
+      invalidate();
       unwrap(await init().from('order_history').insert({ order_id: orderId, action, detail: detail || {} }));
     },
 
-    listOrderHistory: async function (orderId) {
-      return unwrap(await init().from('order_history').select('id,action,detail,created_at').eq('order_id', orderId).order('created_at', { ascending: false }));
+    listOrderHistory: function (orderId) {
+      return cached('order_history:' + orderId, async () =>
+        unwrap(await init().from('order_history').select('id,action,detail,created_at').eq('order_id', orderId).order('created_at', { ascending: false })));
     },
 
     /* ----------------------------- Order Events ---------------------------- */
 
-    listOrderEvents: async function (orderId) {
-      return unwrap(await init().from('order_events').select(PROJECTION_ORDER_EVENTS).eq('order_id', orderId).order('event_date', { ascending: true }));
+    listOrderEvents: function (orderId) {
+      return cached('order_events:' + orderId, async () =>
+        unwrap(await init().from('order_events').select(PROJECTION_ORDER_EVENTS).eq('order_id', orderId).order('event_date', { ascending: true })));
     },
 
     /* Every appointment across every order, for the homepage deadline strip and
@@ -281,11 +359,15 @@ KK.db = (function () {
        than one page of the fitting feed. Past roughly 5k rows, range-filter this
        to a 13-month window either side of the calendar cursor — the render code
        does not need to change for that. */
-    listAllOrderEvents: async function () {
-      return unwrap(await init().from('order_events').select('id,order_id,stage,event_date,end_date,pinned'));
+    listAllOrderEvents: function () {
+      return cached('order_events:all', async () =>
+        unwrap(await init().from('order_events').select('id,order_id,stage,event_date,end_date,pinned')));
     },
 
     replaceOrderEvents: async function (orderId, newEvents, allowedStages) {
+      // The diff below is computed against what is in the table right now, so
+      // it must not be computed against a cached snapshot.
+      invalidate();
       const currentEvents = await this.listOrderEvents(orderId);
       const currentByStage = {};
       currentEvents.forEach((e) => { currentByStage[e.stage] = e; });
@@ -324,6 +406,7 @@ KK.db = (function () {
         }
       }
 
+      invalidate();
       return {
         removed: toRemove,
         events: await this.listOrderEvents(orderId)
@@ -332,19 +415,26 @@ KK.db = (function () {
 
     /* --------------------------- Fitting Sessions -------------------------- */
 
-    listFittingSessions: async function (orderId) {
-      return unwrap(await init().from('fitting_sessions').select(PROJECTION_FITTING_SESSIONS).eq('order_id', orderId).order('created_at', { ascending: false }));
+    listFittingSessions: function (orderId) {
+      return cached('fitting_sessions:order:' + orderId, async () =>
+        unwrap(await init().from('fitting_sessions').select(PROJECTION_FITTING_SESSIONS).eq('order_id', orderId).order('created_at', { ascending: false })));
     },
 
     /* Every session in one read, so the schedules calendar can decide where a
        tapped fitting goes — its existing log, or the camera — without a request
        per appointment. Ids only; the calendar never renders session contents. */
-    listAllFittingSessions: async function () {
-      return unwrap(await init().from('fitting_sessions').select('id,order_id,stage,status'));
+    listAllFittingSessions: function () {
+      return cached('fitting_sessions:all', async () =>
+        unwrap(await init().from('fitting_sessions').select('id,order_id,stage,status')));
     },
 
-    getFittingSession: async function (id) {
-      return unwrap(await init().from('fitting_sessions').select(PROJECTION_FITTING_SESSIONS).eq('id', id).single());
+    /* Session -> order -> customer used to be three serial reads to render one
+       page. PostgREST resolves the whole chain server-side in one. */
+    getFittingSession: function (id) {
+      return cached('fitting_session:' + id, async () =>
+        unwrap(await init().from('fitting_sessions')
+          .select(PROJECTION_FITTING_SESSIONS + ',orders(' + PROJECTION_ORDERS + ',customers(' + PROJECTION_CUSTOMERS + '))')
+          .eq('id', id).single()));
     },
 
     getFittingSessionByStage: async function (orderId, stage) {
@@ -357,14 +447,17 @@ KK.db = (function () {
     },
 
     createFittingSession: async function (record) {
+      invalidate();
       return unwrap(await init().from('fitting_sessions').insert(record).select(PROJECTION_FITTING_SESSIONS).single());
     },
 
     updateFittingSession: async function (id, record) {
+      invalidate();
       return unwrap(await init().from('fitting_sessions').update(record).eq('id', id).select(PROJECTION_FITTING_SESSIONS).single());
     },
 
     deleteFittingSession: async function (id) {
+      invalidate();
       unwrap(await init().from('fitting_sessions').delete().eq('id', id));
     },
 
@@ -460,18 +553,20 @@ KK.db = (function () {
       };
     },
 
-    listFittingPhotos: async function (orderId) {
-      return unwrap(await init().from('fitting_photos').select(PROJECTION_FITTING_PHOTOS).eq('order_id', orderId).order('position', { ascending: true }));
+    listFittingPhotos: function (orderId) {
+      return cached('fitting_photos:order:' + orderId, async () =>
+        unwrap(await init().from('fitting_photos').select(PROJECTION_FITTING_PHOTOS).eq('order_id', orderId).order('position', { ascending: true })));
     },
 
     /* One fitting session's photos in their stored order. The detail page and
        the PDF both read this, so the tie-break is spelled out rather than left
        to whatever PostgREST returns for equal positions. */
-    listFittingPhotosBySession: async function (sessionId) {
-      return unwrap(await init().from('fitting_photos').select(PROJECTION_FITTING_PHOTOS).eq('session_id', sessionId)
-        .order('position', { ascending: true })
-        .order('created_at', { ascending: true })
-        .order('id', { ascending: true }));
+    listFittingPhotosBySession: function (sessionId) {
+      return cached('fitting_photos:session:' + sessionId, async () =>
+        unwrap(await init().from('fitting_photos').select(PROJECTION_FITTING_PHOTOS).eq('session_id', sessionId)
+          .order('position', { ascending: true })
+          .order('created_at', { ascending: true })
+          .order('id', { ascending: true })));
     },
 
     getFittingPhoto: async function (id) {
@@ -479,14 +574,17 @@ KK.db = (function () {
     },
 
     createFittingPhoto: async function (record) {
+      invalidate();
       return unwrap(await init().from('fitting_photos').insert(record).select(PROJECTION_FITTING_PHOTOS).single());
     },
 
     updateFittingPhoto: async function (id, record) {
+      invalidate();
       return unwrap(await init().from('fitting_photos').update(record).eq('id', id).select(PROJECTION_FITTING_PHOTOS).single());
     },
 
     deleteFittingPhoto: async function (id) {
+      invalidate();
       unwrap(await init().from('fitting_photos').delete().eq('id', id));
     },
 
@@ -497,6 +595,7 @@ KK.db = (function () {
        locked session rather than from anything sent here.
        -> { photos: [row], created: [{ client_key, photo }] } */
     saveFittingPhotoBatch: async function (sessionId, captionUpdates, deleteIds, newPhotos) {
+      invalidate();
       return unwrap(await init().rpc('save_fitting_photo_batch', {
         p_session_id: sessionId,
         p_caption_updates: captionUpdates || [],
@@ -507,17 +606,21 @@ KK.db = (function () {
 
     /* ----------------------------- Intake Enquiries ------------------------- */
 
-    listIntake: async function (statusFilter) {
-      let query = init().from('intake_submissions').select(PROJECTION_INTAKE);
-      if (statusFilter) query = query.eq('status', statusFilter);
-      return unwrap(await query.order('created_at', { ascending: false }));
+    listIntake: function (statusFilter) {
+      return cached('intake:' + (statusFilter || 'all'), async () => {
+        let query = init().from('intake_submissions').select(PROJECTION_INTAKE);
+        if (statusFilter) query = query.eq('status', statusFilter);
+        return unwrap(await query.order('created_at', { ascending: false }));
+      });
     },
 
-    getIntake: async function (id) {
-      return unwrap(await init().from('intake_submissions').select(PROJECTION_INTAKE).eq('id', id).single());
+    getIntake: function (id) {
+      return cached('intake:row:' + id, async () =>
+        unwrap(await init().from('intake_submissions').select(PROJECTION_INTAKE).eq('id', id).single()));
     },
 
     resolveIntake: async function (id, status, customerId) {
+      invalidate();
       return unwrap(await init().from('intake_submissions').update({
         status,
         customer_id: customerId || null,
@@ -544,6 +647,7 @@ KK.db = (function () {
     driveGetFittingPhoto: (photoId) => callDrive('get_fitting_photo', { photo_id: photoId }),
 
     logMoodboard: async function (orderId, driveLink) {
+      invalidate();
       unwrap(await init().from('document_log').insert({ order_id: orderId, kind: 'moodboard', total: null, drive_link: driveLink || null }));
     },
 
