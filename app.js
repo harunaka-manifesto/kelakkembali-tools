@@ -60,6 +60,9 @@ KK.app = (function () {
 
   const elements = {
     boot: $("#boot"),
+    bootPanel: $("#bootPanel"),
+    bootKicker: $("#bootKicker"),
+    bootQuote: $("#bootQuote"),
     page: $("main.page"),
     gate: $("#gate"),
     gateForm: $("#gateForm"),
@@ -190,6 +193,8 @@ KK.app = (function () {
     reopenCustomer: $("#reopenCustomer"),
     deleteCustomer: $("#deleteCustomer"),
     deleteCustomerRow: $("#deleteCustomerRow"),
+    custDeleteBtn: $("#custDeleteBtn"),
+    orderDeleteBtn: $("#orderDeleteBtn"),
     cName: $("#cName"),
     errCName: $("#errCName"),
     cPhone: $("#cPhone"),
@@ -571,11 +576,205 @@ KK.app = (function () {
      opened, and --bottombar-h feeds the page's bottom padding — so re-writing
      it here reflowed the page several times per keyboard animation, under a
      caret the user was aiming at. Bar heights are measured when a bar is shown
-     or hidden, which is when they actually change. */
-  function syncVisualViewport() {
+     or hidden, which is when they actually change.
+
+     The reference is documentElement.clientHeight, NOT window.innerHeight.
+     Every fixed bar sits at the bottom of the initial containing block, which
+     is exactly what clientHeight measures, and it changes in the same layout
+     pass the visual viewport does. window.innerHeight is a separate reading
+     that lags on the browsers which shrink the layout viewport for the
+     keyboard: a stale 760 against a fresh 424 published a 336px lift on a
+     viewport that had already moved, and the bar flew into the middle of the
+     screen. The window resize listener below corrected it a frame later, which
+     is why the fault read as an intermittent jump rather than a broken bar.
+
+     Coalesced through one frame because the keyboard reports its height in
+     several steps, and each of resize/scroll/orientationchange can fire inside
+     the same one. */
+  let viewportFrame = 0;
+
+  function measureVisualViewport() {
+    viewportFrame = 0;
     const vp = window.visualViewport;
-    const offset = vp ? Math.max(0, window.innerHeight - vp.height - vp.offsetTop) : 0;
+    const layoutBottom = document.documentElement.clientHeight;
+    const visualBottom = vp ? vp.offsetTop + vp.height : layoutBottom;
+    const offset = Math.max(0, Math.min(layoutBottom, layoutBottom - visualBottom));
     document.documentElement.style.setProperty("--keyboard-offset", Math.round(offset) + "px");
+  }
+
+  function syncVisualViewport() {
+    if (viewportFrame) return;
+    viewportFrame = requestAnimationFrame(measureVisualViewport);
+  }
+
+  /* ------------------------------- Swipe rows ----------------------------- */
+
+  /* Swipe a ledger row left, a Delete button appears under it. One delegated
+     listener serves every list, because a per-row listener on a feed that
+     re-renders on every keystroke is a leak waiting to happen.
+
+     touch-action: pan-y on the pane is what keeps this out of a fight with the
+     page: the browser still owns vertical scrolling natively and hands us only
+     the horizontal pan, so nothing here has to guess whether the user meant to
+     scroll. We only decide which axis a gesture is on, once, and then stay on
+     it.
+
+     The gesture is never the only way to delete: every row's button stays in
+     the tab order and opens its own row on focus, and both detail pages carry
+     a delete row of their own. A gesture nobody can discover is not an
+     affordance. */
+  const SWIPE_REVEAL = 96; /* must equal .swipe__actions width */
+  const SWIPE_SLOP = 8;
+  const SWIPE_FLICK = 0.4; /* px per ms leftward that opens regardless of distance */
+
+  let swipeDrag = null;
+  let swipeMoved = false;
+
+  const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
+
+  function closeSwipeRows(except) {
+    $$(".swipe.is-open").forEach((row) => {
+      if (row === except) return;
+      row.classList.add("is-settling");
+      row.classList.remove("is-open");
+    });
+  }
+
+  function setSwipeRow(row, isOpen) {
+    $(".swipe__pane", row).style.removeProperty("--swipe-x");
+    row.classList.add("is-settling");
+    row.classList.toggle("is-open", isOpen);
+    if (isOpen) closeSwipeRows(row);
+  }
+
+  function bindSwipeRows() {
+    document.addEventListener("pointerdown", (e) => {
+      const pane = e.target.closest && e.target.closest(".swipe__pane");
+      // A tap on the revealed button is not a drag on the row behind it.
+      if (!pane || (e.target.closest && e.target.closest(".swipe__delete"))) return;
+      if ("mouse" === e.pointerType && 0 !== e.button) return;
+      const row = pane.closest(".swipe");
+      swipeMoved = false;
+      swipeDrag = {
+        row: row,
+        pane: pane,
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        startAt: e.timeStamp,
+        base: row.classList.contains("is-open") ? -SWIPE_REVEAL : 0,
+        axis: ""
+      };
+      row.classList.remove("is-settling");
+    });
+
+    document.addEventListener("pointermove", (e) => {
+      const drag = swipeDrag;
+      if (!drag || e.pointerId !== drag.pointerId) return;
+      const dx = e.clientX - drag.startX;
+      const dy = e.clientY - drag.startY;
+
+      if (!drag.axis) {
+        // Whichever axis clears the slop first owns the gesture for good.
+        if (Math.abs(dy) > SWIPE_SLOP && Math.abs(dy) >= Math.abs(dx)) {
+          swipeDrag = null;
+          return;
+        }
+        if (Math.abs(dx) <= SWIPE_SLOP) return;
+        drag.axis = "x";
+        swipeMoved = true;
+        if (drag.pane.setPointerCapture) {
+          try { drag.pane.setPointerCapture(e.pointerId); } catch (err) { /* capture is a nicety */ }
+        }
+      }
+      drag.pane.style.setProperty("--swipe-x", clamp(drag.base + dx, -SWIPE_REVEAL, 0) + "px");
+    });
+
+    const endSwipe = (e) => {
+      const drag = swipeDrag;
+      if (!drag || e.pointerId !== drag.pointerId) return;
+      swipeDrag = null;
+      if (!drag.axis) {
+        drag.row.classList.add("is-settling");
+        return;
+      }
+      const dx = e.clientX - drag.startX;
+      const travelled = clamp(drag.base + dx, -SWIPE_REVEAL, 0);
+      const elapsed = Math.max(1, e.timeStamp - drag.startAt);
+      const flickedOpen = dx < 0 && -dx / elapsed > SWIPE_FLICK;
+      const flickedShut = dx > 0 && dx / elapsed > SWIPE_FLICK;
+      setSwipeRow(drag.row, flickedOpen || (!flickedShut && travelled <= -SWIPE_REVEAL / 2));
+    };
+    document.addEventListener("pointerup", endSwipe);
+    document.addEventListener("pointercancel", (e) => {
+      const drag = swipeDrag;
+      if (!drag || e.pointerId !== drag.pointerId) return;
+      swipeDrag = null;
+      setSwipeRow(drag.row, drag.base < 0);
+    });
+
+    /* Capture phase, because the pane holds a link: a drag that ends on a card
+       and a tap on an already-open row both have to stop before navigation. */
+    document.addEventListener("click", (e) => {
+      const pane = e.target.closest && e.target.closest(".swipe__pane");
+      if (!pane) {
+        // A tap anywhere else puts the ledger back.
+        if (!(e.target.closest && e.target.closest(".swipe__delete"))) closeSwipeRows(null);
+        return;
+      }
+      const row = pane.closest(".swipe");
+      const dragged = swipeMoved;
+      swipeMoved = false;
+      if (dragged) {
+        /* The drag has already settled this row open or shut. Suppress the
+           navigation the pointer sequence would otherwise trigger, and leave
+           the state the gesture chose — closing here undid every swipe the
+           moment it finished. */
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      if (!row.classList.contains("is-open")) return;
+      // A real tap on an open row puts it back rather than opening the record.
+      e.preventDefault();
+      e.stopPropagation();
+      setSwipeRow(row, false);
+    }, true);
+
+    // Keyboard and screen-reader users reach the button through the tab order,
+    // so the row has to open when it does.
+    document.addEventListener("focusin", (e) => {
+      const btn = e.target.closest && e.target.closest(".swipe__delete");
+      if (btn) setSwipeRow(btn.closest(".swipe"), true);
+      else if (!(e.target.closest && e.target.closest(".swipe__pane"))) closeSwipeRows(null);
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if ("Escape" !== e.key) return;
+      const open = $(".swipe.is-open");
+      if (open) setSwipeRow(open, false);
+    });
+
+    /* Every pane holds a link, and a mouse drag on a link starts the browser's
+       own drag-and-drop — which fires pointercancel and killed the gesture one
+       move in. Touch never hit this; a trackpad hit it every time. */
+    document.addEventListener("dragstart", (e) => {
+      if (e.target.closest && e.target.closest(".swipe__pane")) e.preventDefault();
+    });
+  }
+
+  /* Wraps one ledger row so it can be swiped. `deleteAttr` is the data
+     attribute the delete handler reads; `label` names the record for anyone
+     who hears the button rather than sees which row it belongs to. */
+  function swipeRowHtml(cardHtml, deleteAttr, label) {
+    return '<div class="swipe">' +
+      '<div class="swipe__actions">' +
+        '<button type="button" class="swipe__delete"' + deleteAttr + '>Delete' +
+          '<span class="sr-only"> ' + U.escapeHtml(label || "this record") + '</span>' +
+        '</button>' +
+      '</div>' +
+      '<div class="swipe__pane">' + cardHtml + '</div>' +
+    '</div>';
   }
 
   /* ------------------------------ Sheet motion ---------------------------- */
@@ -702,6 +901,43 @@ KK.app = (function () {
   const SKELETON_DELAY_MS = 120;
   const SKELETON_MIN_MS = 250;
 
+  /* Something to read while the app boots. The first load is the only one long
+     enough to be worth filling — a route change raises the same curtain for
+     300ms, and copy that appears and vanishes inside a third of a second is
+     noise, so the panel is retired the first time the curtain comes down.
+
+     KK.quotes decides what is eligible; this only decides when to swap. The
+     rotation is what keeps a slow connection from staring at one line. */
+  const BOOT_QUOTE_MS = 5200;
+  let bootQuoteTimer = 0;
+  let bootQuoteDone = false;
+
+  function writeBootQuote() {
+    const entry = KK.quotes.pick(new Date());
+    elements.bootKicker.textContent = entry.label;
+    elements.bootQuote.textContent = entry.text;
+  }
+
+  function startBootQuotes() {
+    if (bootQuoteDone || elements.boot.hidden) return;
+    writeBootQuote();
+    elements.bootPanel.hidden = false;
+    bootQuoteTimer = setInterval(() => {
+      elements.bootQuote.classList.add("is-swapping");
+      setTimeout(() => {
+        writeBootQuote();
+        elements.bootQuote.classList.remove("is-swapping");
+      }, reducedMotion() ? 0 : 240);
+    }, BOOT_QUOTE_MS);
+  }
+
+  function stopBootQuotes() {
+    bootQuoteDone = true;
+    if (bootQuoteTimer) clearInterval(bootQuoteTimer);
+    bootQuoteTimer = 0;
+    elements.bootPanel.hidden = true;
+  }
+
   let curtainCovered = !elements.boot.hidden;
   let curtainCoverPromise = null;
   let routeLoaderShownAt = 0;
@@ -751,6 +987,7 @@ KK.app = (function () {
     elements.boot.hidden = true;
     elements.boot.classList.remove("is-animating", "is-below");
     curtainCovered = false;
+    stopBootQuotes();
     document.body.classList.remove("is-page-transitioning");
   }
 
@@ -1108,6 +1345,62 @@ KK.app = (function () {
         console.error(err);
         showToast(err.message || "Could not delete");
       }
+    }
+  }
+
+  /* A ledger row deletes in place: the row goes, the summary re-counts, and the
+     page you were reading stays the page you are reading. Navigating away from
+     a list because one row left it would lose the scroll position and the
+     search you were in the middle of. */
+  async function deleteCustomerFromLedger(customerId) {
+    const cust = (state.customers || []).filter((c) => c.id === customerId)[0];
+    if (!cust) return;
+    if (!window.confirm("Delete " + (cust.name || "this customer") + ", along with every order and download record? This cannot be undone.")) return;
+    try {
+      await db.deleteCustomer(customerId);
+      state.customers = state.customers.filter((c) => c.id !== customerId);
+      delete state.overview.ordersByCustomer[customerId];
+      renderHomepageSummary();
+      renderCustomerList();
+      showToast("Customer deleted");
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || "Could not delete");
+    }
+  }
+
+  async function deleteOrderFromCustomer(orderId) {
+    const order = (state.customerOrders || []).filter((o) => o.id === orderId)[0];
+    if (!order) return;
+    if (!window.confirm("Delete " + orderLabel(order) + " and its payment and download record? This cannot be undone.")) return;
+    try {
+      await db.deleteOrder(orderId);
+      state.customerOrders = state.customerOrders.filter((o) => o.id !== orderId);
+      renderCustomerDetail(state.customer, state.customerOrders);
+      renderCustomerReadOnly(state.customer);
+      showToast("Order deleted");
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || "Could not delete");
+    }
+  }
+
+  /* The order twin of deleteCustomerRecord. It used to live inline in the
+     app-bar menu's handler, which is why the delete rows at the bottom of the
+     two detail pages could not reuse it. */
+  async function deleteOrderRecord() {
+    const order = state.order;
+    if (!order || !order.id) return;
+    if (!window.confirm("Delete this order and its payment and download record? This cannot be undone.")) return;
+    const custId = order.customer_id;
+    try {
+      await db.deleteOrder(order.id);
+      setDirty(false);
+      showToast("Order deleted");
+      go("#/customer/" + encodeURIComponent(custId));
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || "Could not delete");
     }
   }
 
@@ -6756,7 +7049,11 @@ KK.app = (function () {
       const statusInfo = homepageStatus(c, orders);
       const metaText = orders.length + " order" + (1 === orders.length ? "" : "s");
 
-      return '<div class="home-customer-record"><div class="home-grid-rule"></div><div class="home-customer-record__inset"><a class="home-customer-card home-customer-card--' + statusInfo.tone + '" href="#/customer/' + encodeURIComponent(c.id) + '" aria-label="' + U.escapeHtml((c.name || "Unnamed customer") + ", " + statusInfo.label) + '"><span class="home-customer-card__face"><span class="home-customer-card__top"><span class="home-customer-card__name">' + U.escapeHtml(c.name || "Unnamed customer") + '</span><span class="home-customer-card__badge">' + U.escapeHtml(statusInfo.label) + '</span></span>' + ("Cancelled" === statusInfo.label ? "" : '<span class="home-customer-card__meta"><span>' + U.escapeHtml(metaText) + '</span><span>' + U.formatRupiah(sumTotal) + '</span></span>') + '</span><span class="home-customer-card__rail"></span></a></div><div class="home-grid-rule"></div><div class="home-grid-spacer" aria-hidden="true"></div></div>';
+      const cardHtml = '<a class="home-customer-card home-customer-card--' + statusInfo.tone + '" href="#/customer/' + encodeURIComponent(c.id) + '" aria-label="' + U.escapeHtml((c.name || "Unnamed customer") + ", " + statusInfo.label) + '"><span class="home-customer-card__face"><span class="home-customer-card__top"><span class="home-customer-card__name">' + U.escapeHtml(c.name || "Unnamed customer") + '</span><span class="home-customer-card__badge">' + U.escapeHtml(statusInfo.label) + '</span></span>' + ("Cancelled" === statusInfo.label ? "" : '<span class="home-customer-card__meta"><span>' + U.escapeHtml(metaText) + '</span><span>' + U.formatRupiah(sumTotal) + '</span></span>') + '</span><span class="home-customer-card__rail"></span></a>';
+
+      return '<div class="home-customer-record"><div class="home-grid-rule"></div><div class="home-customer-record__inset">' +
+        swipeRowHtml(cardHtml, ' data-delete-customer="' + U.escapeHtml(c.id) + '"', c.name || "Unnamed customer") +
+        '</div><div class="home-grid-rule"></div><div class="home-grid-spacer" aria-hidden="true"></div></div>';
     }).join('') + addRow;
   }
 
@@ -6861,7 +7158,7 @@ KK.app = (function () {
       const qIdx = hashVal.indexOf("?");
       return go("#/customer/new/edit" + (-1 === qIdx ? "" : hashVal.slice(qIdx)));
     }
-    setChrome({ title: "Customer", up: { label: "Customers", hash: "#/customers" }, save: false, custpage: true });
+    setChrome({ title: "Customer", up: { label: "Customers", hash: "#/customers" }, save: false, destroy: "customer", custpage: true });
     state.order = null;
     state.schedule = null;
     state.loggedDeposits = {};
@@ -7014,7 +7311,11 @@ KK.app = (function () {
       ? orders.map((o) => {
           const st = custOrderStatus(o);
           const itemLen = (o.items || []).length;
-          return '<div class="cust-grid-spacer" aria-hidden="true"></div><div class="cust-grid-rule"></div><div class="cust-order-record__inset"><a class="cust-order-card cust-order-card--' + st.tone + '" href="#/order/' + encodeURIComponent(o.id) + '" aria-label="' + U.escapeHtml(orderLabel(o) + ", " + st.label) + '"><span class="cust-order-card__face"><span class="cust-order-card__top"><span class="cust-order-card__name">' + U.escapeHtml(orderLabel(o)) + '</span><span class="cust-order-card__badge">' + U.escapeHtml(st.label) + '</span></span><span class="cust-order-card__meta"><span>' + itemLen + " item" + (1 === itemLen ? "" : "s") + '</span><span>' + U.formatRupiah(docs.computeTotal(o.items)) + '</span></span></span><span class="cust-order-card__rail" aria-hidden="true"></span></a></div><div class="cust-grid-rule"></div>';
+          const cardHtml = '<a class="cust-order-card cust-order-card--' + st.tone + '" href="#/order/' + encodeURIComponent(o.id) + '" aria-label="' + U.escapeHtml(orderLabel(o) + ", " + st.label) + '"><span class="cust-order-card__face"><span class="cust-order-card__top"><span class="cust-order-card__name">' + U.escapeHtml(orderLabel(o)) + '</span><span class="cust-order-card__badge">' + U.escapeHtml(st.label) + '</span></span><span class="cust-order-card__meta"><span>' + itemLen + " item" + (1 === itemLen ? "" : "s") + '</span><span>' + U.formatRupiah(docs.computeTotal(o.items)) + '</span></span></span><span class="cust-order-card__rail" aria-hidden="true"></span></a>';
+
+          return '<div class="cust-grid-spacer" aria-hidden="true"></div><div class="cust-grid-rule"></div><div class="cust-order-record__inset">' +
+            swipeRowHtml(cardHtml, ' data-delete-order="' + U.escapeHtml(o.id) + '"', orderLabel(o)) +
+            '</div><div class="cust-grid-rule"></div>';
         }).join('') + '<div class="cust-grid-spacer" aria-hidden="true"></div>' + addOrderRow
       : '<div class="cust-grid-spacer" aria-hidden="true"></div><p class="empty">No orders for this customer yet.</p>' + addOrderRow;
   }
@@ -8979,27 +9280,23 @@ KK.app = (function () {
     elements.menuSignOut.addEventListener("click", signOutFromMenu);
     elements.menuDelete.addEventListener("click", () => {
       closeMenu();
-      if ("order" === elements.menuDelete.dataset.kind) {
-        (async function () {
-          if (window.confirm("Delete this order and its payment and download record? This cannot be undone.")) {
-            try {
-              const custId = state.order.customer_id;
-              await db.deleteOrder(state.order.id);
-              setDirty(false);
-              showToast("Order deleted");
-              go("#/customer/" + custId);
-            } catch (err) {
-              console.error(err);
-              showToast(err.message || "Could not delete");
-            }
-          }
-        })();
-      } else {
-        deleteCustomerRecord();
-      }
+      if ("order" === elements.menuDelete.dataset.kind) deleteOrderRecord();
+      else deleteCustomerRecord();
     });
 
     elements.deleteCustomer.addEventListener("click", deleteCustomerRecord);
+    elements.custDeleteBtn.addEventListener("click", deleteCustomerRecord);
+    elements.orderDeleteBtn.addEventListener("click", deleteOrderRecord);
+
+    /* The revealed buttons, wherever the row is. Delegated on document for the
+       same reason the gesture is: these lists re-render on every keystroke. */
+    bindSwipeRows();
+    document.addEventListener("click", (e) => {
+      const btn = e.target.closest && e.target.closest(".swipe__delete");
+      if (!btn) return;
+      if (btn.dataset.deleteCustomer) deleteCustomerFromLedger(btn.dataset.deleteCustomer);
+      else if (btn.dataset.deleteOrder) deleteOrderFromCustomer(btn.dataset.deleteOrder);
+    });
     elements.customerSearch.addEventListener("input", renderCustomerList);
 
     $$(".js-cfield").forEach((f) => {
@@ -9339,6 +9636,9 @@ KK.app = (function () {
     bindEvents();
 
     if (db.isConfigured()) {
+      // Straight away, not after the session check: the session check is most
+      // of the wait, and an empty curtain during it is the whole complaint.
+      startBootQuotes();
       (async function () {
         try {
           if (await db.currentSession()) {
@@ -9352,6 +9652,7 @@ KK.app = (function () {
         }
       })();
     } else {
+      stopBootQuotes();
       elements.boot.innerHTML =
         '<div class="boot__msg"><strong>Not connected.</strong><span>Fill in <code>config.js</code> with your Supabase URL and anon key — see “Setting up the database” in the README.</span></div>';
     }

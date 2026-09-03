@@ -126,6 +126,8 @@ Editor page 8 · Generated canvas 264 · Actions 352 · Full-screen overlay 437 
 | `.schedcal-*` | Schedules calendar (day keys, per-week bands, month bar, day sheet) | `pages.css` 3596+ |
 | `.doclist-*` | Quotations and invoices list (both routes) | `pages.css` 4334+ |
 | `.docnew*` | New-document picker — utility chrome, not ledger canvas | `shared.css` 2285+ |
+| `.swipe*` | A ledger row that slides left to one Delete button. `touch-action: pan-y` on the pane; `--swipe-x` inline while dragging, `.is-open` once settled | `shared.css`, above `.docnew*` |
+| `.boot__panel` `.boot__quote` `.boot__kicker` | The line on the boot curtain and its travelling sheen (`@keyframes boot-sheen`, inside an `@supports (background-clip: text)` guard) | `shared.css`, in the Boot block |
 | `.fitlog-*` | Fitting logs feed (search block reused by `.doclist`) | `pages.css` 2295+ |
 | `.fitdet-*` | Fitting log detail (cards, actions and bars reused by the workspace) | `pages.css` 2862+ |
 | `.fitadd-*` | Fitting workspace: photo stage, inline caption editor, undo toast | `pages.css` 3119+ |

@@ -19,6 +19,76 @@
 }
 
 .boot[hidden] { display: none; }
+
+/* The line on the curtain. A black screen with a progress bar says the app is
+   busy; it does not say anything worth reading while you wait. */
+.boot__panel {
+  width: min(390px, 100%);
+  padding: 0 24px;
+  text-align: center;
+}
+.boot__panel[hidden] { display: none; }
+.boot__kicker {
+  margin: 0 0 10px;
+  color: var(--home-grid, #3a3a3a);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+}
+.boot__quote {
+  margin: 0;
+  min-height: 72px;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 24px;
+  letter-spacing: -.3px;
+  color: var(--home-white-dark, #e8e4da);
+  transition: opacity var(--motion-standard, 240ms) var(--ease-standard, ease);
+}
+/* The swap between two lines fades out and back in, so a line never changes
+   under the eye that is reading it. */
+.boot__quote.is-swapping { opacity: 0; }
+
+/* The loading signal itself: a sheen that travels along the text, forever,
+   until the app arrives. Gated behind @supports because the trick is to paint
+   the gradient through the glyphs and make the text itself transparent — where
+   background-clip is unsupported that would leave a blank curtain. */
+@supports ((background-clip: text) or (-webkit-background-clip: text)) {
+  .boot__quote {
+    background-image: linear-gradient(
+      100deg,
+      var(--home-white-dark, #e8e4da) 0%,
+      var(--home-white-dark, #e8e4da) 42%,
+      #fffdf7 50%,
+      var(--home-white-dark, #e8e4da) 58%,
+      var(--home-white-dark, #e8e4da) 100%
+    );
+    background-size: 250% 100%;
+    background-repeat: no-repeat;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: boot-sheen 2800ms linear infinite;
+  }
+}
+@keyframes boot-sheen {
+  from { background-position: 150% 0; }
+  to { background-position: -50% 0; }
+}
+
+/* Reduced motion keeps the words and drops the travelling light — the progress
+   bar at the top of the screen already says the app is working. */
+@media (prefers-reduced-motion: reduce) {
+  .boot__quote {
+    animation: none;
+    background-image: none;
+    -webkit-text-fill-color: var(--home-white-dark, #e8e4da);
+    color: var(--home-white-dark, #e8e4da);
+    transition: none;
+  }
+}
 .boot.is-animating {
   transition: transform var(--motion-route-cover) var(--ease-emphasized, cubic-bezier(.76, 0, .24, 1));
 }
@@ -2249,11 +2319,15 @@ select.input {
 
 /* --bottombar-h is the measured height of whichever bar is up. The old fixed
    96px sat below the 162px action bar, so every toast appeared behind the
-   download buttons it was reporting on. */
+   download buttons it was reporting on.
+
+   The keyboard offset goes on `bottom` here rather than the transform every
+   other bar uses: the transform already carries the toast's own two-state
+   slide, and a toast reflows nothing but itself. */
 .toast {
   position: fixed;
   left: 50%;
-  bottom: calc(var(--bottombar-h) + 16px);
+  bottom: calc(var(--bottombar-h) + var(--keyboard-offset, 0px) + 16px);
   transform: translate(-50%, 12px);
   z-index: 300;
   max-width: calc(100vw - 40px);
@@ -2350,6 +2424,59 @@ body:not(.has-savebar) .toast {
   .route-loader__hero i,
   .route-loader__nav i { animation: none !important; }
   * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
+/* ------------------------------- Swipe rows ------------------------------- */
+
+/* A ledger row that slides left to show one Delete button. The pane carries
+   touch-action: pan-y, which is the whole reason this does not fight the page:
+   the browser keeps vertical scrolling and gives the script the horizontal pan.
+
+   --swipe-x is set inline on the pane while a finger is down and removed when
+   the row settles, so the settled position is a class and only the live drag is
+   an inline style. 96px must match SWIPE_REVEAL in app.js. */
+.swipe {
+  position: relative;
+  overflow: hidden;
+}
+.swipe__actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 96px;
+  display: flex;
+}
+.swipe__delete {
+  flex: 1 1 auto;
+  border: 0;
+  border-radius: 0;
+  background: #c50f0f;
+  color: var(--home-white, #fdfbf5);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 18px;
+  letter-spacing: -.26px;
+  cursor: pointer;
+}
+.swipe__delete:active { background: #a80c0c; }
+.swipe__pane {
+  position: relative;
+  transform: translateX(var(--swipe-x, 0px));
+  touch-action: pan-y;
+  /* A drag across a row is a swipe, not a text selection and not a link drag.
+     app.js also cancels dragstart, because -webkit-user-drag is not portable. */
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.swipe.is-settling .swipe__pane {
+  transition: transform var(--motion-standard) var(--ease-standard);
+}
+.swipe.is-open .swipe__pane { --swipe-x: -96px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .swipe.is-settling .swipe__pane { transition: none; }
 }
 
 /* ------------------------- New document picker --------------------------- */

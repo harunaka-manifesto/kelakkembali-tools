@@ -15,7 +15,7 @@ Vanilla JS SPA (`window.KK` globals, no modules, no bundler) + Supabase PostgRES
    - `app.js` → [docs/MAP-app.md](docs/MAP-app.md) (line-range regions + function index)
    - `index.html`, `styles/*.css` → [docs/MAP-html-css.md](docs/MAP-html-css.md)
    - `db.js`, `schema.sql`, `supabase/functions/*` → [docs/DATABASE.md](docs/DATABASE.md)
-   - `util.js`, `calendar.js`, `docs.js`, `fittings.js`, `fitting-pdf.js`, `moodboard.js` → [docs/MODULES.md](docs/MODULES.md)
+   - `util.js`, `calendar.js`, `quotes.js`, `docs.js`, `fittings.js`, `fitting-pdf.js`, `moodboard.js` → [docs/MODULES.md](docs/MODULES.md)
 4. Read only the line ranges the map gives you.
 5. Read [docs/CONVENTIONS.md](docs/CONVENTIONS.md) before writing your first line.
 
@@ -27,7 +27,7 @@ Target: **1 feature map + 1 file map + 2 ranged reads.** If you have opened more
 | :--- | :--- |
 | Never read whole | `app.js` (6460 lines), `index.html` (1743), `README.md` (958), `schema.sql` (1143), `styles/pages.css` (3319), `styles/shared.css` (2277), `fonts.css` |
 | Ranged read from `app.js` | ≤400 lines per call; use `offset`/`limit` from [docs/MAP-app.md](docs/MAP-app.md) |
-| Whole-file reads allowed | `util.js`, `calendar.js`, `config.js`, `docs.js`, `fitting-pdf.js`, `db.js` (482 lines, prefer ranged) |
+| Whole-file reads allowed | `util.js`, `calendar.js`, `quotes.js`, `config.js`, `docs.js`, `fitting-pdf.js`, `db.js` (482 lines, prefer ranged) |
 | Never read unless the task is literally about them | `plans/`, `PLAN-*.md`, `MOODBOARD-BUILD.md`, `.agents/`, `.claude/worktrees/`, `assets/`, `fonts.css` |
 | `README.md` | Seek by heading via [docs/README-INDEX.md](docs/README-INDEX.md). Never read start-to-finish. |
 
@@ -60,7 +60,7 @@ Never run recursive directory listings or unscoped `grep -r`.
 
 1. `db.js` is the **only** module that touches Supabase or invokes an Edge Function. No `createClient`, `.from(`, or `functions.invoke` anywhere else. (`config.js` holds the project URL as a string — that is the one allowed mention.)
 2. `app.js` is the composition root — the only module that owns the router, global state, and DOM event wiring.
-3. `util.js` and `calendar.js` are **pure**: no DOM writes, no network, no upward `window.KK` calls. They are unit-tested.
+3. `util.js`, `calendar.js` and `quotes.js` are **pure**: no DOM writes, no network, no upward `window.KK` calls. They are unit-tested.
 4. `fitting-pdf.js` is pure geometry: no database, no Drive, no toast, no save. `app.js` resolves images and owns the save.
 5. `docs.js` never reaches the database; it receives an order object and renders.
 6. Load order in `index.html` is a dependency graph, not a preference. Lower modules never reference higher ones.
@@ -70,7 +70,7 @@ Never run recursive directory listings or unscoped `grep -r`.
 ## 6. Validation gate — run before declaring done
 
 ```bash
-node --check app.js && node --check db.js && node --check util.js && node --check calendar.js && node --check config.js && node --check docs.js && node --check fittings.js && node --check fitting-pdf.js && node --check moodboard.js && node --test tests/pure-modules.test.cjs
+node --check app.js && node --check db.js && node --check util.js && node --check calendar.js && node --check config.js && node --check docs.js && node --check fittings.js && node --check fitting-pdf.js && node --check moodboard.js && node --check progress.js && node --check quotes.js && node --test tests/pure-modules.test.cjs
 ```
 
 Local preview:
@@ -95,7 +95,7 @@ python3 -m http.server 5173
 | `index.html` | All view markup, overlays, locked PDF templates | Ranged edit via map |
 | `app.js` | Composition root: router, state, all page controllers | Ranged edit via map |
 | `db.js` | Sole Supabase + Edge Function gateway | Read/edit whole |
-| `util.js` `calendar.js` | Pure helpers, pure schedule math | Read/edit whole; tested |
+| `util.js` `calendar.js` `quotes.js` | Pure helpers, pure schedule math, boot-curtain copy | Read/edit whole; tested |
 | `docs.js` `moodboard.js` `fittings.js` `fitting-pdf.js` | Feature modules, one domain each | Read/edit whole |
 | `config.js` | Supabase URL / anon key / shared email | Rarely touched |
 | `schema.sql` | Postgres schema, append-only migrations | Append only |
@@ -111,7 +111,7 @@ python3 -m http.server 5173
 Dependency direction is strictly one-way, bottom to top:
 
 ```
-config.js → util.js → {docs, moodboard, fittings, fitting-pdf} → db.js → calendar.js → app.js
+config.js → util.js → quotes.js → {docs, moodboard, fittings, fitting-pdf} → db.js → calendar.js → app.js
 ```
 
 ## 9. Coding conventions (summary — full text in docs/CONVENTIONS.md)

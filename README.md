@@ -90,6 +90,7 @@ business, rendering, and design contracts.
 | `moodboard.js` | Browser-local image cache, orientation-aware layout engine, and moodboard PDF renderer |
 | `fittings.js` | Photo-first fitting revision log, captions, local previews, and Drive backup |
 | `calendar.js` | The fitting schedule: places the appointments, draws the card |
+| `quotes.js` | What the loading curtain says while it waits: facts, jokes, and greetings that read the clock |
 | `db.js` | Every Supabase call — auth and CRUD, nothing else touches the client |
 | `app.js` | Routing, views, form state, validation |
 | `schema.sql` | The migrations to run in the Supabase SQL editor |

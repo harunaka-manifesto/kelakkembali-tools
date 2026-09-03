@@ -9,12 +9,13 @@ Every file is an IIFE assigning one `window.KK.<name>` object at the bottom.
 | `config.js` | `config` | 27 | Supabase URL, anon key, shared email | Hold secrets |
 | `util.js` | `util` | 326 | Pure formatting, HEIC decode, icons, stage vocabulary, annotation data | DOM writes, network |
 | `calendar.js` | `cal` | 460 | Pure date arithmetic, schedule generation, month-grid math | DOM, network |
+| `quotes.js` | `quotes` | 158 | The boot curtain's copy, and which lines the hour and the date make eligible | DOM, network, deciding when it shows |
 | `docs.js` | `docs` | 353 | Quotation/invoice layout, watermark, PDF export | Touch the database |
 | `moodboard.js` | `moodboard` | 724 | Canvas layout solver, mosaic engine, PDF snapshot | Routing |
 | `fittings.js` | `fittings` | 284 | Image preparation, local URL ownership, Drive archival, stage picker | Own a route, render a page |
 | `fitting-pdf.js` | `fittingPdf` | 319 | Pure A4 page geometry and red-mark rendering for the fitting handoff sheet | DB, Drive, toast, save |
 | `db.js` | `db` | 556 | **Sole** Supabase + Edge Function gateway | Render |
-| `app.js` | (composition root) | 8943 | Router, state, all controllers, all listeners | — see [MAP-app.md](MAP-app.md) |
+| `app.js` | (composition root) | 9662 | Router, state, all controllers, all listeners | — see [MAP-app.md](MAP-app.md) |
 
 ---
 

@@ -3022,14 +3022,21 @@ button.fitdet-card__frame { appearance: none; -webkit-appearance: none; }
 
 /* ------------------------------ Fixed bottom bar -------------------------- */
 
+/* #fitaddBar wears this class too, and the workspace it sits on is full of
+   caption editors — so the bar has to follow the keyboard, on a transform for
+   the same reason .savebar uses one: `bottom` is layout and reflows the page
+   under the caret at every step of the keyboard animation. */
 .fitdet-bar {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
+  transform: translateY(calc(-1 * var(--keyboard-offset, 0px)));
+  transition: transform var(--motion-keyboard) var(--ease-standard);
   z-index: 40;
   background: var(--home-black);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  /* The home indicator is not there while the keyboard is. */
+  padding-bottom: max(0px, calc(env(safe-area-inset-bottom, 0px) - var(--keyboard-offset, 0px)));
 }
 .fitdet-bar[hidden] { display: none; }
 /* Figma 249:3094 — the pair is full-bleed and flush: no bar padding, no gap,
@@ -3268,6 +3275,10 @@ button.fitdet-card__frame { appearance: none; -webkit-appearance: none; }
   left: 0;
   right: 0;
   bottom: var(--bottombar-h, 0px);
+  /* Rides with the bar it sits on, or it would be left behind under the
+     keyboard while the bar moved out from under it. */
+  transform: translateY(calc(-1 * var(--keyboard-offset, 0px)));
+  transition: transform var(--motion-keyboard) var(--ease-standard);
   z-index: 45;
 }
 .fitadd-undo[hidden] { display: none; }
@@ -3708,6 +3719,10 @@ body.is-schedulespage .view { gap: 0; }
   left: 0;
   right: 0;
   bottom: 0;
+  /* No input on this page today. The rule is here so the next one added cannot
+     put the month pager under the keyboard. */
+  transform: translateY(calc(-1 * var(--keyboard-offset, 0px)));
+  transition: transform var(--motion-keyboard) var(--ease-standard);
   z-index: 40;
   background: var(--home-black);
   border-top: 1px solid var(--home-grid);

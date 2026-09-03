@@ -52,7 +52,7 @@ The codebase comments *why*, in full prose, above the block. It does not narrate
 Run before declaring done:
 
 ```bash
-node --check app.js && node --check db.js && node --check util.js && node --check calendar.js && node --check config.js && node --check docs.js && node --check fittings.js && node --check fitting-pdf.js && node --check moodboard.js && node --test tests/pure-modules.test.cjs
+node --check app.js && node --check db.js && node --check util.js && node --check calendar.js && node --check config.js && node --check docs.js && node --check fittings.js && node --check fitting-pdf.js && node --check moodboard.js && node --check progress.js && node --check quotes.js && node --test tests/pure-modules.test.cjs
 ```
 
 Serve locally:
@@ -61,7 +61,7 @@ Serve locally:
 python3 -m http.server 5173
 ```
 
-`tests/pure-modules.test.cjs` covers `util.js`, `calendar.js`, `moodboard.js`, and the `db.js` feed-query normalizers. It also asserts that **no shipped source still names the retired "Body measurements" stage** — a grep-based guard. Adding a retired vocabulary word anywhere will fail the suite.
+`tests/pure-modules.test.cjs` covers `util.js`, `calendar.js`, `quotes.js`, `moodboard.js`, and the `db.js` feed-query normalizers. It also asserts that **no shipped source still names the retired "Body measurements" stage** — a grep-based guard. Adding a retired vocabulary word anywhere will fail the suite.
 
 ## Doc maintenance — required, not optional
 
@@ -121,3 +121,17 @@ And the panel is not the scroller — its list is. When the panel scrolls, the
 title, hint and search scroll out of reach and the list, a shrinkable flex child,
 is squeezed to whatever floor it declares. Give the list `flex: 1 1 auto`,
 `min-height: 0` and `overflow-y: auto`, and the chrome stays pinned.
+
+**Every fixed bar with a `bottom` rides `--keyboard-offset`**, on a `transform`
+rather than `bottom` — `bottom` is layout and reflows the page under the caret
+at each step of the keyboard animation. `tests/pure-modules.test.cjs` walks both
+stylesheets and fails on any `position: fixed` rule that declares `bottom` and
+does not name the variable, so a new bar cannot go under the keyboard quietly.
+
+**The offset is measured against `document.documentElement.clientHeight`**, not
+`window.innerHeight`. That is the initial containing block every fixed bar
+resolves `bottom` against, and it changes in the same layout pass the visual
+viewport does. `innerHeight` is a separate reading that lags on the browsers
+which shrink the layout viewport for the keyboard: a stale 760 against a fresh
+424 published a 336px lift on a viewport that had already moved, and the save bar
+flew into the middle of the screen until the next `resize` corrected it.

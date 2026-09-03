@@ -28,6 +28,13 @@
 <!-- Held up until db.js has decided whether there is a live session, so the
      gate never flashes for someone who is already signed in. -->
 <div class="boot" id="boot">
+  <!-- Shown on the first boot only. A route change also raises this curtain,
+       for 300ms, and a line of copy that appears and vanishes that fast is
+       noise — app.js hides the panel for good on the first reveal. -->
+  <div class="boot__panel" id="bootPanel" hidden>
+    <p class="boot__kicker" id="bootKicker"></p>
+    <p class="boot__quote" id="bootQuote"></p>
+  </div>
   <span class="sr-only" role="status">Loading</span>
 </div>
 
@@ -310,6 +317,21 @@
       </div>
       <div class="cust-order-list" id="custOrderList"></div>
     </section>
+
+    <!-- The one irreversible thing on the page, at the very bottom of it, past
+         everything the customer is. It wears the editor's danger idiom rather
+         than a second one: two treatments for the same act is how two
+         treatments start to drift. -->
+    <div class="custedit-danger" id="custDeleteRow">
+      <div class="cust-grid-rule" aria-hidden="true"></div>
+      <div class="cust-inset">
+        <button type="button" class="custedit-danger__btn" id="custDeleteBtn">
+          <span class="custedit-danger__face">Delete customer</span>
+          <span class="custedit-danger__rail" aria-hidden="true"></span>
+        </button>
+      </div>
+      <div class="cust-grid-rule" aria-hidden="true"></div>
+    </div>
 
     <footer class="cust-footer">Made with love for Ichaku</footer>
   </section>
@@ -1042,6 +1064,18 @@
           </section>
           <div class="order-grid-spacer" aria-hidden="true"></div>
         </main>
+
+        <!-- Same place, same idiom as the customer page's. -->
+        <div class="custedit-danger" id="orderDeleteRow">
+          <div class="cust-grid-rule" aria-hidden="true"></div>
+          <div class="cust-inset">
+            <button type="button" class="custedit-danger__btn" id="orderDeleteBtn">
+              <span class="custedit-danger__face">Delete order</span>
+              <span class="custedit-danger__rail" aria-hidden="true"></span>
+            </button>
+          </div>
+          <div class="cust-grid-rule" aria-hidden="true"></div>
+        </div>
 
         <footer class="order-footer">Made with love for Ichaku</footer>
       </div>
@@ -1886,6 +1920,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="config.js"></script>
 <script src="util.js"></script>
+<script src="quotes.js"></script>
 <script src="docs.js"></script>
 <script src="moodboard.js"></script>
 <script src="fittings.js"></script>

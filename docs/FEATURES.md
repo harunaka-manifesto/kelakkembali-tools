@@ -42,6 +42,7 @@ Column key: **app.js** = entry function + line ([MAP-app.md](MAP-app.md)) · **H
 - **`SHOW_FITTING_SHORTCUT`** (app.js, near the domain constants) is the one thing to flip to stand the Fitting tile down again. It sets the tile's `hidden` **and** `body.has-fitting-shortcut`; with it off the second row is Moodboard and Add order, and Moodboard takes the spare column and inherits Fitting's pink so the row is never a colour short. Fittings themselves do not depend on it: `#/fittings`, the order page's fitting entry, and scheduled appointments all work either way
 - **Skeleton parity** `.home-skel__actions` must stay the exact size of the real row (196px, three columns, six placeholders, the sixth shown only with the flag on). A skeleton that is the wrong size makes the page jump as it loads, which is the same fault as any other layout shift
 - **Narrow phones** the homepage empty-state button sets `width: auto` — `.btn--block`'s `width: 100%` plus its own 24px side margins put it 24px past the right edge and gave the whole page horizontal scroll
+- **Swipe a row left to reveal Delete.** `swipeRowHtml` wraps each card in a `.swipe`; the gesture is one delegated listener in `bindSwipeRows`, shared with the customer page's order list. Deleting happens in place — the row leaves, the summary re-counts, and you keep your scroll and your search. See [18](#18-shared-chrome)
 - **Data** `db.listCustomers`, `db.listAllOrders`, `db.listAllOrderEvents`, `db.listIntake('new')` · tables `customers`, `orders`, `order_events`, `intake_submissions`
 
 ## 2. Customer detail
@@ -50,6 +51,7 @@ Column key: **app.js** = entry function + line ([MAP-app.md](MAP-app.md)) · **H
 - **HTML** `#viewCustomer` **183–277**
 - **CSS** `pages.css` 661–993 (hero 753, banners 771, order ledger 851)
 - **Data** `db.getCustomer`, `db.listOrders` · tables `customers`, `orders`, `order_events`
+- **Delete customer sits at the very bottom**, past everything the customer is, in the editor's `.custedit-danger` idiom rather than a second one. The app-bar menu offers it too, but a menu is not an affordance you find. Each order row also swipes left to a Delete of its own — see [18](#18-shared-chrome)
 - **The order list always ends with `+ Add an order`**, in both the populated and the empty branch, exactly as the ledger ends with `+ Add a customer`. It never had one: a customer with no orders read "No orders for this customer yet." and offered nothing, and the only route to `#/customer/:id/order/new/edit` was the homepage Add order tile. Same `.btn--empty` treatment, shared with the ledger's row rather than copied
 
 ## 3. Customer editor
@@ -64,6 +66,7 @@ Column key: **app.js** = entry function + line ([MAP-app.md](MAP-app.md)) · **H
 - **app.js** `showOrderDetail` **4701**; region **4369–4937**. `buildOrderDetailViewModel` 4516, `renderOrderPayments` 4595, `renderOrderSchedule` 4629, `refreshOrderPayments` 4766, `refreshOrderSchedule` 4800, `logDeposit` 5914, `deriveLoggedDeposits` 4461
 - **HTML** `#viewOrder` **831–1068**
 - **CSS** `pages.css` 1350–2112 (ledger 1468, cards 1501, designs 1534, items 1614, payments 1665, schedules 1743, actions 1897, skeleton 1995, error 2042)
+- **Delete order sits at the very bottom**, above the footer, same idiom and same place as the customer page's. `deleteOrderRecord` is shared with the app-bar menu item, which used to hold the only copy of that code inline
 - **Data** `db.getOrder`, `db.listOrderEvents`, `db.listDocumentLog`, `db.listOrderHistory`, `db.logOrderHistory`, `db.listFittingSessions`, `db.listFittingPhotos` · tables `orders`, `order_events`, `document_log`, `order_history`
 
 ## 5. Order editor & cost calculator
@@ -164,12 +167,18 @@ Column key: **app.js** = entry function + line ([MAP-app.md](MAP-app.md)) · **H
 - **app.js** `showGate` **6363**, `showApp` 6380, boot region **6410–6460**
 - **HTML** `#boot` **27–33**, `#gate` **34–56**
 - **CSS** `shared.css` boot 5, gate 300
+- **The curtain reads.** `#bootPanel` carries a line from `quotes.js` — a wedding or fashion fact, a joke in English or Indonesian, or a greeting that matches the hour, the part of the month and the day of the week. `startBootQuotes` runs it **before** the session check, which is most of the wait, and rotates every 5.2s so a slow connection is not one sentence for a minute
+- **The loading signal is a sheen** travelling through the glyphs of that line, `@keyframes boot-sheen`, looping until the app arrives. It is painted with `background-clip: text` behind an `@supports` guard — unguarded, a browser without it would render a blank curtain. Reduced motion keeps the words and drops the light
+- **First boot only.** The same curtain covers every route change for 300ms, and copy that appears and vanishes that fast is noise, so `revealCurtain` retires the panel for good the first time it comes down
 - **Data** `db.init`, `db.currentSession`, `db.signIn`, `db.signOut`, `db.refreshSession`, `db.isStaleToken`, `db.savedPassword`; `config.js`
 
 ## 18. Shared chrome
 - **app.js** region **401–669**: `showToast` 403, `setDirty` 410, `setSaveBar` 458, `setPageAction` 464, `setChrome` 472, `closeMenu` 507, `beginRouteLoader` 572, `showRouteError` 616, `focusRoute` 639. All listeners in `bindEvents` **6017**
 - **HTML** app bar **60–115**, `#savebar` 1365, `#routeLoader` 1417, `#toast` 1539
 - **CSS** `shared.css` app bar 361, overflow menu 466, page header 514, buttons 1851, bottom bars 1964, toast 2192, motion 2223
+- **Every fixed bottom bar rides `--keyboard-offset`**, on a `transform` — `.savebar`/`.actionbar`, `.fitdet-bar` (which `#fitaddBar` wears, on the page that is all caption editors), `.fitadd-undo`, `.schedcal-monthbar`, and the `.toast` on its `bottom`. Four of them did not, and the workspace's save bar sat under the keyboard. The gate walks both stylesheets and fails any `position: fixed` rule with a `bottom` that does not name the variable
+- **The offset is measured against `documentElement.clientHeight`**, not `window.innerHeight` — see [CONVENTIONS.md](CONVENTIONS.md). `measureVisualViewport` is coalesced through one frame because the keyboard reports its height in several steps
+- **Swipe rows** `swipeRowHtml` + `bindSwipeRows` (app.js, above the sheet-motion region; `.swipe*` in `shared.css`). `touch-action: pan-y` on the pane is what keeps the gesture out of a fight with the page: the browser keeps vertical scrolling and hands the script only the horizontal pan, so nothing has to guess what the finger meant. One axis decision per gesture, one row open at a time, `dragstart` cancelled because a mouse drag on the card's link fired `pointercancel` and killed the gesture one move in. The revealed button stays in the tab order and opens its own row on focus — a gesture nobody can discover is not an affordance
 - **Warning** this region is shared by every page. Changing it is a repo-wide edit — justify it before starting.
 
 ---

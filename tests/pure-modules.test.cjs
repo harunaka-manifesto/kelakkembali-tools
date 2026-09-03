@@ -8,8 +8,9 @@ global.window = global;
 global.KK = {};
 require('../util.js');
 require('../calendar.js');
+require('../quotes.js');
 
-const { util, calendar } = global.KK;
+const { util, calendar, quotes } = global.KK;
 
 test('shared formatters preserve document-facing output', () => {
   assert.equal(util.escapeHtml('<p title="x">A&B</p>'), '&lt;p title=&quot;x&quot;&gt;A&amp;B&lt;/p&gt;');
@@ -198,8 +199,22 @@ test('focus never scrolls the page unless a comment says it should', () => {
    the app came to move the page. Widening it again reintroduces that exactly. */
 test('the focusin handler reaches for text fields only, and scrolls to nearest', () => {
   const source = readShipped('app.js');
-  const handler = source.slice(source.indexOf('document.addEventListener("focusin"'));
-  const body = handler.slice(0, handler.indexOf('\n    });'));
+
+  /* There is more than one focusin listener now (swipe rows use one to open the
+     row a delete button lives in), so the one under test is identified by what
+     it does — scroll — rather than by being first in the file. Exactly one may
+     scroll. */
+  const bodies = [];
+  let at = source.indexOf('document.addEventListener("focusin"');
+  while (at !== -1) {
+    const rest = source.slice(at);
+    const end = rest.indexOf('\n    });');
+    bodies.push(end === -1 ? rest : rest.slice(0, end));
+    at = source.indexOf('document.addEventListener("focusin"', at + 1);
+  }
+  const scrollers = bodies.filter((b) => b.includes('scrollIntoView'));
+  assert.equal(scrollers.length, 1, 'exactly one focusin handler may scroll the page');
+  const body = scrollers[0];
 
   assert.ok(body.length > 0 && body.length < 2000, 'located the focusin handler');
 
@@ -782,10 +797,127 @@ test('the fitting feed and the customer page both offer a way to start one', () 
   );
 
   const app = readShipped('app.js');
-  const render = app.slice(app.indexOf('function renderCustomerReadOnly'));
+  const render = app.slice(app.indexOf('function renderCustomerDetail'));
   assert.match(
-    render.slice(0, render.indexOf('\n  function relativeToToday')),
+    render.slice(0, render.indexOf('\n  function ', 1)),
     /\/order\/new\/edit/,
     'the customer page no longer offers Add an order',
   );
+});
+
+/* ------------------- Fixed bars and the software keyboard ----------------- */
+
+/* Every bar pinned to the bottom of the screen is a bar the keyboard can hide.
+   Four of them were not riding --keyboard-offset — the fitting workspace's
+   save bar and its undo strip among them, on the one page that is all text
+   editors. A new bar must not be able to repeat that silently. */
+test('every fixed bottom bar follows the keyboard', () => {
+  const stripped = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const offenders = [];
+  ['styles/shared.css', 'styles/pages.css'].forEach((file) => {
+    const css = stripped(readShipped(file));
+    const rule = /([^{}]+)\{([^{}]*)\}/g;
+    let m;
+    while ((m = rule.exec(css))) {
+      const selector = m[1].trim().replace(/\s+/g, ' ');
+      const body = m[2];
+      if (!/position:\s*fixed/.test(body)) continue;
+      if (!/(^|[;\s])bottom:\s*/.test(body)) continue;
+      // An inset-0 overlay is not a bar; it is the whole screen, and its panel
+      // carries the offset instead.
+      if (/inset:\s*0/.test(body)) continue;
+      if (/keyboard-offset/.test(body)) continue;
+      offenders.push(file + ' ' + selector);
+    }
+  });
+  assert.deepEqual(offenders, [], 'these fixed bottom bars ignore --keyboard-offset');
+});
+
+/* The reference for the lift is the initial containing block, which is what
+   every fixed bar resolves `bottom` against and what clientHeight measures.
+   window.innerHeight is a separate reading that lags on the browsers which
+   shrink the layout viewport for the keyboard, and publishing a lift measured
+   against a viewport height that no longer exists is what threw the save bar
+   into the middle of the screen. */
+test('the keyboard offset is measured against the containing block', () => {
+  const app = readShipped('app.js');
+  const fn = app.slice(app.indexOf('function measureVisualViewport'));
+  const body = fn.slice(0, fn.indexOf('\n  }'));
+  assert.match(body, /documentElement\.clientHeight/);
+  assert.equal(/window\.innerHeight/.test(body), false, 'measureVisualViewport reads window.innerHeight again');
+  assert.match(body, /Math\.max\(0/, 'the offset must never go negative');
+});
+
+/* --------------------------- The boot curtain copy ------------------------ */
+
+test('the boot curtain has enough to say, in all three registers', () => {
+  const byKind = {};
+  quotes.ENTRIES.forEach((entry) => { byKind[entry.kind] = (byKind[entry.kind] || 0) + 1; });
+
+  assert.ok(quotes.ENTRIES.length >= 50, 'only ' + quotes.ENTRIES.length + ' lines — the brief asked for 50 minimum');
+  ['fact', 'joke', 'greeting'].forEach((kind) => {
+    assert.ok(byKind[kind] >= 10, kind + ' has only ' + (byKind[kind] || 0) + ' lines; one register should not carry the screen');
+  });
+
+  const seen = new Set();
+  quotes.ENTRIES.forEach((entry) => {
+    assert.equal(seen.has(entry.text), false, 'duplicate line: ' + entry.text.slice(0, 40));
+    seen.add(entry.text);
+    assert.ok(entry.text.trim().length > 0);
+  });
+});
+
+/* A greeting is the only kind that reads the clock. If it names a slot it must
+   not show at another one, or "Good morning" turns up at midnight. */
+test('greetings match the hour and the date, and the rest always show', () => {
+  const facts = quotes.ENTRIES.filter((e) => 'fact' === e.kind).length;
+  const jokes = quotes.ENTRIES.filter((e) => 'joke' === e.kind).length;
+
+  for (let hour = 0; hour < 24; hour += 1) {
+    const when = new Date(2026, 8, 3, hour, 0, 0); // Thu 3 Sep 2026 — weekday, month start
+    const pool = quotes.eligible(when);
+    const slot = quotes.slotOf(when);
+
+    assert.equal(pool.filter((e) => 'fact' === e.kind).length, facts, 'facts are always eligible');
+    assert.equal(pool.filter((e) => 'joke' === e.kind).length, jokes, 'jokes are always eligible');
+    pool.filter((e) => 'greeting' === e.kind).forEach((entry) => {
+      if (entry.slot) assert.equal(entry.slot, slot, 'a ' + entry.slot + ' greeting showed at ' + hour + ':00');
+      if (entry.month) assert.equal(entry.month, 'start');
+      assert.equal(entry.weekend, false, 'a weekend greeting showed on a Thursday');
+    });
+    assert.ok(pool.some((e) => 'greeting' === e.kind && e.slot === slot), 'no greeting written for ' + slot);
+  }
+
+  assert.equal(quotes.monthPartOf(new Date(2026, 8, 10)), 'start');
+  assert.equal(quotes.monthPartOf(new Date(2026, 8, 11)), 'mid');
+  assert.equal(quotes.monthPartOf(new Date(2026, 8, 21)), 'end');
+  assert.equal(quotes.isWeekend(new Date(2026, 8, 5)), true);
+  assert.equal(quotes.isWeekend(new Date(2026, 8, 3)), false);
+});
+
+/* Whatever the moment, there is a line and a label for it — a boot screen that
+   can hand back undefined is a boot screen that can render "undefined". */
+test('a line can always be picked, at either end of the roll', () => {
+  [0, 0.5, 0.999999].forEach((roll) => {
+    for (let day = 1; day <= 28; day += 9) {
+      for (let hour = 0; hour < 24; hour += 5) {
+        const got = quotes.pick(new Date(2026, 8, day, hour), () => roll);
+        assert.ok(got && got.text && got.label, 'nothing picked at day ' + day + ' hour ' + hour);
+        assert.ok(quotes.KIND_LABELS[got.kind], 'unlabelled kind ' + got.kind);
+      }
+    }
+  });
+});
+
+/* The animation is the loading signal. Without it the curtain is a static
+   sentence and the app looks stuck. */
+test('the boot line shimmers, and stops for reduced motion', () => {
+  const css = readShipped('styles/shared.css');
+  assert.match(css, /@keyframes boot-sheen/, 'the sheen keyframes are gone');
+  assert.match(css, /animation:\s*boot-sheen[^;]*infinite/, 'the sheen must loop while loading');
+  // The gradient is painted through the glyphs, so it has to be inside an
+  // @supports guard or an unsupporting browser gets a blank curtain.
+  assert.match(css, /@supports \(\(background-clip: text\)/);
+  const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce) {\n  .boot__quote'));
+  assert.match(reduced.slice(0, 400), /animation:\s*none/, 'reduced motion still animates the boot line');
 });

@@ -44,7 +44,7 @@ Third-party Libraries (Supabase, html2canvas, jsPDF) + config.js
                      │
                   util.js (Pure helpers, shared icons, fitting-stage vocabulary)
            ┌─────────┼─────────┬──────────────┬────────────────┐
-        docs.js  moodboard.js fittings.js  calendar.js   fitting-pdf.js
+  docs.js moodboard.js fittings.js calendar.js fitting-pdf.js quotes.js
            └─────────┼─────────┴──────────────┴────────────────┘
                      │
                   db.js (Supabase Client & Edge Function invocations)
@@ -63,6 +63,7 @@ Third-party Libraries (Supabase, html2canvas, jsPDF) + config.js
 2. **`styles/`**: Load order is fixed and set in `index.html` lines 18–22: `fonts.css` → `pages.css` → `shared.css` → `documents.css` → `moodboard.css`. `shared.css` loads *after* `pages.css`, so shared rules win ties at equal specificity — put page overrides in `pages.css` with higher specificity, never later in `shared.css`.
 3. **`util.js`**: Dependency-free pure formatting functions (`formatRupiah`, `formatLongDate`, `escapeHtml`), HEIC image decoder, and SVG icon constants.
 4. **`calendar.js`**: Pure date arithmetic and schedule generation algorithms for production and design phases.
+4b. **`quotes.js`**: The lines shown on the boot curtain and the eligibility rules behind them — facts and jokes always, greetings only when the hour and the date agree. Pure: it does not know the curtain exists, and `app.js` decides when to show and when to swap.
 5. **`docs.js`**: Pure document layout rendering, watermark generation, and PDF export via html2canvas & jsPDF.
 6. **`moodboard.js`**: Canvas layout solver (16:9 / 9:16), mosaic grid engine, photo caching, and PDF snapshot generator.
 7. **`fittings.js`**: Shared fitting image preparation (HEIC → 2560px JPEG at 0.90), local object-URL ownership, Drive archival, the pending-backup registry (`waitForSessionBackups`), and the stage picker. It owns no route and draws no page: the camera journal is retired, photos come from the device gallery, and Drive holds the clean original only — a photo's red markup is vector data on its row, not a second image.
@@ -92,6 +93,6 @@ marker; feed-origin routes return through the retained feed snapshot.
 2. **Verification Gate**: After making structural modifications, ALWAYS run the syntax validation check and unit test suite before declaring completion:
 
    ```bash
-   node --check app.js db.js util.js calendar.js config.js docs.js fittings.js fitting-pdf.js moodboard.js tests/pure-modules.test.cjs
+   node --check app.js db.js util.js calendar.js quotes.js config.js docs.js fittings.js fitting-pdf.js moodboard.js progress.js tests/pure-modules.test.cjs
    node --test tests/pure-modules.test.cjs
    ```
