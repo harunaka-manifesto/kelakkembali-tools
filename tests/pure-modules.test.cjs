@@ -145,6 +145,109 @@ test('no shipped source still speaks the retired Body measurements stage', () =>
   });
 });
 
+/* ------------------------- Focus must not scroll -------------------------- */
+
+/* A whole class of "the app feels broken" came from one handler: moving focus
+   scrolled the page. Tapping any control focuses it, so a focus-driven scroll
+   means the page slides under the thumb on every tap, the calendar jumps when a
+   date is picked, and a dismissed sheet drags the list with it. It also
+   silently defeated every focus({ preventScroll: true }) already in the source.
+
+   Neither symptom is visible in a unit test, so what is asserted here is the
+   rule instead: focus places focus, it does not scroll. A call that genuinely
+   should reveal what it focuses says so on the line, and says why. */
+
+const JS_SOURCES = ['app.js', 'db.js', 'util.js', 'calendar.js', 'config.js',
+  'docs.js', 'fittings.js', 'fitting-pdf.js', 'moodboard.js', 'progress.js'];
+
+/* Every .focus( in the shipped browser sources, with the line it sits on and
+   the line above it — an opt-out may be written on either. */
+function focusCallSites() {
+  const sites = [];
+  JS_SOURCES.forEach((file) => {
+    const lines = readShipped(file).split('\n');
+    lines.forEach((line, i) => {
+      if (!/\.focus\s*\(/.test(line)) return;
+      sites.push({ file, line: i + 1, text: line, previous: i ? lines[i - 1] : '' });
+    });
+  });
+  return sites;
+}
+
+test('focus never scrolls the page unless a comment says it should', () => {
+  const sites = focusCallSites();
+  // If this drops to nothing the selector has rotted, not the codebase.
+  assert.ok(sites.length > 20, 'expected to find focus call sites, found ' + sites.length);
+
+  const offenders = sites.filter((site) => {
+    if (/preventScroll/.test(site.text)) return false;
+    return !/focus-scroll-ok/.test(site.text) && !/focus-scroll-ok/.test(site.previous);
+  });
+
+  assert.deepEqual(
+    offenders.map((o) => o.file + ':' + o.line + '  ' + o.text.trim()),
+    [],
+    'each of these either needs focus({ preventScroll: true }) or, if it really ' +
+    'should reveal what it focuses, a "focus-scroll-ok: <why>" comment',
+  );
+});
+
+/* The document-wide focusin handler is the one deliberate exception to the rule
+   above: it keeps a focused text field clear of the software keyboard. It used
+   to match `button` and centre whatever it caught, which is how every tap in
+   the app came to move the page. Widening it again reintroduces that exactly. */
+test('the focusin handler reaches for text fields only, and scrolls to nearest', () => {
+  const source = readShipped('app.js');
+  const handler = source.slice(source.indexOf('document.addEventListener("focusin"'));
+  const body = handler.slice(0, handler.indexOf('\n    });'));
+
+  assert.ok(body.length > 0 && body.length < 2000, 'located the focusin handler');
+
+  const selector = (body.match(/target\.matches\(([\s\S]*?)\)\s*\)/) || [])[1] || '';
+  assert.ok(selector, 'the handler still narrows by selector');
+
+  /* An allowlist, not a denylist of substrings: ":not([type=button])" contains
+     the word button, and "textarea," contains "a,". What matters is which
+     element types the selector actually reaches, so it is read as its parts. */
+  const types = selector
+    .replace(/^["'`]|["'`]$/g, '')
+    .replace(/:not\([^)]*\)/g, '')
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  assert.ok(types.length, 'the handler still narrows by element type');
+  types.forEach((type) => {
+    assert.ok(
+      'textarea' === type || 'input' === type,
+      'focusin may scroll text fields and nothing else — "' + type + '" means every tap moves the page',
+    );
+  });
+  assert.ok(types.includes('textarea'), 'text fields are the point of the handler');
+
+  assert.match(body, /block:\s*"nearest"/, 'a field already in view needs no scroll');
+  assert.equal(/block:\s*"center"/.test(body), false, 're-centring on focus is the jitter');
+});
+
+/* Sheets that hold an input have to know the keyboard exists: their container is
+   fixed to the layout viewport, which does not shrink for it, and svh is the
+   small-viewport unit by definition. Both panels ride --keyboard-offset. */
+test('bottom sheets clear the software keyboard', () => {
+  const panels = [
+    ['styles/shared.css', '.docnew__panel'],
+    ['styles/pages.css', '.schedcal-sheet__panel'],
+  ];
+  panels.forEach(([file, selector]) => {
+    const css = readShipped(file);
+    const start = css.indexOf(selector + ' {');
+    assert.ok(-1 !== start, selector + ' not found in ' + file);
+    const rule = css.slice(start, css.indexOf('}', start));
+    assert.match(rule, /--keyboard-offset/, selector + ' must ride --keyboard-offset');
+    assert.match(rule, /transform:\s*translateY/, selector + ' lifts on a transform');
+    assert.match(rule, /max-height:[^;]*--keyboard-offset/, selector + ' caps its height against the keyboard');
+  });
+});
+
 /* The camera journal and the per-photo editor were retired, not hidden. A
    grep guard is the only thing that keeps an unreachable overlay or a dangling
    element handle from surviving as debt nobody notices. */

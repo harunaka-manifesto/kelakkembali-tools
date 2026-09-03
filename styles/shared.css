@@ -2495,7 +2495,6 @@ body:not(.has-savebar) .toast {
   line-height: 16px;
 }
 .docnew__loading,
-.docnew__empty,
 .docnew__error {
   margin: 0;
   padding: 12px 2px;

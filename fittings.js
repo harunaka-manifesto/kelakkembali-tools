@@ -41,7 +41,7 @@ KK.fittings = (function () {
     const visible = !document.querySelector('#' + PICKER_ID).hidden;
     document.body.classList.toggle('has-modal', visible);
     if (!visible && pickerReturnTarget && document.contains(pickerReturnTarget)) {
-      pickerReturnTarget.focus();
+      pickerReturnTarget.focus({ preventScroll: true });
     }
     if (!visible) pickerReturnTarget = null;
   }
@@ -51,7 +51,7 @@ KK.fittings = (function () {
     document.querySelector('#' + id).hidden = false;
     syncOverlayState();
     if (focusTargetSelector) {
-      requestAnimationFrame(() => document.querySelector(focusTargetSelector).focus());
+      requestAnimationFrame(() => document.querySelector(focusTargetSelector).focus({ preventScroll: true }));
     }
   }
 

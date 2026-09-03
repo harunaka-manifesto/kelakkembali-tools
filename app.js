@@ -624,10 +624,10 @@ KK.app = (function () {
 
     if (event.shiftKey && document.activeElement === first) {
       event.preventDefault();
-      last.focus();
+      last.focus(); // focus-scroll-ok: tab wrapping inside a modal should reveal the item it lands on
     } else if (!event.shiftKey && document.activeElement === last) {
       event.preventDefault();
-      first.focus();
+      first.focus(); // focus-scroll-ok: as above
     }
   }
 
@@ -4160,21 +4160,31 @@ KK.app = (function () {
         return;
       }
 
-      const needle = pk.query.trim().toLowerCase();
+      const rawNeedle = pk.query.trim();
+      const needle = rawNeedle.toLowerCase();
       const matches = pk.customers.filter((c) =>
         !needle || String(c.name || "").toLowerCase().indexOf(needle) !== -1);
 
-      // "Nothing matched" and "there is nobody yet" are different situations and
-      // must not share a sentence — only one of them is about the search.
-      const emptyCopy = needle
-        ? "No customer matched that name."
-        : "No customers yet. Add one from the home page first.";
+      /* The same dead end the order step below already answers: a document
+         needs a customer, and "add one from the home page first" is an
+         instruction to leave and come back. This row goes to the customer
+         editor and carries whatever name was typed into the search with it, so
+         a search that found nobody is one tap from creating them.
 
-      elements.docnewList.innerHTML = matches.length
-        ? matches.map((c) => docnewRowHtml(
-            ' data-customer="' + U.escapeHtml(c.id) + '"', c.name, weddingText(c)
-          )).join('')
-        : '<p class="docnew__empty">' + emptyCopy + '</p>';
+         First in the list, where the order step puts its own: one row in a
+         fixed place beats a better place that moves with the list length. */
+      const addRow = docnewRowHtml(
+        ' data-new-customer="1"',
+        rawNeedle ? 'Add “' + rawNeedle + '” as a new customer' : "Add new customer",
+        // The title and the meta share one row. When the title already carries
+        // the typed name it needs the whole width, and a meta beside it only
+        // truncates the name the row exists to show.
+        rawNeedle || matches.length ? "" : "No customers yet",
+        ' docnew__row--new');
+
+      elements.docnewList.innerHTML = addRow + matches.map((c) => docnewRowHtml(
+        ' data-customer="' + U.escapeHtml(c.id) + '"', c.name, weddingText(c)
+      )).join('');
       announceDocumentPickerStatus(matches.length + (1 === matches.length ? " customer" : " customers"));
       return;
     }
@@ -4493,6 +4503,13 @@ KK.app = (function () {
 
     if (row.dataset.customer) {
       pickDocumentCustomer(row.dataset.customer);
+      return;
+    }
+    if (row.dataset.newCustomer) {
+      // Seeded with the search text, exactly as the ledger's own add row is.
+      const seed = picker().query.trim();
+      closeDocumentPicker();
+      go("#/customer/new/edit" + (seed ? "?name=" + encodeURIComponent(seed) : ""));
       return;
     }
     if (row.dataset.newOrder) {
@@ -5728,7 +5745,7 @@ KK.app = (function () {
     requestAnimationFrame(() => {
       const el = elements.fitaddList.querySelector('.fitadd-textarea[data-key="' + cssEscapeAttr(key) + '"]');
       if (!el) return;
-      el.focus();
+      el.focus(); // focus-scroll-ok: the caption editor is being opened on purpose, and scrollIntoView follows
       el.setSelectionRange(el.value.length, el.value.length);
       el.scrollIntoView({ block: "nearest", behavior: reducedMotion() ? "auto" : "smooth" });
     });
@@ -6852,6 +6869,7 @@ KK.app = (function () {
       elements.reopenCustomer.hidden = true;
       elements.deleteCustomerRow.hidden = true;
 
+      // focus-scroll-ok: first field of a form the user just navigated to, page is at the top
       (initialName ? elements.cPhone : elements.cName).focus();
       return;
     }
@@ -9203,9 +9221,9 @@ KK.app = (function () {
     await revealCurtain();
 
     if (elements.gatePassword.value) {
-      elements.gateSubmit.focus();
+      elements.gateSubmit.focus(); // focus-scroll-ok: the gate is one screen with nothing to scroll
     } else {
-      elements.gatePassword.focus();
+      elements.gatePassword.focus(); // focus-scroll-ok: as above
     }
   }
 
