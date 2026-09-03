@@ -345,24 +345,21 @@ body:not(.is-homepage) .home-nav { display: none; }
 
 /* Each cell stays exactly 98px in every state; pressing only moves the split
    between the face and the rail, so neighbours never shift. */
-/* Three coloured tiles, then two, then a neutral row of two. Six columns
-   rather than three, because that is the smallest track count both rows divide
-   into: the first row spans two each, the second spans three. Height is auto
-   rather than a fixed 98px because there is more than one row here. */
+/* Six tiles, three to a row, every one the same 98px. Height is auto rather
+   than a fixed 98px because there is more than one row here.
+
+   Add order sits in the grid with the coloured five rather than in a band of
+   its own: it is the same kind of gesture at the same size, and the row it used
+   to share with Add customer has no second occupant now that adding a customer
+   lives at the foot of the ledger where the customers are. */
 .home-actions {
   height: auto;
   padding: 0;
   background: none;
   border: 0;
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(3, 1fr);
 }
-.home-action--schedule,
-.home-action--quotation,
-.home-action--invoice { grid-column: span 2; }
-.home-action--moodboard,
-.home-action--fitting { grid-column: span 3; }
-.home-actions--add { grid-template-columns: repeat(2, 1fr); }
 /* display:grid below outranks the user agent's [hidden] rule, so a tile stood
    down by a flag would still draw. Same reason .home-alert[hidden] exists. */
 .home-action[hidden] { display: none; }
@@ -420,55 +417,14 @@ body:not(.is-homepage) .home-nav { display: none; }
 .home-action:active .home-action__face,
 .home-action.is-pressed .home-action__face { background-image: linear-gradient(180deg, transparent, rgba(0,0,0,.10)); }
 
-/* The full-width treatment, at the submissions bar's proportions rather than
-   the tile's: a 98px band running the whole width reads as a section, not a
-   shortcut. Its own pressed rule for the same reason — the shared one squashes
-   a 56px face.
-
-   Used by the add row always, and by Moodboard only when SHOW_FITTING_SHORTCUT
-   is off and it has the second row to itself — a lone 98px tile running the
-   whole width would read as a section anyway, so it may as well be shaped like
-   one. With Fitting on, Moodboard is an ordinary tile beside it. */
-.home-action--add,
-body:not(.has-fitting-shortcut) .home-action--moodboard {
-  height: 63px;
-  grid-template-rows: 56px 7px;
-}
-body:not(.has-fitting-shortcut) .home-action--moodboard { grid-column: 1 / -1; }
-/* Pink is Fitting's whenever Fitting is on screen; Moodboard inherits it only
-   in Fitting's absence, so the row is never a colour short. */
+/* Stand Fitting down and the second row is Moodboard and Add order, two tiles
+   in a three-column grid. Moodboard takes the spare column rather than leaving
+   a hole, and inherits Fitting's pink so the row is never a colour short. Every
+   tile stays 98px either way — the band shape the add row used to wear is gone
+   with it. */
+body:not(.has-fitting-shortcut) .home-action--moodboard { grid-column: span 2; }
 body:not(.has-fitting-shortcut) .home-action--moodboard .home-action__face { background: linear-gradient(180deg, rgba(0,0,0,.06), transparent), #fc4fac; }
 body:not(.has-fitting-shortcut) .home-action--moodboard .home-action__rail { background: #e72a90; }
-.home-action--add .home-action__face,
-body:not(.has-fitting-shortcut) .home-action--moodboard .home-action__face {
-  flex-direction: row;
-  gap: 8px;
-  padding: 16px;
-  font-size: 16px;
-  line-height: 24px;
-  letter-spacing: -.48px;
-}
-.home-action--add .home-action__face img,
-body:not(.has-fitting-shortcut) .home-action--moodboard .home-action__face img { flex: none; }
-.home-action--add:active,
-.home-action--add.is-pressed,
-.home-action--add.is-appear-pressed,
-body:not(.has-fitting-shortcut) .home-action--moodboard:active,
-body:not(.has-fitting-shortcut) .home-action--moodboard.is-pressed,
-body:not(.has-fitting-shortcut) .home-action--moodboard.is-appear-pressed { grid-template-rows: 61px 2px; }
-
-/* Narrow phones: "Add customer" is the longest label on the row and wrapped to
-   two lines at 320px while "Add order" stayed on one, which left the pair
-   visibly lopsided. Trimming the side padding and a point of type keeps both on
-   one line; the icon and gap are load-bearing and stay put. */
-@media (max-width: 389px) {
-  .home-action--add .home-action__face {
-    padding: 16px 12px;
-    gap: 6px;
-    font-size: 15px;
-    letter-spacing: -.45px;
-  }
-}
 
 /* -------------------------- Submissions bar ----------------------------- */
 
@@ -746,26 +702,19 @@ body.is-homepage .btn--empty {
 .home-skel__line { height: 40px; display: flex; align-items: center; }
 .home-skel__lines { height: 40px; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
 .home-skel__actions {
-  height: 98px;
+  height: 196px;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   background: var(--home-white);
 }
 .home-skel__actions i { display: grid; grid-template-rows: 86px 12px; }
-/* Mirrors .home-actions--add, so the block does not resize when the real
-   controls replace the skeleton. */
-.home-skel__actions--add { height: 63px; grid-template-columns: repeat(2, 1fr); }
-.home-skel__actions--add i { grid-template-rows: 56px 7px; }
-/* The fifth placeholder exists for the same reason the wide-row rules do: with
-   SHOW_FITTING_SHORTCUT on there is a full-width tile under the four, and a
-   skeleton that does not draw it makes the page jump as it loads. */
+/* The skeleton has to be the exact size of what replaces it, or the page jumps
+   as it loads — which is the same fault as any other layout shift, just one
+   that happens before you can tap anything. Five tiles plus a sixth that only
+   appears with SHOW_FITTING_SHORTCUT on, in the same three-column grid. */
 .home-skel__actions i.home-skel__actions--wide { display: none; }
-body.has-fitting-shortcut .home-skel__actions { height: 161px; }
-body.has-fitting-shortcut .home-skel__actions i.home-skel__actions--wide {
-  display: grid;
-  grid-column: 1 / -1;
-  grid-template-rows: 56px 7px;
-}
+body.has-fitting-shortcut .home-skel__actions i.home-skel__actions--wide { display: grid; }
+body:not(.has-fitting-shortcut) .home-skel__actions i:nth-child(4) { grid-column: span 2; }
 .home-skel__actions i::before,
 .home-skel__actions i::after { content: ''; display: block; }
 .home-skel__actions i::before { background: rgba(76,76,76,.18); animation: home-shimmer 1.2s ease-in-out infinite; }
@@ -4213,8 +4162,14 @@ body.has-schedcal-monthbar .schedcal { padding-bottom: calc(var(--bottombar-h) +
 .schedcal-sheet__panel {
   position: relative;
   width: min(390px, 100%);
-  max-height: 76svh;
-  padding: 0 0 calc(24px + env(safe-area-inset-bottom, 0px));
+  /* No input in this sheet today, so this is prevention rather than a fix: the
+     picker sheet was built by copying this geometry, inherited its blindness to
+     the keyboard, and spent a while sitting underneath one. See .docnew__panel
+     in shared.css for the reasoning. */
+  max-height: calc(76svh - var(--keyboard-offset, 0px));
+  transform: translateY(calc(-1 * var(--keyboard-offset, 0px)));
+  transition: transform var(--motion-keyboard) var(--ease-standard);
+  padding: 0 0 max(24px, calc(24px + env(safe-area-inset-bottom, 0px) - var(--keyboard-offset, 0px)));
   display: flex;
   flex-direction: column;
   overflow-y: auto;

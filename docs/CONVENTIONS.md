@@ -83,3 +83,30 @@ Also update:
 - Editing `index.html` locked-spec blocks (1412–1599) without an explicit request.
 - Editing `.agents/`, `.claude/`, `.codex-plugins/`, `plans/`.
 - Rewriting an applied `schema.sql` migration block.
+
+## Focus must not scroll the page
+
+Moving focus is not a request to scroll. Restoring focus to the control that
+opened an overlay, placing focus inside one, or stepping a roving tabindex all
+pass `{ preventScroll: true }`.
+
+The one document-wide exception is the `focusin` handler in `bindEvents`, which
+keeps a focused **text field** clear of the software keyboard. It matches
+`textarea` and text-like `input` only, and scrolls with `block: "nearest"`.
+It used to match `button` as well and centre whatever it caught: every tap
+anywhere in the app moved the page under the user's thumb, it silently undid
+every `preventScroll` in the codebase, and two pages grew their own corrections
+to fight it. Do not widen that selector.
+
+`focusRoute` places initial focus on a new route's heading, and yields when the
+active element is already inside an open `[role="dialog"]` — a route that opens
+a sheet on arrival has already decided where focus belongs.
+
+## Overlays and the software keyboard
+
+A sheet containing an input has to know the keyboard exists. Its container is
+fixed to the **layout** viewport, which does not shrink when the keyboard opens,
+and `svh` is the small-viewport unit — keyboard-insensitive by definition. Ride
+`--keyboard-offset` (published by `syncVisualViewport`) with a `transform`, and
+subtract it from the height cap so a long list scrolls inside the panel instead
+of growing back underneath. `.docnew__panel` and `.savebar` are the examples.

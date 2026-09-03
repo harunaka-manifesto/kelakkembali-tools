@@ -2379,8 +2379,22 @@ body:not(.has-savebar) .toast {
 .docnew__panel {
   position: relative;
   width: min(390px, 100%);
-  max-height: 80svh;
-  padding: 20px 24px calc(24px + env(safe-area-inset-bottom, 0px));
+  /* The sheet holds a search field, so it has to know about the keyboard. Its
+     container is fixed to the LAYOUT viewport, which does not shrink when the
+     keyboard opens, and svh is the small-viewport unit — keyboard-insensitive
+     by definition. Left alone, the panel's lower half simply sat underneath the
+     keyboard it had just raised.
+
+     --keyboard-offset is published by syncVisualViewport in app.js and is what
+     .savebar already rides on. Lifting by it puts the panel on top of the
+     keyboard; subtracting it from the height cap keeps a long list scrolling
+     inside the panel rather than growing back under it. */
+  max-height: calc(80svh - var(--keyboard-offset, 0px));
+  transform: translateY(calc(-1 * var(--keyboard-offset, 0px)));
+  transition: transform var(--motion-keyboard) var(--ease-standard);
+  /* The home indicator is not there while the keyboard is, so its inset gives
+     way as the keyboard rises rather than floating as dead space above it. */
+  padding: 20px 24px max(24px, calc(24px + env(safe-area-inset-bottom, 0px) - var(--keyboard-offset, 0px)));
   display: flex;
   flex-direction: column;
   gap: 12px;

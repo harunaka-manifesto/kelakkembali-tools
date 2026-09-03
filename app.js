@@ -953,6 +953,16 @@ KK.app = (function () {
         ? elements.fitaddTitle
         : elements.viewTitle;
 
+    /* Placing initial focus is this function's job only while nothing else has
+       claimed it. A route that opens a dialog on arrival — the document picker
+       on an empty list — focuses the field inside it, and moving focus back to
+       the heading behind the sheet is what made the software keyboard rise and
+       drop again a moment later. */
+    const openDialog = document.activeElement && document.activeElement.closest
+      ? document.activeElement.closest('[role="dialog"]:not([hidden])')
+      : null;
+    if (openDialog) return;
+
     if (focusTarget) {
       focusTarget.setAttribute("tabindex", "-1");
       focusTarget.focus({ preventScroll: true });
@@ -4028,19 +4038,37 @@ KK.app = (function () {
 
     /* The homepage shortcut lands here with ?new=1 rather than opening the
        sheet itself, so the kind comes from the route that is already about to
-       set it. The flag is then dropped from the hash: it describes one arrival,
-       and leaving it in would reopen the sheet on every refresh and on the way
-       back from whatever the picker opened. currentHash moves with it, or the
-       next navigation would file the stripped hash as a different page and
-       throw away the feed it is holding. */
-    if (params.get("new")) {
+       set it. The flag is dropped from the hash straight away: it describes one
+       arrival, and leaving it in would reopen the sheet on every refresh and on
+       the way back from whatever the picker opened. currentHash moves with it,
+       or the next navigation would file the stripped hash as a different page
+       and throw away the feed it is holding.
+
+       Whether the sheet actually opens is decided further down, once the feed
+       has loaded and the answer is knowable. */
+    const wantsNew = !!params.get("new");
+    if (wantsNew) {
       params.delete("new");
       const rest = params.toString();
       const cleanHash = documentRouteFor(wanted) + (rest ? "?" + rest : "");
       history.replaceState(null, "", location.pathname + location.search + cleanHash);
       currentHash = cleanHash;
-      openDocumentPicker(wanted);
     }
+
+    /* An empty list has nothing to look at, so the shortcut may as well go
+       straight to making one. A list with rows in it is what the user asked to
+       see — opening the sheet over it buries the thing they came for.
+
+       Deferred until after the feed resolves for two reasons: the row count is
+       not knowable before then (ds.items is stale or empty until
+       startDocumentFirstPage fills it), and focusRoute runs when this function
+       returns — focusing the search field before that point only to have the
+       heading take focus back is what made the keyboard flash up and drop. */
+    const openPickerIfEmpty = () => {
+      if (!wantsNew || !isDocumentsRoute() || ds.kind !== wanted) return;
+      if ("ready" !== ds.phase || ds.items.length) return;
+      openDocumentPicker(wanted);
+    };
 
     // Coming back from the order a row opened, in the same history visit: the
     // rows, cursor, DOM and offset are all still here. A kind change is never
@@ -4052,6 +4080,10 @@ KK.app = (function () {
       renderDocumentFeed();
       ensureDocumentObserver();
       restoreDocumentScroll(ds.retainScroll);
+      // A retained feed has rows by definition, so this never opens; it runs
+      // for the one case that matters, which is that the flag is answered on
+      // every path out of this function rather than only the slow one.
+      openPickerIfEmpty();
       return;
     }
     ds.retainHash = "";
@@ -4078,6 +4110,8 @@ KK.app = (function () {
       setDocumentBackControl(null);
       await startDocumentFirstPage();
     }
+
+    openPickerIfEmpty();
   }
 
   /* --------------------------- New document picker ----------------------- */
@@ -4496,8 +4530,11 @@ KK.app = (function () {
   }
 
   elements.docnewBack.addEventListener("click", backToDocumentCustomers);
-  elements.docnewCancel.addEventListener("click", closeDocumentPicker);
-  elements.docnewBackdrop.addEventListener("click", closeDocumentPicker);
+  /* Wrapped, not passed by reference: closeDocumentPicker's second parameter is
+     `force`, and handing it a MouseEvent made a Cancel or backdrop tap satisfy
+     the mid-generation guard that the Escape path correctly respects. */
+  elements.docnewCancel.addEventListener("click", () => closeDocumentPicker());
+  elements.docnewBackdrop.addEventListener("click", () => closeDocumentPicker());
   elements.docnewSheet.addEventListener("keydown", (e) => {
     if ("Escape" === e.key) {
       // A generate in flight owns the sheet until the PDF resolves.
@@ -4872,7 +4909,7 @@ KK.app = (function () {
     elements.fittingPhotoViewerCaption.textContent = caption || "";
     elements.fittingPhotoViewer.hidden = false;
     document.body.classList.add("has-modal");
-    requestAnimationFrame(() => elements.fittingPhotoViewerClose.focus());
+    requestAnimationFrame(() => elements.fittingPhotoViewerClose.focus({ preventScroll: true }));
   }
 
   function openFittingPhotoViewer(photoId, originButton) {
@@ -4896,7 +4933,7 @@ KK.app = (function () {
     const layer = $(".fitmark-layer", elements.fittingPhotoViewerFrame);
     if (layer) layer.remove();
     document.body.classList.remove("has-modal");
-    if (d.viewerReturn && document.contains(d.viewerReturn)) d.viewerReturn.focus();
+    if (d.viewerReturn && document.contains(d.viewerReturn)) d.viewerReturn.focus({ preventScroll: true });
     d.viewerReturn = null;
   }
 
@@ -6054,7 +6091,7 @@ KK.app = (function () {
     layoutFittingMark();
     window.addEventListener("resize", layoutFittingMark);
     window.addEventListener("orientationchange", layoutFittingMark);
-    requestAnimationFrame(() => elements.fitmarkDone.focus());
+    requestAnimationFrame(() => elements.fitmarkDone.focus({ preventScroll: true }));
   }
 
   /* Done writes a local proposal, exactly like a caption's card Save. An empty
@@ -6633,23 +6670,23 @@ KK.app = (function () {
       .filter((c) => !query || [c.name, c.phone, c.instagram].some((val) => String(val || "").toLowerCase().includes(query)))
       .sort(compareHomepageCustomers);
 
-    /* Adding a customer happens here and nowhere else, so this branch has to
-       offer it whether the ledger is empty because the search missed or because
-       there is nothing in it yet. It used to offer it only on a miss, which
-       reads fine until the day the table is actually empty — and then the one
-       way into the app is a URL typed by hand. */
-    if (!filtered.length) {
-      const searchVal = elements.customerSearch.value.trim();
-      const addHref = "#/customer/new/edit" + (searchVal ? "?name=" + encodeURIComponent(searchVal) : "");
-      const addLabel = searchVal
-        ? '+ Add “' + U.escapeHtml(searchVal) + '” as a new customer'
-        : "+ Add a customer";
+    /* Adding a customer happens here and nowhere else, so the ledger always
+       ends with the way to do it — not only when the list is empty. It used to
+       render on the no-match branch alone, which reads fine right up until the
+       ledger holds one customer: the homepage shortcut was then the single
+       remaining entry point, and taking that tile away would have left none. */
+    const searchVal = elements.customerSearch.value.trim();
+    const addHref = "#/customer/new/edit" + (searchVal ? "?name=" + encodeURIComponent(searchVal) : "");
+    const addLabel = searchVal
+      ? '+ Add “' + U.escapeHtml(searchVal) + '” as a new customer'
+      : "+ Add a customer";
+    const addRow = '<a class="btn btn--outline btn--new btn--block btn--empty" href="' + U.escapeHtml(addHref) + '">' + addLabel + '</a>';
 
+    if (!filtered.length) {
       elements.customerList.innerHTML =
         '<p class="empty">' + (state.customers.length
           ? 'No match for “' + U.escapeHtml(searchVal) + '”.'
-          : "No customers yet.") + '</p>' +
-        '<a class="btn btn--outline btn--new btn--block btn--empty" href="' + addHref + '">' + addLabel + '</a>';
+          : "No customers yet.") + '</p>' + addRow;
       return;
     }
 
@@ -6660,7 +6697,7 @@ KK.app = (function () {
       const metaText = orders.length + " order" + (1 === orders.length ? "" : "s");
 
       return '<div class="home-customer-record"><div class="home-grid-rule"></div><div class="home-customer-record__inset"><a class="home-customer-card home-customer-card--' + statusInfo.tone + '" href="#/customer/' + encodeURIComponent(c.id) + '" aria-label="' + U.escapeHtml((c.name || "Unnamed customer") + ", " + statusInfo.label) + '"><span class="home-customer-card__face"><span class="home-customer-card__top"><span class="home-customer-card__name">' + U.escapeHtml(c.name || "Unnamed customer") + '</span><span class="home-customer-card__badge">' + U.escapeHtml(statusInfo.label) + '</span></span>' + ("Cancelled" === statusInfo.label ? "" : '<span class="home-customer-card__meta"><span>' + U.escapeHtml(metaText) + '</span><span>' + U.formatRupiah(sumTotal) + '</span></span>') + '</span><span class="home-customer-card__rail"></span></a></div><div class="home-grid-rule"></div><div class="home-grid-spacer" aria-hidden="true"></div></div>';
-    }).join('');
+    }).join('') + addRow;
   }
 
   function homepageStatus(customerRecord, ordersList) {
@@ -7798,7 +7835,7 @@ KK.app = (function () {
     elements.itemList.appendChild(rowEl);
     refreshRemoveButtons();
     refreshItemTotals();
-    if (focusNew) $(".js-name", rowEl).focus();
+    if (focusNew) $(".js-name", rowEl).focus({ preventScroll: true });
     return rowEl;
   }
 
@@ -7883,7 +7920,7 @@ KK.app = (function () {
 
     elements.includesList.insertAdjacentHTML("beforeend", customChip(textVal, true));
     elements.customInclude.value = "";
-    elements.customInclude.focus();
+    elements.customInclude.focus({ preventScroll: true });
     setDirty(true);
   }
 
@@ -7906,7 +7943,7 @@ KK.app = (function () {
     elements.termList.appendChild(termEl);
     refreshTermRemoveButtons();
     refreshTermsSum();
-    if (focusNew) $(".js-tlabel", termEl).focus();
+    if (focusNew) $(".js-tlabel", termEl).focus({ preventScroll: true });
     return termEl;
   }
 
@@ -7987,7 +8024,7 @@ KK.app = (function () {
     elements.calcRowList.appendChild(calcEl);
     refreshCalcRemoveButtons();
     refreshCalcTotal();
-    if (focusNew) $(".js-clabel", calcEl).focus();
+    if (focusNew) $(".js-clabel", calcEl).focus({ preventScroll: true });
     return calcEl;
   }
 
@@ -8029,7 +8066,7 @@ KK.app = (function () {
     document.body.classList.remove("has-app-modal");
     activeCalcItemRow = null;
     if (activeCalcFocusTarget && document.contains(activeCalcFocusTarget)) {
-      activeCalcFocusTarget.focus();
+      activeCalcFocusTarget.focus({ preventScroll: true });
     }
     activeCalcFocusTarget = null;
   }
@@ -8273,7 +8310,7 @@ KK.app = (function () {
 
     requestAnimationFrame(() => {
       renderMoodboardOverlay(true);
-      elements.mbOverlayClose.focus();
+      elements.mbOverlayClose.focus({ preventScroll: true });
     });
   }
 
@@ -8288,7 +8325,7 @@ KK.app = (function () {
 
     moodboardPresenterState = null;
     if (isVisible && activeMoodboardFocusTarget && document.contains(activeMoodboardFocusTarget)) {
-      activeMoodboardFocusTarget.focus();
+      activeMoodboardFocusTarget.focus({ preventScroll: true });
     }
     activeMoodboardFocusTarget = null;
   }
@@ -8867,7 +8904,7 @@ KK.app = (function () {
     document.addEventListener("keydown", (e) => {
       if ("Escape" !== e.key || elements.menuList.hidden) return;
       closeMenu();
-      elements.menuBtn.focus();
+      elements.menuBtn.focus({ preventScroll: true });
     });
 
     elements.menuSignOut.addEventListener("click", signOutFromMenu);
@@ -8981,7 +9018,7 @@ KK.app = (function () {
 
           elements.calcSheet.hidden = false;
           document.body.classList.add("has-app-modal");
-          requestAnimationFrame(() => $(".js-clabel", elements.calcRowList)?.focus());
+          requestAnimationFrame(() => $(".js-clabel", elements.calcRowList)?.focus({ preventScroll: true }));
         })(calcBtn.closest(".item"));
       }
     });
@@ -9106,24 +9143,33 @@ KK.app = (function () {
     window.addEventListener("offline", () => showToast("You're offline — changes won't save until you're back online"));
     window.addEventListener("online", () => showToast("Back online"));
 
+    /* Keeps a focused text field clear of the software keyboard, and nothing
+       else. It used to match `button` too, which meant every tap anywhere in
+       the app scrolled the page under the user's thumb — tapping a control
+       focuses it, and this then pulled it to the middle of the screen a frame
+       later. It also silently undid every focus({ preventScroll: true }) in the
+       codebase, which is why two pages had to grow their own corrections.
+
+       `nearest`, not `center`: a field already comfortably in view needs no
+       scroll at all, and re-centring one that is fine is the same jitter in a
+       smaller form. */
     document.addEventListener("focusin", (e) => {
       const target = e.target;
-      // The fitting-log search aligns itself to the fixed nav; centring it here
+      // The fitting-log search aligns itself to the fixed nav; scrolling it here
       // would fight that and leave the field under the software keyboard.
       if (target === elements.fitlogSearch) return;
-      if (target.matches("input, select, textarea, button")) {
-        requestAnimationFrame(() =>
-          setTimeout(() => {
-            if (document.activeElement === target) {
-              target.scrollIntoView({
-                block: "center",
-                inline: "nearest",
-                behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"
-              });
-            }
-          }, 80)
-        );
-      }
+      if (!target.matches("textarea, input:not([type=button]):not([type=submit]):not([type=reset]):not([type=checkbox]):not([type=radio])")) return;
+
+      requestAnimationFrame(() =>
+        setTimeout(() => {
+          if (document.activeElement !== target) return;
+          target.scrollIntoView({
+            block: "nearest",
+            inline: "nearest",
+            behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"
+          });
+        }, 80)
+      );
     });
 
     document.addEventListener("keydown", (e) => {

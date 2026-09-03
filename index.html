@@ -158,8 +158,7 @@
             <div class="home-skel__line"><span class="home-skel__block" style="width:220px;height:32px"></span></div>
             <div class="home-skel__lines"><span class="home-skel__block" style="width:100%;height:14px"></span><span class="home-skel__block" style="width:172px;height:14px"></span></div>
           </div>
-          <div class="home-skel__actions"><i></i><i></i><i></i><i></i><i class="home-skel__actions--wide"></i></div>
-          <div class="home-skel__actions home-skel__actions--add"><i></i><i></i></div>
+          <div class="home-skel__actions"><i></i><i></i><i></i><i></i><i></i><i class="home-skel__actions--wide"></i></div>
           <div class="home-skel__search"></div>
           <div class="home-skel__rail"></div>
           <div class="home-skel__ledger">
@@ -185,20 +184,18 @@
                list it landed on instead of bouncing back home. -->
           <a class="home-action home-action--quotation" href="#/quotations?new=1"><span class="home-action__face"><img src="assets/home-quote-icon.svg" alt="">Quotation</span><span class="home-action__rail"></span></a>
           <a class="home-action home-action--invoice" href="#/invoices?new=1"><span class="home-action__face"><img src="assets/home-invoice-icon.svg" alt="">Invoice</span><span class="home-action__rail"></span></a>
-          <!-- The second row: two tiles at half width each. A button, not a
-               link, for Moodboard — it has no list page to land on, so this
-               opens the same customer-then-order picker directly. -->
+          <!-- Second row. A button, not a link, for Moodboard — it has no list
+               page to land on, so this opens the customer-then-order picker
+               directly. -->
           <button type="button" class="home-action home-action--moodboard" id="homeMoodboardBtn"><span class="home-action__face"><img src="assets/order-moodboard-icon.svg" alt="">Moodboard</span><span class="home-action__rail"></span></button>
-          <!-- Shown or stood down by SHOW_FITTING_SHORTCUT. Hidden, Moodboard
-               has this row to itself and spans it. -->
+          <!-- Shown or stood down by SHOW_FITTING_SHORTCUT. Hidden, the second
+               row is Moodboard and Add order. -->
           <a class="home-action home-action--fitting" id="homeFittingBtn" href="#/fittings" hidden><span class="home-action__face"><img src="assets/home-fitting-icon.svg" alt="">Fitting</span><span class="home-action__rail"></span></a>
-        </section>
-        <!-- The two records everything else hangs off, and until now the only
-             two with no button anywhere on this page. Neutral on purpose: they
-             make a record rather than opening one of the coloured sections. -->
-        <section class="home-actions home-actions--add" aria-label="Create">
-          <a class="home-action home-action--add" href="#/customer/new/edit"><span class="home-action__face"><img src="assets/home-add-icon.svg" alt="">Add customer</span><span class="home-action__rail"></span></a>
-          <!-- A button: which customer's order it is has to be asked first. -->
+          <!-- Neutral on purpose: it makes a record rather than opening one of
+               the coloured sections. A button, because which customer's order
+               it is has to be asked first. Add customer is not here — adding a
+               customer belongs with the ledger of them, at the foot of the
+               list, which is the only place it can be found by looking. -->
           <button type="button" class="home-action home-action--add" id="homeAddOrderBtn"><span class="home-action__face"><img src="assets/home-add-icon.svg" alt="">Add order</span><span class="home-action__rail"></span></button>
         </section>
         <button type="button" class="home-alert" id="enquiriesCard" aria-disabled="true" hidden><span class="home-alert__face"><img class="home-alert__icon" src="assets/home-alert-icon.svg" alt=""><span id="enquiriesCount"></span><img class="home-alert__chevron" src="assets/home-chevron-icon.svg" alt=""></span><span class="home-alert__rail"></span></button>
