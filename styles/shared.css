@@ -2534,6 +2534,12 @@ body:not(.has-savebar) .toast {
    or they read as cut out of a different picture. */
 .docnew .input--search {
   min-height: 48px;
+  /* The base .input--search reserves 43px on the left for a leading search
+     icon. This field has never had one — it is the only user of the class in
+     the app — so the reservation was just an indent nothing sat in. 16px, not
+     .input's usual 14px, so the typed name starts on the same vertical as the
+     row titles stacked directly beneath it. */
+  padding-left: 16px;
   color: var(--home-white);
   background: var(--home-black-light);
   border: 1px solid var(--home-grid);
