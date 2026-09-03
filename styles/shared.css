@@ -2387,9 +2387,11 @@ body:not(.has-savebar) .toast {
 
      --keyboard-offset is published by syncVisualViewport in app.js and is what
      .savebar already rides on. Lifting by it puts the panel on top of the
-     keyboard; subtracting it from the height cap keeps a long list scrolling
-     inside the panel rather than growing back under it. */
-  max-height: calc(80svh - var(--keyboard-offset, 0px));
+     keyboard. The cap is the smaller of 80svh and what is actually left above
+     the keyboard, so the sheet takes that whole space when the keyboard is up
+     instead of 80% of a viewport the keyboard is not part of — 400px rather
+     than 272px on a 760px phone, which is three customers rather than one. */
+  max-height: min(80svh, calc(100svh - var(--keyboard-offset, 0px) - 24px));
   transform: translateY(calc(-1 * var(--keyboard-offset, 0px)));
   transition: transform var(--motion-keyboard) var(--ease-standard);
   /* The home indicator is not there while the keyboard is, so its inset gives
@@ -2398,7 +2400,10 @@ body:not(.has-savebar) .toast {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  overflow-y: auto;
+  /* The rows scroll, not the panel. When the panel was the scroller the title,
+     hint and search scrolled away while the list — a shrinkable flex child —
+     was squeezed to 64px by a keyboard, leaving one customer visible. */
+  overflow: hidden;
   background: var(--home-black);
   border-top: 1px solid var(--home-grid);
   animation: sheet-rise var(--motion-sheet-in) var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
@@ -2433,7 +2438,13 @@ body:not(.has-savebar) .toast {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  min-height: 64px;
+  /* The panel's scroller. min-height:0 is what lets it actually shrink inside a
+     column flex parent — it carried a 64px floor before, which is exactly the
+     height it collapsed to with the keyboard up. */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 /* A cream row on black, exactly as a customer or an order reads everywhere
    else — square, ruled, no radius. */

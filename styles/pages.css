@@ -642,7 +642,10 @@ body.is-homepage .empty {
   letter-spacing: -.42px;
   text-align: center;
 }
-body.is-homepage .btn--empty {
+/* The customer page's order list is the same black ledger with the same add
+   row at the end of it, so it takes the same treatment rather than a copy. */
+body.is-homepage .btn--empty,
+.cust-order-list .btn--empty {
   /* .btn--block sets width:100%, which resolves against the ledger's full
      width and then the 24px side margins push the button past the right edge —
      24px of horizontal page scroll on every empty ledger. auto lets a

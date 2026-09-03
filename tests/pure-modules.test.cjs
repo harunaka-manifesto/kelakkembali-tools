@@ -722,3 +722,70 @@ test('session photos order by position, then created_at, then id', () => {
   ];
   assert.deepEqual(sortFittingPhotos(rows).map(row => row.id), ['c', 'a', 'b', 'd']);
 });
+
+/* --------------------- The picker sheet's standing rules ------------------ */
+
+/* The sheet exists to show a list. Focusing its search field on open raised the
+   software keyboard every time, which shrank the panel until one row was
+   visible — so the sheet looked like it was demanding a name. Nothing may focus
+   that field except the user tapping it. */
+test('the picker never focuses its own search field', () => {
+  const app = readShipped('app.js');
+  assert.equal(
+    /docnewSearch\.focus\(/.test(app),
+    false,
+    'app.js focuses #docnewSearch, which raises the keyboard and collapses the sheet',
+  );
+});
+
+/* The list is the panel's scroller. When the panel scrolled instead, the title,
+   hint and search scrolled away and the list — a shrinkable flex child — was
+   squeezed to its 64px floor by the keyboard. */
+test('the picker panel pins its chrome and scrolls its rows', () => {
+  const css = readShipped('styles/shared.css');
+  const rule = (selector) => {
+    const at = css.indexOf(selector + ' {');
+    assert.notEqual(at, -1, selector + ' is gone');
+    return css.slice(at, css.indexOf('}', at));
+  };
+  const list = rule('.docnew__list');
+  assert.match(list, /overflow-y:\s*auto/);
+  assert.match(list, /min-height:\s*0/);
+  assert.equal(/min-height:\s*64px/.test(list), false, '.docnew__list still has the 64px floor');
+  assert.equal(/overflow-y:\s*auto/.test(rule('.docnew__panel')), false, '.docnew__panel scrolls again');
+});
+
+/* A mode with a name but no terminal branch is a sheet that picks an order and
+   then does nothing with it. */
+test('every picker mode has a name and somewhere to go', () => {
+  const app = readShipped('app.js');
+  const names = app.slice(app.indexOf('const PICKER_THING_NAMES'));
+  ['quotation', 'invoice', 'moodboard', 'fitting', 'neworder'].forEach((mode) => {
+    assert.match(names.slice(0, names.indexOf('\n')), new RegExp('\\b' + mode + ':'), mode + ' has no label');
+  });
+  // quotation and invoice fall through to generateDocumentFor; the other three
+  // each need their own branch.
+  assert.match(app, /isMoodboardPicker\(\)\s*\)\s*\{/);
+  assert.match(app, /isFittingPicker\(\)\s*\)\s*\{/);
+  assert.match(app, /isNewOrderPicker\(\)\s*\)\s*\{/);
+});
+
+/* Both were dead ends: the fitting feed's New key was disabled with no picker
+   behind it, and a customer with no orders was told so and offered nothing. */
+test('the fitting feed and the customer page both offer a way to start one', () => {
+  const html = readShipped('index.html');
+  const key = html.slice(html.indexOf('id="fitlogNewBtn"'));
+  assert.equal(
+    key.slice(0, key.indexOf('>')).includes('disabled'),
+    false,
+    '#fitlogNewBtn is disabled again',
+  );
+
+  const app = readShipped('app.js');
+  const render = app.slice(app.indexOf('function renderCustomerReadOnly'));
+  assert.match(
+    render.slice(0, render.indexOf('\n  function relativeToToday')),
+    /\/order\/new\/edit/,
+    'the customer page no longer offers Add an order',
+  );
+});

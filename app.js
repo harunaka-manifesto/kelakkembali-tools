@@ -517,7 +517,7 @@ KK.app = (function () {
         /* Not read off the enclosing feed's kind: the feed's kind is set by the
            documents route, and the picker also opens for a moodboard, which has
            no route of its own to set it. Whoever opens the sheet says what for. */
-        mode: "quotation", // quotation | invoice | moodboard
+        mode: "quotation", // quotation | invoice | moodboard | fitting | neworder
         step: "customer", // customer | order
         orderToken: 0,
         customers: null,
@@ -1530,7 +1530,14 @@ KK.app = (function () {
           const rec = splitOrder(await db.getOrder(orderId));
           state.order = rec.order;
           state.customer = rec.customer || await db.getCustomer(rec.order.customer_id);
-          setChrome({ title: "New fitting", up: { label: orderLabel(state.order), hash: "#/order/" + orderId }, save: false });
+          const fromFeed = "fittings" === targetRoute.query.get("from");
+          setChrome({
+            title: "New fitting",
+            up: fromFeed
+              ? { label: "Fitting logs", hash: "#/fittings" }
+              : { label: orderLabel(state.order), hash: "#/order/" + orderId },
+            save: false
+          });
 
           /* The workspace edits one durable fitting log, so the row exists
              before its route does. Creating it here rather than lazily at the
@@ -1538,12 +1545,20 @@ KK.app = (function () {
              the atomic batch — working against a real session id instead of a
              null one. Leaving without saving a single photo deletes it again,
              so an abandoned pick still costs nothing. */
+          /* The fitting feed can start a log too, through the picker, and Back
+             belongs on whatever you actually came from. source is already
+             strictly binary — anything that is not "order" is read as "feed" —
+             so the feed case simply omits it rather than adding a third value
+             for every downstream branch to learn. */
+          const editHash = (sessionId, isNew) => "#/fittings/" + encodeURIComponent(sessionId) + "/edit" +
+            (fromFeed ? (isNew ? "?new=1" : "") : "?source=order" + (isNew ? "&new=1" : ""));
+
           const openStage = async (stageName) => {
             try {
               if (calendar.PRODUCTION_STAGES.indexOf(stageName) === -1) throw new Error("Choose a valid fitting stage");
 
               const existing = await db.getFittingSessionByStage(orderId, stageName);
-              if (existing) return go("#/fittings/" + encodeURIComponent(existing.id) + "/edit?source=order");
+              if (existing) return go(editHash(existing.id, false));
 
               let created;
               try {
@@ -1554,7 +1569,7 @@ KK.app = (function () {
                 created = await db.getFittingSessionByStage(orderId, stageName);
                 if (!created) throw err;
               }
-              go("#/fittings/" + encodeURIComponent(created.id) + "/edit?source=order&new=1");
+              go(editHash(created.id, true));
             } catch (err) {
               showToast(err.message || "Could not start fitting log");
             }
@@ -1562,7 +1577,7 @@ KK.app = (function () {
 
           const explicitStage = targetRoute.query.get("stage");
           if (calendar.PRODUCTION_STAGES.indexOf(explicitStage) !== -1) await openStage(explicitStage);
-          else KK.fittings.showStagePicker([], openStage, () => go("#/order/" + orderId));
+          else KK.fittings.showStagePicker([], openStage, () => go(fromFeed ? "#/fittings" : "#/order/" + orderId));
         })(targetRoute.id);
       } else if ("fittingLogRedirect" === targetRoute.view) {
         // Old order-scoped bookmarks join the canonical detail route.
@@ -3577,8 +3592,13 @@ KK.app = (function () {
   });
 
   elements.viewFittingLogs.addEventListener("click", (e) => {
+    /* Live now. A fitting needs an order context, and the picker is exactly
+       that context: customer, then order, then the fittingNew route's stage
+       question. The key sat honestly disabled until there was something behind
+       it. */
     if (e.target.closest("#fitlogNewBtn")) {
       e.preventDefault();
+      openDocumentPicker("fitting");
       return;
     }
     // Recorded before the hash changes, because after navigation the feed is
@@ -4126,14 +4146,15 @@ KK.app = (function () {
     '</button>';
   }
 
-  /* Four modes, in two shapes. quotation and invoice run both steps and end in
-     a generated PDF; moodboard runs both steps and ends in a navigation;
-     neworder stops after the customer, because the order it is about does not
-     exist yet. Named neworder rather than order: pk.step already spends the
-     word "order" on the second step. */
+  /* Five modes, in two shapes. quotation and invoice run both steps and end in
+     a generated PDF; moodboard and fitting run both steps and end in a
+     navigation; neworder stops after the customer, because the order it is
+     about does not exist yet. Named neworder rather than order: pk.step already
+     spends the word "order" on the second step. */
   const isMoodboardPicker = () => "moodboard" === picker().mode;
+  const isFittingPicker = () => "fitting" === picker().mode;
   const isNewOrderPicker = () => "neworder" === picker().mode;
-  const PICKER_THING_NAMES = { moodboard: "Moodboard", neworder: "Order", invoice: "Invoice", quotation: "Quotation" };
+  const PICKER_THING_NAMES = { moodboard: "Moodboard", fitting: "Fitting log", neworder: "Order", invoice: "Invoice", quotation: "Quotation" };
   const pickerThingName = () => PICKER_THING_NAMES[picker().mode] || "Quotation";
 
   function renderDocumentPicker() {
@@ -4171,8 +4192,11 @@ KK.app = (function () {
          editor and carries whatever name was typed into the search with it, so
          a search that found nobody is one tap from creating them.
 
-         First in the list, where the order step puts its own: one row in a
-         fixed place beats a better place that moves with the list length. */
+         Last, exactly where renderCustomerList puts the ledger's own add row.
+         It used to be first, which cost the one row a keyboard-shrunk sheet had
+         left: the first thing in a sheet whose job is to show customers has to
+         be a customer. When the search finds nobody it is the only row anyway,
+         so the position costs that case nothing. */
       const addRow = docnewRowHtml(
         ' data-new-customer="1"',
         rawNeedle ? 'Add “' + rawNeedle + '” as a new customer' : "Add new customer",
@@ -4182,9 +4206,9 @@ KK.app = (function () {
         rawNeedle || matches.length ? "" : "No customers yet",
         ' docnew__row--new');
 
-      elements.docnewList.innerHTML = addRow + matches.map((c) => docnewRowHtml(
+      elements.docnewList.innerHTML = matches.map((c) => docnewRowHtml(
         ' data-customer="' + U.escapeHtml(c.id) + '"', c.name, weddingText(c)
-      )).join('');
+      )).join('') + addRow;
       announceDocumentPickerStatus(matches.length + (1 === matches.length ? " customer" : " customers"));
       return;
     }
@@ -4225,10 +4249,11 @@ KK.app = (function () {
       return;
     }
 
-    /* A moodboard is not a rendering of the order's items — it needs the order
-       only for whose it is — so the readiness gate that blocks an unpriced
-       order from becoming a quotation must not block it from becoming one. */
-    const gated = !isMoodboardPicker();
+    /* Neither a moodboard nor a fitting log is a rendering of the order's items
+       — each needs the order only for whose it is — so the readiness gate that
+       blocks an unpriced order from becoming a quotation must not block it from
+       becoming one of those. */
+    const gated = !isMoodboardPicker() && !isFittingPicker();
 
     elements.docnewList.innerHTML = addRow + pk.orders.map((order, index) => {
       const ready = gated ? documentReadiness(order, pk.customer) : { canDownload: true, disabledReason: "" };
@@ -4274,26 +4299,30 @@ KK.app = (function () {
     cancelSheetClose(elements.docnewSheet);
     elements.docnewSheet.hidden = false;
     document.body.classList.add("has-docnew");
+    /* A warm reopen paints the list it already has and swaps the fresh one in
+       when it lands, so only a cold open shows skeletons. */
     pk.loading = !pk.customers;
     renderDocumentPicker();
+    /* Focus stays on the title. Focusing the search field raised the software
+       keyboard on every open, which collapsed the panel to two rows and made a
+       sheet whose whole job is to show a list look like a sheet that demands
+       typing. The field is a filter you reach for, not a greeting. */
     elements.docnewTitle.focus({ preventScroll: true });
 
-    if (!pk.customers) {
-      try {
-        pk.customers = await db.listCustomers();
-        pk.error = null;
-      } catch (err) {
-        console.error(err);
-        pk.error = err;
-      }
-      pk.loading = false;
-      if (pk.open) {
-        renderDocumentPicker();
-        if (!pk.error) elements.docnewSearch.focus({ preventScroll: true });
-      }
-    } else {
-      elements.docnewSearch.focus({ preventScroll: true });
+    /* Refetched every open, never reused for the life of the page: the list was
+       cached on first open and nothing cleared it, so a customer added after
+       that was missing from the picker until a full reload. db.listCustomers is
+       already a TTL cache with epoch invalidation, and createCustomer
+       invalidates it, so a repeat open inside the TTL costs a Map read. */
+    try {
+      pk.customers = await db.listCustomers();
+      pk.error = null;
+    } catch (err) {
+      console.error(err);
+      pk.error = err;
     }
+    pk.loading = false;
+    if (pk.open) renderDocumentPicker();
   }
 
   function closeDocumentPicker(force) {
@@ -4357,7 +4386,10 @@ KK.app = (function () {
     pk.error = null;
     pk.loading = false;
     renderDocumentPicker();
-    elements.docnewSearch.focus({ preventScroll: true });
+    /* The row that was focused has just been replaced by innerHTML, so focus
+       would otherwise fall to <body> and leave the dialog. The title, not the
+       search field — see openDocumentPicker on why the keyboard stays down. */
+    elements.docnewTitle.focus({ preventScroll: true });
   }
 
   /* Generates the PDF and records it, in exactly the order downloadDocument
@@ -4526,6 +4558,17 @@ KK.app = (function () {
       const orderId = row.dataset.order;
       closeDocumentPicker();
       go("#/order/" + encodeURIComponent(orderId) + "/moodboard");
+      return;
+    }
+
+    /* The picker answers "which order?"; the fittingNew route already answers
+       "which stage?" and resolves or creates the session, race recovery and
+       all. from=fittings is what tells it the answer to "back to where?" is the
+       feed this started on rather than an order page never visited. */
+    if (isFittingPicker()) {
+      const orderId = row.dataset.order;
+      closeDocumentPicker();
+      go("#/order/" + encodeURIComponent(orderId) + "/fitting/new?from=fittings");
       return;
     }
     generateDocumentFor(row.dataset.order);
@@ -6959,13 +7002,21 @@ KK.app = (function () {
     elements.custOrdersCount.textContent = orders.length + " order" + (1 === orders.length ? "" : "s");
     elements.custOrdersSum.textContent = U.formatRupiah(orders.reduce((sum, o) => sum + docs.computeTotal(o.items), 0));
 
+    /* The order list always ends with the way to add one, exactly as
+       renderCustomerList ends the ledger. It never had one: a customer with no
+       orders read "No orders for this customer yet." and offered nothing, and
+       the only route to the order editor was the homepage Add order tile. */
+    const addOrderRow = '<a class="btn btn--outline btn--new btn--block btn--empty" href="' +
+      U.escapeHtml("#/customer/" + encodeURIComponent(customerRecord.id) + "/order/new/edit") +
+      '">+ Add an order</a>';
+
     elements.custOrderList.innerHTML = orders.length
       ? orders.map((o) => {
           const st = custOrderStatus(o);
           const itemLen = (o.items || []).length;
           return '<div class="cust-grid-spacer" aria-hidden="true"></div><div class="cust-grid-rule"></div><div class="cust-order-record__inset"><a class="cust-order-card cust-order-card--' + st.tone + '" href="#/order/' + encodeURIComponent(o.id) + '" aria-label="' + U.escapeHtml(orderLabel(o) + ", " + st.label) + '"><span class="cust-order-card__face"><span class="cust-order-card__top"><span class="cust-order-card__name">' + U.escapeHtml(orderLabel(o)) + '</span><span class="cust-order-card__badge">' + U.escapeHtml(st.label) + '</span></span><span class="cust-order-card__meta"><span>' + itemLen + " item" + (1 === itemLen ? "" : "s") + '</span><span>' + U.formatRupiah(docs.computeTotal(o.items)) + '</span></span></span><span class="cust-order-card__rail" aria-hidden="true"></span></a></div><div class="cust-grid-rule"></div>';
-        }).join('') + '<div class="cust-grid-spacer" aria-hidden="true"></div>'
-      : '<div class="cust-grid-spacer" aria-hidden="true"></div><p class="empty">No orders for this customer yet.</p><div class="cust-grid-spacer" aria-hidden="true"></div>';
+        }).join('') + '<div class="cust-grid-spacer" aria-hidden="true"></div>' + addOrderRow
+      : '<div class="cust-grid-spacer" aria-hidden="true"></div><p class="empty">No orders for this customer yet.</p>' + addOrderRow;
   }
 
   function relativeToToday(isoDate) {

@@ -1,4 +1,4 @@
-# MAP — app.js (8943 lines, ~356 KB)
+# MAP — app.js (9361 lines, ~373 KB)
 
 **Never read this file whole.** It costs ~60k tokens. Jump to a region below, read ≤400 lines.
 

@@ -110,3 +110,14 @@ and `svh` is the small-viewport unit — keyboard-insensitive by definition. Rid
 `--keyboard-offset` (published by `syncVisualViewport`) with a `transform`, and
 subtract it from the height cap so a long list scrolls inside the panel instead
 of growing back underneath. `.docnew__panel` and `.savebar` are the examples.
+
+Better still, do not raise it. A sheet that focuses its own search field on open
+raises the keyboard before the user has decided they want it, and the panel then
+has to fight for the room it just gave away — the document picker showed one
+customer in a list of twelve that way. Focus the sheet's title; let the field be
+something you reach for.
+
+And the panel is not the scroller — its list is. When the panel scrolls, the
+title, hint and search scroll out of reach and the list, a shrinkable flex child,
+is squeezed to whatever floor it declares. Give the list `flex: 1 1 auto`,
+`min-height: 0` and `overflow-y: auto`, and the chrome stays pinned.
