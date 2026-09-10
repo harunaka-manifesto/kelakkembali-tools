@@ -18,6 +18,7 @@
 --   "atomic fitting photo batches"     save_fitting_photo_batch RPC
 --   "quotation and invoice feeds"      document_feed read model + paging index
 --   "fitting photo annotations"       fitting_photos.annotation + batch RPC v2
+--   "per-termin invoices"              invoice termin identity in document history
 
 create extension if not exists pgcrypto;
 
@@ -1447,3 +1448,71 @@ $$;
 
 revoke all on function public.save_fitting_photo_batch(uuid, jsonb, uuid[], jsonb) from public;
 grant execute on function public.save_fitting_photo_batch(uuid, jsonb, uuid[], jsonb) to authenticated;
+
+
+-- =========================================================================
+-- Migration — "per-termin invoices"
+--
+-- An invoice logs the amount it asks for, plus enough identity to distinguish
+-- equal-sized termins in the document feed. Quotations and legacy invoices
+-- keep both fields null.
+-- =========================================================================
+
+alter table public.document_log
+  add column if not exists term_number smallint,
+  add column if not exists term_count smallint;
+
+alter table public.document_log
+  drop constraint if exists document_log_term_identity_check;
+
+alter table public.document_log
+  add constraint document_log_term_identity_check check (
+    (term_number is null and term_count is null)
+    or (kind = 'invoice' and term_number > 0 and term_count > 0 and term_number <= term_count)
+  );
+
+drop view if exists public.document_feed;
+
+create view public.document_feed
+with (security_invoker = true) as
+with resolved as (
+  select
+    dl.id,
+    dl.order_id,
+    dl.kind,
+    dl.total,
+    dl.term_number,
+    dl.term_count,
+    dl.created_at,
+    o.customer_id,
+    c.name   as customer_name,
+    o.title  as order_title,
+    o.status as order_status,
+    case
+      when nullif(btrim(coalesce(o.title, '')), '') is not null then btrim(o.title)
+      when nullif(btrim(coalesce(o.items -> 0 ->> 'name', '')), '') is not null then
+        btrim(o.items -> 0 ->> 'name') ||
+        case when jsonb_array_length(o.items) > 1
+             then ' + ' || (jsonb_array_length(o.items) - 1)::text || ' more'
+             else '' end
+      else 'Empty order'
+    end as order_label,
+    (dl.created_at at time zone 'Asia/Jakarta')::date as issued_date
+  from public.document_log dl
+  join public.orders    o on o.id = dl.order_id
+  join public.customers c on c.id = o.customer_id
+  where dl.kind in ('quotation', 'invoice')
+)
+select
+  r.*,
+  lower(
+    coalesce(r.customer_name, '') || ' ' ||
+    coalesce(r.order_label, '')   || ' ' ||
+    case when r.term_number is not null
+         then 'termin ' || r.term_number::text || ' of ' || r.term_count::text || ' '
+         else '' end ||
+    to_char(r.issued_date, 'FMDD Mon YYYY')
+  ) as search_text
+from resolved r;
+
+grant select on public.document_feed to authenticated;

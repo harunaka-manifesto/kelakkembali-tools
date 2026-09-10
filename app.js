@@ -523,12 +523,15 @@ KK.app = (function () {
            documents route, and the picker also opens for a moodboard, which has
            no route of its own to set it. Whoever opens the sheet says what for. */
         mode: "quotation", // quotation | invoice | moodboard | fitting | neworder
-        step: "customer", // customer | order
+        step: "customer", // customer | order | termin
         orderToken: 0,
         customers: null,
         customerId: null,
         customer: null,
         orders: null,
+        selectedOrder: null,
+        loggedDeposits: {},
+        directOrder: false,
         query: "",
         loading: false,
         generating: false,
@@ -4019,7 +4022,10 @@ KK.app = (function () {
   }
 
   function documentCardHtml(item) {
-    const kindLabel = documentKindName(item.kind);
+    const terminLabel = "invoice" === item.kind && item.term_number && item.term_count
+      ? " · Termin " + item.term_number + " of " + item.term_count
+      : "";
+    const kindLabel = documentKindName(item.kind) + terminLabel;
     /* item.total, never docs.computeTotal(order.items). Nothing about a
        document is snapshotted except this number, so recomputing it would let
        an order edited afterwards silently rewrite what was already sent —
@@ -4455,7 +4461,7 @@ KK.app = (function () {
     const kindLabel = pickerThingName();
 
     elements.docnewTitle.textContent = "New " + kindLabel.toLowerCase();
-    elements.docnewBack.hidden = "customer" !== pk.step ? false : true;
+    elements.docnewBack.hidden = "customer" === pk.step || ("termin" === pk.step && pk.directOrder);
     elements.docnewBack.disabled = pk.generating;
     elements.docnewCancel.disabled = pk.generating;
 
@@ -4503,6 +4509,39 @@ KK.app = (function () {
         ' data-customer="' + U.escapeHtml(c.id) + '"', c.name, weddingText(c)
       )).join('') + addRow;
       announceDocumentPickerStatus(matches.length + (1 === matches.length ? " customer" : " customers"));
+      return;
+    }
+
+    if ("termin" === pk.step) {
+      const order = pk.selectedOrder;
+      const terms = order ? docs.termsFor(order) : [];
+      const amounts = order ? docs.termAmounts(docs.computeTotal(order.items), terms) : [];
+      elements.docnewHint.textContent = "Which termin are you invoicing?";
+      elements.docnewSearch.hidden = true;
+
+      if (pk.generating) {
+        elements.docnewList.innerHTML = '<p class="docnew__loading">Generating invoice…</p>' +
+          '<div class="docnew__skeleton-row" aria-hidden="true"><i></i><i></i></div>'.repeat(Math.min(3, terms.length) || 1);
+        return;
+      }
+      if (pk.loading) {
+        elements.docnewList.innerHTML = '<span class="sr-only">Loading payment status…</span>' +
+          '<div class="docnew__skeleton-row" aria-hidden="true"><i></i><i></i></div>'.repeat(Math.min(3, terms.length) || 1);
+        return;
+      }
+      if (pk.error) {
+        elements.docnewList.innerHTML =
+          '<p class="docnew__error" role="alert">Couldn\'t load payment status. Check your connection.</p>' +
+          '<button type="button" class="btn btn--outline js-docnew-retry">Try again</button>';
+        return;
+      }
+
+      elements.docnewList.innerHTML = terms.map((term, index) => {
+        const paid = !!pk.loggedDeposits[index];
+        const meta = termLabelForPicker(term, amounts[index]) + (paid ? " · Paid" : "");
+        return docnewRowHtml(' data-termin="' + index + '"', "Termin " + (index + 1) + " of " + terms.length, meta);
+      }).join('');
+      announceDocumentPickerStatus(terms.length + (1 === terms.length ? " termin" : " termins"));
       return;
     }
 
@@ -4571,6 +4610,10 @@ KK.app = (function () {
     elements.docnewStatus.textContent = text;
   }
 
+  function termLabelForPicker(term, amount) {
+    return docs.termLabel(term) + " · " + U.formatRupiah(amount);
+  }
+
   async function openDocumentPicker(mode) {
     const pk = picker();
     if (pk.open) return;
@@ -4581,6 +4624,9 @@ KK.app = (function () {
     pk.customerId = null;
     pk.customer = null;
     pk.orders = null;
+    pk.selectedOrder = null;
+    pk.loggedDeposits = {};
+    pk.directOrder = false;
     pk.query = "";
     pk.error = null;
     pk.generating = false;
@@ -4673,6 +4719,16 @@ KK.app = (function () {
   function backToDocumentCustomers() {
     const pk = picker();
     if (pk.generating) return;
+    if ("termin" === pk.step && !pk.directOrder) {
+      pk.step = "order";
+      pk.selectedOrder = null;
+      pk.loggedDeposits = {};
+      pk.error = null;
+      pk.loading = false;
+      renderDocumentPicker();
+      elements.docnewTitle.focus({ preventScroll: true });
+      return;
+    }
     pk.orderToken++;
     pk.step = "customer";
     pk.orders = null;
@@ -4685,12 +4741,70 @@ KK.app = (function () {
     elements.docnewTitle.focus({ preventScroll: true });
   }
 
+  async function selectInvoiceOrder(orderId) {
+    const pk = picker();
+    const order = (pk.orders || []).filter((o) => o.id === orderId)[0];
+    if (!order || pk.generating) return;
+    const terms = docs.termsFor(order);
+    pk.selectedOrder = order;
+
+    if (1 === terms.length) {
+      await generateDocumentFor(orderId, 0);
+      return;
+    }
+
+    const token = ++pk.orderToken;
+    pk.step = "termin";
+    pk.loading = true;
+    pk.error = null;
+    renderDocumentPicker();
+    try {
+      pk.loggedDeposits = deriveLoggedDeposits(await db.listOrderHistory(orderId));
+      pk.error = null;
+    } catch (err) {
+      console.error(err);
+      pk.error = err;
+    }
+    if (token !== pk.orderToken || !pk.open || order !== pk.selectedOrder) return;
+    pk.loading = false;
+    renderDocumentPicker();
+  }
+
+  function openInvoiceTerminPicker() {
+    const pk = picker();
+    if (pk.open || !state.order) return;
+    const terms = docs.termsFor(state.order);
+
+    pk.open = true;
+    pk.mode = "invoice";
+    pk.step = "termin";
+    pk.customer = state.customer;
+    pk.orders = [state.order];
+    pk.selectedOrder = state.order;
+    pk.loggedDeposits = Object.assign({}, state.loggedDeposits);
+    pk.directOrder = true;
+    pk.loading = false;
+    pk.generating = false;
+    pk.error = null;
+    pk.returnEl = document.activeElement;
+
+    cancelSheetClose(elements.docnewSheet);
+    elements.docnewSheet.hidden = false;
+    document.body.classList.add("has-docnew");
+    if (1 === terms.length) {
+      generateDocumentFor(state.order.id, 0);
+      return;
+    }
+    renderDocumentPicker();
+    elements.docnewTitle.focus({ preventScroll: true });
+  }
+
   /* Generates the PDF and records it, in exactly the order downloadDocument
      uses on the order page. docs.download fills the offscreen #quotation /
      #invoice templates and reads its own DOM nodes — it never touches app
      state and does not need the order view to be showing, which is what makes
      issuing a document from a list page possible at all. */
-  async function generateDocumentFor(orderId) {
+  async function generateDocumentFor(orderId, invoiceTermIndex) {
     const pk = picker();
     const order = (pk.orders || []).filter((o) => o.id === orderId)[0];
     if (!order || pk.generating) return;
@@ -4698,6 +4812,15 @@ KK.app = (function () {
     // pk.mode, not the feed's kind: the sheet opens from the homepage too,
     // where the feed carries whichever kind was last looked at.
     const kind = pk.mode;
+    const terms = docs.termsFor(order);
+    const isInvoice = "invoice" === kind;
+    if (isInvoice && (!Number.isInteger(invoiceTermIndex) || invoiceTermIndex < 0 || invoiceTermIndex >= terms.length)) {
+      pk.step = "termin";
+      pk.error = null;
+      renderDocumentPicker();
+      showToast("Choose a valid invoice termin");
+      return;
+    }
     pk.generating = true;
     elements.docnewSheet.setAttribute("aria-busy", "true");
     renderDocumentPicker();
@@ -4710,7 +4833,8 @@ KK.app = (function () {
         date: U.todayISO(),
         items: order.items || [],
         includes: order.includes || [],
-        terms: docs.termsFor(order)
+        terms,
+        invoiceTermIndex: isInvoice ? invoiceTermIndex : undefined
       });
     } catch (err) {
       console.error(err);
@@ -4727,9 +4851,15 @@ KK.app = (function () {
     showToast(documentKindName(kind) + " downloaded");
 
     try {
-      const nextStatus = advancedStatus(order.status, "invoice" === kind ? "Confirmed" : "Quoted");
-      if (nextStatus !== order.status) await db.updateOrder(order.id, { status: nextStatus });
-      await db.logDocument(order.id, kind, totalAmt);
+      if (pk.directOrder) {
+        await bumpStatus(isInvoice ? "Confirmed" : "Quoted");
+      } else {
+        const nextStatus = advancedStatus(order.status, isInvoice ? "Confirmed" : "Quoted");
+        if (nextStatus !== order.status) await db.updateOrder(order.id, { status: nextStatus });
+      }
+      await db.logDocument(order.id, kind, totalAmt,
+        isInvoice ? invoiceTermIndex + 1 : null,
+        isInvoice ? terms.length : null);
     } catch (err) {
       console.error(err);
       showToast("Downloaded, but could not record it");
@@ -4818,6 +4948,8 @@ KK.app = (function () {
         pk.error = null;
         pk.step = "customer";
         openDocumentPickerReload();
+      } else if ("termin" === pk.step && pk.selectedOrder) {
+        selectInvoiceOrder(pk.selectedOrder.id);
       } else if (pk.customerId) {
         pickDocumentCustomer(pk.customerId);
       }
@@ -4825,6 +4957,12 @@ KK.app = (function () {
     }
     const row = e.target.closest(".docnew__row");
     if (!row || row.disabled) return;
+
+    if (row.dataset.termin) {
+      const index = Number(row.dataset.termin);
+      if (pk.selectedOrder) generateDocumentFor(pk.selectedOrder.id, index);
+      return;
+    }
 
     if (row.dataset.customer) {
       pickDocumentCustomer(row.dataset.customer);
@@ -4864,7 +5002,8 @@ KK.app = (function () {
       go("#/order/" + encodeURIComponent(orderId) + "/fitting/new?from=fittings");
       return;
     }
-    generateDocumentFor(row.dataset.order);
+    if ("invoice" === pk.mode) selectInvoiceOrder(row.dataset.order);
+    else generateDocumentFor(row.dataset.order);
   });
 
   async function openDocumentPickerReload() {
@@ -9325,7 +9464,7 @@ KK.app = (function () {
     });
 
     elements.downloadQuote.addEventListener("click", () => downloadDocument("quotation"));
-    elements.downloadInvoice.addEventListener("click", () => downloadDocument("invoice"));
+    elements.downloadInvoice.addEventListener("click", openInvoiceTerminPicker);
 
     elements.createMoodboardBtn.addEventListener("click", () => {
       if (state.order) go("#/order/" + state.order.id + "/moodboard");

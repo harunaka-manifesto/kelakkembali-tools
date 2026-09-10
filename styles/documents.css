@@ -412,6 +412,35 @@
   gap: 8px;
 }
 
+.inv-due__termin {
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.inv-due__label {
+  font-size: 13px;
+  font-weight: 200;
+  line-height: 20px;
+}
+
+.inv-due__amount {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-top: 8px;
+  border-top: 1px solid #000;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.inv-due__amount strong {
+  font-size: 20px;
+  font-weight: 400;
+}
+
 .q-row--pair {
   width: 100%;
   display: flex;
@@ -470,4 +499,3 @@
   line-height: 24px;
   color: #000;
 }
-

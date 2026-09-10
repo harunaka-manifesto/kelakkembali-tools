@@ -140,7 +140,7 @@ KK.db = (function () {
 
   /* ---------------------------- Document Feed ----------------------------- */
 
-  const PROJECTION_DOCUMENT_FEED = 'id,order_id,customer_id,customer_name,order_title,order_label,order_status,kind,total,created_at,issued_date';
+  const PROJECTION_DOCUMENT_FEED = 'id,order_id,customer_id,customer_name,order_title,order_label,order_status,kind,total,term_number,term_count,created_at,issued_date';
 
   /* Moodboards live in document_log too, but they are a different object and
      neither list route can render one, so the vocabulary here is the two the
@@ -323,9 +323,14 @@ KK.db = (function () {
 
     /* --------------------------- Document & History ------------------------ */
 
-    logDocument: async function (orderId, kind, total) {
+    logDocument: async function (orderId, kind, total, termNumber, termCount) {
       invalidate();
-      unwrap(await init().from('document_log').insert({ order_id: orderId, kind, total }));
+      const record = { order_id: orderId, kind, total };
+      if (null != termNumber && null != termCount) {
+        record.term_number = termNumber;
+        record.term_count = termCount;
+      }
+      unwrap(await init().from('document_log').insert(record));
     },
 
     listDocumentLog: async function (orderId) {

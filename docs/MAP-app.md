@@ -131,10 +131,10 @@ Look up here instead of grepping. Arrow-function helpers are marked `→`.
 `docFeed` →2954 · `isDocumentsRoute` →2955 · `documentKindName` →2957 · `documentKindPlural` →2958 · `documentRouteFor` →2959 · `documentBlockHtml` 2961 · `documentCardHtml` 2968 · `documentSkeletonHtml` 3007 · `documentPanelHtml` 3025 · `documentEmptyHtml` 3035 · `documentStateHtml` 3052 · `announceDocumentStatus` 3082 · `renderDocumentSearchClear` 3089 · `renderDocumentFeed` 3093 · `documentRequestArgs` 3122 · `ensureDocumentObserver` 3132 · `stopDocumentObserver` 3141 · `startDocumentFirstPage` 3149 · `loadMoreDocuments` 3180 · `cleanupDocuments` 3216 · `parkDocuments` 3237 · `alignDocumentSearch` 3246 · `scheduleDocumentSearchAlign` 3251 · `setDocumentBackControl` 3261 · `restoreDocumentScroll` 3268 · **`showDocuments`** 3279
 
 ### New document picker
-`picker` →3336 · `docnewRowHtml` 3338 · `renderDocumentPicker` 3346 · `announceDocumentPickerStatus` 3443 · `openDocumentPicker` 3447 · `closeDocumentPicker` 3486 · `pickDocumentCustomer` 3499 · `backToDocumentCustomers` 3520 · **`generateDocumentFor`** 3535
+`picker` →4438 · `docnewRowHtml` 4440 · `renderDocumentPicker` 4459 · `announceDocumentPickerStatus` 4609 · `termLabelForPicker` 4613 · `openDocumentPicker` 4617 · `closeDocumentPicker` 4667 · `pickDocumentCustomer` 4683 · `backToDocumentCustomers` 4719 · `selectInvoiceOrder` 4744 · `openInvoiceTerminPicker` 4773 · **`generateDocumentFor`** 4807
 
 ### Document events
-`openDocumentPickerReload` 3679
+`openDocumentPickerReload` 5009
 
 ### Fitting log session detail
 `detail` →4250 · `isDetailRoute` →4251 · `FITTING_IMAGE_MAX` →4256 · `invalidateFittingFeed` 4258 · `sortFittingPhotos` 4269 · `fittingPhotoState` 4277 · `fittingPhotoDisplayURL` →4285

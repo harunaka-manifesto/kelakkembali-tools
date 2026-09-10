@@ -101,13 +101,28 @@ KK.docs = (function () {
 
   /* --------------------------- DOM Template Rendering --------------------- */
 
-  function render(orderData) {
+  function invoiceTermFor(orderData, totalAmount, terms) {
+    const index = Number(orderData.invoiceTermIndex);
+    if (!Number.isInteger(index) || index < 0 || index >= terms.length) {
+      throw new Error('Choose a valid invoice termin');
+    }
+    return {
+      index,
+      number: index + 1,
+      count: terms.length,
+      term: terms[index],
+      amount: termAmounts(totalAmount, terms)[index]
+    };
+  }
+
+  function render(docType, orderData) {
     const clientName = String(orderData.docName || '').trim();
     const items = orderData.items || [];
     const includesList = orderData.includes || [];
     const terms = orderData.terms && orderData.terms.length ? orderData.terms : STANDARD_TERMS;
     const totalAmount = computeTotal(items);
     const dateFormatted = U.formatLongDate(orderData.date);
+    const invoiceTerm = 'invoice' === docType ? invoiceTermFor(orderData, totalAmount, terms) : null;
 
     elements.qFor.textContent = clientName;
     elements.qDate.textContent = dateFormatted;
@@ -129,11 +144,14 @@ KK.docs = (function () {
     elements.iFor.textContent = clientName;
     elements.iDate.textContent = dateFormatted;
     elements.iItems.innerHTML = itemRowsHtml(items, totalAmount, false);
-    elements.iTerms.innerHTML = termAmounts(totalAmount, terms).map((amt, i) =>
-      '<div class="q-row--pair"><p class="q-c-item">' + U.escapeHtml(termLabel(terms[i])) + '</p><span class="q-dot"></span><p class="q-c-price">' + U.formatRupiah(amt) + '</p></div>'
-    ).join('');
+    if (invoiceTerm) {
+      elements.iTerms.innerHTML =
+        '<p class="inv-due__termin">Termin ' + invoiceTerm.number + ' of ' + invoiceTerm.count + '</p>' +
+        '<p class="inv-due__label">' + U.escapeHtml(termLabel(invoiceTerm.term)) + '</p>' +
+        '<div class="inv-due__amount"><span>Amount due</span><strong>' + U.formatRupiah(invoiceTerm.amount) + '</strong></div>';
+    }
 
-    return totalAmount;
+    return invoiceTerm ? invoiceTerm.amount : totalAmount;
   }
 
   /* -------------------------- Offscreen Capture Pipeline ------------------- */
@@ -280,14 +298,16 @@ KK.docs = (function () {
     const prefix = DOCS[docType].name + '-KelakKembali-';
     const dateStr = orderData.date || U.todayISO();
     const sanitizedName = U.sanitizeForFilename(orderData.docName);
-    return sanitizedName ? prefix + sanitizedName + '-' + dateStr + '.pdf' : prefix + dateStr + '.pdf';
+    const namePart = sanitizedName ? sanitizedName + '-' : '';
+    const terminPart = 'invoice' === docType ? 'Termin-' + (Number(orderData.invoiceTermIndex) + 1) + '-' : '';
+    return prefix + namePart + terminPart + dateStr + '.pdf';
   }
 
   /* --------------------------- PDF Download Method ------------------------- */
 
   async function download(docType, orderData) {
     const targetNode = elements[DOCS[docType].node];
-    const totalAmount = render(orderData);
+    const totalAmount = render(docType, orderData);
 
     await ensureFontsLoaded();
     await ensureImagesLoaded(targetNode);

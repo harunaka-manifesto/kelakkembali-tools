@@ -50,7 +50,7 @@ The month-grid half serves the schedules calendar. Three rules live there rather
 
 `DOCS` · `STANDARD_TERMS` · `termsFor` · `termLabel` · `termAmounts` · `computeTotal` · `render`
 
-Receives an order object, fills `#quotation` / `#invoice` in `index.html` (locked spec, lines 1412–1577), snapshots via html2canvas + jsPDF. Never queries. `app.js` `downloadDocument` (4825) supplies data and logs the result.
+Receives an order object, fills `#quotation` / `#invoice` in `index.html`, snapshots via html2canvas + jsPDF. Invoice calls also receive `invoiceTermIndex`; the renderer validates it, shows that termin's amount due beside the full-order item total, and includes the termin number in the filename. Never queries. `app.js` supplies data and logs the result.
 
 ## fitting-pdf.js — `KK.fittingPdf` (read whole, 319 lines)
 

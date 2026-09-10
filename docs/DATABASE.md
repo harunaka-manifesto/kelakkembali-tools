@@ -19,7 +19,7 @@ The customer owns the pipeline: stage, consult, moodboard, follow-up, cancellati
 The order owns money, items, documents, and the schedule anchors.
 
 ### `document_log`
-`id` · `order_id` fk cascade · `kind` (`quotation|invoice|moodboard`) · `total` bigint (nullable since moodboards) · `drive_link` · `created_at`. Paper trail of numbers, not files.
+`id` · `order_id` fk cascade · `kind` (`quotation|invoice|moodboard`) · `total` bigint (nullable since moodboards) · `term_number` smallint nullable · `term_count` smallint nullable · `drive_link` · `created_at`. Paper trail of numbers, not files. New per-termin invoices store both positive, 1-based termin fields; quotations, moodboards, and legacy invoices leave both null.
 
 A quotation and an invoice are two renderings of one order, not two records — this table is the only durable trace either leaves. Read through `document_feed` for the list pages.
 
@@ -93,7 +93,7 @@ replace` and a second overload of the same arity would make every call ambiguous
 **RLS enabled with zero policies** — denies `anon` and `authenticated` outright. Only the service-role Edge Function reads it. Never query it from the browser.
 
 ### View `public.document_feed` (security_invoker)
-Row shape: `id`, `order_id`, `kind` (`quotation|invoice` only — moodboards are excluded in the view, not by the caller), `total` (nullable), `created_at`, `customer_id`, `customer_name`, `order_title`, `order_status`, `order_label` (same expression as `fitting_log_feed`), `issued_date` (Asia/Jakarta date), `search_text` (lowercased name + label + `FMDD Mon YYYY`).
+Row shape: `id`, `order_id`, `kind` (`quotation|invoice` only — moodboards are excluded in the view, not by the caller), `total` (nullable), `term_number`, `term_count`, `created_at`, `customer_id`, `customer_name`, `order_title`, `order_status`, `order_label` (same expression as `fitting_log_feed`), `issued_date` (Asia/Jakarta date), `search_text` (lowercased name + label + optional termin identity + `FMDD Mon YYYY`).
 
 Backs `#/quotations` and `#/invoices`. `document_log` stores no customer name, no order label, and no search column, so the join has to happen here — a client-side join could not do server-side `ilike` or cursor paging. Index `document_log_kind_created_idx (kind, created_at desc, id desc)` matches the feed's ordering and cursor tie-break.
 
@@ -120,7 +120,7 @@ Append-only. To change the schema:
 2. Add that title to the navigation list at `schema.sql` lines 8–18.
 3. Never edit an applied block — the file is re-run whole after every pull.
 
-Existing migration titles (grep any of these to jump): `dashboard UX overhaul` · `document name + payment schemes` · `fitting schedule + Google` · `the real lifecycle` · `status stops being` · `schedule gets a second anchor` · `moodboard generator` · `fitting revisions log` · `atomic fitting photo batches` · `quotation and invoice feeds` · `fitting photo annotations`.
+Existing migration titles (grep any of these to jump): `dashboard UX overhaul` · `document name + payment schemes` · `fitting schedule + Google` · `the real lifecycle` · `status stops being` · `schedule gets a second anchor` · `moodboard generator` · `fitting revisions log` · `atomic fitting photo batches` · `quotation and invoice feeds` · `fitting photo annotations` · `per-termin invoices`.
 
 ---
 
@@ -134,7 +134,7 @@ Everything below is on `window.KK.db`. All async unless noted.
 
 **Orders** — `listOrders(customerId)` 226 · `listAllOrders` 230 (carries `title` for the calendar) · `getOrder(id)` 234 · `createOrder` 238 (called only from `saveOrder`, on the `#/customer/:id/order/new/edit` route) · `updateOrder(id, record)` 242 · `deleteOrder(id)` 246
 
-**Documents & history** — `logDocument(orderId, kind, total)` 252 · `listDocumentLog(orderId)` 256 · `logOrderHistory(orderId, action, detail)` 264 · `listOrderHistory(orderId)` 268
+**Documents & history** — `logDocument(orderId, kind, total, termNumber?, termCount?)` 326 · `listDocumentLog(orderId)` 331 · `logOrderHistory(orderId, action, detail)` 340 · `listOrderHistory(orderId)` 344
 
 **Schedule** — `listOrderEvents(orderId)` 274 · `listAllOrderEvents` 284 (whole table, for the homepage strip and the schedules calendar) · `listAllFittingSessions` 342 (resolves a calendar tap target in one read) · **`replaceOrderEvents(orderId, newEvents, allowedStages)` 288** — rewrites the schedule while preserving `google_event_id` per stage; returns `{ removed, events }`
 
