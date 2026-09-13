@@ -185,10 +185,10 @@ $$\text{Tracking (px)} = -0.03 \times \text{Font Size (px)}$$
 Every interactive element on the ledger canvas consists of a **two-row CSS Grid** holding a `.face` and a `.rail`.
 
 ```html
-<button class="home-action home-action--schedule">
+<button class="home-action home-action--customer">
   <span class="home-action__face">
-    <img src="assets/schedule-icon.svg" alt="" width="24" height="24">
-    <span>Schedule</span>
+    <img src="assets/home-add-icon.svg" alt="" width="24" height="24">
+    <span>Customer</span>
   </span>
   <span class="home-action__rail"></span>
 </button>

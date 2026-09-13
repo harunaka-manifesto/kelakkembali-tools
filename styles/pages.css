@@ -56,9 +56,6 @@
      is: arriving should settle, dismissing should just go. */
   --motion-sheet-in: 260ms;
   --motion-sheet-out: 180ms;
-  /* Long enough to smooth the steps iOS reports the keyboard in, short enough
-     that the bar still reads as attached to it. */
-  --motion-keyboard: 220ms;
   --motion-skeleton-min: 250ms;
 }
 
@@ -395,8 +392,11 @@ body:not(.is-homepage) .home-nav { display: none; }
 }
 .home-action__face img { display: block; width: 24px; height: 24px; }
 .home-action__rail { display: block; }
-.home-action--schedule  .home-action__face { background: linear-gradient(180deg, rgba(0,0,0,.04), transparent), #ff6a00; }
-.home-action--schedule  .home-action__rail { background: #dd5d01; }
+/* The orange the Schedule tile wore. Customer takes the slot and the colour:
+   the row is a fixed palette of six, and leaving a gap in it to mark a tile
+   that is gone would be the only thing the reader noticed. */
+.home-action--customer  .home-action__face { background: linear-gradient(180deg, rgba(0,0,0,.04), transparent), #ff6a00; }
+.home-action--customer  .home-action__rail { background: #dd5d01; }
 .home-action--quotation .home-action__face { background: linear-gradient(180deg, rgba(0,0,0,.04), transparent), #23b620; }
 .home-action--quotation .home-action__rail { background: #19aa16; }
 .home-action--invoice   .home-action__face { background: linear-gradient(180deg, rgba(0,0,0,.04), transparent), #1e72ef; }
@@ -411,6 +411,14 @@ body:not(.is-homepage) .home-nav { display: none; }
 /* Making a record, not opening a section: no category colour to claim. */
 .home-action--add .home-action__face { background: linear-gradient(180deg, rgba(255,255,255,.1), transparent), #292929; }
 .home-action--add .home-action__rail { background: #1a1a1a; }
+
+/* Full width above the six, and laid out as a row rather than a stack: the
+   label is three words and would wrap under a centred icon at 320px. The face,
+   rail, and press are the tile's own, so it presses like one. */
+.home-action--production { grid-column: 1 / -1; }
+.home-action--production .home-action__face { flex-direction: row; gap: var(--space-2); background: linear-gradient(180deg, rgba(255,255,255,.1), transparent), #292929; }
+.home-action--production .home-action__rail { background: #1a1a1a; }
+[data-production-entry][hidden] { display: none !important; }
 .home-action:active,
 .home-action.is-pressed,
 .home-action.is-appear-pressed { grid-template-rows: 96px 2px; }
@@ -718,6 +726,12 @@ body.is-homepage .btn--empty,
 .home-skel__actions i.home-skel__actions--wide { display: none; }
 body.has-fitting-shortcut .home-skel__actions i.home-skel__actions--wide { display: grid; }
 body:not(.has-fitting-shortcut) .home-skel__actions i:nth-child(4) { grid-column: span 2; }
+/* Last in the markup, first on screen, so the six keep the nth-child positions
+   the rules above count on. The extra row is reserved from the stored answer to
+   the production probe — see productionReadyGuess — because a tile that arrives
+   after the skeleton is a tile that arrives under a thumb. */
+.home-skel__production { order: -1; grid-column: 1 / -1; }
+body.has-production .home-skel__actions { height: 294px; }
 .home-skel__actions i::before,
 .home-skel__actions i::after { content: ''; display: block; }
 .home-skel__actions i::before { background: rgba(76,76,76,.18); animation: home-shimmer 1.2s ease-in-out infinite; }
@@ -2100,6 +2114,9 @@ body.is-orderpage .view { gap: 0; }
   border: 0;
   border-radius: 0;
   background: transparent;
+  /* Some of these are links now, some are buttons; they are the same control
+     either way, so the anchor's underline has to go. */
+  text-decoration: none;
   cursor: pointer;
   overflow: hidden;
   -webkit-tap-highlight-color: transparent;
@@ -2132,6 +2149,10 @@ body.is-orderpage .view { gap: 0; }
 .order-action--moodboard .order-action__rail { background: #dd5d01; border-bottom: 1px solid var(--home-grid); }
 .order-action--payment  .order-action__face { background: var(--home-grid); }
 .order-action--payment  .order-action__rail { background: var(--home-black-light); }
+/* The same neutral as Log a payment: both add a record to the card above them
+   rather than opening one of the coloured sections. */
+.order-action--production .order-action__face { background: var(--home-grid); }
+.order-action--production .order-action__rail { background: var(--home-black-light); }
 .order-action--design-upload .order-action__face { background: var(--home-grid); }
 .order-action--design-upload .order-action__rail { background: var(--home-black-light); }
 .order-action--design-upload .order-action__icon {
@@ -3032,7 +3053,11 @@ button.fitdet-card__frame { appearance: none; -webkit-appearance: none; }
   right: 0;
   bottom: 0;
   transform: translateY(calc(-1 * var(--keyboard-offset, 0px)));
-  transition: transform var(--motion-keyboard) var(--ease-standard);
+  /* No transition. The visual viewport is already animated by the OS as the
+     keyboard rises, so --keyboard-offset arrives smoothed; a second CSS
+     transition on top of it only trails behind, which is what left this bar
+     visibly floating a beat above the keyboard. See .savebar in shared.css. */
+  transition: none;
   z-index: 40;
   background: var(--home-black);
   /* The home indicator is not there while the keyboard is. */
@@ -3278,7 +3303,11 @@ button.fitdet-card__frame { appearance: none; -webkit-appearance: none; }
   /* Rides with the bar it sits on, or it would be left behind under the
      keyboard while the bar moved out from under it. */
   transform: translateY(calc(-1 * var(--keyboard-offset, 0px)));
-  transition: transform var(--motion-keyboard) var(--ease-standard);
+  /* No transition. The visual viewport is already animated by the OS as the
+     keyboard rises, so --keyboard-offset arrives smoothed; a second CSS
+     transition on top of it only trails behind, which is what left this bar
+     visibly floating a beat above the keyboard. See .savebar in shared.css. */
+  transition: none;
   z-index: 45;
 }
 .fitadd-undo[hidden] { display: none; }
@@ -3722,7 +3751,11 @@ body.is-schedulespage .view { gap: 0; }
   /* No input on this page today. The rule is here so the next one added cannot
      put the month pager under the keyboard. */
   transform: translateY(calc(-1 * var(--keyboard-offset, 0px)));
-  transition: transform var(--motion-keyboard) var(--ease-standard);
+  /* No transition. The visual viewport is already animated by the OS as the
+     keyboard rises, so --keyboard-offset arrives smoothed; a second CSS
+     transition on top of it only trails behind, which is what left this bar
+     visibly floating a beat above the keyboard. See .savebar in shared.css. */
+  transition: none;
   z-index: 40;
   background: var(--home-black);
   border-top: 1px solid var(--home-grid);
@@ -4186,7 +4219,11 @@ body.has-schedcal-monthbar .schedcal { padding-bottom: calc(var(--bottombar-h) +
      in shared.css for the reasoning. */
   max-height: calc(76svh - var(--keyboard-offset, 0px));
   transform: translateY(calc(-1 * var(--keyboard-offset, 0px)));
-  transition: transform var(--motion-keyboard) var(--ease-standard);
+  /* No transition. The visual viewport is already animated by the OS as the
+     keyboard rises, so --keyboard-offset arrives smoothed; a second CSS
+     transition on top of it only trails behind, which is what left this bar
+     visibly floating a beat above the keyboard. See .savebar in shared.css. */
+  transition: none;
   padding: 0 0 max(24px, calc(24px + env(safe-area-inset-bottom, 0px) - var(--keyboard-offset, 0px)));
   display: flex;
   flex-direction: column;
@@ -4884,3 +4921,123 @@ body.is-ordereditpage .calcsheet a:focus-visible,
 body.is-ordereditpage .calcsheet button:focus-visible { outline: 2px solid var(--home-white); outline-offset: 2px; }
 body.is-ordereditpage .calcrow button:focus-visible,
 body.is-ordereditpage .calcrow .input:focus-visible { outline: 2px solid var(--home-black); outline-offset: 1px; }
+
+/* ----------------------- Penjahit production ledger ---------------------- */
+
+/* The two ledgers are one list with two contents, so the tabs sit on the black
+   canvas between the shortcuts and the shared search rail rather than floating
+   above either. Sized like the rest of the homepage's touch targets. */
+.production-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-block: 1px solid var(--home-grid); }
+.production-tabs a {
+  min-height: 52px;
+  padding: 16px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -.42px;
+  color: var(--home-white);
+  background: var(--home-black);
+}
+.production-tabs a + a { border-left: 1px solid var(--home-grid); }
+.production-tabs a[aria-current="page"] { color: var(--home-black); background: var(--home-white); box-shadow: inset 0 -6px var(--home-white-dark); }
+.production-tabs a:focus-visible { outline: 2px solid var(--home-blue); outline-offset: -4px; }
+/* The customer ledger's count is the rail itself; this one shares the rail with
+   the archive toggle, so it needs its own row to hold the separator dot the
+   flex gap would otherwise apply to the wrapper alone. */
+#penjahitSummary { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+/* Sits in the summary rail the count already occupies, pushed to the far end.
+   The rail is 36px and nowrap, so the label stays two words. */
+/* Lighter than the count beside it on purpose: the count is metadata, this is
+   a control, and the rail's grey lands around 1.6:1 on the homepage canvas. */
+.home-summary__toggle { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; cursor: pointer; color: var(--home-white-dark); }
+.home-summary__toggle input { width: 16px; height: 16px; margin: 0; accent-color: var(--home-green); }
+
+body.is-productionpage { background: var(--home-black); color: var(--home-white); }
+body.is-productionpage .page { max-width: 390px; padding: 0 0 calc(var(--bottombar-h) + 32px); }
+body.is-productionpage .pagehead { display: none; }
+body.is-productionpage .appbar { background: var(--home-black); color: var(--home-white); border-color: var(--home-grid); }
+body.is-productionpage .appbar__inner { max-width: 390px; }
+body.is-productionpage .appbar a, body.is-productionpage .appbar button { color: var(--home-white); }
+.production { border-inline: 1px solid var(--home-grid); background: var(--home-black); }
+.production [hidden], .production[hidden] { display: none !important; }
+.production-heading { padding: 24px; border-block: 1px solid var(--home-grid); background: var(--home-white); color: var(--home-black); }
+.production-heading h1 { margin: 0; font-size: 28px; line-height: 1.2; letter-spacing: -.84px; overflow-wrap: anywhere; }
+.production-heading h2, .production-fields h2 { margin: 0; font-size: 20px; line-height: 1.3; letter-spacing: -.6px; }
+.production-heading p { margin: 12px 0 0; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.production-heading .production-kicker { margin: 0 0 12px; text-transform: uppercase; font-size: 12px; font-weight: 700; letter-spacing: .6px; }
+.production-fields { margin: 24px; padding: 20px; display: grid; gap: 16px; background: var(--home-white); color: var(--home-black); border-bottom: 8px solid var(--home-white-dark); }
+.production-fields .field { margin: 0; }
+.production-fields h3 { margin: 0; font-size: 18px; line-height: 1.35; overflow-wrap: anywhere; }
+.production .input { min-width: 0; max-width: 100%; border-radius: 0; background-color: transparent; font-size: 16px; }
+.production .field__label { color: var(--home-black); font-size: 14px; line-height: 1.5; text-transform: none; letter-spacing: 0; }
+.production .field__hint { color: var(--label); line-height: 1.5; overflow-wrap: anywhere; }
+.production-pair { display: grid; grid-template-columns: minmax(0, .65fr) minmax(0, 1.35fr); gap: 12px; }
+.production-search { padding: 16px 24px; margin: 0; color: var(--home-black); background: var(--home-white); }
+.production-actions { display: flex; flex-wrap: wrap; gap: 12px; padding: 16px 24px; }
+.production-fields .production-actions { padding: 0; }
+.production-actions > * { flex: 1 1 100px; }
+.production .btn { position: relative; min-height: 52px; height: auto; padding: 10px 12px 16px; border-radius: 0; border: 1px solid var(--home-grid); font-size: 14px; font-weight: 700; text-align: center; text-decoration: none; white-space: normal; line-height: 1.4; box-shadow: none; transform: none; transition: background var(--motion-quick); }
+.production .btn::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 6px; background: var(--home-grid); pointer-events: none; }
+.production .btn--outline { color: var(--home-white); background: var(--home-black-light); }
+.production-fields .btn--outline, .production-payment .btn--outline { color: var(--home-black); background: var(--home-white-dark); }
+.production .btn--primary { color: var(--home-black); background: var(--home-green); }
+.production .btn:not(:disabled):active::after { height: 2px; }
+.production .btn:disabled { opacity: .65; }
+.production .btn:focus-visible, .production a:focus-visible { outline: 2px solid var(--home-blue); outline-offset: 3px; }
+.production-source-list { max-height: 340px; overflow-y: auto; overscroll-behavior: contain; background: var(--home-white); color: var(--home-black); }
+.production-source { width: 100%; display: flex; gap: 16px; justify-content: space-between; align-items: center; padding: 16px 24px; border: 0; border-bottom: 1px solid var(--home-white-dark); color: inherit; background: transparent; text-align: left; text-decoration: none; cursor: pointer; }
+.production-source > span:first-child { min-width: 0; display: grid; gap: 6px; font-size: 14px; overflow-wrap: anywhere; }
+.production-source:focus-visible { outline: 2px solid var(--home-blue); outline-offset: -3px; }
+.production-source:hover { background: var(--home-white-dark); }
+.production-job { display: block; margin: 24px; color: var(--home-black); text-decoration: none; }
+.production-job__face { padding: 16px; display: grid; gap: 8px; background: var(--home-white); font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
+.production-job__top { display: flex; justify-content: space-between; align-items: start; gap: 12px; }
+.production-job__top > :first-child { min-width: 0; overflow-wrap: anywhere; }
+.production-job__top > :last-child { flex-shrink: 0; }
+.production-status { font-size: 12px; font-weight: 700; max-width: 95px; }
+.production-job__meta { font-size: 13px; color: var(--label); }
+.production-job__rail { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 12px 16px; background: var(--home-white-dark); font-size: 14px; }
+.production-job__rail strong, .production-totals dd { font-variant-numeric: tabular-nums; }
+.production-totals { margin: 0; padding: 12px 24px; background: var(--home-white); color: var(--home-black); border-block: 1px solid var(--home-grid); }
+.production-totals > div { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--home-white-dark); font-size: 14px; }
+/* Named rather than counted from the end: Refunded and Credit drop out when
+   they are zero, and a positional rule would then bold whatever moved up. */
+.production-totals__lead { font-weight: 700; }
+.production-totals dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+.production-note { margin: 0; padding: 16px 24px; color: var(--home-black); background: var(--home-white-dark); font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.production-fields .production-note { padding: 12px; margin-bottom: 12px; }
+.production-line-total { margin: 0; padding-block: 12px; border-block: 1px solid var(--home-white-dark); font-weight: 700; font-size: 14px; }
+.production-payment { margin: 24px; padding: 16px; background: var(--home-white); color: var(--home-black); border-bottom: 8px solid var(--home-white-dark); font-size: 14px; overflow-wrap: anywhere; }
+.production-payment.is-voided { background: var(--home-white-dark); }
+.production-payment.is-voided .production-job__top { text-decoration: line-through; }
+.production-cost { display: grid; gap: 6px; padding: 16px 0; border-bottom: 1px solid var(--home-white-dark); color: var(--home-black); font-size: 14px; overflow-wrap: anywhere; }
+.production-cost:last-child { border-bottom: 0; padding-bottom: 0; }
+/* Label left, amount right, so the estimate and the committed cost land in one
+   column and the difference between them can be read without arithmetic. */
+.production-cost > span { display: flex; justify-content: space-between; gap: 16px; }
+.production-cost > span > span:last-child { flex: none; font-variant-numeric: tabular-nums; }
+.production-cost__over { font-weight: 700; color: var(--danger); }
+.production-cost__none { display: block; color: var(--label); }
+/* On the order card the job face is cream on cream, and its only edge would be
+   the rail beneath it. The same hairline the cost rows carry gives each job a
+   block to sit in without inventing a second card treatment. */
+#orderProductionJobs .production-job { margin: 16px 0 0; }
+#orderProductionJobs .production-job__face { border: 1px solid var(--home-white-dark); border-bottom: 0; }
+#orderProductionCosts + #orderProductionJobs:not(:empty) { margin-top: 4px; }
+body.is-productioneditpage .savebar { left: 50%; right: auto; width: min(390px, 100%); transform: translate(-50%, calc(-1 * var(--keyboard-offset))); background: var(--home-black); border: 0; }
+body.is-productioneditpage .savebar__inner { padding: 0 0 env(safe-area-inset-bottom, 0px); }
+body.is-productioneditpage #saveBtn { border-radius: 0; min-height: 64px; color: var(--home-black); background: var(--home-green); border: 0; box-shadow: inset 0 -8px var(--home-grid); }
+body.is-productioneditpage #saveBtn:disabled { background: var(--home-black-light); color: var(--home-white-dark); }
+body.is-productioneditpage #saveBtn:active { transform: none; box-shadow: inset 0 -2px var(--home-grid); }
+body.is-custeditpage #saveBtn .btn__label, body.is-ordereditpage #saveBtn .btn__label { color: var(--home-black); }
+body.is-custeditpage #saveBtn:disabled .btn__label, body.is-ordereditpage #saveBtn:disabled .btn__label { color: var(--home-white-dark); }
+body.is-custeditpage .custedit-input { scroll-margin-block: 88px calc(var(--bottombar-h) + 24px); }
+@media (max-width: 359px) {
+  .production-fields { margin: 16px; padding: 16px; }
+  .production-pair { grid-template-columns: minmax(0, 1fr); }
+  .production-job, .production-payment { margin: 16px; }
+}

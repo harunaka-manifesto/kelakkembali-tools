@@ -4,7 +4,7 @@ Presentation layer. **Never read any of these files whole.** Jump to the range.
 
 ---
 
-## index.html (1895 lines)
+## index.html (2046 lines)
 
 Structure: boot gate → auth gate → app shell (bar + header + all views) → overlays → locked PDF templates → scripts.
 
@@ -40,6 +40,15 @@ Structure: boot gate → auth gate → app shell (bar + header + all views) → 
 | 1226 | `#viewEnquiry` | `.view` | `acceptEnquiry` 6306 |
 | 1255 | `#viewSchedules` | `.view.schedcal` | `showSchedules` 2759 |
 | 1320 | `#viewDocuments` | `.view.doclist` | `showDocuments` 3745 |
+| 864 | `#viewPenjahit` | `.view.production` | `showProductionRoute` 7672 |
+| 872 | `#viewPenjahitEdit` | `.view.production` | `showProductionRoute` / `savePenjahitForm` 7762 |
+| 883 | `#viewProductionEdit` | `.view.production` | `showProductionRoute` / `saveProductionDraft` 7777 |
+| 899 | `#viewProductionJob` | `.view.production` | `renderProductionJob` 7823 |
+
+The four `.production` views are one design, not four: heading band, white field
+cards on the black canvas, and the same `.production-actions` row. Their line
+numbers sit out of order in the table because they were added between the
+customer pages and the order pages in source order.
 
 `#viewFittingPhotoEdit` and `#viewFittingJournal` are gone. The per-photo editor
 and the camera journal were retired into `#viewFittingPhotoAdd`, which is the one
@@ -47,7 +56,7 @@ place a fitting log is edited; both old routes redirect there or to detail.
 
 ### Overlays & bars — id → line
 
-`#docnewSheet` 1380 (new-document picker) · `#schedcalMonthbar` 1404 (fixed month paging, measured by `syncBottomBar`) · `#schedcalSheet` 1420 (calendar day sheet) · `#fittingPicker` 1438 (**the only fitting overlay left** — which fitting is this) · `#fittingPhotoViewer` 1442 · **`#fitmark` 1456** (full-screen red-pen mode) · `#fitdetBar` 1476 (two buttons) · `#fitaddUndo` 1493 · `#fitaddBar` 1500 · `#savebar` 1517 · `#calcSheet` 1530 · `#routeLoader` 1569 · `#toast` 1691
+`#orderProductionSection` 1138 (inside `#viewOrder`, built exactly like the Payments section above it) · `#homeLedgerTabs` 224 and `#homePenjahit` 238 (inside `#viewCustomers`; the penjahit ledger reuses `.home-customer-*` wholesale, and both tabs share the one `#customerSearch` field) · `#docnewSheet` 1380 (new-document picker) · `#schedcalMonthbar` 1404 (fixed month paging, measured by `syncBottomBar`) · `#schedcalSheet` 1420 (calendar day sheet) · `#fittingPicker` 1438 (**the only fitting overlay left** — which fitting is this) · `#fittingPhotoViewer` 1442 · **`#fitmark` 1456** (full-screen red-pen mode) · `#fitdetBar` 1476 (two buttons) · `#fitaddUndo` 1493 · `#fitaddBar` 1500 · `#savebar` 1517 · `#calcSheet` 1530 · `#routeLoader` 1569 · `#toast` 1691
 
 Hidden file inputs: `#fitdetPhotoInput` 445 (multi-select entry from detail) · `#fitaddFileInput` 488 (append in the workspace)
 
@@ -91,7 +100,7 @@ Preceded by CDN: html2canvas 1.4.1, jsPDF 2.5.2, heic2any 0.0.4, supabase-js 2.4
 | Moodboard editor, canvas, overlay, journal | `moodboard.css` |
 | Fonts | `fonts.css` — never open, base64 only |
 
-### styles/pages.css (4594 lines) — section → line
+### styles/pages.css (5030 lines) — section → line
 
 **Homepage:** Customers homepage 94 · Stage and layers 124 · Hero 235 · Fixed nav bar 281 · **Shortcut row 344** (six-column grid: 3 + 2, then the neutral add row) · Submissions bar 473 · Search 521 · Customer ledger 546 · Footer 703 · Loading skeleton 719 · Error state 817
 
@@ -107,7 +116,7 @@ Preceded by CDN: html2canvas 1.4.1, jsPDF 2.5.2, heic2any 0.0.4, supabase-js 2.4
 
 **Quotations & invoices:** 4334 · Card 4402 · Panels, skeletons, footer 4508
 
-### styles/shared.css (2411 lines) — section → line
+### styles/shared.css (2726 lines) — section → line
 
 Boot 5 · Shared route loading 52 · Gate 300 · App bar 361 · Overflow menu 466 · Page header 514 · Layout 553 · Deadlines 749 · Lists and records 859 · Schedule 1117 · Items table 1215 · Payment chooser 1328 · Segmented 1396 · Download log 1420 · Fields 1474 · Item rows 1586 · Payment terms 1689 · Chips 1753 · Inline add row 1840 · Buttons 1851 · Fixed bottom bars 1964 · Cost sheet 2052 · Cost calc trigger 2158 · Toast 2192 · Interaction motion 2223 · New document picker 2279
 
@@ -136,6 +145,9 @@ Editor page 8 · Generated canvas 264 · Actions 352 · Full-screen overlay 437 
 | `.fitting-picker*` | Fitting stage picker sheet | `moodboard.css` 502+ |
 | `.cust*` / `.custedit*` | Customer pages | `pages.css` 661+, 994+ |
 | `.order*` | Order detail | `pages.css` 1350+ |
+| `.production-*` | Penjahit ledger, job rows, money totals, payment entries, assignment editor | `pages.css` 4912+ |
+| `.production-tabs`, `.home-summary__toggle` | The Customers/Penjahit ledger tabs and the archive toggle in the summary rail, both on the homepage | `pages.css` 4912+ (in the production block, not the homepage block) |
+| `.form-error`, `.field-error`, `.optional` | Shared inline validation — one page-level alert, one message per field, one Optional marker | `shared.css`, above Fixed bottom bars |
 | `.q`, `.q.inv` | Quotation / invoice documents | `documents.css` |
 | `.appbar`, `.pagehead`, `.savebar`, `.btn`, `.chip`, `.toast` | Shared chrome | `shared.css` |
 

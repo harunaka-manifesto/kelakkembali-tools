@@ -21,6 +21,44 @@ test('shared formatters preserve document-facing output', () => {
   assert.equal(util.sanitizeForFilename('  Nadia & Rizky!  '), 'Nadia-Rizky');
 });
 
+test('rupiah entry preserves valid amounts and rejects malformed or unsafe input', () => {
+  assert.equal(util.parseRupiahInput('1.250.000'), 1250000);
+  assert.equal(util.parseRupiahInput('0'), 0);
+  assert.equal(util.parseRupiahInput(''), 0);
+  for (const value of ['-100', '1.50', 'Rp300', '12abc', '9007199254740992']) assert.equal(util.parseRupiahInput(value), null);
+});
+
+test('production money retains credits, refund history and cancellation charges', () => {
+  const job = { quantity: 2, unit_price: 100000, status: 'Done' };
+  const entries = [{ kind: 'payment', amount: 300000 }, { kind: 'refund', amount: 50000 }, { kind: 'payment', amount: 999999, voided_at: '2026-09-13' }];
+  assert.deepEqual(util.productionAmounts(job, entries), { amount: 200000, paid: 300000, refunded: 50000, netPaid: 250000, balance: -50000, outstanding: 0, credit: 50000 });
+  assert.equal(util.productionAmounts(job, []).outstanding, 200000, 'Done work can remain unpaid');
+  assert.equal(util.productionAmounts({ ...job, status: 'Cancelled', cancellation_charge: 0 }, entries).credit, 250000);
+  assert.equal(util.productionAmounts({ ...job, status: 'Cancelled', cancellation_charge: 100000 }, entries).credit, 150000);
+});
+
+test('the actual shared save handler dispatches customer creation and editing', async () => {
+  const fs = require('node:fs');
+  const vm = require('node:vm');
+  const source = fs.readFileSync(require.resolve('../app.js'), 'utf8');
+  const match = source.match(/elements\.saveBtn\.addEventListener\("click", async \(\) => \{([\s\S]*?)\n    \}\);/);
+  assert.ok(match, 'Shared save handler could not be located');
+  let saves = 0;
+  const context = { state: { route: { view: 'customerEdit', id: 'new' }, saving: false, dirty: true },
+    setDirty() {}, showFormError() {}, showToast() {}, console,
+    saveCustomer: async () => { saves++; } };
+  vm.createContext(context);
+  const click = vm.runInContext('(async () => {' + match[1] + '\n})', context);
+  await click();
+  context.state.route.id = 'existing-customer';
+  await click();
+  assert.equal(saves, 2);
+  assert.equal(context.state.saving, false);
+  context.state.saving = true;
+  await click();
+  assert.equal(saves, 2, 'Double-click started another save');
+});
+
 test('HEIC detection accepts MIME types and filename fallbacks', () => {
   assert.equal(util.isHeic({ type: 'image/heic' }), true);
   assert.equal(util.isHeic({ name: 'camera.HEIF' }), true);
@@ -831,6 +869,30 @@ test('every fixed bottom bar follows the keyboard', () => {
     }
   });
   assert.deepEqual(offenders, [], 'these fixed bottom bars ignore --keyboard-offset');
+});
+
+/* The offset arrives already smoothed: the OS animates the visual viewport as
+   the keyboard rises, and syncVisualViewport publishes a new value on every
+   step of it. A CSS transition on the same transform therefore animates an
+   animation, and lags it — which is precisely what left the save bar floating
+   a beat above the keyboard it was supposed to be sitting on. */
+test('nothing riding the keyboard offset animates it a second time', () => {
+  const stripped = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const offenders = [];
+  ['styles/shared.css', 'styles/pages.css'].forEach((file) => {
+    const css = stripped(readShipped(file));
+    const rule = /([^{}]+)\{([^{}]*)\}/g;
+    let m;
+    while ((m = rule.exec(css))) {
+      const body = m[2];
+      if (!/transform:[^;]*keyboard-offset/.test(body)) continue;
+      const transition = /(^|[;\s])transition:\s*([^;]*)/.exec(body);
+      if (transition && /transform|\ball\b/.test(transition[2])) {
+        offenders.push(file + ' ' + m[1].trim().replace(/\s+/g, ' '));
+      }
+    }
+  });
+  assert.deepEqual(offenders, [], 'these transition a transform the viewport already animates');
 });
 
 /* The reference for the lift is the initial containing block, which is what

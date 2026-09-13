@@ -80,6 +80,24 @@ KK.util = (function () {
     return raw ? raw.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : '';
   }
 
+  function parseRupiahInput(value) {
+    const text = String(value == null ? '' : value).trim();
+    if (!text) return 0;
+    if (!/^\d+$/.test(text) && !/^\d{1,3}(\.\d{3})+$/.test(text)) return null;
+    const amount = Number(text.replace(/\./g, ''));
+    return Number.isSafeInteger(amount) && amount >= 0 ? amount : null;
+  }
+
+  function productionAmounts(job, entries) {
+    const amount = job.status === 'Cancelled' ? Number(job.cancellation_charge || 0) : Number(job.quantity) * Number(job.unit_price);
+    const active = (entries || []).filter((entry) => !entry.voided_at);
+    const paid = active.filter((entry) => entry.kind === 'payment').reduce((sum, entry) => sum + Number(entry.amount), 0);
+    const refunded = active.filter((entry) => entry.kind === 'refund').reduce((sum, entry) => sum + Number(entry.amount), 0);
+    const netPaid = paid - refunded;
+    const balance = amount - netPaid;
+    return { amount, paid, refunded, netPaid, balance, outstanding: Math.max(0, balance), credit: Math.max(0, -balance) };
+  }
+
   function escapeHtml(val) {
     return String(val == null ? '' : val).replace(/[&<>"']/g, function (match) {
       return {
@@ -99,6 +117,9 @@ KK.util = (function () {
 
   function reformatPriceField(field) {
     const originalVal = field.value;
+    // Preserve malformed input for inline validation instead of turning a
+    // negative price or pasted text into a different, apparently valid amount.
+    if (parseRupiahInput(originalVal) === null) return;
     const formatted = groupDigits(originalVal);
     if (formatted === originalVal) return;
 
@@ -305,6 +326,8 @@ KK.util = (function () {
     escapeHtml,
     formatRupiah,
     groupDigits,
+    parseRupiahInput,
+    productionAmounts,
     reformatPriceField,
     formatLongDate,
     formatShortDate,

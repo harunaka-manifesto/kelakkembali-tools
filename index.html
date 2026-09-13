@@ -45,7 +45,10 @@
 
 <!-- ============================== GATE ============================== -->
 <div class="gate" id="gate" hidden>
-  <form class="gate__card" id="gateForm">
+  <!-- novalidate: the browser's own bubble is the one message on this page the
+       app cannot style, place, or announce. The submit handler runs the shared
+       validators instead and writes into the card. -->
+  <form class="gate__card" id="gateForm" novalidate>
     <img class="gate__mark" src="assets/logo-header.png" alt="">
     <h1 class="gate__title">Kelak Kembali</h1>
     <p class="gate__sub">Quotation &amp; invoice records</p>
@@ -105,7 +108,12 @@
       </button>
       <div class="menu__list" id="menuList" role="menu" hidden>
         <button type="button" class="menu__item" role="menuitem" id="menuDelete" hidden></button>
-        <a class="menu__item" role="menuitem" id="menuCalendar" href="#/calendar">Google Calendar</a>
+        <a class="menu__item" role="menuitem" href="#/customers">Customers</a>
+        <a class="menu__item" role="menuitem" href="#/customers?tab=penjahit" data-production-entry hidden>Penjahit</a>
+        <a class="menu__item" role="menuitem" href="#/quotations">Quotations</a>
+        <a class="menu__item" role="menuitem" href="#/invoices">Invoices</a>
+        <a class="menu__item" role="menuitem" href="#/fittings">Fittings</a>
+        <a class="menu__item" role="menuitem" id="menuCalendar" href="#/calendar" hidden>Google Calendar</a>
         <button type="button" class="menu__item" role="menuitem" id="menuSignOut">Sign out</button>
       </div>
     </div>
@@ -165,7 +173,7 @@
             <div class="home-skel__line"><span class="home-skel__block" style="width:220px;height:32px"></span></div>
             <div class="home-skel__lines"><span class="home-skel__block" style="width:100%;height:14px"></span><span class="home-skel__block" style="width:172px;height:14px"></span></div>
           </div>
-          <div class="home-skel__actions"><i></i><i></i><i></i><i></i><i></i><i class="home-skel__actions--wide"></i></div>
+          <div class="home-skel__actions"><i></i><i></i><i></i><i></i><i></i><i class="home-skel__actions--wide"></i><i class="home-skel__production" data-production-entry hidden></i></div>
           <div class="home-skel__search"></div>
           <div class="home-skel__rail"></div>
           <div class="home-skel__ledger">
@@ -184,7 +192,20 @@
       <div class="home-state home-state--ready" id="homeReady" hidden>
         <section class="home-hero" id="homeHero" aria-label="Today"><div class="home-hero__content"><h1 class="home-hero__greeting" id="heroGreeting"></h1><p class="home-hero__deadline" id="heroDeadline"></p></div></section>
         <section class="home-actions" id="homeActions" aria-label="Shortcuts">
-          <a class="home-action home-action--schedule" href="#/schedules"><span class="home-action__face"><img src="assets/home-schedule-icon.svg" alt="">Schedule</span><span class="home-action__rail"></span></a>
+          <!-- Production sits above the six, full width, because it is the only
+               shortcut that starts a flow spanning several customers at once.
+               Same face, rail, and press as a tile — a wider one, not a
+               different thing. Stood down until the ledger tables exist. -->
+          <a class="home-action home-action--production" href="#/production/new" data-production-entry hidden><span class="home-action__face"><img src="assets/home-add-icon.svg" alt="">Assign to penjahit</span><span class="home-action__rail"></span></a>
+          <!-- Customer and Order lead the six: both make a record rather than
+               opening a section, and a customer is what every other shortcut
+               eventually asks for. Adding a customer is still at the foot of
+               the ledger too — this is a second door to it, not the only one. -->
+          <a class="home-action home-action--customer" href="#/customer/new/edit"><span class="home-action__face"><img src="assets/home-add-icon.svg" alt="">Customer</span><span class="home-action__rail"></span></a>
+          <!-- Neutral on purpose: it makes a record rather than opening one of
+               the coloured sections. A button, because which customer's order
+               it is has to be asked first. -->
+          <button type="button" class="home-action home-action--add" id="homeAddOrderBtn"><span class="home-action__face"><img src="assets/home-add-icon.svg" alt="">Order</span><span class="home-action__rail"></span></button>
           <!-- ?new=1 rather than opening the picker from here: the route is what
                sets which kind the picker is for, so going through it means the
                sheet cannot inherit the last kind visited. Cancelling reveals the
@@ -195,19 +216,33 @@
                page to land on, so this opens the customer-then-order picker
                directly. -->
           <button type="button" class="home-action home-action--moodboard" id="homeMoodboardBtn"><span class="home-action__face"><img src="assets/order-moodboard-icon.svg" alt="">Moodboard</span><span class="home-action__rail"></span></button>
-          <!-- Shown or stood down by SHOW_FITTING_SHORTCUT. Hidden, the second
-               row is Moodboard and Add order. -->
+          <!-- Shown or stood down by SHOW_FITTING_SHORTCUT. Hidden, Moodboard
+               widens to fill the row rather than leaving a hole. The href is
+               the list; the click handler opens the picker instead, so the
+               shortcut makes a fitting log the way the other five make a
+               document, and the list stays reachable from the menu. -->
           <a class="home-action home-action--fitting" id="homeFittingBtn" href="#/fittings" hidden><span class="home-action__face"><img src="assets/home-fitting-icon.svg" alt="">Fitting</span><span class="home-action__rail"></span></a>
-          <!-- Neutral on purpose: it makes a record rather than opening one of
-               the coloured sections. A button, because which customer's order
-               it is has to be asked first. Add customer is not here — adding a
-               customer belongs with the ledger of them, at the foot of the
-               list, which is the only place it can be found by looking. -->
-          <button type="button" class="home-action home-action--add" id="homeAddOrderBtn"><span class="home-action__face"><img src="assets/home-add-icon.svg" alt="">Add order</span><span class="home-action__rail"></span></button>
         </section>
         <button type="button" class="home-alert" id="enquiriesCard" aria-disabled="true" hidden><span class="home-alert__face"><img class="home-alert__icon" src="assets/home-alert-icon.svg" alt=""><span id="enquiriesCount"></span><img class="home-alert__chevron" src="assets/home-chevron-icon.svg" alt=""></span><span class="home-alert__rail"></span></button>
-        <section class="home-search-section" aria-label="Customer search"><label class="home-search" for="customerSearch"><img class="home-search__icon" src="assets/home-search-icon.svg" alt=""><input id="customerSearch" type="search" enterkeyhint="search" placeholder="Search customer name" autocapitalize="none" spellcheck="false"></label><div class="home-search__rail" aria-hidden="true"></div></section>
+        <nav class="production-tabs" id="homeLedgerTabs" aria-label="Browse records" data-production-entry hidden>
+          <a href="#/customers" data-ledger-tab="customers" aria-current="page">Customers</a>
+          <a href="#/customers?tab=penjahit" data-ledger-tab="penjahit">Penjahit</a>
+        </nav>
+        <!-- One search rail serves both ledger tabs. A second field of its own
+             would have been a form control sitting on a page that has none, and
+             the tab already says which list is being searched; app.js swaps the
+             placeholder and keeps a query per tab so switching back returns the
+             list as it was left. -->
+        <section class="home-search-section" id="homeSearchSection" aria-label="Customer search"><label class="home-search" for="customerSearch"><img class="home-search__icon" src="assets/home-search-icon.svg" alt=""><input id="customerSearch" type="search" enterkeyhint="search" placeholder="Search customer name" autocapitalize="none" spellcheck="false"></label><div class="home-search__rail" aria-hidden="true"></div></section>
         <section class="home-customers" id="homeCustomers" aria-label="Customers"><div class="home-summary" id="homeSummary"></div><div class="home-grid-spacer" aria-hidden="true"></div><div class="home-customer-list" id="customerList"></div></section>
+        <!-- Same shape as the customer ledger above, down to the summary rail,
+             the grid rules between records, and the add row at the foot of the
+             list: it is the same kind of ledger, so it is read the same way. -->
+        <section class="home-customers" id="homePenjahit" aria-label="Penjahit" hidden>
+          <div class="home-summary"><span id="penjahitSummary" aria-live="polite"></span><label class="home-summary__toggle"><input id="penjahitArchived" type="checkbox"> Show archived</label></div>
+          <div class="home-grid-spacer" aria-hidden="true"></div>
+          <div class="home-customer-list" id="penjahitList"></div>
+        </section>
         <footer class="home-footer" id="homeFooter">Made with love for Ichaku</footer>
       </div>
     </div>
@@ -256,10 +291,11 @@
         <span class="cust-banner__rail" aria-hidden="true"></span>
       </div>
 
-      <!-- Opens the calendar on the month of this customer's next appointment,
-           with that day's sheet already up. Its href is written once the record
-           has loaded — see renderCustomerDetail. -->
-      <a class="cust-banner cust-banner--next" id="custNextBanner" href="#/schedules">
+      <!-- Reads like the wedding banner beside it and behaves like it: a fact
+           about this customer, not a door. The schedule calendar it used to
+           open is stood down, and a card that looks pressable and answers
+           nothing is worse than one that never claimed to. -->
+      <div class="cust-banner cust-banner--next" id="custNextBanner" aria-disabled="true">
         <span class="cust-banner__face">
           <span class="cust-banner__left">
             <img class="cust-banner__icon" src="assets/home-schedule-icon.svg" alt="">
@@ -268,7 +304,7 @@
           <span class="cust-banner__value" id="custNextDate">Nothing scheduled</span>
         </span>
         <span class="cust-banner__rail" aria-hidden="true"></span>
-      </a>
+      </div>
 
       <!-- Its href carries both the visible search term and the customer id,
            and is written once the record has loaded — see
@@ -827,6 +863,61 @@
     </section>
   </section>
 
+  <!-- --------------------------- Penjahit ledger -------------------------- -->
+  <section class="view production" id="viewPenjahit" hidden>
+    <div class="production-heading"><p class="production-kicker">Penjahit</p><h1 id="penjahitTitle"></h1><p id="penjahitContact"></p></div>
+    <div class="production-actions"><a class="btn btn--outline" id="penjahitEditLink">Edit profile</a><a class="btn btn--primary" id="penjahitAssignLink">Assign work</a></div>
+    <dl class="production-totals" id="penjahitTotals"></dl>
+    <label class="field production-search"><span class="field__label">Show jobs</span><select class="input" id="productionFilter"><option>Ongoing</option><option>All</option><option>Done</option><option>Cancelled</option><option>Outstanding</option></select></label>
+    <div id="productionJobs"></div>
+  </section>
+
+  <section class="view production" id="viewPenjahitEdit" hidden>
+    <div class="production-heading"><p class="production-kicker">Production partners</p><h1 id="penjahitEditTitle">New penjahit</h1><p>Fields marked * are required.</p></div>
+    <div class="production-fields">
+      <label class="field"><span class="field__label">Name *</span><input class="input" id="pName" required aria-required="true" maxlength="200" autocomplete="name"></label>
+      <label class="field"><span class="field__label">Phone / WhatsApp <span class="optional">Optional</span></span><input class="input" id="pPhone" type="tel" autocomplete="tel"></label>
+      <label class="field"><span class="field__label">Notes <span class="optional">Optional</span></span><textarea class="input" id="pNotes" rows="3"></textarea></label>
+      <label class="check" id="pArchiveField"><input id="pArchived" type="checkbox"> Archive this penjahit</label>
+      <p class="field__hint">Archived penjahit keep their jobs and payment history. They cannot receive new assignments.</p>
+    </div>
+  </section>
+
+  <section class="view production" id="viewProductionEdit" hidden>
+    <div class="production-heading"><p class="production-kicker">Production work</p><h1 id="productionEditTitle">Assign to penjahit</h1><p>Fields marked * are required. Prices are per piece.</p></div>
+    <div class="production-fields">
+      <label class="field"><span class="field__label">Penjahit *</span><select class="input" id="productionTailor" required aria-required="true"></select></label>
+      <a class="btn btn--outline btn--block" id="productionAddTailor" href="#/penjahit/new/edit?from=production">+ Add penjahit</a>
+    </div>
+    <section id="productionSource" aria-labelledby="productionSourceTitle">
+      <div class="production-heading"><h2 id="productionSourceTitle">Choose customer items</h2><p>Add items from any saved order. Different services can use the same item.</p></div>
+      <label class="field production-search"><span class="field__label">Search customer, order, or item</span><input class="input" id="productionSearch" type="search" autocomplete="off"></label>
+      <div id="productionSourceList" class="production-source-list"></div>
+      <div class="production-actions"><a class="btn btn--outline" id="productionAddCustomer" href="#/customer/new/edit?from=production">+ New customer</a><button type="button" class="btn btn--outline" id="productionAddOrder">+ New order</button></div>
+    </section>
+    <section aria-labelledby="productionSelectedTitle"><div class="production-heading"><h2 id="productionSelectedTitle">Selected work</h2><p id="productionDraftSummary" aria-live="polite">Choose an item to start.</p></div><div id="productionDraftRows"></div></section>
+    <p class="production-note" id="productionRetryNote" hidden>A save could not be confirmed. Retry the same entries before making further changes.</p>
+  </section>
+
+  <section class="view production" id="viewProductionJob" hidden>
+    <div class="production-heading"><p class="production-kicker" id="productionJobStatus"></p><h1 id="productionJobTitle"></h1><p id="productionJobContext"></p></div>
+    <div class="production-actions"><a class="btn btn--outline" id="productionJobOrder">Customer order</a><a class="btn btn--outline" id="productionJobEdit">Edit job</a></div>
+    <dl class="production-totals" id="productionJobTotals"></dl>
+    <p class="production-note" id="productionJobNotes"></p>
+    <div class="production-heading"><h2>Payments &amp; refunds</h2><p>Every entry belongs to this job.</p></div>
+    <div id="productionPaymentHistory"></div>
+    <div class="production-actions"><button class="btn btn--primary" id="productionPaymentNew" type="button">Record payment or refund</button></div>
+    <form class="production-fields" id="productionPaymentForm" novalidate hidden>
+      <h2 id="productionPaymentTitle">Record payment</h2><p class="field__hint">Fields marked * are required.</p>
+      <label class="field"><span class="field__label">Entry type *</span><select class="input" id="ppKind" required><option value="payment">Payment to penjahit</option><option value="refund">Refund from penjahit</option><option value="void" hidden>Void without replacement</option></select></label>
+      <label class="field" id="ppAmountField"><span class="field__label">Amount (Rp) *</span><input class="input" id="ppAmount" inputmode="numeric" required></label>
+      <label class="field" id="ppDateField"><span class="field__label">Date *</span><input class="input" id="ppDate" type="date" required></label>
+      <label class="field"><span class="field__label">Notes <span class="optional">Optional</span></span><textarea class="input" id="ppNotes" rows="2"></textarea></label>
+      <label class="field" id="ppReasonField" hidden><span class="field__label">Reason for correction *</span><input class="input" id="ppReason"></label>
+      <div class="production-actions"><button type="button" class="btn btn--outline" id="productionPaymentCancel">Cancel</button><button type="submit" class="btn btn--primary" id="productionPaymentSave">Record entry</button></div>
+    </form>
+  </section>
+
   <!-- ---------------------------- Order detail ----------------------------
        Figma 81:726. The order is a ledger: a dark canvas with 24px grid ticks,
        and every readable thing inset in it as a white card with its own rail.
@@ -1037,6 +1128,31 @@
                 </span>
                 <span class="order-action__rail" aria-hidden="true"></span>
               </button>
+            </div>
+            <div class="order-grid-rule" aria-hidden="true"></div>
+          </section>
+          <div class="order-grid-spacer" aria-hidden="true"></div>
+
+          <!-- Built exactly like Payments above it: a card of records with the
+               way to add one directly beneath, wearing the face-and-rail of
+               every other action on this page. What it adds to the card is the
+               committed cost read against the estimate the items already carry;
+               the estimate itself is never touched by what a penjahit agreed. -->
+          <section class="order-section" id="orderProductionSection" data-production-entry hidden aria-labelledby="orderProductionTitle">
+            <div class="order-grid-rule" aria-hidden="true"></div>
+            <div class="order-inset">
+              <div class="order-card">
+                <h2 class="order-card__title" id="orderProductionTitle">Penjahit work</h2>
+                <div id="orderProductionCosts"></div>
+                <div id="orderProductionJobs"></div>
+              </div>
+              <a class="order-action order-action--production" id="orderProductionAssign">
+                <span class="order-action__face">
+                  <img class="order-action__icon" src="assets/home-add-icon.svg" alt="" width="20" height="20">
+                  <span class="order-action__label">Assign to penjahit</span>
+                </span>
+                <span class="order-action__rail" aria-hidden="true"></span>
+              </a>
             </div>
             <div class="order-grid-rule" aria-hidden="true"></div>
           </section>

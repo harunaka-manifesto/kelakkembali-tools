@@ -336,7 +336,16 @@ KK.app = (function () {
     docnewCancel: $("#docnewCancel"),
     docnewStatus: $("#docnewStatus"),
     custQuotationBanner: $("#custQuotationBanner"),
-    custInvoiceBanner: $("#custInvoiceBanner")
+    custInvoiceBanner: $("#custInvoiceBanner"),
+    viewPenjahit: $("#viewPenjahit"),
+    viewPenjahitEdit: $("#viewPenjahitEdit"),
+    viewProductionEdit: $("#viewProductionEdit"),
+    viewProductionJob: $("#viewProductionJob"),
+    homePenjahit: $("#homePenjahit"),
+    homeSearchSection: $("#homeSearchSection"),
+    productionTailor: $("#productionTailor"),
+    productionDraftRows: $("#productionDraftRows"),
+    productionPaymentForm: $("#productionPaymentForm")
   };
 
   const docButtons = {
@@ -361,6 +370,13 @@ KK.app = (function () {
     saving: false,
     navigation: { token: 0 },
     homepage: { phase: "idle", visit: 0, loadToken: 0, popPlayedForVisit: 0 },
+    production: {
+      available: null, penjahit: [], jobs: [], sources: [], profile: null, job: null,
+      payments: [], draft: null, batchRequest: null, paymentRequest: null,
+      paymentId: null, voidId: null, creatingOrder: false, createdCustomerId: null,
+      ledgerTab: "customers", scroll: { customers: 0, penjahit: 0 },
+      search: { customers: "", penjahit: "" }, filters: {}
+    },
     /* The fitting-log feed keeps its own island of state: it is a different
        query with a different lifetime from state.customerOrders or the fitting
        journal, and mixing them would let one page's stale rows render on the
@@ -555,8 +571,85 @@ KK.app = (function () {
 
   function setDirty(isDirty) {
     state.dirty = isDirty;
-    elements.saveBtn.disabled = !isDirty || state.saving;
-    $(".btn__label", elements.saveBtn).textContent = state.saving ? "Saving…" : isDirty ? "Save changes" : "Saved";
+    const route = state.route || {};
+    const isNew = route.id === "new" || route.view === "productionNew";
+    const label = route.view === "productionNew" ? "Save assignments"
+      : isNew && route.view === "customerEdit" ? "Create customer"
+      : isNew && route.view === "orderEdit" ? "Create order"
+      : isNew && route.view === "penjahitEdit" ? "Create penjahit" : "Save changes";
+    elements.saveBtn.disabled = state.saving || (!isDirty && !isNew);
+    $(".btn__label", elements.saveBtn).textContent = state.saving ? "Saving…" : isNew || isDirty ? label : "Saved";
+  }
+
+  let fieldErrorSequence = 0;
+
+  function setFieldError(field, message) {
+    if (!field) return false;
+    if (!field.id) field.id = "formField" + (++fieldErrorSequence);
+    const id = field.id + "Error";
+    let error = document.getElementById(id);
+    if (!error && message) {
+      error = document.createElement("span");
+      error.id = id;
+      error.className = "err field-error";
+      error.setAttribute("aria-live", "polite");
+      (field.closest(".field,.custedit-card") || field.parentElement).appendChild(error);
+      const described = (field.getAttribute("aria-describedby") || "").split(/\s+/).filter(Boolean);
+      field.setAttribute("aria-describedby", described.concat(id).join(" "));
+    }
+    if (error) { error.textContent = message || ""; error.hidden = !message; }
+    field.setAttribute("aria-invalid", message ? "true" : "false");
+    field.classList.toggle("is-invalid", !!message);
+    return !message;
+  }
+
+  function focusInvalid(container) {
+    const field = container.querySelector('[aria-invalid="true"]');
+    if (field) {
+      field.scrollIntoView({ block: "nearest", behavior: "auto" });
+      field.focus({ preventScroll: true });
+    }
+    return !field;
+  }
+
+  /* The browser's own messages are announced only by its bubble, which never
+     appears on a form this app submits itself. These say the same things in the
+     app's voice, and go in the page where a screen reader can reach them. */
+  function fieldValidityMessage(field) {
+    const value = String(field.value).trim();
+    if (field.required && !value) return "This field is needed.";
+    const v = field.validity;
+    if (v.valid) return "";
+    if (v.rangeUnderflow) return "Enter " + (field.min || "a higher number") + " or more.";
+    if (v.rangeOverflow) return "Enter " + (field.max || "a lower number") + " or less.";
+    if (v.stepMismatch) return "Enter a whole number.";
+    if (v.tooLong) return "Shorten this to " + field.maxLength + " characters or fewer.";
+    if (v.badInput || v.typeMismatch) return field.type === "date" ? "Enter a date as year, month, and day." : "Enter a valid value.";
+    return "Enter a valid value.";
+  }
+
+  function validateFields(container) {
+    container.querySelectorAll("input,select,textarea").forEach((field) => {
+      // offsetParent catches a field inside a hidden section, which field.hidden
+      // alone misses and which the reader cannot be sent to.
+      if (field.disabled || field.hidden || !field.willValidate || !field.offsetParent) return;
+      setFieldError(field, fieldValidityMessage(field));
+    });
+    return focusInvalid(container);
+  }
+
+  function showFormError(message, container) {
+    const root = container || document.querySelector(".view:not([hidden])") || elements.savebar;
+    let error = root.querySelector(".form-error");
+    if (!error) {
+      error = document.createElement("p");
+      error.className = "form-error";
+      error.setAttribute("role", "alert");
+      root.prepend(error);
+    }
+    error.textContent = message || "";
+    error.hidden = !message;
+    return error;
   }
 
   function syncBottomBar() {
@@ -600,7 +693,7 @@ KK.app = (function () {
     viewportFrame = 0;
     const vp = window.visualViewport;
     const layoutBottom = document.documentElement.clientHeight;
-    const visualBottom = vp ? vp.offsetTop + vp.height : layoutBottom;
+    const visualBottom = vp && vp.scale === 1 ? vp.offsetTop + vp.height : layoutBottom;
     const offset = Math.max(0, Math.min(layoutBottom, layoutBottom - visualBottom));
     document.documentElement.style.setProperty("--keyboard-offset", Math.round(offset) + "px");
   }
@@ -848,6 +941,7 @@ KK.app = (function () {
   }
 
   function setChrome(cfg) {
+    $$(".form-error").forEach((error) => { error.hidden = true; });
     elements.viewTitle.textContent = cfg.title;
     document.body.classList.toggle("is-homepage", !!cfg.homepage);
     document.body.classList.toggle("is-custpage", !!cfg.custpage);
@@ -859,6 +953,8 @@ KK.app = (function () {
     document.body.classList.toggle("is-fitdetailpage", !!cfg.fitdetailpage);
     document.body.classList.toggle("is-schedulespage", !!cfg.schedulespage);
     document.body.classList.toggle("is-doclistpage", !!cfg.doclistpage);
+    document.body.classList.toggle("is-productionpage", !!cfg.productionpage);
+    document.body.classList.toggle("is-productioneditpage", !!cfg.productionedit);
 
     elements.viewSub.innerHTML = cfg.sub || "";
     elements.viewSub.hidden = !cfg.sub;
@@ -1462,6 +1558,13 @@ KK.app = (function () {
     const segments = (-1 === qIdx ? hashStr : hashStr.slice(0, qIdx)).split("/").filter(Boolean);
     const query = new URLSearchParams(-1 === qIdx ? "" : hashStr.slice(qIdx + 1));
 
+    if ("penjahit" === segments[0] && segments[1]) {
+      return { view: segments[2] === "edit" ? "penjahitEdit" : "penjahit", id: segments[1], query };
+    }
+    if ("production" === segments[0] && segments[1]) {
+      return { view: segments[1] === "new" ? "productionNew" : segments[2] === "edit" ? "productionEdit" : "productionJob", id: segments[1], query };
+    }
+
     if ("customer" === segments[0] && segments[1] && "edit" === segments[2]) {
       return { view: "customerEdit", id: segments[1], query };
     }
@@ -1598,6 +1701,9 @@ KK.app = (function () {
     const targetRoute = parseRoute(location.hash);
 
     const prevRoute = state.route;
+    if (prevRoute && prevRoute.view === "customers") {
+      state.production.scroll[state.production.ledgerTab] = window.scrollY;
+    }
 
     if (state.dirty && currentHash !== location.hash) {
       if (!confirmLeave()) {
@@ -1648,6 +1754,11 @@ KK.app = (function () {
     elements.viewEnquiry.hidden = "enquiry" !== targetRoute.view;
     elements.viewSchedules.hidden = "schedules" !== targetRoute.view;
     elements.viewDocuments.hidden = "documents" !== targetRoute.view;
+    elements.viewPenjahit.hidden = "penjahit" !== targetRoute.view;
+    elements.viewPenjahitEdit.hidden = "penjahitEdit" !== targetRoute.view;
+    elements.viewProductionEdit.hidden = !["productionNew", "productionEdit"].includes(targetRoute.view);
+    elements.viewProductionJob.hidden = "productionJob" !== targetRoute.view;
+    elements.productionPaymentForm.hidden = true;
 
     // Leaving the feed must take its observer, debounce, and in-flight page
     // tokens with it, or a late response can render into a hidden view. Moving
@@ -1702,6 +1813,8 @@ KK.app = (function () {
     const renderFn = async () => {
       if ("customers" === targetRoute.view) {
         await showCustomers();
+      } else if (["penjahit", "penjahitEdit", "productionNew", "productionEdit", "productionJob"].includes(targetRoute.view)) {
+        await showProductionRoute(targetRoute);
       } else if ("customer" === targetRoute.view) {
         await showCustomerDetail(targetRoute.id);
       } else if ("customerEdit" === targetRoute.view) {
@@ -1961,6 +2074,7 @@ KK.app = (function () {
         await enterView();
         KK.progress.done();
         focusRoute(targetRoute);
+        if (targetRoute.view === "customers") window.scrollTo(0, state.production.scroll[state.production.ledgerTab]);
       } else {
         KK.progress.fail();
         await enterView();
@@ -2515,7 +2629,15 @@ KK.app = (function () {
       if (!isCurrentHomepageLoad(token)) return;
       state.customers = res[0];
       state.overview = homepageOverview(res[1], res[2]);
+      // Before the ledger renders, not after: renderHomepageReady filters the
+      // customer list by whatever is in the shared search field, and coming
+      // back from the penjahit tab that is still the penjahit query.
+      syncLedgerTab();
       renderHomepageReady({ customers: res[0], submissions: res[3] });
+      try { await showHomepageLedger(); } catch (error) {
+        if (isCurrentHomepageLoad(token)) showFormError(error.message || "Could not load penjahit. Try again.", elements.homePenjahit.hidden ? elements.viewCustomers : elements.homePenjahit);
+      }
+      if (!isCurrentHomepageLoad(token)) return;
       prepareShortcutAppearState();
       await revealHomepage(token);
     } catch (err) {
@@ -4385,7 +4507,6 @@ KK.app = (function () {
        heading take focus back is what made the keyboard flash up and drop. */
     const openPickerIfEmpty = () => {
       if (!wantsNew || !isDocumentsRoute() || ds.kind !== wanted) return;
-      if ("ready" !== ds.phase || ds.items.length) return;
       openDocumentPicker(wanted);
     };
 
@@ -4670,6 +4791,7 @@ KK.app = (function () {
     const returnEl = pk.returnEl;
     pk.orderToken++;
     pk.open = false;
+    state.production.creatingOrder = false;
     pk.returnEl = null;
     pk.generating = false;
     closeSheetElement(elements.docnewSheet);
@@ -4687,8 +4809,11 @@ KK.app = (function () {
        flow — there is no order step to advance to, and fetching the orders of a
        customer whose order is about to be written would only be a wait. */
     if (isNewOrderPicker()) {
+      const fromProduction = state.production.creatingOrder && !!state.production.draft;
       closeDocumentPicker();
-      go("#/customer/" + encodeURIComponent(customerId) + "/order/new/edit");
+      state.production.creatingOrder = false;
+      if (fromProduction) setDirty(false);
+      go("#/customer/" + encodeURIComponent(customerId) + "/order/new/edit" + (fromProduction ? "?from=production" : ""));
       return;
     }
 
@@ -4971,8 +5096,13 @@ KK.app = (function () {
     if (row.dataset.newCustomer) {
       // Seeded with the search text, exactly as the ledger's own add row is.
       const seed = picker().query.trim();
+      const fromProduction = state.production.creatingOrder && !!state.production.draft;
       closeDocumentPicker();
-      go("#/customer/new/edit" + (seed ? "?name=" + encodeURIComponent(seed) : ""));
+      if (fromProduction) setDirty(false);
+      const params = new URLSearchParams();
+      if (seed) params.set("name", seed);
+      if (fromProduction) params.set("from", "production");
+      go("#/customer/new/edit" + (params.toString() ? "?" + params.toString() : ""));
       return;
     }
     if (row.dataset.newOrder) {
@@ -6728,6 +6858,7 @@ KK.app = (function () {
       a.saving = false;
       renderFittingPhotoAdd();
       announceAddStatus("Save failed");
+      showFormError((err && err.message) || "Could not save those changes", elements.viewFittingPhotoAdd);
       showToast((err && err.message) || "Could not save those changes");
       return;
     }
@@ -7289,6 +7420,623 @@ KK.app = (function () {
       : U.formatShortDate(cust.wedding_date);
   }
 
+  /* ----------------------- Penjahit production ledger -------------------- */
+
+  /* Probed once a session and remembered across them. The answer only changes
+     when a migration is applied, and the stored value is what lets the homepage
+     skeleton reserve the assignment tile's row instead of growing a tile under
+     the reader's thumb the moment the probe lands. */
+  const PRODUCTION_READY_KEY = "kk.production.available";
+
+  function rememberProductionReady(available) {
+    try { localStorage.setItem(PRODUCTION_READY_KEY, available ? "1" : "0"); } catch (err) { /* private mode */ }
+  }
+
+  function productionReadyGuess() {
+    try { return localStorage.getItem(PRODUCTION_READY_KEY) === "1"; } catch (err) { return false; }
+  }
+
+  function applyProductionEntries(available) {
+    $$("[data-production-entry]").forEach((element) => { element.hidden = !available; });
+    document.body.classList.toggle("has-production", !!available);
+  }
+
+  async function productionReady() {
+    if (state.production.available === null) {
+      state.production.available = await db.productionAvailable();
+      rememberProductionReady(state.production.available);
+    }
+    applyProductionEntries(state.production.available);
+    return state.production.available;
+  }
+
+  function productionBalance(job) {
+    return Number(job.amount) - Number(job.paid) + Number(job.refunded);
+  }
+
+  function productionTotals(jobs) {
+    return jobs.reduce((totals, job) => {
+      const balance = productionBalance(job);
+      totals.amount += Number(job.amount);
+      totals.paid += Number(job.paid);
+      totals.refunded += Number(job.refunded);
+      totals.outstanding += Math.max(0, balance);
+      totals.credit += Math.max(0, -balance);
+      totals.ongoing += ["Assigned", "In progress"].includes(job.status) ? 1 : 0;
+      return totals;
+    }, { amount: 0, paid: 0, refunded: 0, outstanding: 0, credit: 0, ongoing: 0 });
+  }
+
+  /* Agreed cost and Paid are always here, because their absence is itself a
+     fact worth reading. Refunded and Credit appear only once there is one:
+     a column of Rp 0 rows is four lines of nothing to scan past, and it makes
+     a real credit harder to spot rather than easier. Outstanding and credit are
+     never netted — see productionTotals. */
+  function productionTotalsHtml(jobs) {
+    const totals = productionTotals(jobs);
+    return [
+      ["Agreed cost", totals.amount, false, true],
+      ["Paid", totals.paid, false, true],
+      ["Refunded", totals.refunded, false, totals.refunded > 0],
+      ["Outstanding", totals.outstanding, true, true],
+      ["Credit", totals.credit, true, totals.credit > 0]
+    ].filter(([, , , show]) => show).map(([label, amount, lead]) =>
+      '<div' + (lead ? ' class="production-totals__lead"' : '') + '><dt>' + label + '</dt><dd>' + U.formatRupiah(amount) + '</dd></div>').join("");
+  }
+
+  function productionJobHtml(job) {
+    const balance = productionBalance(job);
+    const label = balance > 0 ? "Outstanding" : balance < 0 ? "Credit" : "Settled";
+    const late = job.due_date && job.due_date < U.todayISO() && ["Assigned", "In progress"].includes(job.status);
+    return '<a class="production-job" href="#/production/' + encodeURIComponent(job.id) + '">' +
+      '<span class="production-job__face"><span class="production-job__top"><strong>' + U.escapeHtml(job.description) + '</strong><span class="production-status">' + U.escapeHtml(job.status) + '</span></span>' +
+      '<span>' + U.escapeHtml(job.customer_name + " · " + job.order_title) + '</span>' +
+      '<span class="production-job__meta">' + U.escapeHtml(job.item_name + " · " + job.quantity + " × ") + U.formatRupiah(job.unit_price) + '</span>' +
+      '<span class="production-job__meta">' + U.escapeHtml(job.penjahit_name) + (job.due_date ? ' · ' + (late ? 'Overdue · ' : 'Due ') + U.escapeHtml(U.formatLongDate(job.due_date)) : '') + '</span></span>' +
+      '<span class="production-job__rail"><span>' + label + '</span><strong>' + U.formatRupiah(Math.abs(balance)) + '</strong></span></a>';
+  }
+
+  /* Synchronous, and separate from the load below, because the search field is
+     shared: the query leaving with the outgoing tab has to be put down and the
+     incoming tab's picked up before anything renders from it. */
+  function syncLedgerTab() {
+    const tab = state.route.query.get("tab") === "penjahit" && state.production.available !== false ? "penjahit" : "customers";
+    if (state.production.ledgerTab !== tab) {
+      state.production.search[state.production.ledgerTab] = elements.customerSearch.value;
+      elements.customerSearch.value = state.production.search[tab] || "";
+    }
+    state.production.ledgerTab = tab;
+    elements.homeSearchSection.setAttribute("aria-label", tab === "penjahit" ? "Penjahit search" : "Customer search");
+    elements.customerSearch.placeholder = tab === "penjahit" ? "Search penjahit name" : "Search customer name";
+    $$("[data-ledger-tab]").forEach((link) => {
+      if (link.dataset.ledgerTab === tab) link.setAttribute("aria-current", "page");
+      else link.removeAttribute("aria-current");
+    });
+    return tab;
+  }
+
+  async function showHomepageLedger() {
+    const tab = syncLedgerTab();
+    const token = state.navigation.token;
+    const available = await productionReady();
+    if (token !== state.navigation.token) return;
+    const penjahit = tab === "penjahit" && available;
+    elements.homeCustomers.hidden = penjahit;
+    elements.homePenjahit.hidden = !penjahit;
+    if (!penjahit) return;
+    const [tailors, jobs] = await Promise.all([db.listPenjahit(), db.listProductionJobs()]);
+    if (token !== state.navigation.token) return;
+    state.production.penjahit = tailors;
+    state.production.jobs = jobs;
+    renderPenjahitLedger();
+  }
+
+  /* Deliberately the customer ledger's own shape — the same summary rail, grid
+     rules, card, and add row at the foot of the list. Two ledgers reached by
+     two tabs should not be two designs. */
+  function renderPenjahitLedger() {
+    const searchVal = elements.customerSearch.value.trim();
+    const query = searchVal.toLowerCase();
+    const showArchived = $("#penjahitArchived").checked;
+    const tailors = state.production.penjahit.filter((tailor) =>
+      (!tailor.archived_at || showArchived) &&
+      [tailor.name, tailor.phone].filter(Boolean).join(" ").toLowerCase().includes(query));
+    const ongoing = productionTotals(state.production.jobs).ongoing;
+
+    $("#penjahitSummary").innerHTML = U.escapeHtml(tailors.length + " penjahit") +
+      '<i></i>' + U.escapeHtml(ongoing + (1 === ongoing ? " ongoing job" : " ongoing jobs"));
+
+    const addHref = "#/penjahit/new/edit" + (searchVal ? "?name=" + encodeURIComponent(searchVal) : "");
+    const addLabel = searchVal ? '+ Add \u201c' + U.escapeHtml(searchVal) + '\u201d as a new penjahit' : "+ Add a penjahit";
+    const addRow = '<a class="btn btn--outline btn--new btn--block btn--empty" href="' + U.escapeHtml(addHref) + '">' + addLabel + '</a>';
+
+    if (!tailors.length) {
+      $("#penjahitList").innerHTML = '<p class="empty">' + (state.production.penjahit.length
+        ? 'No match for \u201c' + U.escapeHtml(searchVal) + '\u201d.'
+        : "No penjahit yet.") + '</p>' + addRow;
+      return;
+    }
+
+    $("#penjahitList").innerHTML = tailors.map((tailor) => {
+      const totals = productionTotals(state.production.jobs.filter((job) => job.penjahit_id === tailor.id));
+      const badge = tailor.archived_at ? "Archived" : totals.ongoing + " ongoing";
+      const money = totals.credit > 0 && totals.outstanding === 0
+        ? { label: "Credit", amount: totals.credit }
+        : { label: "Outstanding", amount: totals.outstanding };
+      /* Outstanding and credit are never netted into one figure: they belong to
+         different jobs, and a credit on one must not read as a smaller debt on
+         another. When both exist the card leads with what is owed and says the
+         credit after it. */
+      const credit = totals.credit > 0 && totals.outstanding > 0
+        ? '<span class="home-customer-card__meta"><span>Credit held</span><strong>' + U.formatRupiah(totals.credit) + '</strong></span>' : '';
+      const label = tailor.name + ", " + badge + ", " + money.label + " " + U.formatRupiah(money.amount);
+      const cardHtml = '<a class="home-customer-card" href="#/penjahit/' + encodeURIComponent(tailor.id) + '" aria-label="' + U.escapeHtml(label) + '">' +
+        '<span class="home-customer-card__face"><span class="home-customer-card__top">' +
+        '<span class="home-customer-card__name">' + U.escapeHtml(tailor.name) + '</span>' +
+        '<span class="home-customer-card__badge">' + U.escapeHtml(badge) + '</span></span>' +
+        '<span class="home-customer-card__meta"><span>' + money.label + '</span><strong>' + U.formatRupiah(money.amount) + '</strong></span>' +
+        credit + '</span><span class="home-customer-card__rail"></span></a>';
+      return '<div class="home-customer-record"><div class="home-grid-rule"></div><div class="home-customer-record__inset">' + cardHtml +
+        '</div><div class="home-grid-rule"></div><div class="home-grid-spacer" aria-hidden="true"></div></div>';
+    }).join("") + addRow;
+  }
+
+  function renderProductionJobs() {
+    const filter = $("#productionFilter").value;
+    state.production.filters[state.production.profile.id] = filter;
+    const jobs = state.production.jobs.filter((job) => filter === "All" ||
+      (filter === "Ongoing" ? ["Assigned", "In progress"].includes(job.status)
+        : filter === "Outstanding" ? productionBalance(job) > 0 : job.status === filter));
+    $("#productionJobs").innerHTML = jobs.map(productionJobHtml).join("") || '<p class="empty">No ' + U.escapeHtml(filter.toLowerCase()) + ' jobs here.</p>';
+  }
+
+  function productionTailorOptions(selected) {
+    elements.productionTailor.innerHTML = '<option value="">Choose a penjahit</option>' + state.production.penjahit
+      .filter((tailor) => !tailor.archived_at || tailor.id === selected)
+      .map((tailor) => '<option value="' + U.escapeHtml(tailor.id) + '">' + U.escapeHtml(tailor.name + (tailor.archived_at ? " (archived)" : "")) + '</option>').join("");
+    elements.productionTailor.value = selected || "";
+  }
+
+  function renderProductionSources() {
+    const query = $("#productionSearch").value.trim().toLowerCase();
+    const sources = state.production.sources;
+    $("#productionSourceList").innerHTML = sources.map((order) => {
+      const customer = order.customers && order.customers.name || "Customer";
+      const context = customer + " · " + orderLabel(order);
+      const items = (order.items || []).filter((item) => item.id && item.name && item.qty > 0 && (context + " " + item.name).toLowerCase().includes(query));
+      return items.map((item) => '<button type="button" class="production-source" data-production-item="' + U.escapeHtml(item.id) + '" data-order-id="' + U.escapeHtml(order.id) + '">' +
+        '<span><strong>' + U.escapeHtml(item.name) + '</strong><span>' + U.escapeHtml(context) + '</span><span>' + U.escapeHtml(item.qty + " pieces") + '</span></span><span aria-hidden="true">＋</span></button>').join("") +
+        (!(order.items || []).some((item) => item.name && item.qty > 0) && context.toLowerCase().includes(query)
+          ? '<a class="production-source" href="#/order/' + encodeURIComponent(order.id) + '/edit?from=production"><span><strong>' + U.escapeHtml(context) + '</strong><span>No items yet · Add an item</span></span><span aria-hidden="true">＋</span></a>' : "");
+    }).join("") || '<p class="empty">No matching items. Add a customer or order below.</p>';
+  }
+
+  function productionField(label, key, value, type, required, extra) {
+    return '<label class="field"><span class="field__label">' + label + (required ? ' *' : ' <span class="optional">Optional</span>') + '</span><input class="input" data-pfield="' + key + '" type="' + (type || "text") + '" value="' + U.escapeHtml(value == null ? "" : value) + '"' + (required ? ' required aria-required="true"' : '') + (extra || '') + '></label>';
+  }
+
+  function renderProductionDraft() {
+    const draft = state.production.draft;
+    const editing = state.route.view === "productionEdit";
+    elements.productionDraftRows.innerHTML = draft.jobs.map((job) =>
+      '<article class="production-fields production-draft" data-job-id="' + U.escapeHtml(job.id) + '"><div class="production-job__top"><h3>' + U.escapeHtml(job.item_name) + '</h3>' +
+      (editing ? '' : '<button type="button" class="btn btn--outline" data-remove-job="' + U.escapeHtml(job.id) + '" aria-label="Remove ' + U.escapeHtml(job.item_name) + '">Remove</button>') + '</div>' +
+      '<p class="field__hint">' + U.escapeHtml(job.customer_name + " · " + job.order_title) + '</p>' +
+      productionField("Work description", "description", job.description, "text", true, ' maxlength="500"') +
+      '<div class="production-pair">' + productionField("Quantity", "quantity", job.quantity, "number", true, ' min="1" step="1" max="' + U.escapeHtml(job.max_quantity) + '" inputmode="numeric"') +
+      productionField("Price per piece (Rp)", "unit_price", job.unit_price === "" ? "" : U.groupDigits(job.unit_price), "text", true, ' inputmode="numeric"') + '</div>' +
+      '<p class="production-line-total" data-job-total></p>' +
+      productionField("Assigned on", "assigned_date", job.assigned_date, "date", true) +
+      productionField("Due date", "due_date", job.due_date, "date", false) +
+      productionField("Notes", "notes", job.notes, "text", false) +
+      (editing ? '<label class="field"><span class="field__label">Progress *</span><select class="input" data-pfield="status" required>' +
+        ["Assigned", "In progress", "Done", "Cancelled"].map((status) => '<option' + (job.status === status ? ' selected' : '') + '>' + status + '</option>').join("") + '</select></label>' +
+        '<div data-cancellation' + (job.status !== "Cancelled" ? ' hidden' : '') + '><p class="production-note">Confirm the final agreed charge. Payments remain recorded; any excess becomes credit.</p>' +
+        productionField("Final agreed charge (Rp)", "cancellation_charge", job.cancellation_charge == null ? "" : U.groupDigits(job.cancellation_charge), "text", job.status === "Cancelled", ' inputmode="numeric"') + '</div>' : '') +
+      '</article>').join("");
+    renderProductionDraftTotals();
+  }
+
+  function snapshotProductionDraft() {
+    const draft = state.production.draft;
+    if (!draft || state.production.batchRequest) return;
+    draft.penjahit_id = elements.productionTailor.value;
+    $$("[data-job-id]", elements.productionDraftRows).forEach((row) => {
+      const job = draft.jobs.find((item) => item.id === row.dataset.jobId);
+      if (!job) return;
+      $$("[data-pfield]", row).forEach((field) => { job[field.dataset.pfield] = field.value; });
+    });
+  }
+
+  function renderProductionDraftTotals() {
+    let total = 0;
+    $$("[data-job-id]", elements.productionDraftRows).forEach((row) => {
+      const qty = Number($('[data-pfield="quantity"]', row).value);
+      const price = U.parseRupiahInput($('[data-pfield="unit_price"]', row).value);
+      const cancel = $('[data-pfield="status"]', row);
+      const charge = $('[data-pfield="cancellation_charge"]', row);
+      const cancelled = cancel && cancel.value === "Cancelled";
+      if (charge) { charge.required = !!cancelled; charge.disabled = !cancelled; $('[data-cancellation]', row).hidden = !cancelled; }
+      const amount = cancelled ? U.parseRupiahInput(charge.value) : qty * price;
+      const valid = price !== null && Number.isSafeInteger(amount) && amount >= 0;
+      const blank = !String((cancelled ? charge : $('[data-pfield="unit_price"]', row)).value).trim();
+      /* A blank price is not yet a wrong one. Saying so keeps the row quiet
+         until there is something to check, instead of accusing an untouched
+         field or, worse, reporting a confident Rp 0. */
+      $('[data-job-total]', row).textContent = blank ? (cancelled ? "Enter the final charge" : "Enter a price per piece")
+        : valid ? (cancelled ? "Final charge · " : "Job total · ") + U.formatRupiah(amount) : "Check quantity and price";
+      if (valid) total += amount;
+    });
+    const count = state.production.draft.jobs.length;
+    $("#productionDraftSummary").textContent = count ? count + " job" + (count === 1 ? "" : "s") + " · " + U.formatRupiah(total) : "Choose an item to start.";
+  }
+
+  function setProductionBusy(root, busy) {
+    root.setAttribute("aria-busy", String(busy));
+    root.querySelectorAll("input,select,textarea,button").forEach((field) => {
+      if (busy) { if (!field.hasAttribute("data-was-disabled")) field.dataset.wasDisabled = String(field.disabled); field.disabled = true; }
+      else if (field.hasAttribute("data-was-disabled")) { field.disabled = field.dataset.wasDisabled === "true"; delete field.dataset.wasDisabled; }
+    });
+  }
+
+  async function showProductionRoute(route) {
+    const token = state.navigation.token;
+    const editable = ["penjahitEdit", "productionNew", "productionEdit"].includes(route.view);
+    setChrome({ title: "Production", up: { label: "Penjahit", hash: "#/customers?tab=penjahit" }, save: false, productionpage: true, productionedit: editable });
+    if (!await productionReady()) throw new Error("Production is not available yet. Please try again later.");
+    const tailors = await db.listPenjahit();
+    if (token !== state.navigation.token) return;
+    state.production.penjahit = tailors;
+    if (route.view === "penjahit" || route.view === "penjahitEdit") {
+      const isNew = route.id === "new";
+      const profile = isNew ? { id: crypto.randomUUID(), name: "", phone: "", notes: "" } : tailors.find((tailor) => tailor.id === route.id);
+      if (!profile) throw new Error("This penjahit could not be found.");
+      state.production.profile = profile;
+      if (route.view === "penjahitEdit") {
+        $("#penjahitEditTitle").textContent = isNew ? "New penjahit" : "Edit penjahit";
+        // Seeded from the ledger's add row, the way the customer form is: the
+        // name was already typed into the search once.
+        $("#pName").value = profile.name || (isNew ? route.query.get("name") || "" : "");
+        $("#pPhone").value = profile.phone || "";
+        $("#pNotes").value = profile.notes || "";
+        $("#pArchived").checked = !!profile.archived_at;
+        $("#pArchiveField").hidden = isNew;
+        setSaveBar(true);
+        setDirty(false);
+        return;
+      }
+      const jobs = await db.listProductionJobs({ penjahitId: profile.id });
+      if (token !== state.navigation.token) return;
+      state.production.jobs = jobs;
+      $("#penjahitTitle").textContent = profile.name;
+      $("#penjahitContact").textContent = [profile.phone, profile.notes, profile.archived_at ? "Archived" : ""].filter(Boolean).join(" · ");
+      $("#penjahitEditLink").href = "#/penjahit/" + profile.id + "/edit";
+      $("#penjahitAssignLink").href = "#/production/new?penjahit=" + profile.id;
+      $("#penjahitAssignLink").hidden = !!profile.archived_at;
+      $("#penjahitTotals").innerHTML = '<div><dt>Ongoing jobs</dt><dd>' + productionTotals(jobs).ongoing + '</dd></div>' + productionTotalsHtml(jobs);
+      $("#productionFilter").value = state.production.filters[profile.id] || "Ongoing";
+      renderProductionJobs();
+      return;
+    }
+    if (route.view === "productionJob") {
+      const [jobs, payments] = await Promise.all([db.listProductionJobs({ id: route.id }), db.listProductionPayments(route.id)]);
+      if (token !== state.navigation.token) return;
+      if (!jobs[0]) throw new Error("This production job could not be found.");
+      state.production.job = jobs[0];
+      state.production.payments = payments;
+      state.production.paymentRequest = null;
+      state.production.paymentId = null;
+      renderProductionJob();
+      setDirty(false);
+      return;
+    }
+    const sources = await db.listProductionSources();
+    if (token !== state.navigation.token) return;
+    state.production.sources = sources;
+    const editing = route.view === "productionEdit";
+    if (editing) {
+      const jobs = await db.listProductionJobs({ id: route.id });
+      if (token !== state.navigation.token) return;
+      if (!jobs[0]) throw new Error("This production job could not be found.");
+      const job = jobs[0];
+      const order = sources.find((source) => source.id === job.order_id);
+      const item = order && order.items.find((source) => source.id === job.item_id);
+      state.production.draft = { penjahit_id: job.penjahit_id, jobs: [Object.assign({}, job, { max_quantity: Math.max(job.quantity, Number(item && item.qty || 0)) })] };
+      state.production.batchRequest = null;
+    } else if (!route.query.has("resume") || !state.production.draft) {
+      state.production.draft = { penjahit_id: route.query.get("penjahit") || "", jobs: [] };
+      state.production.batchRequest = null;
+      // A customer made for an abandoned assignment must not still be the one
+      // the next "+ New order" writes against.
+      state.production.createdCustomerId = null;
+    }
+    $("#productionEditTitle").textContent = editing ? "Edit production job" : "Assign to penjahit";
+    $("#productionSource").hidden = editing;
+    $("#productionAddTailor").hidden = editing;
+    productionTailorOptions(state.production.draft.penjahit_id);
+    elements.productionTailor.disabled = !!(editing && state.production.draft.jobs[0].has_history);
+    /* Seeded only when the order is genuinely in the list. orderLabel of a
+       missing record answers "Empty order", which as a filter matches nothing
+       and would hide every item the reader came back to pick. */
+    const seedOrder = route.query.get("order") && sources.find((source) => source.id === route.query.get("order"));
+    $("#productionSearch").value = seedOrder ? orderLabel(seedOrder) : "";
+    renderProductionSources();
+    renderProductionDraft();
+    setProductionBusy(elements.viewProductionEdit, false);
+    if (state.production.batchRequest) setProductionBusy(elements.viewProductionEdit, true);
+    $("#productionRetryNote").hidden = !state.production.batchRequest;
+    setSaveBar(true);
+    setDirty(!editing && state.production.draft.jobs.length > 0);
+  }
+
+  async function savePenjahitForm() {
+    if (!validateFields(elements.viewPenjahitEdit)) return false;
+    const record = Object.assign({}, state.production.profile, {
+      name: $("#pName").value.trim(), phone: orNull($("#pPhone").value), notes: orNull($("#pNotes").value),
+      archived_at: $("#pArchived").checked ? state.production.profile.archived_at || new Date().toISOString() : null
+    });
+    const saved = await db.savePenjahit(record);
+    setDirty(false);
+    if (state.route.query.get("from") === "production" && state.production.draft) {
+      state.production.draft.penjahit_id = saved.id;
+      go("#/production/new?resume=1");
+    } else go("#/penjahit/" + saved.id);
+    return true;
+  }
+
+  async function saveProductionDraft() {
+    const editing = state.route.view === "productionEdit";
+    if (!state.production.batchRequest) {
+      snapshotProductionDraft();
+      if (!validateFields(elements.viewProductionEdit)) return false;
+      const draft = state.production.draft;
+      if (!draft.jobs.length) { showFormError("Choose at least one customer item."); return false; }
+      let valid = true;
+      $$("[data-job-id]", elements.productionDraftRows).forEach((row) => {
+        ["unit_price", "cancellation_charge"].forEach((key) => {
+          const field = $('[data-pfield="' + key + '"]', row);
+          if (field && !field.disabled && !setFieldError(field, U.parseRupiahInput(field.value) === null ? "Enter a valid whole rupiah amount." : "")) valid = false;
+        });
+        const quantity = Number($('[data-pfield="quantity"]', row).value);
+        const price = U.parseRupiahInput($('[data-pfield="unit_price"]', row).value);
+        if (!Number.isSafeInteger(quantity * price)) { setFieldError($('[data-pfield="unit_price"]', row), "The job total is too large."); valid = false; }
+      });
+      if (!valid) return focusInvalid(elements.viewProductionEdit);
+      state.production.batchRequest = draft.jobs.map((job) => ({
+        id: job.id, penjahit_id: draft.penjahit_id, order_id: job.order_id, item_id: job.item_id,
+        description: job.description.trim(), quantity: Number(job.quantity), unit_price: U.parseRupiahInput(job.unit_price),
+        assigned_date: job.assigned_date, due_date: job.due_date || null, notes: job.notes || null,
+        ...(editing ? { status: job.status, cancellation_charge: job.status === "Cancelled" ? U.parseRupiahInput(job.cancellation_charge) : null } : {})
+      }));
+    }
+    setProductionBusy(elements.viewProductionEdit, true);
+    try {
+      const request = state.production.batchRequest;
+      if (editing) await db.updateProductionJob(request[0]);
+      else await db.saveProductionJobs(request);
+      const destination = editing ? "#/production/" + request[0].id : "#/penjahit/" + request[0].penjahit_id;
+      state.production.batchRequest = null;
+      state.production.draft = null;
+      setDirty(false);
+      showToast(editing ? "Production job saved" : "Assignments saved");
+      go(destination);
+      return true;
+    } catch (err) {
+      // A database rejection rolls back the transaction. A lost response may
+      // have committed, so preserve the exact request for an idempotent retry.
+      if (err.code) { state.production.batchRequest = null; setProductionBusy(elements.viewProductionEdit, false); }
+      $("#productionRetryNote").hidden = !state.production.batchRequest;
+      throw err;
+    }
+  }
+
+  function renderProductionJob() {
+    const job = state.production.job;
+    const amounts = U.productionAmounts(job, state.production.payments);
+    Object.assign(job, { amount: amounts.amount, paid: amounts.paid, refunded: amounts.refunded });
+    /* The kicker is uppercase and one line by design, so it carries the status
+       alone; a long penjahit name set in capitals reads as shouting and wraps
+       the heading away from its title. The name leads the context line instead,
+       where it is also the label on the back link. */
+    $("#productionJobStatus").textContent = job.status;
+    $("#productionJobTitle").textContent = job.description;
+    $("#productionJobContext").textContent = [job.penjahit_name, job.customer_name, job.order_title, job.item_name].filter(Boolean).join(" · ");
+    $("#productionJobOrder").href = "#/order/" + job.order_id;
+    $("#productionJobEdit").href = "#/production/" + job.id + "/edit";
+    elements.upLink.href = "#/penjahit/" + job.penjahit_id;
+    elements.upLabel.textContent = job.penjahit_name;
+    $("#productionJobTotals").innerHTML = productionTotalsHtml([job]);
+    $("#productionJobNotes").textContent = job.quantity + " × " + U.formatRupiah(job.unit_price) + " · Assigned " + U.formatLongDate(job.assigned_date) +
+      (job.due_date ? " · Due " + U.formatLongDate(job.due_date) : "") + (job.notes ? " · " + job.notes : "");
+    $("#productionPaymentHistory").innerHTML = state.production.payments.map((entry) =>
+      '<article class="production-payment' + (entry.voided_at ? ' is-voided' : '') + '"><div class="production-job__top"><strong>' + (entry.kind === "refund" ? "Refund" : "Payment") + '</strong><strong>' + U.formatRupiah(entry.amount) + '</strong></div>' +
+      '<p>' + U.escapeHtml(U.formatLongDate(entry.payment_date)) + (entry.notes ? ' · ' + U.escapeHtml(entry.notes) : '') + '</p>' +
+      (entry.voided_at ? '<p>Voided · ' + U.escapeHtml(entry.void_reason) + '</p>' : '<button type="button" class="btn btn--outline" data-correct-payment="' + U.escapeHtml(entry.id) + '">Correct entry</button>') + '</article>').join("") || '<p class="empty">No payments recorded yet.</p>';
+  }
+
+  function openProductionPayment(entryId) {
+    const entry = state.production.payments.find((payment) => payment.id === entryId);
+    state.production.voidId = entry ? entry.id : null;
+    state.production.paymentId = crypto.randomUUID();
+    state.production.paymentRequest = null;
+    const form = elements.productionPaymentForm;
+    form.reset();
+    setProductionBusy(form, false);
+    $$("[aria-invalid]", form).forEach((field) => setFieldError(field, ""));
+    showFormError("", form);
+    $("#productionPaymentTitle").textContent = entry ? "Correct entry" : "Record payment or refund";
+    $("#ppKind").value = entry ? entry.kind : "payment";
+    $('#ppKind option[value="void"]').hidden = !entry;
+    $("#ppAmount").value = entry ? U.groupDigits(entry.amount) : "";
+    $("#ppDate").value = entry ? entry.payment_date : U.todayISO();
+    $("#ppNotes").value = entry && entry.notes || "";
+    $("#ppReasonField").hidden = !entry;
+    $("#ppReason").required = !!entry;
+    form.hidden = false;
+    syncProductionPaymentKind();
+    $("#productionPaymentNew").hidden = true;
+    form.scrollIntoView({ block: "nearest" });
+    $("#productionPaymentTitle").tabIndex = -1;
+    $("#productionPaymentTitle").focus({ preventScroll: true });
+  }
+
+  function syncProductionPaymentKind() {
+    const voidOnly = $("#ppKind").value === "void";
+    ["Amount", "Date"].forEach((name) => {
+      $("#pp" + name + "Field").hidden = voidOnly;
+      $("#pp" + name).disabled = voidOnly;
+      $("#pp" + name).required = !voidOnly;
+    });
+  }
+
+  async function saveProductionPayment(event) {
+    event.preventDefault();
+    if (state.saving) return;
+    const form = elements.productionPaymentForm;
+    if (!state.production.paymentRequest) {
+      if (!validateFields(form)) return;
+      const kind = $("#ppKind").value;
+      const amount = U.parseRupiahInput($("#ppAmount").value);
+      if (kind !== "void" && (amount === null || amount <= 0)) {
+        setFieldError($("#ppAmount"), "Enter a whole rupiah amount greater than zero.");
+        focusInvalid(form); return;
+      }
+      state.production.paymentRequest = {
+        id: state.production.paymentId, job_id: state.production.job.id, kind,
+        amount: kind === "void" ? null : amount, payment_date: kind === "void" ? null : $("#ppDate").value,
+        notes: orNull($("#ppNotes").value), void_entry_id: state.production.voidId,
+        void_reason: state.production.voidId ? $("#ppReason").value.trim() : null
+      };
+    }
+    state.saving = true;
+    setProductionBusy(form, true);
+    showFormError("", form);
+    $("#productionPaymentSave").textContent = "Recording…";
+    try {
+      const payments = await db.recordProductionPayment(state.production.paymentRequest);
+      state.production.payments = payments;
+      state.production.paymentRequest = null;
+      renderProductionJob();
+      form.hidden = true;
+      $("#productionPaymentNew").hidden = false;
+      setDirty(false);
+      showToast("Entry recorded");
+      $("#productionPaymentNew").focus({ preventScroll: true });
+    } catch (err) {
+      if (err.code) state.production.paymentRequest = null;
+      showFormError((err.message || "Could not confirm this entry.") + (state.production.paymentRequest ? " Retry this entry to confirm it safely." : ""), form);
+    } finally {
+      state.saving = false;
+      setProductionBusy(form, false);
+      /* An unconfirmed entry must be retried exactly as it was sent, so the
+         fields stay locked — but Cancel does not, or the only way out of an
+         unanswered save would be to leave the page. */
+      if (state.production.paymentRequest) {
+        setProductionBusy(form, true);
+        $("#productionPaymentSave").disabled = false;
+        $("#productionPaymentCancel").disabled = false;
+      }
+      $("#productionPaymentSave").textContent = state.production.paymentRequest ? "Retry entry" : "Record entry";
+    }
+  }
+
+  async function renderOrderProduction(orderId) {
+    const token = state.navigation.token;
+    const root = $("#orderProductionJobs");
+    $("#orderProductionCosts").textContent = "";
+    root.textContent = "Loading production work…";
+    $("#orderProductionAssign").href = "#/production/new?order=" + encodeURIComponent(orderId);
+    try {
+      if (!await productionReady() || token !== state.navigation.token) return;
+      const jobs = await db.listProductionJobs({ orderId });
+      if (token !== state.navigation.token) return;
+      root.innerHTML = jobs.map(productionJobHtml).join("") || '<p class="empty">No penjahit work assigned yet.</p>';
+      /* The estimate the item was quoted at, and what the penjahit work on it
+         actually costs, on two aligned lines. Neither is derived from the
+         other: the estimate is a promise already made to the customer and is
+         never rewritten by what a penjahit agreed to later. */
+      $("#orderProductionCosts").innerHTML = (state.order.items || []).map((item) => {
+        const linked = jobs.filter((job) => job.item_id === item.id);
+        const estimate = Number(item.cost || 0) * Number(item.qty || 0);
+        const actual = productionTotals(linked).amount;
+        const over = actual > estimate && estimate > 0;
+        return '<div class="production-cost"><strong>' + U.escapeHtml(item.name) + '</strong>' +
+          '<span><span>Estimated cost</span><span>' + U.formatRupiah(estimate) + '</span></span>' +
+          '<span><span>Assigned to penjahit</span><span>' + U.formatRupiah(actual) + '</span></span>' +
+          (over ? '<span class="production-cost__over"><span>Over the estimate by</span><span>' + U.formatRupiah(actual - estimate) + '</span></span>'
+                : linked.length ? '' : '<span class="production-cost__none">No penjahit work assigned to this item</span>') +
+          '</div>';
+      }).join("");
+    } catch (err) {
+      if (token === state.navigation.token) root.innerHTML = '<p class="form-error">' + U.escapeHtml(err.message || "Could not load production work.") + '</p><button type="button" class="btn btn--outline" id="retryOrderProduction">Try again</button>';
+    }
+  }
+
+  function bindProductionEvents() {
+    $("#penjahitArchived").addEventListener("change", renderPenjahitLedger);
+    $("#productionFilter").addEventListener("change", renderProductionJobs);
+    $("#productionSearch").addEventListener("input", renderProductionSources);
+    elements.viewPenjahitEdit.addEventListener("input", () => setDirty(true));
+    elements.viewProductionEdit.addEventListener("input", (event) => {
+      if (event.target.type === "search") return;
+      snapshotProductionDraft(); renderProductionDraftTotals(); setDirty(true);
+    });
+    elements.viewProductionEdit.addEventListener("change", (event) => {
+      if (event.target.type === "search") return;
+      snapshotProductionDraft(); renderProductionDraftTotals(); setDirty(true);
+    });
+    elements.viewProductionEdit.addEventListener("click", (event) => {
+      const add = event.target.closest("[data-production-item]");
+      const remove = event.target.closest("[data-remove-job]");
+      if (state.production.batchRequest || (!add && !remove)) return;
+      snapshotProductionDraft();
+      if (add) {
+        const order = state.production.sources.find((source) => source.id === add.dataset.orderId);
+        const item = order.items.find((source) => source.id === add.dataset.productionItem);
+        state.production.draft.jobs.push({ id: crypto.randomUUID(), order_id: order.id, item_id: item.id, item_name: item.name,
+          customer_name: order.customers && order.customers.name || "Customer", order_title: orderLabel(order),
+          description: "", quantity: item.qty, max_quantity: item.qty, unit_price: "", assigned_date: U.todayISO(), due_date: "", notes: "" });
+      } else state.production.draft.jobs = state.production.draft.jobs.filter((job) => job.id !== remove.dataset.removeJob);
+      renderProductionDraft(); setDirty(true);
+      if (add) showToast("Item added to selected work");
+    });
+    elements.viewProductionEdit.addEventListener("click", (event) => {
+      if (event.target.closest('a[href*="from=production"]')) { snapshotProductionDraft(); setDirty(false); }
+    });
+    $("#productionAddOrder").addEventListener("click", () => {
+      snapshotProductionDraft();
+      if (state.production.createdCustomerId) {
+        const customerId = state.production.createdCustomerId;
+        state.production.createdCustomerId = null;
+        setDirty(false);
+        go("#/customer/" + customerId + "/order/new/edit?from=production");
+      } else { state.production.creatingOrder = true; openDocumentPicker("neworder"); }
+    });
+    elements.productionPaymentForm.addEventListener("submit", saveProductionPayment);
+    elements.productionPaymentForm.addEventListener("input", () => setDirty(true));
+    $("#ppKind").addEventListener("change", syncProductionPaymentKind);
+    $("#productionPaymentNew").addEventListener("click", () => openProductionPayment(null));
+    $("#productionPaymentHistory").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-correct-payment]");
+      if (button && !state.production.paymentRequest) openProductionPayment(button.dataset.correctPayment);
+    });
+    $("#productionPaymentCancel").addEventListener("click", () => {
+      if ((state.dirty || state.production.paymentRequest) && !confirmLeave()) return;
+      const form = elements.productionPaymentForm;
+      state.production.paymentRequest = null;
+      setProductionBusy(form, false);
+      showFormError("", form);
+      $("#productionPaymentSave").textContent = "Record entry";
+      form.hidden = true;
+      $("#productionPaymentNew").hidden = false;
+      setDirty(false);
+      $("#productionPaymentNew").focus({ preventScroll: true });
+    });
+    $("#orderProductionJobs").addEventListener("click", (event) => {
+      if (event.target.closest("#retryOrderProduction")) renderOrderProduction(state.order.id);
+    });
+  }
+
   /* ---------------- Customer Detail & Edit Controller --------------- */
 
   async function showCustomerDetail(customerId) {
@@ -7318,7 +8066,7 @@ KK.app = (function () {
 
   async function showCustomerEdit(customerId, queryParams) {
     const isNew = "new" === customerId;
-    const backHash = isNew ? "#/customers" : "#/customer/" + encodeURIComponent(customerId);
+    const backHash = queryParams && queryParams.get("from") === "production" ? "#/production/new?resume=1" : isNew ? "#/customers" : "#/customer/" + encodeURIComponent(customerId);
 
     setChrome({
       title: isNew ? "New customer" : "Edit customer",
@@ -7427,14 +8175,12 @@ KK.app = (function () {
     const nextEvt = custNextEvent(customerRecord, orders);
     elements.custNextLabel.textContent = nextEvt ? "Next: " + nextEvt.what : "Next event";
     elements.custNextDate.textContent = nextEvt ? U.formatShortDate(nextEvt.date) + " (" + relativeToToday(nextEvt.date) + ")" : "Nothing scheduled";
-    /* With nothing scheduled the banner still opens the current month rather
-       than going dead: an empty calendar is an honest answer to "what's next". */
-    elements.custNextBanner.href = nextEvt
-      ? "#/schedules?focus=" + encodeURIComponent(nextEvt.date)
-      : "#/schedules";
+    /* The label repeats what the two lines say, because a screen reader meets
+       the title and the value as separate strings and the sentence only exists
+       when they are read together. */
     elements.custNextBanner.setAttribute("aria-label", nextEvt
-      ? "Schedules, next: " + nextEvt.what + " on " + U.formatShortDate(nextEvt.date)
-      : "Schedules");
+      ? "Next event: " + nextEvt.what + " on " + U.formatShortDate(nextEvt.date) + ", " + relativeToToday(nextEvt.date)
+      : "Next event: nothing scheduled");
     elements.custOrdersCount.textContent = orders.length + " order" + (1 === orders.length ? "" : "s");
     elements.custOrdersSum.textContent = U.formatRupiah(orders.reduce((sum, o) => sum + docs.computeTotal(o.items), 0));
 
@@ -7520,6 +8266,8 @@ KK.app = (function () {
       return false;
     }
 
+    if (!validateFields(elements.viewCustomerEdit)) return false;
+
     const payload = (function () {
       const isMonth = "month" === weddingPrecision();
       return {
@@ -7575,7 +8323,10 @@ KK.app = (function () {
       );
       setDirty(false);
       showToast("Customer created");
-      leaveFormFor("#/customer/" + state.customer.id);
+      if (state.route.query.get("from") === "production" && state.production.draft) {
+        state.production.createdCustomerId = state.customer.id;
+        go("#/production/new?resume=1");
+      } else leaveFormFor("#/customer/" + state.customer.id);
     }
     return true;
   }
@@ -7891,6 +8642,7 @@ KK.app = (function () {
     renderOrderDocumentState(vm);
     renderOrderPayments(vm);
     renderOrderSchedule(vm);
+    renderOrderProduction(vm.order.id);
 
     elements.orderReady.hidden = false;
     elements.orderReady.classList.add("is-measuring");
@@ -8253,9 +9005,11 @@ KK.app = (function () {
   }
 
   async function saveOrder() {
+    if (!validateOrderItems() || !validateFields(elements.viewOrderEdit)) return false;
     if (!validateTerms()) return false;
 
     const itemsPayload = readItems().filter(isNamed).map((it) => ({
+      id: it.id,
       name: it.name,
       qty: it.qty,
       price: it.price,
@@ -8310,6 +9064,14 @@ KK.app = (function () {
   function validateTerms() {
     elements.errTerms.hidden = true;
     if ("other" !== elements.oScheme.value) return true;
+    termRowElements().forEach((row) => {
+      const label = $(".js-tlabel", row);
+      const share = $(".js-tpct", row);
+      const number = Number(share.value.replace(",", "."));
+      setFieldError(label, !label.value.trim() ? "Name this payment term." : "");
+      setFieldError(share, !/^\d+([.,]\d{1,2})?$/.test(share.value) || number <= 0 || number > 100 ? "Enter a share above 0%, up to 100%." : "");
+    });
+    if (!focusInvalid(elements.termsCard)) return false;
     const terms = readTerms();
     if (!terms.length) return showTermsError("Add at least one payment term.");
     if (terms.some((t) => !t.label)) return showTermsError("Every term needs a label.");
@@ -8326,6 +9088,7 @@ KK.app = (function () {
       const it = data || { name: "", qty: 1, price: "", cost: "" };
       const el = document.createElement("div");
       el.className = "item";
+      el.dataset.itemId = it.id || crypto.randomUUID();
       el.innerHTML =
         '<div class="item__head"><span class="item__idx"></span><button type="button" class="item__remove js-remove" aria-label="Remove item">' + SVG_TRASH + '</button></div>' +
         '<label class="field"><span class="field__label">Description</span><input class="input js-name" type="text" placeholder="e.g. Bridal skirt"></label>' +
@@ -8388,6 +9151,7 @@ KK.app = (function () {
   function readItems() {
     return rowElements().map((r) => ({
       row: r,
+      id: r.dataset.itemId,
       name: $(".js-name", r).value.trim(),
       qtyRaw: U.digitsOnly($(".js-qty", r).value),
       priceRaw: U.digitsOnly($(".js-price", r).value),
@@ -8396,6 +9160,23 @@ KK.app = (function () {
       get price() { return "" === this.priceRaw ? 0 : Number(this.priceRaw); },
       get cost() { return "" === this.costRaw ? 0 : Number(this.costRaw); }
     }));
+  }
+
+  function validateOrderItems(focus) {
+    rowElements().forEach((row) => {
+      const name = $(".js-name", row);
+      const qty = $(".js-qty", row);
+      const price = $(".js-price", row);
+      const cost = $(".js-cost", row);
+      const started = !!(name.value.trim() || price.value.trim() || cost.value.trim() || !["", "1"].includes(qty.value));
+      setFieldError(name, started && !name.value.trim() ? "Describe this item, or remove the unfinished row." : "");
+      setFieldError(qty, started && (!/^\d+$/.test(qty.value) || Number(qty.value) < 1 || !Number.isSafeInteger(Number(qty.value))) ? "Enter a whole quantity of at least 1." : "");
+      [price, cost].forEach((field) => {
+        const value = U.parseRupiahInput(field.value);
+        setFieldError(field, value === null ? "Enter a whole rupiah amount, digits only." : "");
+      });
+    });
+    return false === focus ? !elements.itemList.querySelector('[aria-invalid="true"]') : focusInvalid(elements.itemList);
   }
 
   function customChip(labelStr, isChecked) {
@@ -8491,6 +9272,9 @@ KK.app = (function () {
   function showTermsError(msg) {
     elements.errTerms.textContent = msg;
     elements.errTerms.hidden = false;
+    elements.errTerms.setAttribute("role", "alert");
+    setFieldError($(".js-tpct", elements.termList), msg);
+    focusInvalid(elements.termsCard);
     elements.termsCard.scrollIntoView({ block: "center", behavior: "smooth" });
     return false;
   }
@@ -8581,6 +9365,15 @@ KK.app = (function () {
   }
 
   function applyCostCalc() {
+    let valid = true;
+    calcRowElements().forEach((row) => {
+      const label = $(".js-clabel", row);
+      const amount = $(".js-camount", row);
+      const parsed = U.parseRupiahInput(amount.value);
+      if (!setFieldError(label, parsed > 0 && !label.value.trim() ? "Name this cost category." : "")) valid = false;
+      if (!setFieldError(amount, parsed === null ? "Enter a valid whole rupiah amount." : "")) valid = false;
+    });
+    if (!valid) return focusInvalid(elements.calcSheet);
     const totalVal = refreshCalcTotal();
     $(".js-cost", activeCalcItemRow).value = U.groupDigits(totalVal);
     refreshItemTotals();
@@ -8732,6 +9525,7 @@ KK.app = (function () {
       }
     } catch (err) {
       console.error(err);
+      showFormError("Could not prepare those photos — " + (err.message || "please try again"), elements.viewMoodboard);
       showToast("Could not prepare those photos — " + (err.message || "please try again"));
     } finally {
       isMoodboardExportBusy = false;
@@ -9248,6 +10042,7 @@ KK.app = (function () {
       renderOrderStatus();
     } catch (err) {
       console.error(err);
+      showFormError(err.message || "Could not log payment", elements.viewOrder);
       showToast(err.message || "Could not log payment");
       elements.paymentError.textContent = err.message || "Could not log that payment. Try again.";
       elements.paymentError.hidden = false;
@@ -9272,6 +10067,27 @@ KK.app = (function () {
   /* -------------------- Boot & Event Listeners --------------------- */
 
   function bindEvents() {
+    bindProductionEvents();
+    if (window.ResizeObserver) {
+      const barObserver = new ResizeObserver(syncBottomBar);
+      [elements.savebar, elements.fitdetBar, elements.fitaddBar, elements.schedcalMonthbar].forEach((bar) => barObserver.observe(bar));
+    }
+    /* Only the skeleton and the closed menu can see this: every real entry
+       point lives inside #homeReady, which stays hidden until the probe has
+       answered. So the guess buys the skeleton the right shape and never shows
+       a tile it has to take back. */
+    applyProductionEntries(productionReadyGuess());
+
+    /* A field that is already showing an error revalidates as it is corrected,
+       so the message clears on the keystroke that fixes it rather than on the
+       next save. Revalidating never moves focus — the reader is mid-word in the
+       field being corrected, and only a submit may take them elsewhere. */
+    document.addEventListener("input", (event) => {
+      const field = event.target;
+      if (!field.matches("input,textarea,select") || field.getAttribute("aria-invalid") !== "true") return;
+      if (field.closest("#itemList")) validateOrderItems(false);
+      else setFieldError(field, fieldValidityMessage(field));
+    });
     window.addEventListener("hashchange", handleRoute);
     bindPrefetch();
 
@@ -9341,7 +10157,12 @@ KK.app = (function () {
       state.saving = true;
       setDirty(state.dirty);
       try {
-        if ("customer" === state.route.view) {
+        showFormError("");
+        if ("penjahitEdit" === state.route.view) {
+          await savePenjahitForm();
+        } else if (["productionNew", "productionEdit"].includes(state.route.view)) {
+          await saveProductionDraft();
+        } else if ("customerEdit" === state.route.view) {
           await saveCustomer();
         } else if ("orderEdit" === state.route.view) {
           const wasNew = !state.order.id;
@@ -9349,10 +10170,13 @@ KK.app = (function () {
           // Read after the save, never before: a new order has no id until the
           // insert comes back, and saveOrder replaces state.order with the row.
           showToast(wasNew ? "Order created" : "Order saved");
-          leaveFormFor("#/order/" + state.order.id);
+          if (state.route.query.get("from") === "production" && state.production.draft) {
+            go("#/production/new?resume=1&order=" + state.order.id);
+          } else leaveFormFor("#/order/" + state.order.id);
         }
       } catch (err) {
         console.error(err);
+        showFormError(err.message || "Could not save. Your changes are still here; try again.");
         showToast(err.message || "Could not save");
       } finally {
         state.saving = false;
@@ -9371,6 +10195,10 @@ KK.app = (function () {
     // cases the picker is the whole entry point.
     elements.homeMoodboardBtn.addEventListener("click", () => openDocumentPicker("moodboard"));
     elements.homeAddOrderBtn.addEventListener("click", () => openDocumentPicker("neworder"));
+    elements.homeFittingBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      openDocumentPicker("fitting");
+    });
 
     if (elements.homeNavHome) {
       elements.homeNavHome.addEventListener("click", () => {
@@ -9436,7 +10264,10 @@ KK.app = (function () {
       if (btn.dataset.deleteCustomer) deleteCustomerFromLedger(btn.dataset.deleteCustomer);
       else if (btn.dataset.deleteOrder) deleteOrderFromCustomer(btn.dataset.deleteOrder);
     });
-    elements.customerSearch.addEventListener("input", renderCustomerList);
+    elements.customerSearch.addEventListener("input", () => {
+      if ("penjahit" === state.production.ledgerTab) renderPenjahitLedger();
+      else renderCustomerList();
+    });
 
     $$(".js-cfield").forEach((f) => {
       f.addEventListener("input", () => {
@@ -9530,6 +10361,10 @@ KK.app = (function () {
 
     elements.itemList.addEventListener("input", (e) => {
       const target = e.target;
+      /* Grouping as the digits land is what makes a seven-figure price legible
+         while it is being typed. reformatPriceField leaves anything it cannot
+         read alone, so a pasted "Rp 300" survives to be reported as an error
+         rather than being silently rewritten into a different number. */
       if (target.classList.contains("js-qty")) {
         target.value = U.digitsOnly(target.value).replace(/^0+(?=\d)/, "");
       } else if (target.classList.contains("js-price") || target.classList.contains("js-cost")) {
@@ -9609,9 +10444,7 @@ KK.app = (function () {
     });
 
     elements.calcRowList.addEventListener("input", (e) => {
-      if (e.target.classList.contains("js-camount")) {
-        U.reformatPriceField(e.target);
-      }
+      if (e.target.classList.contains("js-camount")) U.reformatPriceField(e.target);
       refreshCalcTotal();
     });
 
@@ -9751,6 +10584,9 @@ KK.app = (function () {
       e.preventDefault();
       if (!elements.gateSubmit.disabled) {
         elements.gateErr.hidden = true;
+        // An empty password is a question this page can answer itself, and does
+        // not need a round trip to be told no.
+        if (!validateFields(elements.gateForm)) return;
         elements.gatePassword.removeAttribute("aria-invalid");
         elements.gateSubmit.disabled = true;
         elements.gateSubmit.classList.add("is-busy");

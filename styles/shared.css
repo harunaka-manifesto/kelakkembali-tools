@@ -2082,6 +2082,22 @@ select.input {
 
 /* --------------------------- Fixed bottom bars --------------------------- */
 
+.form-error {
+  margin: 16px 20px;
+  padding: 12px 16px;
+  border: 1px solid var(--danger);
+  border-left-width: 4px;
+  background: var(--home-white);
+  color: var(--danger);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.form-error[hidden], .field-error[hidden], .menu__item[hidden] { display: none; }
+.field-error { display: block; margin-top: 6px; color: var(--danger); font-size: 14px; line-height: 1.45; }
+.input[aria-invalid="true"] { border-color: var(--danger); outline-color: var(--danger); }
+.optional { font-weight: 400; text-transform: none; color: var(--label); }
+
 .actionbar[hidden],
 .savebar[hidden] { display: none; }
 
@@ -2097,7 +2113,9 @@ select.input {
   right: 0;
   bottom: 0;
   transform: translateY(calc(-1 * var(--keyboard-offset)));
-  transition: transform var(--motion-keyboard) var(--ease-standard);
+  /* The visual viewport already animates with the keyboard. A second CSS
+     transition trails it and leaves the save bar visibly floating. */
+  transition: none;
   z-index: 20;
   background: rgba(228, 226, 221, 0.94);
   backdrop-filter: saturate(150%) blur(12px);
@@ -2520,7 +2538,11 @@ body:not(.has-savebar) .toast {
      than 272px on a 760px phone, which is three customers rather than one. */
   max-height: min(80svh, calc(100svh - var(--keyboard-offset, 0px) - 24px));
   transform: translateY(calc(-1 * var(--keyboard-offset, 0px)));
-  transition: transform var(--motion-keyboard) var(--ease-standard);
+  /* No transition. The visual viewport is already animated by the OS as the
+     keyboard rises, so --keyboard-offset arrives smoothed; a second CSS
+     transition on top of it only trails behind, which is what left this bar
+     visibly floating a beat above the keyboard. See .savebar in shared.css. */
+  transition: none;
   /* The home indicator is not there while the keyboard is, so its inset gives
      way as the keyboard rises rather than floating as dead space above it. */
   padding: 20px 24px max(24px, calc(24px + env(safe-area-inset-bottom, 0px) - var(--keyboard-offset, 0px)));

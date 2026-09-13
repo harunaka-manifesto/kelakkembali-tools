@@ -99,6 +99,37 @@ Backs `#/quotations` and `#/invoices`. `document_log` stores no customer name, n
 
 **The `total` on a row is the number that was actually sent.** Never recompute it from the order's current items — that is the whole reason the column exists.
 
+### `penjahit` — production partners
+`id` uuid pk · `name` **not null**, 1–200 characters after trimming · `phone` · `notes` · `archived_at` · `created_at`.
+
+Archiving is not deletion: an archived penjahit keeps every job and every rupiah of history and only stops receiving new work. Both RPCs check `archived_at is null` before accepting an assignment.
+
+### `production_jobs` — one penjahit's work on one order item
+`id` uuid pk (**client-generated**) · `penjahit_id` fk→penjahit **restrict** · `order_id` fk→orders **restrict** · `item_id` uuid · `item_name` · `description` (1–500 characters) · `quantity` int > 0 · `unit_price` bigint ≥ 0 · `assigned_date` default today in Asia/Jakarta · `due_date` · `notes` · `status` (`Assigned|In progress|Done|Cancelled`) · `cancellation_charge` bigint · `created_at` · `updated_at` · `create_request` jsonb.
+
+`item_id` points into `orders.items[].id`, which the `production_item_ids` trigger stamps on every insert and update and preserves through renaming and reordering. That trigger also refuses an update that would drop an item a job is linked to, so the item and the job cannot part company. Deleting a linked customer or order is blocked by the `restrict` foreign keys.
+
+One item may carry several jobs — sewing with one penjahit, embroidery with another — so the quantities across jobs are deliberately **not** treated as an inventory limit. Each job is capped at the source item's own quantity, nothing more.
+
+A cancelled job must state its final agreed charge, including zero: the check constraint makes `status = 'Cancelled'` and a non-null `cancellation_charge` one and the same condition. From then on the job's amount is that charge, not quantity × price.
+
+`create_request` is the payload the client sent. A retry with the same `id` compares against it: identical means the first save committed and the existing row is returned, different means the id was reused and the save is refused.
+
+### `production_payments` — money in both directions
+`id` uuid pk (**client-generated**) · `job_id` fk→production_jobs **restrict** · `kind` (`payment|refund`) · `amount` bigint ≥ 1 · `payment_date` · `notes` · `created_at` · `voided_at` · `void_reason` · `void_request_id` unique · `request` jsonb · `void_request` jsonb.
+
+Entries are never edited or deleted. A correction voids the original with a stated reason and records a replacement in the same transaction, so the history stays readable and the balance stays right. `record_production_payment` recomputes the job's net after every write and refuses to let refunds exceed payments.
+
+`authenticated` holds **select only** on both production tables; every write goes through a `security definer` RPC, so the validation above cannot be stepped around by a direct PostgREST call.
+
+### RPCs `save_production_jobs` · `update_production_job` · `record_production_payment`
+All `security definer`, all refuse an anonymous caller, all retry-safe on the client-generated `id`. `save_production_jobs` takes an array of 1–100 jobs, locks the source orders in id order so two simultaneous multi-customer saves cannot deadlock, and either writes every job or none. `update_production_job` refuses to move a job with payment history to another penjahit — cancel or settle it and assign a new one. See `tests/production-ledger.sql` for the executable version of all of this.
+
+### View `public.production_job_feed` (security_invoker)
+Row shape: the job's own columns plus `penjahit_name`, `customer_id`, `customer_name`, `order_title`, `amount` (the cancellation charge when cancelled, otherwise quantity × unit_price), `paid`, `refunded` (voided entries excluded), and `has_history`.
+
+Balance is `amount − paid + refunded`. A positive balance is **outstanding**, a negative one is **credit**, and the two are aggregated separately per penjahit — never netted into a single figure, because a credit on one job must not read as a smaller debt on another.
+
 ### View `public.fitting_log_feed` (security_invoker)
 Feed row shape: `id`, `order_id`, `customer_id`, `customer_name`, `order_title`, `order_label` (title → first item + "+N more" → `Empty order`), `stage_key` (`sizing|fitting-1|fitting-2|fitting-3|final-fitting`), `stage_label`, `status`, `created_at`, `log_date` (Asia/Jakarta date), `photo_count`, `preview_photos` (first 3), `search_text` (lowercased name + label + `FMDD Mon YYYY`).
 
@@ -110,6 +141,7 @@ Search and stage filtering both run against this view — never re-derive them c
 
 - Anon key is public and committed. Every table denies anonymous callers.
 - RLS policy everywhere else: `"signed-in full access"` for `authenticated`.
+- `production_jobs` and `production_payments` are the exception: `authenticated` is granted **select only**, and all writes go through the three `security definer` RPCs. Money is the one thing in this schema that a client cannot write directly.
 - One shared Supabase Auth user; the shared password is the only real credential and is never in the repo.
 - `google_credentials` is service-role only.
 
@@ -120,7 +152,7 @@ Append-only. To change the schema:
 2. Add that title to the navigation list at `schema.sql` lines 8–18.
 3. Never edit an applied block — the file is re-run whole after every pull.
 
-Existing migration titles (grep any of these to jump): `dashboard UX overhaul` · `document name + payment schemes` · `fitting schedule + Google` · `the real lifecycle` · `status stops being` · `schedule gets a second anchor` · `moodboard generator` · `fitting revisions log` · `atomic fitting photo batches` · `quotation and invoice feeds` · `fitting photo annotations` · `per-termin invoices`.
+Existing migration titles (grep any of these to jump): `dashboard UX overhaul` · `document name + payment schemes` · `fitting schedule + Google` · `the real lifecycle` · `status stops being` · `schedule gets a second anchor` · `moodboard generator` · `fitting revisions log` · `atomic fitting photo batches` · `quotation and invoice feeds` · `fitting photo annotations` · `per-termin invoices` · `penjahit production ledger`.
 
 ---
 
@@ -134,13 +166,15 @@ Everything below is on `window.KK.db`. All async unless noted.
 
 **Orders** — `listOrders(customerId)` 226 · `listAllOrders` 230 (carries `title` for the calendar) · `getOrder(id)` 234 · `createOrder` 238 (called only from `saveOrder`, on the `#/customer/:id/order/new/edit` route) · `updateOrder(id, record)` 242 · `deleteOrder(id)` 246
 
+**Production** — `productionAvailable()` 327 (the one probe; `42P01`/`PGRST205` answers `false` so the feature can ship before its migration) · `listPenjahit` 337 (TTL-cached) · `listProductionSources` 341 (every order with its items, for the item picker) · `savePenjahit(record)` 351 · `listProductionJobs({penjahitId?, orderId?, id?})` 356 · `listProductionPayments(jobId)` 371 · `saveProductionJobs(jobs)` 381 · `updateProductionJob(job)` 386 · `recordProductionPayment(change)` 391. The last three are `.rpc(` calls; every list pages past PostgREST's row cap in 500s, because a ledger that silently stops at 1000 rows is a wrong balance, not a short list.
+
 **Documents & history** — `logDocument(orderId, kind, total, termNumber?, termCount?)` 326 · `listDocumentLog(orderId)` 331 · `logOrderHistory(orderId, action, detail)` 340 · `listOrderHistory(orderId)` 344
 
 **Schedule** — `listOrderEvents(orderId)` 274 · `listAllOrderEvents` 284 (whole table, for the homepage strip and the schedules calendar) · `listAllFittingSessions` 342 (resolves a calendar tap target in one read) · **`replaceOrderEvents(orderId, newEvents, allowedStages)` 288** — rewrites the schedule while preserving `google_event_id` per stage; returns `{ removed, events }`
 
 **Fitting sessions** — `listFittingSessions(orderId)` 335 · `getFittingSession(id)` 346 · `getFittingSessionByStage(orderId, stage)` 350 · `createFittingSession` 359 · `updateFittingSession(id, record)` 363 · `deleteFittingSession(id)` 367
 
-**Fitting feed & photos** — **`listFittingLogs(options)` 386** (cursor paging, returns `{ rows, nextCursor }`) · `listFittingPhotos(orderId)` 463 · `listFittingPhotosBySession(sessionId)` 470 · `getFittingPhoto(id)` 477 · `createFittingPhoto` 481 · `updateFittingPhoto(id, record)` 485 (Drive ids, written by `archivePhoto`) · `deleteFittingPhoto(id)` 489 · **`saveFittingPhotoBatch(sessionId, photoUpdates, deleteIds, newPhotos)` 499** — the atomic RPC above; the only `.rpc(` call in the file
+**Fitting feed & photos** — **`listFittingLogs(options)` 386** (cursor paging, returns `{ rows, nextCursor }`) · `listFittingPhotos(orderId)` 463 · `listFittingPhotosBySession(sessionId)` 470 · `getFittingPhoto(id)` 477 · `createFittingPhoto` 481 · `updateFittingPhoto(id, record)` 485 (Drive ids, written by `archivePhoto`) · `deleteFittingPhoto(id)` 489 · **`saveFittingPhotoBatch(sessionId, photoUpdates, deleteIds, newPhotos)` 499** — the atomic RPC above
 
 `PROJECTION_FITTING_PHOTOS` carries `annotation`. `PROJECTION_FITTING_FEED` deliberately does not: feed previews are three ~100px thumbnails, where a mark would be a smudge, and the jsonb would cost every page load.
 

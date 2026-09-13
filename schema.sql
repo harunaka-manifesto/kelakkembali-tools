@@ -19,6 +19,7 @@
 --   "quotation and invoice feeds"      document_feed read model + paging index
 --   "fitting photo annotations"       fitting_photos.annotation + batch RPC v2
 --   "per-termin invoices"              invoice termin identity in document history
+--   "penjahit production ledger"      stable item IDs, jobs, payments and refunds
 
 create extension if not exists pgcrypto;
 
@@ -1221,6 +1222,7 @@ from resolved r;
 grant select on public.document_feed to authenticated;
 
 
+
 -- =========================================================================
 -- Migration — "fitting photo annotations"
 --
@@ -1516,3 +1518,249 @@ select
 from resolved r;
 
 grant select on public.document_feed to authenticated;
+
+-- ---------------------- "penjahit production ledger" ----------------------
+begin;
+
+create table if not exists public.penjahit (
+  id uuid primary key default gen_random_uuid(),
+  name text not null check (length(btrim(name)) between 1 and 200),
+  phone text,
+  notes text,
+  archived_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.production_jobs (
+  id uuid primary key,
+  penjahit_id uuid not null references public.penjahit(id) on delete restrict,
+  order_id uuid not null references public.orders(id) on delete restrict,
+  item_id uuid not null,
+  item_name text not null,
+  description text not null check (length(btrim(description)) between 1 and 500),
+  quantity integer not null check (quantity > 0),
+  unit_price bigint not null check (unit_price >= 0),
+  assigned_date date not null default (now() at time zone 'Asia/Jakarta')::date,
+  due_date date,
+  notes text,
+  status text not null default 'Assigned' check (status in ('Assigned', 'In progress', 'Done', 'Cancelled')),
+  cancellation_charge bigint,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  create_request jsonb not null,
+  check (quantity::numeric * unit_price <= 9007199254740991),
+  check (cancellation_charge between 0 and 9007199254740991),
+  check ((status = 'Cancelled') = (cancellation_charge is not null))
+);
+
+create table if not exists public.production_payments (
+  id uuid primary key,
+  job_id uuid not null references public.production_jobs(id) on delete restrict,
+  kind text not null check (kind in ('payment', 'refund')),
+  amount bigint not null check (amount between 1 and 9007199254740991),
+  payment_date date not null,
+  notes text,
+  created_at timestamptz not null default now(),
+  voided_at timestamptz,
+  void_reason text,
+  void_request_id uuid unique,
+  request jsonb not null,
+  void_request jsonb,
+  check ((voided_at is null and void_reason is null) or (voided_at is not null and length(btrim(void_reason)) > 0))
+);
+
+create index if not exists production_jobs_penjahit_idx on public.production_jobs(penjahit_id, created_at desc);
+create index if not exists production_jobs_item_idx on public.production_jobs(order_id, item_id);
+create index if not exists production_payments_job_idx on public.production_payments(job_id, created_at);
+
+alter table public.penjahit enable row level security;
+alter table public.production_jobs enable row level security;
+alter table public.production_payments enable row level security;
+drop policy if exists "signed-in full access" on public.penjahit;
+create policy "signed-in full access" on public.penjahit for all to authenticated using (true) with check (true);
+drop policy if exists "signed-in read" on public.production_jobs;
+create policy "signed-in read" on public.production_jobs for select to authenticated using (true);
+drop policy if exists "signed-in read" on public.production_payments;
+create policy "signed-in read" on public.production_payments for select to authenticated using (true);
+revoke all on public.penjahit, public.production_jobs, public.production_payments from anon, authenticated;
+grant select, insert, update on public.penjahit to authenticated;
+grant select on public.production_jobs, public.production_payments to authenticated;
+
+-- Only authenticated RPCs write financial records. Their definer privilege is
+-- deliberately limited to these operations; direct table writes are revoked.
+create or replace function public.production_item_ids()
+returns trigger language plpgsql security definer set search_path = '' as $$
+declare
+  item jsonb;
+  items jsonb := '[]'::jsonb;
+  ids text[] := '{}';
+begin
+  if jsonb_typeof(new.items) is distinct from 'array' then
+    raise exception 'Order items must be a list.';
+  end if;
+  for item in select value from jsonb_array_elements(new.items) loop
+    if jsonb_typeof(item) is distinct from 'object' then raise exception 'Invalid order item.'; end if;
+    if coalesce(item->>'id', '') = '' then item := item || jsonb_build_object('id', gen_random_uuid()); end if;
+    perform (item->>'id')::uuid;
+    if item->>'id' = any(ids) then raise exception 'Each order item needs its own ID.'; end if;
+    ids := array_append(ids, item->>'id');
+    items := items || jsonb_build_array(item);
+  end loop;
+  if tg_op = 'UPDATE' and exists (
+    select 1 from public.production_jobs j where j.order_id = new.id and not (j.item_id::text = any(ids))
+  ) then
+    raise exception 'This item has penjahit work linked to it. Keep the item to preserve its production and payment history.';
+  end if;
+  new.items := items;
+  return new;
+end $$;
+drop trigger if exists production_item_ids on public.orders;
+create trigger production_item_ids before insert or update of items on public.orders
+for each row execute function public.production_item_ids();
+update public.orders set items = items where exists (
+  select 1 from jsonb_array_elements(items) item where coalesce(item->>'id', '') = ''
+);
+
+create or replace function public.save_production_jobs(p_jobs jsonb)
+returns setof public.production_jobs language plpgsql security definer set search_path = '' as $$
+declare
+  entry jsonb;
+  source_item jsonb;
+  existing public.production_jobs;
+begin
+  if auth.uid() is null then raise exception 'Sign in to save production work.'; end if;
+  if jsonb_typeof(p_jobs) is distinct from 'array' or jsonb_array_length(p_jobs) not between 1 and 100 then
+    raise exception 'Select between 1 and 100 jobs.';
+  end if;
+  if (select count(distinct value->>'id') from jsonb_array_elements(p_jobs)) <> jsonb_array_length(p_jobs) then
+    raise exception 'Each job needs a unique ID.';
+  end if;
+  -- Stable lock order also makes two simultaneous multi-customer saves safe.
+  perform 1 from public.orders where id in (select (value->>'order_id')::uuid from jsonb_array_elements(p_jobs)) order by id for update;
+  for entry in select value from jsonb_array_elements(p_jobs) loop
+    perform pg_advisory_xact_lock(hashtextextended(entry->>'id', 0));
+    select * into existing from public.production_jobs where id = (entry->>'id')::uuid;
+    if found then
+      if existing.create_request <> entry then raise exception 'This save was already used. Reload before changing it.'; end if;
+      return next existing;
+      continue;
+    end if;
+    if coalesce(entry->>'quantity', '') !~ '^[0-9]+$' or coalesce(entry->>'unit_price', '') !~ '^[0-9]+$' then
+      raise exception 'Quantity and price must be whole numbers.';
+    end if;
+    perform 1 from public.penjahit where id = (entry->>'penjahit_id')::uuid and archived_at is null for share;
+    if not found then raise exception 'Choose an active penjahit.'; end if;
+    select item into source_item from public.orders o, jsonb_array_elements(o.items) item
+      where o.id = (entry->>'order_id')::uuid and item->>'id' = entry->>'item_id';
+    if source_item is null or coalesce(btrim(source_item->>'name'), '') = '' then raise exception 'Choose a saved, named order item.'; end if;
+    if (entry->>'quantity')::integer > coalesce((source_item->>'qty')::numeric, 0) then
+      raise exception 'Assigned quantity cannot exceed the source item quantity.';
+    end if;
+    insert into public.production_jobs(id, penjahit_id, order_id, item_id, item_name, description, quantity, unit_price, assigned_date, due_date, notes, create_request)
+      values ((entry->>'id')::uuid, (entry->>'penjahit_id')::uuid, (entry->>'order_id')::uuid, (entry->>'item_id')::uuid,
+        source_item->>'name', btrim(entry->>'description'), (entry->>'quantity')::integer, (entry->>'unit_price')::bigint,
+        (entry->>'assigned_date')::date, nullif(entry->>'due_date', '')::date, nullif(entry->>'notes', ''), entry)
+      returning * into existing;
+    return next existing;
+  end loop;
+end $$;
+
+create or replace function public.update_production_job(p_job jsonb)
+returns public.production_jobs language plpgsql security definer set search_path = '' as $$
+declare original public.production_jobs; result public.production_jobs; source_item jsonb;
+begin
+  if auth.uid() is null then raise exception 'Sign in to edit production work.'; end if;
+  select * into original from public.production_jobs where id = (p_job->>'id')::uuid for update;
+  if not found then raise exception 'This production job no longer exists.'; end if;
+  if original.penjahit_id <> (p_job->>'penjahit_id')::uuid and exists (select 1 from public.production_payments where job_id = original.id) then
+    raise exception 'This job has payment history. Settle or cancel it and create a job for the other penjahit.';
+  end if;
+  if original.penjahit_id <> (p_job->>'penjahit_id')::uuid then
+    perform 1 from public.penjahit where id = (p_job->>'penjahit_id')::uuid and archived_at is null for share;
+    if not found then raise exception 'Choose an active penjahit.'; end if;
+  end if;
+  if coalesce(p_job->>'quantity', '') !~ '^[0-9]+$' or coalesce(p_job->>'unit_price', '') !~ '^[0-9]+$'
+    or (p_job->>'status' = 'Cancelled' and coalesce(p_job->>'cancellation_charge', '') !~ '^[0-9]+$') then
+    raise exception 'Enter whole quantities and rupiah amounts, including the final charge for a cancelled job.';
+  end if;
+  select item into source_item from public.orders o, jsonb_array_elements(o.items) item
+    where o.id = original.order_id and item->>'id' = original.item_id::text;
+  if (p_job->>'quantity')::integer > greatest(original.quantity, coalesce((source_item->>'qty')::numeric, 0)) then
+    raise exception 'Assigned quantity cannot exceed the source item quantity.';
+  end if;
+  update public.production_jobs set penjahit_id = (p_job->>'penjahit_id')::uuid,
+    description = btrim(p_job->>'description'), quantity = (p_job->>'quantity')::integer,
+    unit_price = (p_job->>'unit_price')::bigint, status = p_job->>'status',
+    assigned_date = (p_job->>'assigned_date')::date, due_date = nullif(p_job->>'due_date', '')::date,
+    notes = nullif(p_job->>'notes', ''),
+    cancellation_charge = case when p_job->>'status' = 'Cancelled' then (p_job->>'cancellation_charge')::bigint else null end,
+    updated_at = now() where id = original.id returning * into result;
+  return result;
+end $$;
+
+create or replace function public.record_production_payment(p_change jsonb)
+returns setof public.production_payments language plpgsql security definer set search_path = '' as $$
+declare
+  job uuid := (p_change->>'job_id')::uuid;
+  request_id uuid := (p_change->>'id')::uuid;
+  void_id uuid := nullif(p_change->>'void_entry_id', '')::uuid;
+  previous jsonb;
+  net numeric;
+begin
+  if auth.uid() is null then raise exception 'Sign in to record payments.'; end if;
+  if request_id is null then raise exception 'A payment needs a save identifier.'; end if;
+  perform 1 from public.production_jobs where id = job for update;
+  if not found then raise exception 'This production job no longer exists.'; end if;
+  perform pg_advisory_xact_lock(hashtextextended(request_id::text, 0));
+  select request into previous from public.production_payments where id = request_id;
+  if previous is null then select void_request into previous from public.production_payments where void_request_id = request_id; end if;
+  if previous is not null then
+    if previous <> p_change then raise exception 'This save was already used. Reload before changing it.'; end if;
+    return query select * from public.production_payments where job_id = job order by created_at, id;
+    return;
+  end if;
+  if void_id is not null then
+    if coalesce(btrim(p_change->>'void_reason'), '') = '' then raise exception 'Explain why this entry is being corrected.'; end if;
+    update public.production_payments set voided_at = now(), void_reason = btrim(p_change->>'void_reason'),
+      void_request_id = request_id, void_request = p_change where id = void_id and job_id = job and voided_at is null;
+    if not found then raise exception 'This entry was already corrected or belongs to another job.'; end if;
+  end if;
+  if p_change->>'kind' in ('payment', 'refund') then
+    if coalesce(p_change->>'amount', '') !~ '^[0-9]+$' then raise exception 'Enter a positive whole rupiah amount.'; end if;
+    insert into public.production_payments(id, job_id, kind, amount, payment_date, notes, request)
+      values (request_id, job, p_change->>'kind', (p_change->>'amount')::bigint,
+        (p_change->>'payment_date')::date, nullif(p_change->>'notes', ''), p_change);
+  elsif void_id is null or p_change->>'kind' is distinct from 'void' then
+    raise exception 'Choose payment, refund, or a correction.';
+  end if;
+  select coalesce(sum(case when kind = 'payment' then amount::numeric else -amount::numeric end), 0)
+    into net from public.production_payments where job_id = job and voided_at is null;
+  if net < 0 then raise exception 'Refunds cannot exceed this job''s payments. Correct the refund first if needed.'; end if;
+  if net > 9007199254740991 then raise exception 'The payment total is too large.'; end if;
+  return query select * from public.production_payments where job_id = job order by created_at, id;
+end $$;
+
+revoke all on function public.production_item_ids() from public, anon, authenticated;
+revoke all on function public.save_production_jobs(jsonb), public.update_production_job(jsonb), public.record_production_payment(jsonb) from public, anon;
+grant execute on function public.save_production_jobs(jsonb), public.update_production_job(jsonb), public.record_production_payment(jsonb) to authenticated;
+
+create or replace view public.production_job_feed with (security_invoker = true) as
+select j.id, j.penjahit_id, j.order_id, j.item_id, j.item_name, j.description, j.quantity, j.unit_price,
+  j.assigned_date, j.due_date, j.notes, j.status, j.cancellation_charge, j.created_at, j.updated_at,
+  p.name as penjahit_name, c.id as customer_id, c.name as customer_name,
+  coalesce(nullif(o.title, ''), nullif(o.items->0->>'name', ''), 'Order') as order_title,
+  case when j.status = 'Cancelled' then j.cancellation_charge else j.quantity::bigint * j.unit_price end as amount,
+  coalesce(pay.paid, 0) as paid, coalesce(pay.refunded, 0) as refunded,
+  coalesce(pay.history_count, 0) > 0 as has_history
+from public.production_jobs j
+join public.penjahit p on p.id = j.penjahit_id
+join public.orders o on o.id = j.order_id
+join public.customers c on c.id = o.customer_id
+left join lateral (
+  select sum(amount) filter (where kind = 'payment' and voided_at is null) as paid,
+    sum(amount) filter (where kind = 'refund' and voided_at is null) as refunded,
+    count(*) as history_count from public.production_payments where job_id = j.id
+) pay on true;
+grant select on public.production_job_feed to authenticated;
+notify pgrst, 'reload schema';
+commit;

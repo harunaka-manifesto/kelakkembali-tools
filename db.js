@@ -43,7 +43,8 @@ KK.db = (function () {
 
   function unwrap(res) {
     if (res.error) {
-      const err = new Error(res.error.message || 'Request failed');
+      const linkedProduction = ['23001', '23503'].includes(res.error.code) && /production_jobs/.test(res.error.message || '');
+      const err = new Error(linkedProduction ? 'This record has penjahit work linked to it. Keep it to preserve the production and payment history.' : res.error.message || 'Request failed');
       err.code = res.error.code || '';
       throw err;
     }
@@ -322,6 +323,75 @@ KK.db = (function () {
     },
 
     /* --------------------------- Document & History ------------------------ */
+
+    productionAvailable: async function () {
+      try {
+        unwrap(await init().from('penjahit').select('id').limit(1));
+        return true;
+      } catch (err) {
+        if (['42P01', 'PGRST205'].includes(err.code)) return false;
+        throw err;
+      }
+    },
+
+    listPenjahit: function () {
+      return cached('penjahit:all', async () => unwrap(await init().from('penjahit').select('*').order('name')));
+    },
+
+    listProductionSources: async function () {
+      const rows = [];
+      for (let offset = 0; ; offset += 500) {
+        const page = unwrap(await init().from('orders').select('id,customer_id,title,items,customers(id,name)')
+          .order('created_at', { ascending: false }).order('id').range(offset, offset + 499));
+        rows.push(...page);
+        if (page.length < 500) return rows;
+      }
+    },
+
+    savePenjahit: async function (record) {
+      invalidate();
+      return unwrap(await init().from('penjahit').upsert(record).select('*').single());
+    },
+
+    listProductionJobs: async function (options) {
+      const filter = options || {};
+      let query = init().from('production_job_feed').select('*').order('created_at', { ascending: false }).order('id');
+      if (filter.penjahitId) query = query.eq('penjahit_id', filter.penjahitId);
+      if (filter.orderId) query = query.eq('order_id', filter.orderId);
+      if (filter.id) query = query.eq('id', filter.id);
+      // The studio's ledger must include balances beyond PostgREST's row cap.
+      const rows = [];
+      for (let offset = 0; ; offset += 500) {
+        const page = unwrap(await query.range(offset, offset + 499));
+        rows.push(...page);
+        if (page.length < 500) return rows;
+      }
+    },
+
+    listProductionPayments: async function (jobId) {
+      const rows = [];
+      for (let offset = 0; ; offset += 500) {
+        const page = unwrap(await init().from('production_payments').select('id,job_id,kind,amount,payment_date,notes,created_at,voided_at,void_reason')
+          .eq('job_id', jobId).order('created_at').order('id').range(offset, offset + 499));
+        rows.push(...page);
+        if (page.length < 500) return rows;
+      }
+    },
+
+    saveProductionJobs: async function (jobs) {
+      invalidate();
+      return unwrap(await init().rpc('save_production_jobs', { p_jobs: jobs }));
+    },
+
+    updateProductionJob: async function (job) {
+      invalidate();
+      return unwrap(await init().rpc('update_production_job', { p_job: job }));
+    },
+
+    recordProductionPayment: async function (change) {
+      invalidate();
+      return unwrap(await init().rpc('record_production_payment', { p_change: change }));
+    },
 
     logDocument: async function (orderId, kind, total, termNumber, termCount) {
       invalidate();
