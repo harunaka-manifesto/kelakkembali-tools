@@ -192,20 +192,24 @@
       <div class="home-state home-state--ready" id="homeReady" hidden>
         <section class="home-hero" id="homeHero" aria-label="Today"><div class="home-hero__content"><h1 class="home-hero__greeting" id="heroGreeting"></h1><p class="home-hero__deadline" id="heroDeadline"></p></div></section>
         <section class="home-actions" id="homeActions" aria-label="Shortcuts">
-          <!-- Production sits above the six, full width, because it is the only
-               shortcut that starts a flow spanning several customers at once.
-               Same face, rail, and press as a tile — a wider one, not a
-               different thing. Stood down until the ledger tables exist. -->
-          <a class="home-action home-action--production" href="#/production/new" data-production-entry hidden><span class="home-action__face"><img src="assets/home-add-icon.svg" alt="">Assign to penjahit</span><span class="home-action__rail"></span></a>
+          <!-- Production sits above the six as a wide row, not a seventh tile.
+               It is the only shortcut that starts a flow spanning several
+               customers at once, and a row says "this leads somewhere" where a
+               tile says "this is a category". Stood down until the tables exist.
+
+               Every shortcut carries its own icon. Three of them used to share
+               the same plus, which made the three most-used tiles the three
+               hardest to tell apart at a glance. -->
+          <a class="home-action home-action--production" href="#/production/new" data-production-entry hidden><span class="home-action__face"><img src="assets/home-penjahit-icon.svg" alt="">Assign to penjahit<img class="home-action__go" src="assets/home-chevron-right-icon.svg" alt=""></span><span class="home-action__rail"></span></a>
           <!-- Customer and Order lead the six: both make a record rather than
                opening a section, and a customer is what every other shortcut
                eventually asks for. Adding a customer is still at the foot of
                the ledger too — this is a second door to it, not the only one. -->
-          <a class="home-action home-action--customer" href="#/customer/new/edit"><span class="home-action__face"><img src="assets/home-add-icon.svg" alt="">Customer</span><span class="home-action__rail"></span></a>
+          <a class="home-action home-action--customer" href="#/customer/new/edit"><span class="home-action__face"><img src="assets/home-customer-icon.svg" alt="">Customer</span><span class="home-action__rail"></span></a>
           <!-- Neutral on purpose: it makes a record rather than opening one of
                the coloured sections. A button, because which customer's order
                it is has to be asked first. -->
-          <button type="button" class="home-action home-action--add" id="homeAddOrderBtn"><span class="home-action__face"><img src="assets/home-add-icon.svg" alt="">Order</span><span class="home-action__rail"></span></button>
+          <button type="button" class="home-action home-action--add" id="homeAddOrderBtn"><span class="home-action__face"><img src="assets/home-order-icon.svg" alt="">Order</span><span class="home-action__rail"></span></button>
           <!-- ?new=1 rather than opening the picker from here: the route is what
                sets which kind the picker is for, so going through it means the
                sheet cannot inherit the last kind visited. Cancelling reveals the
@@ -224,9 +228,13 @@
           <a class="home-action home-action--fitting" id="homeFittingBtn" href="#/fittings" hidden><span class="home-action__face"><img src="assets/home-fitting-icon.svg" alt="">Fitting</span><span class="home-action__rail"></span></a>
         </section>
         <button type="button" class="home-alert" id="enquiriesCard" aria-disabled="true" hidden><span class="home-alert__face"><img class="home-alert__icon" src="assets/home-alert-icon.svg" alt=""><span id="enquiriesCount"></span><img class="home-alert__chevron" src="assets/home-chevron-icon.svg" alt=""></span><span class="home-alert__rail"></span></button>
+        <!-- Real links, so they can be opened, shared and restored from a hash.
+             The click is intercepted all the same: switching tabs swaps one
+             list for another and must not cost a route change, a refetch, and a
+             skeleton. See bindProductionEvents. -->
         <nav class="production-tabs" id="homeLedgerTabs" aria-label="Browse records" data-production-entry hidden>
-          <a href="#/customers" data-ledger-tab="customers" aria-current="page">Customers</a>
-          <a href="#/customers?tab=penjahit" data-ledger-tab="penjahit">Penjahit</a>
+          <a href="#/customers" data-ledger-tab="customers" aria-current="page">Customers<span class="production-tabs__count" id="customersTabCount"></span></a>
+          <a href="#/customers?tab=penjahit" data-ledger-tab="penjahit">Penjahit<span class="production-tabs__count" id="penjahitTabCount"></span></a>
         </nav>
         <!-- One search rail serves both ledger tabs. A second field of its own
              would have been a form control sitting on a page that has none, and
@@ -883,19 +891,56 @@
     </div>
   </section>
 
+  <!-- One question per screen. This was a single page holding a penjahit
+       select, a scrolling list of every item in the studio, and a stack of full
+       editors — three unrelated decisions competing for the same scroll. Split
+       into steps, each screen asks one thing and the bar says what answering it
+       leads to. Editing one existing job skips straight to step 3, which is the
+       only step that applies to it. -->
   <section class="view production" id="viewProductionEdit" hidden>
-    <div class="production-heading"><p class="production-kicker">Production work</p><h1 id="productionEditTitle">Assign to penjahit</h1><p>Fields marked * are required. Prices are per piece.</p></div>
-    <div class="production-fields">
-      <label class="field"><span class="field__label">Penjahit *</span><select class="input" id="productionTailor" required aria-required="true"></select></label>
-      <a class="btn btn--outline btn--block" id="productionAddTailor" href="#/penjahit/new/edit?from=production">+ Add penjahit</a>
-    </div>
-    <section id="productionSource" aria-labelledby="productionSourceTitle">
-      <div class="production-heading"><h2 id="productionSourceTitle">Choose customer items</h2><p>Add items from any saved order. Different services can use the same item.</p></div>
+    <nav class="pstep" id="productionStepper" aria-label="Progress">
+      <ol>
+        <li data-step-dot="1"><span class="pstep__num">1</span><span class="pstep__label">Penjahit</span></li>
+        <li data-step-dot="2"><span class="pstep__num">2</span><span class="pstep__label">Items</span></li>
+        <li data-step-dot="3"><span class="pstep__num">3</span><span class="pstep__label">Work</span></li>
+      </ol>
+    </nav>
+
+    <!-- Step 1 — who -->
+    <section class="production-step" data-step="1" hidden aria-labelledby="productionStep1Title">
+      <div class="production-heading"><p class="production-kicker">Step 1 of 3</p><h1 id="productionStep1Title">Who is doing the work?</h1><p>Pick the penjahit this batch of work is going to. Payments are tracked against them.</p></div>
+      <label class="field production-search"><span class="field__label">Search penjahit</span><input class="input" id="productionTailorSearch" type="search" placeholder="Name or phone" autocomplete="off"></label>
+      <div id="productionTailorList" role="radiogroup" aria-labelledby="productionStep1Title"></div>
+      <div class="production-actions"><a class="btn btn--outline btn--block" id="productionAddTailor" href="#/penjahit/new/edit?from=production">+ Add a penjahit</a></div>
+    </section>
+
+    <!-- Step 2 — what -->
+    <section class="production-step" data-step="2" hidden aria-labelledby="productionStep2Title">
+      <div class="production-heading"><p class="production-kicker">Step 2 of 3</p><h1 id="productionStep2Title">What are they making?</h1><p id="productionStep2Sub">Tap the items to send. The same item can go to more than one penjahit for different work.</p></div>
       <label class="field production-search"><span class="field__label">Search customer, order, or item</span><input class="input" id="productionSearch" type="search" autocomplete="off"></label>
       <div id="productionSourceList" class="production-source-list"></div>
       <div class="production-actions"><a class="btn btn--outline" id="productionAddCustomer" href="#/customer/new/edit?from=production">+ New customer</a><button type="button" class="btn btn--outline" id="productionAddOrder">+ New order</button></div>
     </section>
-    <section aria-labelledby="productionSelectedTitle"><div class="production-heading"><h2 id="productionSelectedTitle">Selected work</h2><p id="productionDraftSummary" aria-live="polite">Choose an item to start.</p></div><div id="productionDraftRows"></div></section>
+
+    <!-- Step 3 — how much -->
+    <section class="production-step" data-step="3" hidden aria-labelledby="productionStep3Title">
+      <div class="production-heading"><p class="production-kicker" id="productionStep3Kicker">Step 3 of 3</p><h1 id="productionStep3Title">What is the work, and what does it cost?</h1><p>Prices are per piece. Fields marked * are required.</p></div>
+      <!-- Most batches are one job description at one price across every piece.
+           Typing it once and letting each row override it is the difference
+           between one form and eight. -->
+      <div class="production-fields production-shared" id="productionShared">
+        <h2>Same for every item</h2>
+        <label class="field"><span class="field__label">Work description *</span><input class="input" id="psDescription" maxlength="500" placeholder="e.g. Jahit gaun + finishing"></label>
+        <div class="production-pair">
+          <label class="field"><span class="field__label">Price per piece *</span><input class="input" id="psPrice" inputmode="numeric"></label>
+          <label class="field"><span class="field__label">Deadline <span class="optional">Optional</span></span><input class="input" id="psDue" type="date"></label>
+        </div>
+        <p class="field__hint">Fills every item below. Open an item to give it its own description, price, or deadline.</p>
+      </div>
+      <div id="productionDraftRows"></div>
+      <dl class="production-totals" id="productionDraftTotals"></dl>
+    </section>
+
     <p class="production-note" id="productionRetryNote" hidden>A save could not be confirmed. Retry the same entries before making further changes.</p>
   </section>
 
@@ -1666,6 +1711,20 @@
 
 <!-- Editing views only. Save is the primary action, so it sits in the thumb
      zone rather than in the top-right corner of the app bar. -->
+<!-- Wears .savebar so it inherits the fixed-bar contract wholesale, including
+     riding --keyboard-offset. Two controls, because a wizard step always has a
+     way forward and a way back, and the back has to be as reachable as the
+     forward is. -->
+<div class="savebar production-bar" id="productionBar" hidden>
+  <div class="savebar__inner">
+    <button type="button" class="btn btn--outline" id="productionBack">Back</button>
+    <button type="button" class="btn btn--primary" id="productionNext">
+      <span class="btn__label">Continue</span>
+      <span class="btn__sub" id="productionNextSub"></span>
+    </button>
+  </div>
+</div>
+
 <div class="savebar" id="savebar" hidden>
   <div class="savebar__inner">
     <button type="button" class="btn btn--primary" id="saveBtn">

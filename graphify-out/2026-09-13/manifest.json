@@ -55,8 +55,8 @@
     "semantic_hash": ""
   },
   "app.js": {
-    "mtime": 1789043761.9725895,
-    "ast_hash": "50c04b379309f1ad73fc75e129f2f1e0",
+    "mtime": 1789316846.466645,
+    "ast_hash": "dad832e21c6f270aa26be01d05599d89",
     "semantic_hash": ""
   },
   "calendar.js": {
@@ -70,8 +70,8 @@
     "semantic_hash": ""
   },
   "db.js": {
-    "mtime": 1789043565.6890337,
-    "ast_hash": "88244f573ed8f8997f197aa2bfcaad39",
+    "mtime": 1789314015.468366,
+    "ast_hash": "fa12215ac046f2c9bbd0631c8612d514",
     "semantic_hash": ""
   },
   "docs.js": {
@@ -95,8 +95,8 @@
     "semantic_hash": ""
   },
   "schema.sql": {
-    "mtime": 1789043932.8697975,
-    "ast_hash": "db4c82b290df876fc83f73d8316ff33f",
+    "mtime": 1789313187.1388738,
+    "ast_hash": "05212f44d170a9001c00ca8bb05f82a2",
     "semantic_hash": ""
   },
   "serve.ps1": {
@@ -130,13 +130,13 @@
     "semantic_hash": ""
   },
   "tests/pure-modules.test.cjs": {
-    "mtime": 1788483344.9040742,
-    "ast_hash": "2431150a4c059b82fdb8b6dd13a266fe",
+    "mtime": 1789316950.765301,
+    "ast_hash": "0370d6b2f55cd401990a0992910db92d",
     "semantic_hash": ""
   },
   "util.js": {
-    "mtime": 1788366619.8162518,
-    "ast_hash": "2c8dc737eecefb8f9bc129834e2f8f10",
+    "mtime": 1789313884.470994,
+    "ast_hash": "8910d465ffbd9250381aad3acad62e76",
     "semantic_hash": ""
   },
   "vercel.json": {
@@ -270,8 +270,8 @@
     "semantic_hash": ""
   },
   "docs/DATABASE.md": {
-    "mtime": 1789043736.494265,
-    "ast_hash": "785d4c5068a028f5774487e69342d3ec",
+    "mtime": 1789316775.0818985,
+    "ast_hash": "0959e706b98e0bf76d644a25b5cd4353",
     "semantic_hash": ""
   },
   "docs/DESIGN-SYSTEM.md": {
@@ -280,18 +280,18 @@
     "semantic_hash": ""
   },
   "docs/FEATURES.md": {
-    "mtime": 1788483344.900492,
-    "ast_hash": "109e82d1c920bba4ddcf60d218899949",
+    "mtime": 1789316827.5723345,
+    "ast_hash": "c409ae2e80beee652cf93c0bf5e9d6e6",
     "semantic_hash": ""
   },
   "docs/MAP-app.md": {
-    "mtime": 1789044041.309764,
-    "ast_hash": "432712449573bb42c94ab85a210cd09f",
+    "mtime": 1789316711.1369488,
+    "ast_hash": "1672c8ab9496751b6af1ddc4992c1a0d",
     "semantic_hash": ""
   },
   "docs/MAP-html-css.md": {
-    "mtime": 1788483344.9011116,
-    "ast_hash": "78a2d5f78aeccf9918bec0156e079a08",
+    "mtime": 1789316732.065216,
+    "ast_hash": "a061269177c8a6ad5a3cb8d9b8b331a1",
     "semantic_hash": ""
   },
   "docs/MODULES.md": {
@@ -305,13 +305,13 @@
     "semantic_hash": ""
   },
   "docs/STYLEGUIDE.md": {
-    "mtime": 1785895878.9540725,
-    "ast_hash": "c4039779792880be0f577c462a1cd645",
+    "mtime": 1789316891.3037212,
+    "ast_hash": "b0b8776d0487dfd27ec9527f3ad61223",
     "semantic_hash": ""
   },
   "index.html": {
-    "mtime": 1788483344.9023561,
-    "ast_hash": "16918155435ef6849fe2f282dec446f6",
+    "mtime": 1789316863.7563884,
+    "ast_hash": "528b6bdc69c03c916df7ab09ae30ba22",
     "semantic_hash": ""
   },
   "plan-with-me-to-inherited-cake.md": {
@@ -562,6 +562,11 @@
   "assets/home-add-icon.svg": {
     "mtime": 1788342139.090187,
     "ast_hash": "b988f6efc81bee445d67f62e839ffdb7",
+    "semantic_hash": ""
+  },
+  "tests/production-ledger.sql": {
+    "mtime": 1789314015.460758,
+    "ast_hash": "2152277b5df240ea498a4b7dc252d791",
     "semantic_hash": ""
   }
 }

@@ -55,8 +55,8 @@
     "semantic_hash": ""
   },
   "app.js": {
-    "mtime": 1789316846.466645,
-    "ast_hash": "dad832e21c6f270aa26be01d05599d89",
+    "mtime": 1789318432.4893477,
+    "ast_hash": "aabf8afb7dac40f84dab4fd9062f3ef0",
     "semantic_hash": ""
   },
   "calendar.js": {
@@ -110,7 +110,7 @@
     "semantic_hash": ""
   },
   "supabase/.temp/linked-project.json": {
-    "mtime": 1785152704.081419,
+    "mtime": 1789317378.2513418,
     "ast_hash": "f5e8761cf09df53ed3b1b51dd281f833",
     "semantic_hash": ""
   },
@@ -130,8 +130,8 @@
     "semantic_hash": ""
   },
   "tests/pure-modules.test.cjs": {
-    "mtime": 1789316950.765301,
-    "ast_hash": "0370d6b2f55cd401990a0992910db92d",
+    "mtime": 1789318478.3186724,
+    "ast_hash": "0a9208d8e68c1358d5db88a6e7a212e4",
     "semantic_hash": ""
   },
   "util.js": {
@@ -270,8 +270,8 @@
     "semantic_hash": ""
   },
   "docs/DATABASE.md": {
-    "mtime": 1789316775.0818985,
-    "ast_hash": "0959e706b98e0bf76d644a25b5cd4353",
+    "mtime": 1789318557.3714223,
+    "ast_hash": "d5b80c48c79a45a14263768a9b1369e6",
     "semantic_hash": ""
   },
   "docs/DESIGN-SYSTEM.md": {
@@ -280,18 +280,18 @@
     "semantic_hash": ""
   },
   "docs/FEATURES.md": {
-    "mtime": 1789316827.5723345,
-    "ast_hash": "c409ae2e80beee652cf93c0bf5e9d6e6",
+    "mtime": 1789318551.1941411,
+    "ast_hash": "199d64c21e95fd5502feb81fb7c67ce9",
     "semantic_hash": ""
   },
   "docs/MAP-app.md": {
-    "mtime": 1789316711.1369488,
-    "ast_hash": "1672c8ab9496751b6af1ddc4992c1a0d",
+    "mtime": 1789318497.376123,
+    "ast_hash": "5a88cde2f917ccefcf8d46bb3502ec5f",
     "semantic_hash": ""
   },
   "docs/MAP-html-css.md": {
-    "mtime": 1789316732.065216,
-    "ast_hash": "a061269177c8a6ad5a3cb8d9b8b331a1",
+    "mtime": 1789318513.3992195,
+    "ast_hash": "43af4c33ed302d131811f5970c0407a2",
     "semantic_hash": ""
   },
   "docs/MODULES.md": {
@@ -310,8 +310,8 @@
     "semantic_hash": ""
   },
   "index.html": {
-    "mtime": 1789316863.7563884,
-    "ast_hash": "528b6bdc69c03c916df7ab09ae30ba22",
+    "mtime": 1789318188.8668957,
+    "ast_hash": "4833c7d8ed2c9b64a09b96d5cf4e8c6f",
     "semantic_hash": ""
   },
   "plan-with-me-to-inherited-cake.md": {
@@ -567,6 +567,26 @@
   "tests/production-ledger.sql": {
     "mtime": 1789314015.460758,
     "ast_hash": "2152277b5df240ea498a4b7dc252d791",
+    "semantic_hash": ""
+  },
+  "assets/home-chevron-right-icon.svg": {
+    "mtime": 1789318024.6695313,
+    "ast_hash": "b61254a337438fe972fe05d7f1376d48",
+    "semantic_hash": ""
+  },
+  "assets/home-customer-icon.svg": {
+    "mtime": 1789317619.0318396,
+    "ast_hash": "71a037ed8ff4858ecd1cdb72d322eb83",
+    "semantic_hash": ""
+  },
+  "assets/home-order-icon.svg": {
+    "mtime": 1789317619.0376418,
+    "ast_hash": "8bfd669f0552a237cf7c592125fe2ece",
+    "semantic_hash": ""
+  },
+  "assets/home-penjahit-icon.svg": {
+    "mtime": 1789317619.0449035,
+    "ast_hash": "4345184e066e0af61e7572e13957a20a",
     "semantic_hash": ""
   }
 }

@@ -871,6 +871,37 @@ test('every fixed bottom bar follows the keyboard', () => {
   assert.deepEqual(offenders, [], 'these fixed bottom bars ignore --keyboard-offset');
 });
 
+/* Three of the seven shortcuts used to share assets/home-add-icon.svg, which
+   made Customer, Order and Assign to penjahit — the three most-used of them —
+   the three hardest to tell apart at a glance. An icon that is not unique is
+   not an icon, it is decoration. */
+test('every homepage shortcut is told apart by its own icon', () => {
+  const html = readShipped('index.html');
+  const section = html.slice(html.indexOf('id="homeActions"'), html.indexOf('id="enquiriesCard"'));
+  const tiles = section.match(/<(?:a|button)[^>]*class="home-action[\s\S]*?<\/(?:a|button)>/g) || [];
+  assert.equal(tiles.length, 7, 'expected six tiles plus the assignment row');
+  const icons = tiles.map((tile) => {
+    const src = /<img(?![^>]*home-action__go)[^>]*src="([^"]+)"/.exec(tile);
+    assert.ok(src, 'a shortcut with no icon: ' + tile.slice(0, 80));
+    return src[1];
+  });
+  assert.equal(new Set(icons).size, icons.length, 'two shortcuts share an icon: ' + icons.join(', '));
+});
+
+/* Switching between the Customers and Penjahit ledgers swaps one list for
+   another that is already in memory. Routing to do it cost a full route change,
+   four refetched queries and the homepage skeleton — so the hash still moves,
+   but through replaceState, which fires no hashchange and reaches no router. */
+test('switching ledger tabs never goes through the router', () => {
+  const app = readShipped('app.js');
+  const fn = app.slice(app.indexOf('function switchLedgerTab('));
+  const body = fn.slice(0, fn.indexOf('\n  }\n') + 4);
+  assert.match(body, /history\.replaceState/, 'the tab switch must not push a navigation');
+  assert.doesNotMatch(body, /\bgo\(|location\.hash\s*=/, 'the tab switch must not route');
+  const handler = app.slice(app.indexOf('$("#homeLedgerTabs").addEventListener'));
+  assert.match(handler.slice(0, 400), /preventDefault\(\)/, 'the tab link must be intercepted');
+});
+
 /* The offset arrives already smoothed: the OS animates the visual viewport as
    the keyboard rises, and syncVisualViewport publishes a new value on every
    step of it. A CSS transition on the same transform therefore animates an

@@ -360,14 +360,18 @@ body:not(.is-homepage) .home-nav { display: none; }
 /* display:grid below outranks the user agent's [hidden] rule, so a tile stood
    down by a flag would still draw. Same reason .home-alert[hidden] exists. */
 .home-action[hidden] { display: none; }
+/* 76px, down from 98px. Six tiles and a wide row is a lot of furniture to put
+   between the greeting and the ledger; at 98px each the shortcuts pushed the
+   customer list off a 390px screen entirely. The label is the thing being read,
+   so the icon shrank and the padding went, not the type. */
 .home-action {
-  height: 98px;
+  height: 76px;
   padding: 0;
   border: 0;
   background: transparent;
   color: var(--home-white);
   display: grid;
-  grid-template-rows: 86px 12px;
+  grid-template-rows: 68px 8px;
   cursor: pointer;
   transition: grid-template-rows 180ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
 }
@@ -390,7 +394,7 @@ body:not(.is-homepage) .home-nav { display: none; }
   letter-spacing: -.42px;
   text-align: center;
 }
-.home-action__face img { display: block; width: 24px; height: 24px; }
+.home-action__face img { display: block; width: 20px; height: 20px; }
 .home-action__rail { display: block; }
 /* The orange the Schedule tile wore. Customer takes the slot and the colour:
    the row is a fixed palette of six, and leaving a gap in it to mark a tile
@@ -412,16 +416,27 @@ body:not(.is-homepage) .home-nav { display: none; }
 .home-action--add .home-action__face { background: linear-gradient(180deg, rgba(255,255,255,.1), transparent), #292929; }
 .home-action--add .home-action__rail { background: #1a1a1a; }
 
-/* Full width above the six, and laid out as a row rather than a stack: the
-   label is three words and would wrap under a centred icon at 320px. The face,
-   rail, and press are the tile's own, so it presses like one. */
-.home-action--production { grid-column: 1 / -1; }
-.home-action--production .home-action__face { flex-direction: row; gap: var(--space-2); background: linear-gradient(180deg, rgba(255,255,255,.1), transparent), #292929; }
+/* A row, not a seventh tile: 56px, left-aligned, with a chevron at the end.
+   The six tiles are categories you land in; this one is a flow you start, and
+   the shape says so before the label does. The face, rail, and press are still
+   the tile's own — it is the same object, laid out along its width. */
+.home-action--production { grid-column: 1 / -1; height: 56px; grid-template-rows: 48px 8px; }
+.home-action--production .home-action__face {
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 0 16px;
+  background: linear-gradient(180deg, rgba(255,255,255,.1), transparent), #292929;
+}
 .home-action--production .home-action__rail { background: #1a1a1a; }
+.home-action__go { margin-left: auto; width: 16px !important; height: 16px !important; opacity: .6; }
 [data-production-entry][hidden] { display: none !important; }
 .home-action:active,
 .home-action.is-pressed,
-.home-action.is-appear-pressed { grid-template-rows: 96px 2px; }
+.home-action.is-appear-pressed { grid-template-rows: 74px 2px; }
+.home-action--production:active,
+.home-action--production.is-pressed,
+.home-action--production.is-appear-pressed { grid-template-rows: 54px 2px; }
 .home-action:active .home-action__face,
 .home-action.is-pressed .home-action__face { background-image: linear-gradient(180deg, transparent, rgba(0,0,0,.10)); }
 
@@ -713,12 +728,12 @@ body.is-homepage .btn--empty,
 .home-skel__line { height: 40px; display: flex; align-items: center; }
 .home-skel__lines { height: 40px; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
 .home-skel__actions {
-  height: 196px;
+  height: 152px;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   background: var(--home-white);
 }
-.home-skel__actions i { display: grid; grid-template-rows: 86px 12px; }
+.home-skel__actions i { display: grid; grid-template-rows: 68px 8px; }
 /* The skeleton has to be the exact size of what replaces it, or the page jumps
    as it loads — which is the same fault as any other layout shift, just one
    that happens before you can tap anything. Five tiles plus a sixth that only
@@ -730,8 +745,8 @@ body:not(.has-fitting-shortcut) .home-skel__actions i:nth-child(4) { grid-column
    the rules above count on. The extra row is reserved from the stored answer to
    the production probe — see productionReadyGuess — because a tile that arrives
    after the skeleton is a tile that arrives under a thumb. */
-.home-skel__production { order: -1; grid-column: 1 / -1; }
-body.has-production .home-skel__actions { height: 294px; }
+.home-skel__production { order: -1; grid-column: 1 / -1; grid-template-rows: 48px 8px !important; }
+body.has-production .home-skel__actions { height: 208px; }
 .home-skel__actions i::before,
 .home-skel__actions i::after { content: ''; display: block; }
 .home-skel__actions i::before { background: rgba(76,76,76,.18); animation: home-shimmer 1.2s ease-in-out infinite; }
@@ -4924,31 +4939,76 @@ body.is-ordereditpage .calcrow .input:focus-visible { outline: 2px solid var(--h
 
 /* ----------------------- Penjahit production ledger ---------------------- */
 
-/* The two ledgers are one list with two contents, so the tabs sit on the black
-   canvas between the shortcuts and the shared search rail rather than floating
-   above either. Sized like the rest of the homepage's touch targets. */
-.production-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-block: 1px solid var(--home-grid); }
+/* Two tabs over one shared search rail. The selected one is a folder tab: it
+   wears the cream of the panel below it and its bottom edge is *open*, so tab
+   and content are visibly one surface and the other tab is visibly behind it.
+   The previous version filled the selected tab white and the other black, with
+   a rule between both and the panel — two equally loud blocks and no way to
+   tell which was in front.
+
+   Selected also carries the label change and aria-current, so the state is
+   never colour alone. */
+.production-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding-top: 8px;
+  background: var(--home-black);
+  border-top: 1px solid var(--home-grid);
+}
 .production-tabs a {
-  min-height: 52px;
-  padding: 16px 12px;
+  position: relative;
+  min-height: 48px;
+  padding: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   text-align: center;
   text-decoration: none;
   font-size: 14px;
   font-weight: 700;
   letter-spacing: -.42px;
-  color: var(--home-white);
-  background: var(--home-black);
+  color: rgba(254, 250, 241, .55);
+  background: transparent;
+  border-bottom: 1px solid var(--home-grid);
+  transition: color var(--motion-quick) var(--ease-standard);
 }
-.production-tabs a + a { border-left: 1px solid var(--home-grid); }
-.production-tabs a[aria-current="page"] { color: var(--home-black); background: var(--home-white); box-shadow: inset 0 -6px var(--home-white-dark); }
-.production-tabs a:focus-visible { outline: 2px solid var(--home-blue); outline-offset: -4px; }
+.production-tabs a:hover { color: rgba(254, 250, 241, .8); }
+.production-tabs a[aria-current="page"] {
+  color: var(--home-black);
+  background: var(--home-white);
+  border-bottom-color: var(--home-white);
+}
+/* Closes the 1px gap the border would otherwise leave between the selected tab
+   and the search band, so the two read as one continuous surface. */
+.production-tabs a[aria-current="page"]::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--home-white);
+}
+.production-tabs a:focus-visible { outline: 2px solid var(--home-blue); outline-offset: -4px; z-index: 1; }
+.production-tabs__count {
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: rgba(254, 250, 241, .55);
+  background: rgba(254, 250, 241, .12);
+}
+.production-tabs a[aria-current="page"] .production-tabs__count { color: var(--home-white); background: var(--home-black); }
 /* The customer ledger's count is the rail itself; this one shares the rail with
    the archive toggle, so it needs its own row to hold the separator dot the
    flex gap would otherwise apply to the wrapper alone. */
-#penjahitSummary { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+/* The rail is one 36px line and shares it with the archive toggle, so the count
+   is what gives way at 320px — the toggle is a control and cannot ellipse. */
+#penjahitSummary { display: inline-flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; }
+#penjahitSummary > span { overflow: hidden; text-overflow: ellipsis; }
+#homePenjahit .home-customer-card__name { overflow-wrap: anywhere; }
 /* Sits in the summary rail the count already occupies, pushed to the far end.
    The rail is 36px and nowrap, so the label stays two words. */
 /* Lighter than the count beside it on purpose: the count is metadata, this is
@@ -4975,7 +5035,9 @@ body.is-productionpage .appbar a, body.is-productionpage .appbar button { color:
 .production .input { min-width: 0; max-width: 100%; border-radius: 0; background-color: transparent; font-size: 16px; }
 .production .field__label { color: var(--home-black); font-size: 14px; line-height: 1.5; text-transform: none; letter-spacing: 0; }
 .production .field__hint { color: var(--label); line-height: 1.5; overflow-wrap: anywhere; }
-.production-pair { display: grid; grid-template-columns: minmax(0, .65fr) minmax(0, 1.35fr); gap: 12px; }
+/* align-items: end, because one label in a pair wraps to two lines long before
+   the other does and the fields, not the labels, are what should line up. */
+.production-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: end; gap: 12px; }
 .production-search { padding: 16px 24px; margin: 0; color: var(--home-black); background: var(--home-white); }
 .production-actions { display: flex; flex-wrap: wrap; gap: 12px; padding: 16px 24px; }
 .production-fields .production-actions { padding: 0; }
@@ -4988,11 +5050,141 @@ body.is-productionpage .appbar a, body.is-productionpage .appbar button { color:
 .production .btn:not(:disabled):active::after { height: 2px; }
 .production .btn:disabled { opacity: .65; }
 .production .btn:focus-visible, .production a:focus-visible { outline: 2px solid var(--home-blue); outline-offset: 3px; }
-.production-source-list { max-height: 340px; overflow-y: auto; overscroll-behavior: contain; background: var(--home-white); color: var(--home-black); }
-.production-source { width: 100%; display: flex; gap: 16px; justify-content: space-between; align-items: center; padding: 16px 24px; border: 0; border-bottom: 1px solid var(--home-white-dark); color: inherit; background: transparent; text-align: left; text-decoration: none; cursor: pointer; }
-.production-source > span:first-child { min-width: 0; display: grid; gap: 6px; font-size: 14px; overflow-wrap: anywhere; }
-.production-source:focus-visible { outline: 2px solid var(--home-blue); outline-offset: -3px; }
-.production-source:hover { background: var(--home-white-dark); }
+/* The list scrolls with the page now. It used to be a 340px inner scroller on
+   a page that also scrolled — two scrollbars, one thumb, and no way to tell
+   which one a flick was going to move. A step whose only job is this list can
+   afford the whole screen for it. */
+.production-source-list { background: var(--home-white); color: var(--home-black); }
+
+/* -- Stepper ------------------------------------------------------------- */
+
+.pstep { padding: 16px 24px; background: var(--home-black); border-bottom: 1px solid var(--home-grid); }
+.pstep ol { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pstep li { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; font-weight: 700; letter-spacing: -.24px; color: rgba(254, 250, 241, .45); }
+.pstep__num {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-variant-numeric: tabular-nums;
+}
+.pstep__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pstep li.is-done { color: rgba(254, 250, 241, .75); }
+.pstep li.is-done .pstep__num { color: var(--home-black); background: var(--home-white-dark); border-color: var(--home-white-dark); }
+.pstep li.is-current { color: var(--home-white); }
+.pstep li.is-current .pstep__num { color: var(--home-black); background: var(--home-green); border-color: var(--home-green); }
+
+/* -- Selectable rows ------------------------------------------------------ */
+
+/* One row shape for both "which penjahit" and "which items". Selection is said
+   three ways — a filled mark, a green edge, and the word in the side column —
+   so it survives colour blindness, a bright screen, and a screen reader. */
+.pchoice {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 24px;
+  border: 0;
+  border-bottom: 1px solid var(--home-white-dark);
+  border-left: 4px solid transparent;
+  color: var(--home-black);
+  background: var(--home-white);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background var(--motion-quick) var(--ease-standard), border-color var(--motion-quick) var(--ease-standard);
+}
+.pchoice__mark {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border: 2px solid rgba(23, 21, 15, .32);
+  border-radius: 50%;
+  background: transparent;
+  transition: background var(--motion-quick) var(--ease-standard), border-color var(--motion-quick) var(--ease-standard);
+}
+.pchoice--check .pchoice__mark { border-radius: 5px; }
+.pchoice__body { min-width: 0; flex: 1; display: grid; gap: 3px; font-size: 15px; line-height: 1.35; overflow-wrap: anywhere; }
+.pchoice__meta { font-size: 13px; color: var(--label); }
+.pchoice__side { flex: none; max-width: 92px; font-size: 12px; font-weight: 700; text-align: right; color: var(--label); }
+.pchoice:hover { background: #f6f1e6; }
+.pchoice:focus-visible { outline: 2px solid var(--home-blue); outline-offset: -3px; z-index: 1; }
+.pchoice.is-chosen { border-left-color: var(--home-green); background: #f1f8ee; }
+.pchoice.is-chosen .pchoice__side { color: #17761a; }
+.pchoice.is-chosen .pchoice__mark {
+  border-color: var(--home-green);
+  background: var(--home-green) no-repeat center
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none' stroke='%23fefaf1' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 7.4 5.6 10.5 11.5 4'/%3E%3C/svg%3E");
+}
+.pchoice:active { background: #ece6d9; }
+
+/* -- Grouped item source -------------------------------------------------- */
+
+.psource + .psource { border-top: 8px solid var(--home-white-dark); }
+.psource__head {
+  position: sticky;
+  /* Under the sticky app bar, not behind it: .appbar is 57px and sits at
+     z-index 20, so a header pinned to 0 is a header nobody sees. */
+  top: 57px;
+  z-index: 1;
+  margin: 0;
+  padding: 10px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--home-white);
+  background: var(--home-black-light);
+}
+.psource__head > :first-child { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.psource__head > :last-child { flex: none; max-width: 45%; color: rgba(254, 250, 241, .6); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.psource__empty { display: block; padding: 14px 24px; color: var(--home-black); background: var(--home-white); font-size: 14px; text-decoration: underline; }
+
+/* -- Draft rows ----------------------------------------------------------- */
+
+/* Collapsed to the two things that differ between items — quantity and the
+   line total. Everything else comes from the shared card and is only unfolded
+   when this item is going to disagree with it. */
+.pjob { margin: 16px 24px; background: var(--home-white); color: var(--home-black); border-bottom: 8px solid var(--home-white-dark); }
+.pjob.is-custom { border-bottom-color: var(--home-green); }
+.pjob__head { display: flex; justify-content: space-between; align-items: start; gap: 12px; padding: 14px 16px 0; }
+.pjob__id { min-width: 0; display: grid; gap: 3px; font-size: 15px; line-height: 1.35; overflow-wrap: anywhere; }
+.pjob__id span { font-size: 13px; color: var(--label); }
+/* Quiet until reached for. Removing an item is one tap from undoing itself by
+   tapping it again on the previous step, so it does not need to shout next to
+   the name it would remove. */
+.pjob__drop { flex: none; margin: -10px -4px; padding: 10px 4px; border: 0; background: none; color: var(--label); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.pjob__drop:hover, .pjob__drop:focus-visible { color: var(--danger); text-decoration: underline; }
+.pjob__line { display: flex; align-items: end; justify-content: space-between; gap: 16px; padding: 12px 16px; }
+.pjob__qty { display: grid; gap: 4px; font-size: 13px; color: var(--label); }
+.pjob__qty .input { width: 84px; min-width: 0; border-radius: 0; background-color: transparent; font-size: 16px; }
+.pjob__total { margin: 0 0 8px; font-size: 16px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.pjob__more { border-top: 1px solid var(--home-white-dark); }
+.pjob__more summary { padding: 12px 16px; font-size: 13px; font-weight: 700; cursor: pointer; list-style: none; }
+.pjob__more summary::-webkit-details-marker { display: none; }
+.pjob__more summary::after { content: ' +'; }
+.pjob__more[open] summary::after { content: ' −'; }
+.pjob__more summary:focus-visible { outline: 2px solid var(--home-blue); outline-offset: -3px; }
+.pjob__fields { display: grid; gap: 16px; padding: 0 16px 16px; }
+.pjob__fields .field { margin: 0; }
+.production-shared { border-bottom-color: var(--home-green); }
+
+/* -- The wizard bar ------------------------------------------------------- */
+
+/* The shared bar stacks its children; this one sets them side by side, so Back
+   sits under the thumb that is not reaching for Continue. */
+.production-bar .savebar__inner { display: flex; flex-direction: row; align-items: stretch; gap: 12px; }
+.production-bar #productionBack { flex: 0 0 34%; }
+.production-bar #productionNext { flex: 1; min-width: 0; display: grid; align-content: center; gap: 2px; }
+.btn__sub { display: block; font-size: 12px; font-weight: 400; opacity: .75; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.btn__sub[hidden] { display: none; }
 .production-job { display: block; margin: 24px; color: var(--home-black); text-decoration: none; }
 .production-job__face { padding: 16px; display: grid; gap: 8px; background: var(--home-white); font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
 .production-job__top { display: flex; justify-content: space-between; align-items: start; gap: 12px; }
@@ -5029,10 +5221,15 @@ body.is-productionpage .appbar a, body.is-productionpage .appbar button { color:
 #orderProductionJobs .production-job__face { border: 1px solid var(--home-white-dark); border-bottom: 0; }
 #orderProductionCosts + #orderProductionJobs:not(:empty) { margin-top: 4px; }
 body.is-productioneditpage .savebar { left: 50%; right: auto; width: min(390px, 100%); transform: translate(-50%, calc(-1 * var(--keyboard-offset))); background: var(--home-black); border: 0; }
-body.is-productioneditpage .savebar__inner { padding: 0 0 env(safe-area-inset-bottom, 0px); }
-body.is-productioneditpage #saveBtn { border-radius: 0; min-height: 64px; color: var(--home-black); background: var(--home-green); border: 0; box-shadow: inset 0 -8px var(--home-grid); }
-body.is-productioneditpage #saveBtn:disabled { background: var(--home-black-light); color: var(--home-white-dark); }
-body.is-productioneditpage #saveBtn:active { transform: none; box-shadow: inset 0 -2px var(--home-grid); }
+body.is-productioneditpage .savebar__inner { padding: 12px 12px calc(12px + env(safe-area-inset-bottom, 0px)); }
+body.is-productioneditpage .savebar .btn { border-radius: 0; min-height: 56px; height: auto; border: 0; box-shadow: inset 0 -6px rgba(0, 0, 0, .28); white-space: normal; }
+body.is-productioneditpage .savebar .btn--primary { color: var(--home-black); background: var(--home-green); }
+body.is-productioneditpage .savebar .btn--outline { color: var(--home-white); background: var(--home-black-light); }
+body.is-productioneditpage .savebar .btn:disabled { background: var(--home-black-light); color: rgba(254, 250, 241, .45); box-shadow: inset 0 -6px rgba(0, 0, 0, .2); }
+body.is-productioneditpage .savebar .btn:not(:disabled):active { transform: none; box-shadow: inset 0 -2px rgba(0, 0, 0, .28); }
+/* The page ends above the bar, and a field the bar covers is a field that
+   cannot be corrected. Steps are long; this is the one that matters. */
+body.is-productioneditpage .production .input { scroll-margin-block: 96px calc(var(--bottombar-h) + 24px); }
 body.is-custeditpage #saveBtn .btn__label, body.is-ordereditpage #saveBtn .btn__label { color: var(--home-black); }
 body.is-custeditpage #saveBtn:disabled .btn__label, body.is-ordereditpage #saveBtn:disabled .btn__label { color: var(--home-white-dark); }
 body.is-custeditpage .custedit-input { scroll-margin-block: 88px calc(var(--bottombar-h) + 24px); }

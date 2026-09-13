@@ -343,7 +343,7 @@ KK.app = (function () {
     viewProductionJob: $("#viewProductionJob"),
     homePenjahit: $("#homePenjahit"),
     homeSearchSection: $("#homeSearchSection"),
-    productionTailor: $("#productionTailor"),
+    productionBar: $("#productionBar"),
     productionDraftRows: $("#productionDraftRows"),
     productionPaymentForm: $("#productionPaymentForm")
   };
@@ -374,7 +374,7 @@ KK.app = (function () {
       available: null, penjahit: [], jobs: [], sources: [], profile: null, job: null,
       payments: [], draft: null, batchRequest: null, paymentRequest: null,
       paymentId: null, voidId: null, creatingOrder: false, createdCustomerId: null,
-      ledgerTab: "customers", scroll: { customers: 0, penjahit: 0 },
+      ledgerTab: "customers", ledgerLoaded: false, scroll: { customers: 0, penjahit: 0 },
       search: { customers: "", penjahit: "" }, filters: {}
     },
     /* The fitting-log feed keeps its own island of state: it is a different
@@ -572,9 +572,9 @@ KK.app = (function () {
   function setDirty(isDirty) {
     state.dirty = isDirty;
     const route = state.route || {};
-    const isNew = route.id === "new" || route.view === "productionNew";
-    const label = route.view === "productionNew" ? "Save assignments"
-      : isNew && route.view === "customerEdit" ? "Create customer"
+    // The assignment wizard has its own bar; this one never labels for it.
+    const isNew = route.id === "new";
+    const label = isNew && route.view === "customerEdit" ? "Create customer"
       : isNew && route.view === "orderEdit" ? "Create order"
       : isNew && route.view === "penjahitEdit" ? "Create penjahit" : "Save changes";
     elements.saveBtn.disabled = state.saving || (!isDirty && !isNew);
@@ -657,6 +657,7 @@ KK.app = (function () {
     // toasts, and focus targets clear exactly one of them.
     const activeBar = [
       elements.savebar,
+      elements.productionBar,
       elements.fitdetBar,
       elements.fitaddBar,
       elements.schedcalMonthbar
@@ -1757,6 +1758,7 @@ KK.app = (function () {
     elements.viewPenjahit.hidden = "penjahit" !== targetRoute.view;
     elements.viewPenjahitEdit.hidden = "penjahitEdit" !== targetRoute.view;
     elements.viewProductionEdit.hidden = !["productionNew", "productionEdit"].includes(targetRoute.view);
+    if (elements.viewProductionEdit.hidden) elements.productionBar.hidden = true;
     elements.viewProductionJob.hidden = "productionJob" !== targetRoute.view;
     elements.productionPaymentForm.hidden = true;
 
@@ -2632,6 +2634,7 @@ KK.app = (function () {
       // Before the ledger renders, not after: renderHomepageReady filters the
       // customer list by whatever is in the shared search field, and coming
       // back from the penjahit tab that is still the penjahit query.
+      state.production.ledgerLoaded = false;
       syncLedgerTab();
       renderHomepageReady({ customers: res[0], submissions: res[3] });
       try { await showHomepageLedger(); } catch (error) {
@@ -2640,6 +2643,9 @@ KK.app = (function () {
       if (!isCurrentHomepageLoad(token)) return;
       prepareShortcutAppearState();
       await revealHomepage(token);
+      // The tab nobody is looking at, fetched after the page is on screen, so
+      // the first switch is a render rather than a wait.
+      if (state.production.available && !state.production.ledgerLoaded) loadPenjahitLedger(false).catch(() => {});
     } catch (err) {
       if (db.isStaleToken(err)) throw err;
       console.error(err);
@@ -7505,6 +7511,7 @@ KK.app = (function () {
       state.production.search[state.production.ledgerTab] = elements.customerSearch.value;
       elements.customerSearch.value = state.production.search[tab] || "";
     }
+    state.production.scroll[state.production.ledgerTab] = window.scrollY;
     state.production.ledgerTab = tab;
     elements.homeSearchSection.setAttribute("aria-label", tab === "penjahit" ? "Penjahit search" : "Customer search");
     elements.customerSearch.placeholder = tab === "penjahit" ? "Search penjahit name" : "Search customer name";
@@ -7520,15 +7527,58 @@ KK.app = (function () {
     const token = state.navigation.token;
     const available = await productionReady();
     if (token !== state.navigation.token) return;
-    const penjahit = tab === "penjahit" && available;
+    $("#customersTabCount").textContent = state.customers.length || "";
+    elements.homeCustomers.hidden = tab === "penjahit" && available;
+    elements.homePenjahit.hidden = !(tab === "penjahit" && available);
+    if (!available) return;
+    await loadPenjahitLedger(tab === "penjahit");
+  }
+
+  /* Fetched once per homepage visit and then kept: switching tabs is a filter
+     on what is already here, not a new page. The penjahit tab loads eagerly in
+     the background when the customer tab is showing, so the first switch is
+     usually instant; `quiet` is what keeps that background load from painting
+     a loading state over a list nobody is looking at. */
+  async function loadPenjahitLedger(visible) {
+    const token = state.navigation.token;
+    if (state.production.ledgerLoaded) { if (visible) renderPenjahitLedger(); return; }
+    if (visible) $("#penjahitList").innerHTML = '<p class="empty">Loading penjahit…</p>';
+    try {
+      const [tailors, jobs] = await Promise.all([db.listPenjahit(), db.listProductionJobs()]);
+      if (token !== state.navigation.token) return;
+      state.production.penjahit = tailors;
+      state.production.jobs = jobs;
+      state.production.ledgerLoaded = true;
+      $("#penjahitTabCount").textContent = tailors.length || "";
+      if (!elements.homePenjahit.hidden) renderPenjahitLedger();
+    } catch (err) {
+      if (token !== state.navigation.token) return;
+      if (!elements.homePenjahit.hidden) {
+        $("#penjahitList").innerHTML = '<p class="empty">' + U.escapeHtml(err.message || "Could not load penjahit.") +
+          '</p><button type="button" class="btn btn--outline btn--new btn--block btn--empty" id="retryPenjahitLedger">Try again</button>';
+      }
+      throw err;
+    }
+  }
+
+  /* A tab is a filter, not a destination. Switching used to go through the
+     router, which meant a full route change, four refetched queries and the
+     homepage skeleton — for swapping one list with another that was already in
+     memory. The hash still moves, so the tab can be linked to and restored;
+     replaceState is what stops it being a navigation. */
+  function switchLedgerTab(tab) {
+    if (state.production.ledgerTab === tab) return;
+    const hash = tab === "penjahit" ? "#/customers?tab=penjahit" : "#/customers";
+    history.replaceState(null, "", location.pathname + location.search + hash);
+    currentHash = hash;
+    state.route.query = new URLSearchParams(tab === "penjahit" ? "tab=penjahit" : "");
+    syncLedgerTab();
+    const penjahit = tab === "penjahit";
     elements.homeCustomers.hidden = penjahit;
     elements.homePenjahit.hidden = !penjahit;
-    if (!penjahit) return;
-    const [tailors, jobs] = await Promise.all([db.listPenjahit(), db.listProductionJobs()]);
-    if (token !== state.navigation.token) return;
-    state.production.penjahit = tailors;
-    state.production.jobs = jobs;
-    renderPenjahitLedger();
+    if (penjahit) loadPenjahitLedger(true).catch(() => {});
+    else renderCustomerList();
+    window.scrollTo(0, state.production.scroll[tab] || 0);
   }
 
   /* Deliberately the customer ledger's own shape — the same summary rail, grid
@@ -7543,8 +7593,8 @@ KK.app = (function () {
       [tailor.name, tailor.phone].filter(Boolean).join(" ").toLowerCase().includes(query));
     const ongoing = productionTotals(state.production.jobs).ongoing;
 
-    $("#penjahitSummary").innerHTML = U.escapeHtml(tailors.length + " penjahit") +
-      '<i></i>' + U.escapeHtml(ongoing + (1 === ongoing ? " ongoing job" : " ongoing jobs"));
+    $("#penjahitSummary").innerHTML = '<span>' + U.escapeHtml(tailors.length + " penjahit") + '</span>' +
+      '<i></i><span>' + U.escapeHtml(ongoing + " ongoing") + '</span>';
 
     const addHref = "#/penjahit/new/edit" + (searchVal ? "?name=" + encodeURIComponent(searchVal) : "");
     const addLabel = searchVal ? '+ Add \u201c' + U.escapeHtml(searchVal) + '\u201d as a new penjahit' : "+ Add a penjahit";
@@ -7590,57 +7640,196 @@ KK.app = (function () {
     $("#productionJobs").innerHTML = jobs.map(productionJobHtml).join("") || '<p class="empty">No ' + U.escapeHtml(filter.toLowerCase()) + ' jobs here.</p>';
   }
 
-  function productionTailorOptions(selected) {
-    elements.productionTailor.innerHTML = '<option value="">Choose a penjahit</option>' + state.production.penjahit
-      .filter((tailor) => !tailor.archived_at || tailor.id === selected)
-      .map((tailor) => '<option value="' + U.escapeHtml(tailor.id) + '">' + U.escapeHtml(tailor.name + (tailor.archived_at ? " (archived)" : "")) + '</option>').join("");
-    elements.productionTailor.value = selected || "";
+  /* ------------------------- The assignment wizard ----------------------- */
+
+  const productionDraft = () => state.production.draft;
+
+  function productionStepCount() {
+    return state.route.view === "productionEdit" ? 1 : 3;
   }
 
+  function showProductionStep(step) {
+    const draft = productionDraft();
+    const single = productionStepCount() === 1;
+    draft.step = single ? 3 : Math.min(3, Math.max(1, step));
+    $$("[data-step]", elements.viewProductionEdit).forEach((panel) => {
+      panel.hidden = Number(panel.dataset.step) !== draft.step;
+    });
+    $("#productionStepper").hidden = single;
+    $$("[data-step-dot]").forEach((dot) => {
+      const n = Number(dot.dataset.stepDot);
+      dot.classList.toggle("is-current", n === draft.step);
+      dot.classList.toggle("is-done", n < draft.step);
+      // The dot is decoration; the step's own "Step 2 of 3" kicker is what a
+      // screen reader reads, so the marker must not be announced twice.
+      dot.setAttribute("aria-hidden", "true");
+    });
+    if (draft.step === 1) renderProductionTailors();
+    if (draft.step === 2) renderProductionSources();
+    if (draft.step === 3) renderProductionDraft();
+    syncProductionBar();
+    const heading = $('[data-step="' + draft.step + '"] h1', elements.viewProductionEdit);
+    if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
+    window.scrollTo(0, 0);
+  }
+
+  /* The bar says where the next tap leads, and what it is carrying. "Continue"
+     alone made the reader scroll back up to check whether the taps had
+     registered; "Continue · 3 items" answers that where the thumb already is. */
+  function syncProductionBar() {
+    const draft = productionDraft();
+    if (!draft) return;
+    const single = productionStepCount() === 1;
+    const step = draft.step;
+    const chosen = draft.jobs.length;
+    const label = $(".btn__label", $("#productionNext"));
+    const sub = $("#productionNextSub");
+    const back = $("#productionBack");
+
+    if (step === 3) {
+      label.textContent = single ? "Save changes" : chosen === 1 ? "Save 1 assignment" : "Save " + chosen + " assignments";
+      sub.textContent = state.production.draftTotal ? U.formatRupiah(state.production.draftTotal) : "";
+    } else if (step === 2) {
+      label.textContent = "Continue";
+      sub.textContent = chosen ? chosen + (chosen === 1 ? " item" : " items") + " selected" : "Choose at least one item";
+    } else {
+      label.textContent = "Continue";
+      const tailor = state.production.penjahit.find((t) => t.id === draft.penjahit_id);
+      sub.textContent = tailor ? tailor.name : "Choose a penjahit";
+    }
+    $("#productionNext").disabled = state.saving ||
+      (step === 1 && !draft.penjahit_id) || (step === 2 && !chosen);
+    back.textContent = single ? "Cancel" : step === 1 ? "Cancel" : "Back";
+    sub.hidden = !sub.textContent;
+  }
+
+  function renderProductionTailors() {
+    const draft = productionDraft();
+    const query = $("#productionTailorSearch").value.trim().toLowerCase();
+    const tailors = state.production.penjahit.filter((tailor) =>
+      !tailor.archived_at && [tailor.name, tailor.phone].filter(Boolean).join(" ").toLowerCase().includes(query));
+    $("#productionTailorList").innerHTML = tailors.map((tailor) => {
+      const totals = productionTotals(state.production.jobs.filter((job) => job.penjahit_id === tailor.id));
+      const on = tailor.id === draft.penjahit_id;
+      return '<button type="button" class="pchoice' + (on ? ' is-chosen' : '') + '" role="radio" aria-checked="' + on + '" data-tailor="' + U.escapeHtml(tailor.id) + '">' +
+        '<span class="pchoice__mark" aria-hidden="true"></span>' +
+        '<span class="pchoice__body"><strong>' + U.escapeHtml(tailor.name) + '</strong>' +
+        '<span class="pchoice__meta">' + U.escapeHtml(tailor.phone || "No phone on file") + '</span></span>' +
+        '<span class="pchoice__side">' + U.escapeHtml(totals.ongoing + " ongoing") + '</span></button>';
+    }).join("") || '<p class="empty">' + (query ? "No matching penjahit." : "No penjahit yet. Add one to start assigning work.") + '</p>';
+  }
+
+  /* Grouped by customer, then order. The flat list this replaces put "Bridal
+     skirt" from four different weddings next to each other with the customer
+     name buried in a meta line — the one thing you need to tell them apart. */
   function renderProductionSources() {
+    const draft = productionDraft();
     const query = $("#productionSearch").value.trim().toLowerCase();
-    const sources = state.production.sources;
-    $("#productionSourceList").innerHTML = sources.map((order) => {
-      const customer = order.customers && order.customers.name || "Customer";
+    const chosen = new Set(draft.jobs.map((job) => job.item_id));
+    let shown = 0;
+    const html = state.production.sources.map((order) => {
+      const customer = (order.customers && order.customers.name) || "Customer";
       const context = customer + " · " + orderLabel(order);
-      const items = (order.items || []).filter((item) => item.id && item.name && item.qty > 0 && (context + " " + item.name).toLowerCase().includes(query));
-      return items.map((item) => '<button type="button" class="production-source" data-production-item="' + U.escapeHtml(item.id) + '" data-order-id="' + U.escapeHtml(order.id) + '">' +
-        '<span><strong>' + U.escapeHtml(item.name) + '</strong><span>' + U.escapeHtml(context) + '</span><span>' + U.escapeHtml(item.qty + " pieces") + '</span></span><span aria-hidden="true">＋</span></button>').join("") +
-        (!(order.items || []).some((item) => item.name && item.qty > 0) && context.toLowerCase().includes(query)
-          ? '<a class="production-source" href="#/order/' + encodeURIComponent(order.id) + '/edit?from=production"><span><strong>' + U.escapeHtml(context) + '</strong><span>No items yet · Add an item</span></span><span aria-hidden="true">＋</span></a>' : "");
-    }).join("") || '<p class="empty">No matching items. Add a customer or order below.</p>';
+      const named = (order.items || []).filter((item) => item.id && item.name && item.qty > 0);
+      const items = named.filter((item) => (context + " " + item.name).toLowerCase().includes(query));
+      if (!items.length) {
+        // An order with nothing named in it is still a real answer to a search
+        // for that customer: offer the way to give it an item.
+        return named.length || !context.toLowerCase().includes(query) ? "" : (shown++,
+          '<section class="psource"><h3 class="psource__head"><span>' + U.escapeHtml(customer) + '</span><span>' + U.escapeHtml(orderLabel(order)) + '</span></h3>' +
+          '<a class="psource__empty" href="#/order/' + encodeURIComponent(order.id) + '/edit?from=production">No items on this order yet — add one</a></section>');
+      }
+      shown += items.length;
+      return '<section class="psource"><h3 class="psource__head"><span>' + U.escapeHtml(customer) + '</span><span>' + U.escapeHtml(orderLabel(order)) + '</span></h3>' +
+        items.map((item) => {
+          const on = chosen.has(item.id);
+          return '<button type="button" class="pchoice pchoice--check' + (on ? ' is-chosen' : '') + '" aria-pressed="' + on + '"' +
+            ' data-production-item="' + U.escapeHtml(item.id) + '" data-order-id="' + U.escapeHtml(order.id) + '">' +
+            '<span class="pchoice__mark" aria-hidden="true"></span>' +
+            '<span class="pchoice__body"><strong>' + U.escapeHtml(item.name) + '</strong>' +
+            '<span class="pchoice__meta">' + U.escapeHtml(item.qty + (item.qty === 1 ? " piece" : " pieces")) + '</span></span>' +
+            '<span class="pchoice__side">' + (on ? "Selected" : "Tap to add") + '</span></button>';
+        }).join("") + '</section>';
+    }).join("");
+    $("#productionSourceList").innerHTML = shown ? html
+      : '<p class="empty">' + (query ? 'No item matches “' + U.escapeHtml($("#productionSearch").value.trim()) + '”.' : "No saved order items yet.") + '</p>';
   }
 
   function productionField(label, key, value, type, required, extra) {
     return '<label class="field"><span class="field__label">' + label + (required ? ' *' : ' <span class="optional">Optional</span>') + '</span><input class="input" data-pfield="' + key + '" type="' + (type || "text") + '" value="' + U.escapeHtml(value == null ? "" : value) + '"' + (required ? ' required aria-required="true"' : '') + (extra || '') + '></label>';
   }
 
+  /* A row per item, collapsed to what changes between them — quantity and the
+     line total. Description, price and dates come from the shared card above
+     and are only spelled out here when this item differs from the rest. */
   function renderProductionDraft() {
-    const draft = state.production.draft;
+    const draft = productionDraft();
     const editing = state.route.view === "productionEdit";
-    elements.productionDraftRows.innerHTML = draft.jobs.map((job) =>
-      '<article class="production-fields production-draft" data-job-id="' + U.escapeHtml(job.id) + '"><div class="production-job__top"><h3>' + U.escapeHtml(job.item_name) + '</h3>' +
-      (editing ? '' : '<button type="button" class="btn btn--outline" data-remove-job="' + U.escapeHtml(job.id) + '" aria-label="Remove ' + U.escapeHtml(job.item_name) + '">Remove</button>') + '</div>' +
-      '<p class="field__hint">' + U.escapeHtml(job.customer_name + " · " + job.order_title) + '</p>' +
-      productionField("Work description", "description", job.description, "text", true, ' maxlength="500"') +
-      '<div class="production-pair">' + productionField("Quantity", "quantity", job.quantity, "number", true, ' min="1" step="1" max="' + U.escapeHtml(job.max_quantity) + '" inputmode="numeric"') +
-      productionField("Price per piece (Rp)", "unit_price", job.unit_price === "" ? "" : U.groupDigits(job.unit_price), "text", true, ' inputmode="numeric"') + '</div>' +
-      '<p class="production-line-total" data-job-total></p>' +
-      productionField("Assigned on", "assigned_date", job.assigned_date, "date", true) +
-      productionField("Due date", "due_date", job.due_date, "date", false) +
-      productionField("Notes", "notes", job.notes, "text", false) +
-      (editing ? '<label class="field"><span class="field__label">Progress *</span><select class="input" data-pfield="status" required>' +
-        ["Assigned", "In progress", "Done", "Cancelled"].map((status) => '<option' + (job.status === status ? ' selected' : '') + '>' + status + '</option>').join("") + '</select></label>' +
-        '<div data-cancellation' + (job.status !== "Cancelled" ? ' hidden' : '') + '><p class="production-note">Confirm the final agreed charge. Payments remain recorded; any excess becomes credit.</p>' +
-        productionField("Final agreed charge (Rp)", "cancellation_charge", job.cancellation_charge == null ? "" : U.groupDigits(job.cancellation_charge), "text", job.status === "Cancelled", ' inputmode="numeric"') + '</div>' : '') +
-      '</article>').join("");
+    $("#productionShared").hidden = editing;
+    $("#productionStep3Kicker").textContent = editing ? "Production work" : "Step 3 of 3";
+    $("#productionStep3Title").textContent = editing ? "Edit this job" : "What is the work, and what does it cost?";
+    elements.productionDraftRows.innerHTML = draft.jobs.map((job) => {
+      const custom = !editing && job.custom;
+      return '<article class="pjob' + (custom ? ' is-custom' : '') + '" data-job-id="' + U.escapeHtml(job.id) + '">' +
+        '<div class="pjob__head"><div class="pjob__id"><strong>' + U.escapeHtml(job.item_name) + '</strong>' +
+        '<span>' + U.escapeHtml(job.customer_name + " · " + job.order_title) + '</span></div>' +
+        (editing ? '' : '<button type="button" class="pjob__drop" data-remove-job="' + U.escapeHtml(job.id) + '" aria-label="Remove ' + U.escapeHtml(job.item_name) + '">Remove</button>') + '</div>' +
+        '<div class="pjob__line"><label class="pjob__qty"><span>Qty</span><input class="input" data-pfield="quantity" type="number" min="1" step="1" max="' + U.escapeHtml(job.max_quantity) + '" inputmode="numeric" required aria-required="true" aria-label="Quantity for ' + U.escapeHtml(job.item_name) + '" value="' + U.escapeHtml(job.quantity) + '"></label>' +
+        '<p class="pjob__total" data-job-total></p></div>' +
+        '<details class="pjob__more"' + (custom || editing ? ' open' : '') + '><summary>' + (editing ? 'Job details' : custom ? 'Custom for this item' : 'Own work, price or deadline') + '</summary><div class="pjob__fields">' +
+        productionField("Work description", "description", job.description, "text", true, ' maxlength="500"') +
+        '<div class="production-pair">' +
+        productionField("Price per piece", "unit_price", job.unit_price === "" ? "" : U.groupDigits(job.unit_price), "text", true, ' inputmode="numeric"') +
+        productionField("Deadline", "due_date", job.due_date, "date", false) + '</div>' +
+        productionField("Assigned on", "assigned_date", job.assigned_date, "date", true) +
+        productionField("Notes", "notes", job.notes, "text", false) +
+        (editing ? '<label class="field"><span class="field__label">Progress *</span><select class="input" data-pfield="status" required>' +
+          ["Assigned", "In progress", "Done", "Cancelled"].map((status) => '<option' + (job.status === status ? ' selected' : '') + '>' + status + '</option>').join("") + '</select></label>' +
+          '<div data-cancellation' + (job.status !== "Cancelled" ? ' hidden' : '') + '><p class="production-note">Confirm the final agreed charge. Payments remain recorded; any excess becomes credit.</p>' +
+          productionField("Final agreed charge (Rp)", "cancellation_charge", job.cancellation_charge == null ? "" : U.groupDigits(job.cancellation_charge), "text", job.status === "Cancelled", ' inputmode="numeric"') + '</div>' : '') +
+        '</div></details></article>';
+    }).join("") || '<p class="empty">No items selected yet.</p>';
     renderProductionDraftTotals();
   }
 
+  /* Writes the shared card into every row that has not been given its own
+     answer. A row becomes its own once its field is edited directly, and stops
+     following the card from then on. */
+  function applyProductionShared() {
+    const draft = productionDraft();
+    if (state.route.view === "productionEdit") return;
+    draft.shared = { description: $("#psDescription").value, unit_price: $("#psPrice").value, due_date: $("#psDue").value };
+    draft.jobs.forEach((job) => {
+      if (job.custom) return;
+      job.description = draft.shared.description;
+      job.unit_price = draft.shared.unit_price;
+      job.due_date = draft.shared.due_date;
+    });
+    $$("[data-job-id]", elements.productionDraftRows).forEach((row) => {
+      const job = draft.jobs.find((item) => item.id === row.dataset.jobId);
+      if (!job || job.custom) return;
+      $('[data-pfield="description"]', row).value = job.description;
+      $('[data-pfield="unit_price"]', row).value = job.unit_price;
+      $('[data-pfield="due_date"]', row).value = job.due_date;
+    });
+    renderProductionDraftTotals();
+  }
+
+  /* Editing a row's own description, price or deadline is how it stops taking
+     them from the shared card. Quantity is not one of those: it differs per
+     item by nature and saying so should not detach the row from the card. */
+  function markProductionRowCustom(row, field) {
+    if (state.route.view === "productionEdit") return;
+    if (!field.matches('[data-pfield="description"],[data-pfield="unit_price"],[data-pfield="due_date"]')) return;
+    const job = state.production.draft.jobs.find((item) => item.id === row.dataset.jobId);
+    if (!job || job.custom) return;
+    job.custom = true;
+    row.classList.add("is-custom");
+  }
+
   function snapshotProductionDraft() {
-    const draft = state.production.draft;
+    const draft = productionDraft();
     if (!draft || state.production.batchRequest) return;
-    draft.penjahit_id = elements.productionTailor.value;
     $$("[data-job-id]", elements.productionDraftRows).forEach((row) => {
       const job = draft.jobs.find((item) => item.id === row.dataset.jobId);
       if (!job) return;
@@ -7649,7 +7838,9 @@ KK.app = (function () {
   }
 
   function renderProductionDraftTotals() {
+    const draft = productionDraft();
     let total = 0;
+    let priced = 0;
     $$("[data-job-id]", elements.productionDraftRows).forEach((row) => {
       const qty = Number($('[data-pfield="quantity"]', row).value);
       const price = U.parseRupiahInput($('[data-pfield="unit_price"]', row).value);
@@ -7658,17 +7849,22 @@ KK.app = (function () {
       const cancelled = cancel && cancel.value === "Cancelled";
       if (charge) { charge.required = !!cancelled; charge.disabled = !cancelled; $('[data-cancellation]', row).hidden = !cancelled; }
       const amount = cancelled ? U.parseRupiahInput(charge.value) : qty * price;
-      const valid = price !== null && Number.isSafeInteger(amount) && amount >= 0;
       const blank = !String((cancelled ? charge : $('[data-pfield="unit_price"]', row)).value).trim();
+      const valid = price !== null && Number.isSafeInteger(amount) && amount >= 0;
       /* A blank price is not yet a wrong one. Saying so keeps the row quiet
          until there is something to check, instead of accusing an untouched
          field or, worse, reporting a confident Rp 0. */
-      $('[data-job-total]', row).textContent = blank ? (cancelled ? "Enter the final charge" : "Enter a price per piece")
-        : valid ? (cancelled ? "Final charge · " : "Job total · ") + U.formatRupiah(amount) : "Check quantity and price";
-      if (valid) total += amount;
+      $('[data-job-total]', row).textContent = blank ? (cancelled ? "Enter the final charge" : "Needs a price")
+        : valid ? (cancelled ? "Final charge · " : "") + U.formatRupiah(amount) : "Check quantity and price";
+      if (valid && !blank) { total += amount; priced++; }
     });
-    const count = state.production.draft.jobs.length;
-    $("#productionDraftSummary").textContent = count ? count + " job" + (count === 1 ? "" : "s") + " · " + U.formatRupiah(total) : "Choose an item to start.";
+    state.production.draftTotal = total;
+    const count = draft ? draft.jobs.length : 0;
+    $("#productionDraftTotals").innerHTML = count
+      ? '<div><dt>' + (count === 1 ? "1 job" : count + " jobs") + '</dt><dd>' + (priced === count ? "" : priced + " of " + count + " priced") + '</dd></div>' +
+        '<div class="production-totals__lead"><dt>Total agreed cost</dt><dd>' + U.formatRupiah(total) + '</dd></div>'
+      : "";
+    syncProductionBar();
   }
 
   function setProductionBusy(root, busy) {
@@ -7683,6 +7879,7 @@ KK.app = (function () {
     const token = state.navigation.token;
     const editable = ["penjahitEdit", "productionNew", "productionEdit"].includes(route.view);
     setChrome({ title: "Production", up: { label: "Penjahit", hash: "#/customers?tab=penjahit" }, save: false, productionpage: true, productionedit: editable });
+    elements.productionBar.hidden = true;
     if (!await productionReady()) throw new Error("Production is not available yet. Please try again later.");
     const tailors = await db.listPenjahit();
     if (token !== state.navigation.token) return;
@@ -7730,43 +7927,101 @@ KK.app = (function () {
       setDirty(false);
       return;
     }
-    const sources = await db.listProductionSources();
+
+    const editing = route.view === "productionEdit";
+    const [sources, jobs] = await Promise.all([
+      db.listProductionSources(),
+      editing ? db.listProductionJobs({ id: route.id }) : db.listProductionJobs()
+    ]);
     if (token !== state.navigation.token) return;
     state.production.sources = sources;
-    const editing = route.view === "productionEdit";
     if (editing) {
-      const jobs = await db.listProductionJobs({ id: route.id });
-      if (token !== state.navigation.token) return;
       if (!jobs[0]) throw new Error("This production job could not be found.");
       const job = jobs[0];
       const order = sources.find((source) => source.id === job.order_id);
       const item = order && order.items.find((source) => source.id === job.item_id);
-      state.production.draft = { penjahit_id: job.penjahit_id, jobs: [Object.assign({}, job, { max_quantity: Math.max(job.quantity, Number(item && item.qty || 0)) })] };
+      state.production.draft = { penjahit_id: job.penjahit_id, step: 3, shared: null,
+        jobs: [Object.assign({}, job, { custom: true, max_quantity: Math.max(job.quantity, Number(item && item.qty || 0)) })] };
       state.production.batchRequest = null;
-    } else if (!route.query.has("resume") || !state.production.draft) {
-      state.production.draft = { penjahit_id: route.query.get("penjahit") || "", jobs: [] };
-      state.production.batchRequest = null;
-      // A customer made for an abandoned assignment must not still be the one
-      // the next "+ New order" writes against.
-      state.production.createdCustomerId = null;
+    } else {
+      state.production.jobs = jobs;
+      if (!route.query.has("resume") || !state.production.draft) {
+        // Arriving from a penjahit page answers step 1 on the way in, so the
+        // flow opens on the first question that is still unanswered.
+        const seeded = route.query.get("penjahit") || "";
+        state.production.draft = { penjahit_id: seeded, step: seeded ? 2 : 1, shared: null, jobs: [] };
+        state.production.batchRequest = null;
+        // A customer made for an abandoned assignment must not still be the one
+        // the next "+ New order" writes against.
+        state.production.createdCustomerId = null;
+      }
     }
-    $("#productionEditTitle").textContent = editing ? "Edit production job" : "Assign to penjahit";
-    $("#productionSource").hidden = editing;
-    $("#productionAddTailor").hidden = editing;
-    productionTailorOptions(state.production.draft.penjahit_id);
-    elements.productionTailor.disabled = !!(editing && state.production.draft.jobs[0].has_history);
+
+    const draft = state.production.draft;
+    $("#productionTailorSearch").value = "";
     /* Seeded only when the order is genuinely in the list. orderLabel of a
        missing record answers "Empty order", which as a filter matches nothing
        and would hide every item the reader came back to pick. */
     const seedOrder = route.query.get("order") && sources.find((source) => source.id === route.query.get("order"));
-    $("#productionSearch").value = seedOrder ? orderLabel(seedOrder) : "";
-    renderProductionSources();
-    renderProductionDraft();
+    if (seedOrder) $("#productionSearch").value = orderLabel(seedOrder);
+    else if (!route.query.has("resume")) $("#productionSearch").value = "";
+    $("#psDescription").value = (draft.shared && draft.shared.description) || "";
+    $("#psPrice").value = (draft.shared && draft.shared.unit_price) || "";
+    $("#psDue").value = (draft.shared && draft.shared.due_date) || "";
+
+    setSaveBar(false);
+    elements.productionBar.hidden = false;
     setProductionBusy(elements.viewProductionEdit, false);
     if (state.production.batchRequest) setProductionBusy(elements.viewProductionEdit, true);
     $("#productionRetryNote").hidden = !state.production.batchRequest;
-    setSaveBar(true);
-    setDirty(!editing && state.production.draft.jobs.length > 0);
+    // Arriving with a penjahit already chosen skips the question it answers.
+    showProductionStep(editing ? 3 : draft.step || 1);
+    syncBottomBar();
+    setDirty(draft.jobs.length > 0);
+  }
+
+  function productionStepBack() {
+    const draft = productionDraft();
+    if (productionStepCount() === 1 || draft.step === 1) {
+      if (state.dirty && !confirmLeave()) return;
+      setDirty(false);
+      go(state.route.view === "productionEdit" ? "#/production/" + state.route.id
+        : draft.penjahit_id ? "#/penjahit/" + draft.penjahit_id : "#/customers?tab=penjahit");
+      return;
+    }
+    snapshotProductionDraft();
+    showProductionStep(draft.step - 1);
+  }
+
+  async function productionStepNext() {
+    const draft = productionDraft();
+    if (draft.step === 1) {
+      if (!draft.penjahit_id) { showFormError("Choose a penjahit to continue.", elements.viewProductionEdit); return; }
+      showFormError("", elements.viewProductionEdit);
+      showProductionStep(2);
+      return;
+    }
+    if (draft.step === 2) {
+      if (!draft.jobs.length) { showFormError("Choose at least one item to continue.", elements.viewProductionEdit); return; }
+      showFormError("", elements.viewProductionEdit);
+      showProductionStep(3);
+      applyProductionShared();
+      return;
+    }
+    if (state.saving) return;
+    state.saving = true;
+    syncProductionBar();
+    try {
+      showFormError("", elements.viewProductionEdit);
+      await saveProductionDraft();
+    } catch (err) {
+      console.error(err);
+      showFormError(err.message || "Could not save. Your entries are still here; try again.", elements.viewProductionEdit);
+      showToast(err.message || "Could not save");
+    } finally {
+      state.saving = false;
+      syncProductionBar();
+    }
   }
 
   async function savePenjahitForm() {
@@ -7788,20 +8043,24 @@ KK.app = (function () {
     const editing = state.route.view === "productionEdit";
     if (!state.production.batchRequest) {
       snapshotProductionDraft();
-      if (!validateFields(elements.viewProductionEdit)) return false;
       const draft = state.production.draft;
-      if (!draft.jobs.length) { showFormError("Choose at least one customer item."); return false; }
-      let valid = true;
+      if (!draft.jobs.length) { showFormError("Choose at least one customer item.", elements.viewProductionEdit); return false; }
+      /* A row whose own fields are folded away still has to be checked, and a
+         message inside a closed disclosure is a message nobody reads — so any
+         row carrying an error is opened before focus is sent to it. */
+      let valid = validateFields($('[data-step="3"]', elements.viewProductionEdit));
       $$("[data-job-id]", elements.productionDraftRows).forEach((row) => {
         ["unit_price", "cancellation_charge"].forEach((key) => {
           const field = $('[data-pfield="' + key + '"]', row);
-          if (field && !field.disabled && !setFieldError(field, U.parseRupiahInput(field.value) === null ? "Enter a valid whole rupiah amount." : "")) valid = false;
+          if (field && !field.disabled && !setFieldError(field, U.parseRupiahInput(field.value) === null ? "Enter a whole rupiah amount, digits only." : "")) valid = false;
         });
         const quantity = Number($('[data-pfield="quantity"]', row).value);
         const price = U.parseRupiahInput($('[data-pfield="unit_price"]', row).value);
         if (!Number.isSafeInteger(quantity * price)) { setFieldError($('[data-pfield="unit_price"]', row), "The job total is too large."); valid = false; }
+        const details = $(".pjob__more", row);
+        if (details && row.querySelector('[aria-invalid="true"]')) details.open = true;
       });
-      if (!valid) return focusInvalid(elements.viewProductionEdit);
+      if (!valid) { focusInvalid($('[data-step="3"]', elements.viewProductionEdit)); return false; }
       state.production.batchRequest = draft.jobs.map((job) => ({
         id: job.id, penjahit_id: draft.penjahit_id, order_id: job.order_id, item_id: job.item_id,
         description: job.description.trim(), quantity: Number(job.quantity), unit_price: U.parseRupiahInput(job.unit_price),
@@ -7815,10 +8074,12 @@ KK.app = (function () {
       if (editing) await db.updateProductionJob(request[0]);
       else await db.saveProductionJobs(request);
       const destination = editing ? "#/production/" + request[0].id : "#/penjahit/" + request[0].penjahit_id;
+      const count = request.length;
       state.production.batchRequest = null;
       state.production.draft = null;
       setDirty(false);
-      showToast(editing ? "Production job saved" : "Assignments saved");
+      showToast(editing ? "Production job saved"
+        : count === 1 ? "1 assignment saved" : count + " assignments saved");
       go(destination);
       return true;
     } catch (err) {
@@ -7974,31 +8235,82 @@ KK.app = (function () {
 
   function bindProductionEvents() {
     $("#penjahitArchived").addEventListener("change", renderPenjahitLedger);
+    $("#homeLedgerTabs").addEventListener("click", (event) => {
+      const tab = event.target.closest("[data-ledger-tab]");
+      if (!tab || event.metaKey || event.ctrlKey || event.shiftKey || event.button) return;
+      event.preventDefault();
+      switchLedgerTab(tab.dataset.ledgerTab);
+    });
+    $("#penjahitList").addEventListener("click", (event) => {
+      if (!event.target.closest("#retryPenjahitLedger")) return;
+      state.production.ledgerLoaded = false;
+      loadPenjahitLedger(true).catch(() => {});
+    });
     $("#productionFilter").addEventListener("change", renderProductionJobs);
     $("#productionSearch").addEventListener("input", renderProductionSources);
+    $("#productionTailorSearch").addEventListener("input", renderProductionTailors);
+    $("#productionBack").addEventListener("click", productionStepBack);
+    $("#productionNext").addEventListener("click", productionStepNext);
     elements.viewPenjahitEdit.addEventListener("input", () => setDirty(true));
-    elements.viewProductionEdit.addEventListener("input", (event) => {
-      if (event.target.type === "search") return;
+
+    // The shared card and the rows write to the same jobs, so the shared card
+    // is handled first and separately: a row edit makes that row its own and
+    // must not then be overwritten by the card it has stopped following.
+    $("#productionShared").addEventListener("input", applyProductionShared);
+    $("#productionShared").addEventListener("change", applyProductionShared);
+    $("#psPrice").addEventListener("input", () => U.reformatPriceField($("#psPrice")));
+
+    elements.productionDraftRows.addEventListener("input", (event) => {
+      const row = event.target.closest("[data-job-id]");
+      if (!row) return;
+      if (event.target.matches('[data-pfield="unit_price"],[data-pfield="cancellation_charge"]')) U.reformatPriceField(event.target);
+      markProductionRowCustom(row, event.target);
       snapshotProductionDraft(); renderProductionDraftTotals(); setDirty(true);
     });
-    elements.viewProductionEdit.addEventListener("change", (event) => {
-      if (event.target.type === "search") return;
+    elements.productionDraftRows.addEventListener("change", (event) => {
+      const row = event.target.closest("[data-job-id]");
+      if (!row) return;
+      markProductionRowCustom(row, event.target);
       snapshotProductionDraft(); renderProductionDraftTotals(); setDirty(true);
     });
+
     elements.viewProductionEdit.addEventListener("click", (event) => {
+      const pick = event.target.closest("[data-tailor]");
       const add = event.target.closest("[data-production-item]");
       const remove = event.target.closest("[data-remove-job]");
-      if (state.production.batchRequest || (!add && !remove)) return;
+      if (state.production.batchRequest || (!pick && !add && !remove)) return;
+      const draft = state.production.draft;
+      if (pick) {
+        draft.penjahit_id = pick.dataset.tailor;
+        renderProductionTailors();
+        syncProductionBar();
+        // Chosen is chosen: the step has one question and it has been answered,
+        // so advancing is the next thing the reader wanted anyway.
+        showProductionStep(2);
+        return;
+      }
       snapshotProductionDraft();
       if (add) {
-        const order = state.production.sources.find((source) => source.id === add.dataset.orderId);
-        const item = order.items.find((source) => source.id === add.dataset.productionItem);
-        state.production.draft.jobs.push({ id: crypto.randomUUID(), order_id: order.id, item_id: item.id, item_name: item.name,
-          customer_name: order.customers && order.customers.name || "Customer", order_title: orderLabel(order),
-          description: "", quantity: item.qty, max_quantity: item.qty, unit_price: "", assigned_date: U.todayISO(), due_date: "", notes: "" });
-      } else state.production.draft.jobs = state.production.draft.jobs.filter((job) => job.id !== remove.dataset.removeJob);
-      renderProductionDraft(); setDirty(true);
-      if (add) showToast("Item added to selected work");
+        const existing = draft.jobs.find((job) => job.item_id === add.dataset.productionItem);
+        if (existing) {
+          draft.jobs = draft.jobs.filter((job) => job !== existing);
+        } else {
+          const order = state.production.sources.find((source) => source.id === add.dataset.orderId);
+          const item = order.items.find((source) => source.id === add.dataset.productionItem);
+          const shared = draft.shared || {};
+          draft.jobs.push({ id: crypto.randomUUID(), order_id: order.id, item_id: item.id, item_name: item.name,
+            customer_name: (order.customers && order.customers.name) || "Customer", order_title: orderLabel(order),
+            description: shared.description || "", quantity: item.qty, max_quantity: item.qty,
+            unit_price: shared.unit_price || "", assigned_date: U.todayISO(), due_date: shared.due_date || "", notes: "", custom: false });
+        }
+        renderProductionSources();
+        syncProductionBar();
+        setDirty(draft.jobs.length > 0);
+        return;
+      }
+      draft.jobs = draft.jobs.filter((job) => job.id !== remove.dataset.removeJob);
+      renderProductionDraft();
+      setDirty(draft.jobs.length > 0);
     });
     elements.viewProductionEdit.addEventListener("click", (event) => {
       if (event.target.closest('a[href*="from=production"]')) { snapshotProductionDraft(); setDirty(false); }
@@ -10070,7 +10382,7 @@ KK.app = (function () {
     bindProductionEvents();
     if (window.ResizeObserver) {
       const barObserver = new ResizeObserver(syncBottomBar);
-      [elements.savebar, elements.fitdetBar, elements.fitaddBar, elements.schedcalMonthbar].forEach((bar) => barObserver.observe(bar));
+      [elements.savebar, elements.productionBar, elements.fitdetBar, elements.fitaddBar, elements.schedcalMonthbar].forEach((bar) => barObserver.observe(bar));
     }
     /* Only the skeleton and the closed menu can see this: every real entry
        point lives inside #homeReady, which stays hidden until the probe has
@@ -10160,8 +10472,6 @@ KK.app = (function () {
         showFormError("");
         if ("penjahitEdit" === state.route.view) {
           await savePenjahitForm();
-        } else if (["productionNew", "productionEdit"].includes(state.route.view)) {
-          await saveProductionDraft();
         } else if ("customerEdit" === state.route.view) {
           await saveCustomer();
         } else if ("orderEdit" === state.route.view) {

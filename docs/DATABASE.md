@@ -99,6 +99,11 @@ Backs `#/quotations` and `#/invoices`. `document_log` stores no customer name, n
 
 **The `total` on a row is the number that was actually sent.** Never recompute it from the order's current items — that is the whole reason the column exists.
 
+> **Applied.** This migration is live on the project (`lgockcjjfkvuihhofyxi`):
+> three tables, four functions, the `orders.items` id trigger with every
+> existing order backfilled, the feed view, and the select-only grant model.
+> `tests/production-ledger.sql` passes against it and rolls its fixtures back.
+
 ### `penjahit` — production partners
 `id` uuid pk · `name` **not null**, 1–200 characters after trimming · `phone` · `notes` · `archived_at` · `created_at`.
 

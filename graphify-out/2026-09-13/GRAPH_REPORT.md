@@ -1,16 +1,16 @@
-# Graph Report - kelakkembali-tools  (2026-09-10)
+# Graph Report - kelakkembali-tools  (2026-09-13)
 
 ## Corpus Check
-- 74 files · ~177,931 words
+- 75 files · ~189,112 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1375 nodes · 2246 edges · 85 communities (83 shown, 2 thin omitted)
-- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 43 edges (avg confidence: 0.5)
+- 1421 nodes · 2398 edges · 83 communities (81 shown, 2 thin omitted)
+- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 50 edges (avg confidence: 0.5)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `4768bb44`
+- Built from commit: `39092080`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -20,7 +20,7 @@
 - 3. Function index — symbol → line
 - Homepage Figma `37:54` — Implementation Handoff
 - 2. Decisions that should not be reopened
-- setupFittingDetailListeners
+- go
 - app.js
 - DESIGN-SYSTEM — visual language, tokens, and the tactile contract
 - Fitting Log Session Detail — Implementation Plan
@@ -28,7 +28,7 @@
 - fittings.js
 - bindEvents
 - setupFittingPhotoAddListeners
-- setChrome
+- productionReady
 - Independent One-Per-Stage Fitting Logs
 - Features 2 & 3 — Quotations and invoices, one page parameterised by `kind`
 - validate.py
@@ -41,7 +41,7 @@
 - FEATURES — one row per feature, everything you need to touch it
 - google-calendar/index.ts
 - 1. Tables — column contract
-- renderDocumentFeed
+- showDocuments
 - calendar.js
 - google-drive/index.ts
 - util.js
@@ -89,26 +89,24 @@
 - 1. Overview & goals
 - __init__.py
 - README-INDEX — seek, do not read
-- openFittingMark
-- setDirty
 - pure-modules.test.cjs
-- saveOrder
-- renderCustomerList
+- bindProductionEvents
+- showCustomers
 - signOutFromMenu
 - progress.js
 - quotes.js
 
 ## God Nodes (most connected - your core abstractions)
-1. `bindEvents()` - 63 edges
-2. `handleRoute()` - 54 edges
-3. `3. Function index — symbol → line` - 42 edges
-4. `showToast()` - 34 edges
+1. `bindEvents()` - 73 edges
+2. `handleRoute()` - 55 edges
+3. `3. Function index — symbol → line` - 43 edges
+4. `showToast()` - 37 edges
 5. `setupFittingPhotoAddListeners()` - 25 edges
-6. `Homepage Figma `37:54` — Implementation Handoff` - 23 edges
-7. `renderFittingPhotoAdd()` - 22 edges
-8. `FEATURES — one row per feature, everything you need to touch it` - 22 edges
-9. `Homepage Revamp Plan` - 19 edges
-10. `setChrome()` - 16 edges
+6. `FEATURES — one row per feature, everything you need to touch it` - 24 edges
+7. `Homepage Figma `37:54` — Implementation Handoff` - 23 edges
+8. `renderFittingPhotoAdd()` - 22 edges
+9. `setDirty()` - 21 edges
+10. `bindProductionEvents()` - 20 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `mosaic()` --references--> `VARIATIONS`  [EXTRACTED]
@@ -125,11 +123,11 @@
 ## Import Cycles
 - None detected.
 
-## Communities (85 total, 2 thin omitted)
+## Communities (83 total, 2 thin omitted)
 
 ### Community 0 - "showFittingLogs"
-Cohesion: 0.11
-Nodes (24): announceFittingStatus(), cleanupFittingLogs(), ensureFittingObserver(), fitaddStateHtml(), fittingBlockHtml(), fittingCardHtml(), fittingDetailEmptyHtml(), fittingEmptyHtml() (+16 more)
+Cohesion: 0.13
+Nodes (20): announceFittingStatus(), ensureFittingObserver(), fitaddStateHtml(), fittingBlockHtml(), fittingCardHtml(), fittingEmptyHtml(), fittingPanelHtml(), fittingRequestArgs() (+12 more)
 
 ### Community 1 - "moodboard.js"
 Cohesion: 0.10
@@ -137,7 +135,7 @@ Nodes (36): addFiles(), applyStageGeometry(), bandCandidate(), bandPartitions(),
 
 ### Community 2 - "3. Function index — symbol → line"
 Cohesion: 0.04
-Nodes (47): 1. Region table — pick one, read only its range, 2. Routes → handler, 3. Function index — symbol → line, 4. Coupling notes (read before a broad refactor), Boot & Event Listeners, Calendar rendering, Card actions, Customer Detail & Edit Controller (+39 more)
+Nodes (48): 1. Region table — pick one, read only its range, 2. Routes → handler, 3. Function index — symbol → line, 4. Coupling notes (read before a broad refactor), Boot & Event Listeners, Calendar rendering, Card actions, Customer Detail & Edit Controller (+40 more)
 
 ### Community 3 - "Homepage Figma `37:54` — Implementation Handoff"
 Cohesion: 0.04
@@ -147,13 +145,13 @@ Nodes (44): 10. Shortcut buttons and appear animation, 11. Conditional submissio
 Cohesion: 0.12
 Nodes (15): 1. The product in one sentence, 2. Decisions that should not be reopened, 3. Annotation: why vector, not a flattened image, 4. The PDF is a working document, not an archive, 5. Failure and edge-case matrix, 6. Validation, Capacity, Captions (+7 more)
 
-### Community 5 - "setupFittingDetailListeners"
+### Community 5 - "go"
 Cohesion: 0.10
-Nodes (24): addFittingDetailPhoto(), admitAddFiles(), announceDetailStatus(), applyAddBackupResult(), blobToDataUrl(), cleanupFittingDetail(), closeFittingPhotoViewer(), deleteFittingDetailLog() (+16 more)
+Nodes (26): addDirty(), addPhotosPicked(), admitAddFiles(), announceAddStatus(), applyAddBackupResult(), clearAddUndo(), commitFittingMark(), deleteAddCard() (+18 more)
 
 ### Community 6 - "app.js"
-Cohesion: 0.08
-Nodes (44): alignDocumentSearch(), alignFittingSearch(), alignLedgerSearch(), beginHomepageLoad(), bindSwipeRows(), buildHomepageAtmosphereScene(), clearHomepagePops(), clearHomepagePresses() (+36 more)
+Cohesion: 0.06
+Nodes (58): addFittingDetailPhoto(), alignDocumentSearch(), alignFittingSearch(), alignLedgerSearch(), announceDetailStatus(), bindPrefetch(), bindSwipeRows(), blobToDataUrl() (+50 more)
 
 ### Community 7 - "DESIGN-SYSTEM — visual language, tokens, and the tactile contract"
 Cohesion: 0.05
@@ -172,16 +170,16 @@ Cohesion: 0.23
 Nodes (9): archivePhoto(), base64(), cancelStagePicker(), compressImage(), hideOverlay(), prepareImage(), showOverlay(), syncOverlayState() (+1 more)
 
 ### Community 11 - "bindEvents"
-Cohesion: 0.19
-Nodes (20): addCalcRow(), addItemRow(), announceSchedulesStatus(), applyCostCalc(), bindEvents(), closeCostCalc(), closeScheduleDay(), connectGoogle() (+12 more)
+Cohesion: 0.08
+Nodes (40): addCalcRow(), addItemRow(), addTermRow(), announceSchedulesStatus(), applyCostCalc(), beginSchedulesLoad(), bindEvents(), buildScheduleItems() (+32 more)
 
 ### Community 12 - "setupFittingPhotoAddListeners"
-Cohesion: 0.10
-Nodes (38): addCaptionFor(), addDirty(), addPhotosFromReview(), addPhotosPicked(), addSavedCaptionForKey(), announceAddStatus(), captureAddFocus(), cleanupFittingPhotoAdd() (+30 more)
+Cohesion: 0.09
+Nodes (34): addAnnotationFor(), addCaptionFor(), addPhotosFromReview(), addSavedCaptionForKey(), captureAddFocus(), clearFittingMark(), closeAddEditor(), closeFittingMark() (+26 more)
 
-### Community 13 - "setChrome"
-Cohesion: 0.16
-Nodes (16): beginSchedulesLoad(), cleanupSchedules(), disconnectGoogle(), indexScheduleItems(), renderDocumentSearchClear(), restoreDocumentScroll(), setChrome(), setDocumentBackControl() (+8 more)
+### Community 13 - "productionReady"
+Cohesion: 0.21
+Nodes (12): applyProductionEntries(), productionBalance(), productionJobHtml(), productionReady(), productionTotals(), productionTotalsHtml(), rememberProductionReady(), renderOrderProduction() (+4 more)
 
 ### Community 14 - "Independent One-Per-Stage Fitting Logs"
 Cohesion: 0.06
@@ -196,8 +194,8 @@ Cohesion: 0.07
 Nodes (49): benchmark_pair(), count_tokens(), main(), print_table(), Path, main(), print_usage(), backup_dir_for() (+41 more)
 
 ### Community 17 - "showOrderDetail"
-Cohesion: 0.09
-Nodes (31): beginOrderLoad(), buildOrderDetailViewModel(), clearOrderPresses(), closeOrderPaymentChooser(), documentReadiness(), downloadDocument(), isCurrentOrderLoad(), logDeposit() (+23 more)
+Cohesion: 0.10
+Nodes (29): beginOrderLoad(), buildOrderDetailViewModel(), clearOrderPresses(), closeOrderPaymentChooser(), documentReadiness(), downloadDocument(), isCurrentOrderLoad(), logDeposit() (+21 more)
 
 ### Community 18 - "KELAK KEMBALI — Master UI/UX Design Styleguide & Token System"
 Cohesion: 0.07
@@ -212,28 +210,28 @@ Cohesion: 0.07
 Nodes (28): A note on rendered font weight, Assets, Business rules, Customer intake (Tally), Deploying to Vercel, Exports, Fitting log, Full-screen overlay (+20 more)
 
 ### Community 21 - "renderDocumentPicker"
-Cohesion: 0.10
-Nodes (28): advancedStatus(), announceDocumentPickerStatus(), backToDocumentCustomers(), buildScheduleItems(), bumpStatus(), cancelSheetClose(), closeDocumentPicker(), closeSheetElement() (+20 more)
+Cohesion: 0.17
+Nodes (17): advancedStatus(), announceDocumentPickerStatus(), backToDocumentCustomers(), bumpStatus(), cancelSheetClose(), closeDocumentPicker(), closeSheetElement(), deriveLoggedDeposits() (+9 more)
 
 ### Community 22 - "caveman-compress/README.md"
 Cohesion: 0.09
 Nodes (20): Before / After, Benchmarks, How It Work, <img src="../../docs/assets/dancing-rock.svg" width="20" height="20" alt="rock"/> Caveman (285 tokens), Install, 📄 Original (706 tokens), Part of Caveman, Security (+12 more)
 
 ### Community 23 - "FEATURES — one row per feature, everything you need to touch it"
-Cohesion: 0.09
-Nodes (22): 10. Fitting workspace (photos, notes, marks), 11. Starting a fitting log, 12. Fitting image preparation & Drive archival, 13. Moodboard, 14. Quotation & invoice documents, 15. Intake / enquiry review, 16. Google Calendar, 17. Auth gate & boot (+14 more)
+Cohesion: 0.08
+Nodes (24): 10. Fitting workspace (photos, notes, marks), 11. Starting a fitting log, 12. Fitting image preparation & Drive archival, 13. Moodboard, 14. Quotation & invoice documents, 15. Intake / enquiry review, 16. Google Calendar, 17. Auth gate & boot (+16 more)
 
 ### Community 24 - "google-calendar/index.ts"
 Cohesion: 0.21
 Nodes (20): accessToken(), callCalendar(), CORS, DESIGN_STAGES, disconnect(), eventTitle(), exchange(), FOLLOW_UP_REMINDERS (+12 more)
 
 ### Community 25 - "1. Tables — column contract"
-Cohesion: 0.10
-Nodes (21): 1. Tables — column contract, 2. Security model, 3. Editing schema.sql, 4. `db.js` API index — method → line, 5. Edge Functions — `supabase/functions/`, `customers`, DATABASE — data contract, `document_log` (+13 more)
+Cohesion: 0.08
+Nodes (26): 1. Tables — column contract, 2. Security model, 3. Editing schema.sql, 4. `db.js` API index — method → line, 5. Edge Functions — `supabase/functions/`, `customers`, DATABASE — data contract, `document_log` (+18 more)
 
-### Community 26 - "renderDocumentFeed"
-Cohesion: 0.18
-Nodes (15): announceDocumentStatus(), cleanupDocuments(), documentBlockHtml(), documentCardHtml(), documentEmptyHtml(), documentPanelHtml(), documentRequestArgs(), documentSkeletonHtml() (+7 more)
+### Community 26 - "showDocuments"
+Cohesion: 0.17
+Nodes (16): announceDocumentStatus(), documentBlockHtml(), documentCardHtml(), documentEmptyHtml(), documentPanelHtml(), documentRequestArgs(), documentSkeletonHtml(), documentStateHtml() (+8 more)
 
 ### Community 27 - "calendar.js"
 Cohesion: 0.25
@@ -244,12 +242,12 @@ Cohesion: 0.24
 Nodes (15): accessToken(), CORS, driveRequest(), findOrCreateFolder(), folderSegment(), getFittingPhoto(), json(), readCredential() (+7 more)
 
 ### Community 29 - "util.js"
-Cohesion: 0.15
-Nodes (8): annotationSvg(), digitsOnly(), escapeHtml(), formatLongDate(), formatShortDate(), groupDigits(), normalizeAnnotation(), reformatPriceField()
+Cohesion: 0.14
+Nodes (9): annotationSvg(), digitsOnly(), escapeHtml(), formatLongDate(), formatShortDate(), groupDigits(), normalizeAnnotation(), parseRupiahInput() (+1 more)
 
 ### Community 30 - "showToast"
-Cohesion: 0.19
-Nodes (18): acceptEnquiry(), consultNudgeFor(), dismissEnquiry(), exportMoodboard(), flashMoodboardExportState(), followUpPatch(), lastDayOfMonth(), leaveFormFor() (+10 more)
+Cohesion: 0.14
+Nodes (24): acceptEnquiry(), cancelCustomer(), consultNudgeFor(), customerStatus(), deleteCustomerFromLedger(), deleteOrderFromCustomer(), disconnectGoogle(), dismissEnquiry() (+16 more)
 
 ### Community 31 - "cavecrew/SKILL.md"
 Cohesion: 0.14
@@ -269,7 +267,7 @@ Nodes (13): cloneReady(), computeTotal(), createWatermarkPattern(), download(), 
 
 ### Community 35 - "styles/ — actual load order"
 Cohesion: 0.14
-Nodes (14): Class-prefix → feature, index.html (1895 lines), Locked PDF templates — do not edit without explicit request, MAP — index.html & styles/, Overlays & bars — id → line, Script load order (1885–1893) — this is the dependency graph, styles/ — actual load order, styles/documents.css (473 lines) (+6 more)
+Nodes (14): Class-prefix → feature, index.html (2046 lines), Locked PDF templates — do not edit without explicit request, MAP — index.html & styles/, Overlays & bars — id → line, Script load order (1885–1893) — this is the dependency graph, styles/ — actual load order, styles/documents.css (473 lines) (+6 more)
 
 ### Community 36 - "Customer Detail Page Revamp - Specification & Execution Plan"
 Cohesion: 0.14
@@ -364,8 +362,8 @@ Cohesion: 0.29
 Nodes (6): Close out, Documents, Left for you, Schedules, Shared, Tasks — schedules calendar, quotations list, invoices list
 
 ### Community 60 - "handleRoute"
-Cohesion: 0.15
-Nodes (18): armEnterView(), armRouteLoader(), bindPrefetch(), cancelRouteLoader(), cleanupHomepageAtmosphere(), clearRouteMotion(), enterView(), focusRoute() (+10 more)
+Cohesion: 0.11
+Nodes (35): addCustomInclude(), armEnterView(), armRouteLoader(), cancelRouteLoader(), cleanupFittingPhotoAdd(), cleanupHomepageAtmosphere(), customChip(), fittingDetailEmptyHtml() (+27 more)
 
 ### Community 61 - "Architecture & Codebase Map"
 Cohesion: 0.33
@@ -415,25 +413,17 @@ Nodes (4): 3.1 Existing route and render flow, 3.2 Existing behavior to reuse, 3
 Cohesion: 0.67
 Nodes (3): 1. Overview & goals, Explicit non-goals, In scope
 
-### Community 77 - "openFittingMark"
-Cohesion: 0.16
-Nodes (15): addAnnotationFor(), clearFittingMark(), drawFittingMarkStroke(), fittingMarkImageReady(), fittingMarkNumber(), fittingMarkPoint(), fittingMarkSource(), layoutFittingMark() (+7 more)
-
-### Community 78 - "setDirty"
-Cohesion: 0.17
-Nodes (15): addCustomInclude(), cancelCustomer(), customChip(), customerStatus(), deleteCustomerRecord(), deleteOrderRecord(), fillCustomerForm(), go() (+7 more)
-
 ### Community 79 - "pure-modules.test.cjs"
-Cohesion: 0.21
+Cohesion: 0.16
 Nodes (12): assert, assertMosaic(), FITTING_ROUTE_FAMILY, focusCallSites(), inFittingFamily(), JS_SOURCES, near(), readShipped() (+4 more)
 
-### Community 80 - "saveOrder"
-Cohesion: 0.24
-Nodes (10): addTermRow(), buildTerms(), readItems(), readTerms(), refreshTermRemoveButtons(), refreshTermsSum(), saveOrder(), showTermsError() (+2 more)
+### Community 80 - "bindProductionEvents"
+Cohesion: 0.23
+Nodes (19): bindProductionEvents(), focusInvalid(), openProductionPayment(), productionField(), readTerms(), renderProductionDraft(), renderProductionDraftTotals(), saveOrder() (+11 more)
 
-### Community 81 - "renderCustomerList"
-Cohesion: 0.29
-Nodes (10): compareHomepageCustomers(), deleteCustomerFromLedger(), greetingForClock(), homepageStatus(), nextDeadline(), renderCustomerList(), renderHomepageAlert(), renderHomepageHero() (+2 more)
+### Community 81 - "showCustomers"
+Cohesion: 0.09
+Nodes (29): beginHomepageLoad(), buildHomepageAtmosphereScene(), clearHomepagePops(), clearHomepagePresses(), compareHomepageCustomers(), greetingForClock(), homepageAtmosphereHash(), homepageAtmosphereNextBoundary() (+21 more)
 
 ### Community 82 - "signOutFromMenu"
 Cohesion: 0.32
@@ -448,24 +438,24 @@ Cohesion: 0.70
 Nodes (4): eligible(), monthPartOf(), pick(), slotOf()
 
 ## Knowledge Gaps
-- **604 isolated node(s):** `REMINDERS`, `FOLLOW_UP_REMINDERS`, `CORS`, `CORS`, `CORS` (+599 more)
+- **612 isolated node(s):** `REMINDERS`, `FOLLOW_UP_REMINDERS`, `CORS`, `CORS`, `CORS` (+607 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **2 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `FEATURES — one row per feature, everything you need to touch it` connect `FEATURES — one row per feature, everything you need to touch it` to `FEATURES.md`?**
-  _High betweenness centrality (0.007) - this node is a cross-community bridge._
-- **Why does `CONVENTIONS` connect `CONVENTIONS` to `FEATURES.md`?**
-  _High betweenness centrality (0.006) - this node is a cross-community bridge._
 - **Why does `Kelak Kembali — Wedding Quotation & Invoice Generator` connect `Kelak Kembali — Wedding Quotation & Invoice Generator` to `FEATURES.md`?**
+  _High betweenness centrality (0.007) - this node is a cross-community bridge._
+- **Why does `AGENTS.md — read this first, read it whole, read nothing else yet` connect `AGENTS.md — read this first, read it whole, read nothing else yet` to `FEATURES.md`?**
+  _High betweenness centrality (0.006) - this node is a cross-community bridge._
+- **Why does `DESIGN-SYSTEM — visual language, tokens, and the tactile contract` connect `DESIGN-SYSTEM — visual language, tokens, and the tactile contract` to `FEATURES.md`?**
   _High betweenness centrality (0.006) - this node is a cross-community bridge._
 - **Are the 18 inferred relationships involving `bindEvents()` (e.g. with `acceptEnquiry()` and `addCustomInclude()`) actually correct?**
   _`bindEvents()` has 18 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 8 inferred relationships involving `setupFittingPhotoAddListeners()` (e.g. with `addPhotosFromReview()` and `clearFittingMark()`) actually correct?**
   _`setupFittingPhotoAddListeners()` has 8 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `REMINDERS`, `FOLLOW_UP_REMINDERS`, `CORS` to the rest of the system?**
-  _604 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _612 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `showFittingLogs` be split into smaller, more focused modules?**
-  _Cohesion score 0.10869565217391304 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.13157894736842105 - nodes in this community are weakly interconnected._

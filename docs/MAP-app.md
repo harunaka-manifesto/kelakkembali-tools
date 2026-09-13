@@ -1,4 +1,4 @@
-# MAP — app.js (10624 lines, ~440 KB)
+# MAP — app.js (10947 lines, ~452 KB)
 
 **Never read this file whole.** It costs ~60k tokens. Jump to a region below, read ≤400 lines.
 
@@ -24,7 +24,7 @@ One IIFE. Everything is file-scoped; there is no class, no module, no split. Reg
 | 3407–4242 | **Document feed** (quotations + invoices list, new-document picker) | `Document feed` | Quotation/invoice list work |
 | 4243–4819 | **Fitting log detail** (photos, marks, share, PDF, viewer) | `Fitting log session detail` | Detail page work |
 | 4820–6294 | **Fitting workspace** (photos, captions, red marks, staged deletes, atomic save) | `Add fitting photos` | Workspace work — includes the `Photo annotation` sub-region at 5486 |
-| 7419–8029 | **Penjahit production ledger** (penjahit, jobs, payments, order costs) | `Penjahit production ledger` | Production assignment, job pages, penjahit money |
+| 7429–8351 | **Penjahit production ledger** (ledger tabs, assignment wizard, jobs, payments, order costs) | `Penjahit production ledger` | Production assignment, job pages, penjahit money |
 | 6295–6760 | **Customer detail + editor** (and enquiry review) | `Customer Detail & Edit Controller` | Customer pages, Tally intake UI |
 | 6761–7340 | **Order detail** view model, render, schedule, payments | `Order Detail ViewModel & UI` | Order detail page |
 | 7341–7747 | **Order editor + cost calculator** (items, terms, chips) | `Order Editor & Cost Calculator` | Order editing, pricing |
@@ -210,7 +210,15 @@ canvas and clamps them to 0..1, so nothing is ever stored outside the image.
 **`showCustomerDetail`** 5694 · **`showCustomerEdit`** 5719 · `renderCustomerReadOnly` 5763 · `custNextEvent` 5773 · `custOrderStatus` 5795 · `renderCustomerDetail` 5803 · `relativeToToday` 5849 · `fillCustomerForm` 5856 · `setNameError` 5873 · `setWeddingPrecision` 5881 · `weddingPrecision` →5892 · `lastDayOfMonth` 5894 · **`saveCustomer`** 5901 · `scheduleFor` →5970
 
 ### Penjahit production ledger
-`rememberProductionReady` 7427 · `productionReadyGuess` 7431 · `applyProductionEntries` 7435 · **`productionReady`** 7440 · `productionBalance` 7449 · `productionTotals` 7453 · `productionTotalsHtml` 7471 · `productionJobHtml` 7483 · **`showHomepageLedger`** 7495 · `renderPenjahitLedger` 7527 · `renderProductionJobs` 7574 · `productionTailorOptions` 7583 · `renderProductionSources` 7590 · `productionField` 7604 · `renderProductionDraft` 7608 · `snapshotProductionDraft` 7630 · `renderProductionDraftTotals` 7641 · `setProductionBusy` 7664 · **`showProductionRoute`** 7672 · `savePenjahitForm` 7762 · **`saveProductionDraft`** 7777 · `renderProductionJob` 7823 · `openProductionPayment` 7847 · `syncProductionPaymentKind` 7873 · `saveProductionPayment` 7882 · `renderOrderProduction` 7933 · `bindProductionEvents` 7965
+**Availability probe** `rememberProductionReady` 7437 · `productionReadyGuess` 7441 · `applyProductionEntries` 7445 · **`productionReady`** 7450
+
+**Money** `productionBalance` 7459 · `productionTotals` 7463 · `productionTotalsHtml` 7481 · `productionJobHtml` 7493
+
+**Homepage ledger tabs** `syncLedgerTab` 7508 · **`showHomepageLedger`** 7525 · `loadPenjahitLedger` 7542 · **`switchLedgerTab`** 7569 · `renderPenjahitLedger` 7587 · `renderProductionJobs` 7634
+
+**The assignment wizard** `productionStepCount` 7647 · **`showProductionStep`** 7651 · `syncProductionBar` 7679 · `renderProductionTailors` 7706 (step 1) · `renderProductionSources` 7725 (step 2) · `productionField` 7758 · `renderProductionDraft` 7765 (step 3) · `applyProductionShared` 7798 · `markProductionRowCustom` 7821 · `snapshotProductionDraft` 7830 · `renderProductionDraftTotals` 7840 · `productionStepBack` 7983 · `productionStepNext` 7996
+
+**Routes & saving** `setProductionBusy` 7870 · **`showProductionRoute`** 7878 · `savePenjahitForm` 8027 · **`saveProductionDraft`** 8042 · `renderProductionJob` 8094 · `openProductionPayment` 8118 · `syncProductionPaymentKind` 8144 · `saveProductionPayment` 8153 · `renderOrderProduction` 8204 · `bindProductionEvents` 8236
 
 ### Order Detail ViewModel & UI
 `isCurrentOrderLoad` 5975 · `clearOrderPresses` 5979 · `closeOrderPaymentChooser` 5983 · `beginOrderLoad` 5989 · `orderErrorCopy` 6015 · `renderOrderError` 6022 · `orderFirstName` →6048 · `orderDateLabel` 6053 · `pushInto` 6059 · `deriveLoggedDeposits` 6065 · `orderScheduleModel` 6075 · `documentReadiness` 6123 · **`buildOrderDetailViewModel`** 6138 · `renderOrderItems` 6187 · `renderOrderDocumentState` 6202 · `renderOrderPayments` 6210 · `renderOrderPaymentChoices` 6236 · `renderOrderSchedule` 6244 · `renderOrderReady` 6269 · `revealOrder` 6286 · **`showOrderDetail`** 6316 · `refreshOrderPayments` 6381 · `refreshOrderSchedule` 6415 · `retryOrderSchedule` 6454 · `toggleOrderPaymentChooser` 6460 · `setOrderPaymentBusy` 6471 · `renderScheduleHint` 6481 · `rescheduleOrder` 6516
@@ -238,4 +246,6 @@ canvas and clamps them to 0..1, so nothing is ever stored outside the image.
 - Order detail and order editor share nothing but `db.getOrder`. Editing one does not require reading the other.
 - **Production is gated on one probe.** `productionReady` asks `db.productionAvailable()` once a session, caches the answer in `state.production.available`, and mirrors it to `localStorage` so the homepage skeleton reserves the assignment tile's row on the next visit. Everything marked `data-production-entry` in `index.html` is shown or stood down by `applyProductionEntries`; nothing else may toggle those elements. Until the migration is applied the probe answers `false` and every entry point stays hidden, which is how the feature ships ahead of the database.
 - **The shared form validators live in the chrome region** (`setFieldError`, `fieldValidityMessage`, `validateFields`, `focusInvalid`, `showFormError`, ~570–660). Every editor calls them; the customer, order, production, and payment forms have no private validation. Focus is moved only on submit — the live `input` listener in `bindEvents` revalidates the field being corrected and never calls `focusInvalid`, because the reader is mid-word in it.
+- **The assignment flow is three screens, not one page.** `state.production.draft.step` is the whole of it: `showProductionStep` toggles `[data-step]` panels, moves focus to the step's heading, and re-renders only that step. `#productionBar` is its own bottom bar (Back + a primary whose label says what it will do) and `#savebar` is stood down for the route — the shared save button never drives this view. Editing one existing job is `productionStepCount() === 1`, which hides the stepper, the shared card, and Remove, and shows step 3 alone.
+- **The shared card and the rows write to the same jobs.** `applyProductionShared` pushes the step 3 defaults into every row that has not been given its own answer; `markProductionRowCustom` flags a row as its own the moment its description, price, or deadline is edited directly, and it stops following the card from then on. Quantity never sets that flag — it differs per item by nature.
 - **Retry identity is client-side.** `state.production.batchRequest` and `state.production.paymentRequest` hold the exact payload of an unconfirmed save. A rejection with an error `code` came from the database and rolled back, so the payload is cleared; a response that never arrived keeps it, and the same `id` is resent — the RPCs match on it and return the existing rows instead of writing twice.
