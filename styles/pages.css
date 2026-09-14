@@ -1468,10 +1468,9 @@ body.is-custeditpage .savebar,
 body.is-ordereditpage .savebar {
   left: 50%;
   right: auto;
-  /* Centring and the keyboard offset share the one transform: setting only
-     translateX here would drop the Y the base rule applies, and this is the
-     page where the bar most needs to follow the keyboard. */
-  transform: translate(-50%, calc(-1 * var(--keyboard-offset)));
+  /* Centring only. The bar no longer rides the keyboard — on a form it sat on
+     top of the field being typed into. See .savebar in shared.css. */
+  transform: translateX(-50%);
   width: min(390px, 100%);
   max-width: 390px;
   padding: 0;
@@ -5001,191 +5000,372 @@ body.is-ordereditpage .calcrow .input:focus-visible { outline: 2px solid var(--h
   background: rgba(254, 250, 241, .12);
 }
 .production-tabs a[aria-current="page"] .production-tabs__count { color: var(--home-white); background: var(--home-black); }
-/* The customer ledger's count is the rail itself; this one shares the rail with
-   the archive toggle, so it needs its own row to hold the separator dot the
-   flex gap would otherwise apply to the wrapper alone. */
-/* The rail is one 36px line and shares it with the archive toggle, so the count
-   is what gives way at 320px — the toggle is a control and cannot ellipse. */
-#penjahitSummary { display: inline-flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; }
-#penjahitSummary > span { overflow: hidden; text-overflow: ellipsis; }
+
+/* Summary rail on the penjahit tab is the customer tab's rail exactly — the
+   count is the rail, nothing shares it. */
 #homePenjahit .home-customer-card__name { overflow-wrap: anywhere; }
-/* Sits in the summary rail the count already occupies, pushed to the far end.
-   The rail is 36px and nowrap, so the label stays two words. */
-/* Lighter than the count beside it on purpose: the count is metadata, this is
-   a control, and the rail's grey lands around 1.6:1 on the homepage canvas. */
-.home-summary__toggle { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; cursor: pointer; color: var(--home-white-dark); }
-.home-summary__toggle input { width: 16px; height: 16px; margin: 0; accent-color: var(--home-green); }
 
-body.is-productionpage { background: var(--home-black); color: var(--home-white); }
-body.is-productionpage .page { max-width: 390px; padding: 0 0 calc(var(--bottombar-h) + 32px); }
+/* ------------------------------ Page shell ------------------------------- */
+
+/* Every production page is one of the two page types the app already has:
+   a record you read (the order and customer pages — fixed tactile nav, black
+   ledger, cream cards on grid rules) or a form you fill (the customer editor —
+   the same ledger with the cards opened into fields). The reading pages wear
+   .order-*, the forms wear .custedit-*; this block only adds what those two do
+   not have. There was a third, home-grown design here before — cream bands,
+   floating app bar, bordered select boxes — and it read as a different app. */
+body.is-productionpage { background: #292929; overflow-x: hidden; }
+body.is-productionpage .appbar,
 body.is-productionpage .pagehead { display: none; }
-body.is-productionpage .appbar { background: var(--home-black); color: var(--home-white); border-color: var(--home-grid); }
-body.is-productionpage .appbar__inner { max-width: 390px; }
-body.is-productionpage .appbar a, body.is-productionpage .appbar button { color: var(--home-white); }
-.production { border-inline: 1px solid var(--home-grid); background: var(--home-black); }
-.production [hidden], .production[hidden] { display: none !important; }
-.production-heading { padding: 24px; border-block: 1px solid var(--home-grid); background: var(--home-white); color: var(--home-black); }
-.production-heading h1 { margin: 0; font-size: 28px; line-height: 1.2; letter-spacing: -.84px; overflow-wrap: anywhere; }
-.production-heading h2, .production-fields h2 { margin: 0; font-size: 20px; line-height: 1.3; letter-spacing: -.6px; }
-.production-heading p { margin: 12px 0 0; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
-.production-heading .production-kicker { margin: 0 0 12px; text-transform: uppercase; font-size: 12px; font-weight: 700; letter-spacing: .6px; }
-.production-fields { margin: 24px; padding: 20px; display: grid; gap: 16px; background: var(--home-white); color: var(--home-black); border-bottom: 8px solid var(--home-white-dark); }
-.production-fields .field { margin: 0; }
-.production-fields h3 { margin: 0; font-size: 18px; line-height: 1.35; overflow-wrap: anywhere; }
-.production .input { min-width: 0; max-width: 100%; border-radius: 0; background-color: transparent; font-size: 16px; }
-.production .field__label { color: var(--home-black); font-size: 14px; line-height: 1.5; text-transform: none; letter-spacing: 0; }
-.production .field__hint { color: var(--label); line-height: 1.5; overflow-wrap: anywhere; }
-/* align-items: end, because one label in a pair wraps to two lines long before
-   the other does and the fields, not the labels, are what should line up. */
-.production-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: end; gap: 12px; }
-.production-search { padding: 16px 24px; margin: 0; color: var(--home-black); background: var(--home-white); }
-.production-actions { display: flex; flex-wrap: wrap; gap: 12px; padding: 16px 24px; }
-.production-fields .production-actions { padding: 0; }
-.production-actions > * { flex: 1 1 100px; }
-.production .btn { position: relative; min-height: 52px; height: auto; padding: 10px 12px 16px; border-radius: 0; border: 1px solid var(--home-grid); font-size: 14px; font-weight: 700; text-align: center; text-decoration: none; white-space: normal; line-height: 1.4; box-shadow: none; transform: none; transition: background var(--motion-quick); }
-.production .btn::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 6px; background: var(--home-grid); pointer-events: none; }
-.production .btn--outline { color: var(--home-white); background: var(--home-black-light); }
-.production-fields .btn--outline, .production-payment .btn--outline { color: var(--home-black); background: var(--home-white-dark); }
-.production .btn--primary { color: var(--home-black); background: var(--home-green); }
-.production .btn:not(:disabled):active::after { height: 2px; }
-.production .btn:disabled { opacity: .65; }
-.production .btn:focus-visible, .production a:focus-visible { outline: 2px solid var(--home-blue); outline-offset: 3px; }
-/* The list scrolls with the page now. It used to be a 340px inner scroller on
-   a page that also scrolled — two scrollbars, one thumb, and no way to tell
-   which one a flick was going to move. A step whose only job is this list can
-   afford the whole screen for it. */
-.production-source-list { background: var(--home-white); color: var(--home-black); }
-
-/* -- Stepper ------------------------------------------------------------- */
-
-.pstep { padding: 16px 24px; background: var(--home-black); border-bottom: 1px solid var(--home-grid); }
-.pstep ol { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.pstep li { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; font-weight: 700; letter-spacing: -.24px; color: rgba(254, 250, 241, .45); }
-.pstep__num {
-  flex: none;
-  width: 22px;
-  height: 22px;
-  display: grid;
-  place-items: center;
-  border: 1px solid currentColor;
-  border-radius: 50%;
-  font-variant-numeric: tabular-nums;
+body.is-productionpage .page {
+  width: min(390px, 100%);
+  max-width: 390px;
+  min-height: 100svh;
+  margin: 0 auto;
+  padding: 0;
+  background: var(--home-black);
 }
-.pstep__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pstep li.is-done { color: rgba(254, 250, 241, .75); }
-.pstep li.is-done .pstep__num { color: var(--home-black); background: var(--home-white-dark); border-color: var(--home-white-dark); }
-.pstep li.is-current { color: var(--home-white); }
-.pstep li.is-current .pstep__num { color: var(--home-black); background: var(--home-green); border-color: var(--home-green); }
+body.is-productionpage .view { gap: 0; }
+.production { display: flex; flex-direction: column; min-height: 100svh; background: var(--home-black); }
+.production [hidden],
+.production-form [hidden] { display: none !important; }
 
-/* -- Selectable rows ------------------------------------------------------ */
-
-/* One row shape for both "which penjahit" and "which items". Selection is said
-   three ways — a filled mark, a green edge, and the word in the side column —
-   so it survives colour blindness, a bright screen, and a screen reader. */
-.pchoice {
-  position: relative;
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 24px;
-  border: 0;
-  border-bottom: 1px solid var(--home-white-dark);
-  border-left: 4px solid transparent;
-  color: var(--home-black);
-  background: var(--home-white);
-  text-align: left;
-  text-decoration: none;
-  cursor: pointer;
-  transition: background var(--motion-quick) var(--ease-standard), border-color var(--motion-quick) var(--ease-standard);
+/* The title band's second line: who, or what it belongs to. */
+.production-sub {
+  margin: 4px 0 0;
+  color: rgba(254, 250, 241, .62);
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: -.42px;
+  overflow-wrap: anywhere;
 }
-.pchoice__mark {
-  flex: none;
-  width: 22px;
-  height: 22px;
-  border: 2px solid rgba(23, 21, 15, .32);
-  border-radius: 50%;
-  background: transparent;
-  transition: background var(--motion-quick) var(--ease-standard), border-color var(--motion-quick) var(--ease-standard);
+.production-kicker {
+  margin: 0 0 4px;
+  color: var(--home-green);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: .6px;
+  text-transform: uppercase;
 }
-.pchoice--check .pchoice__mark { border-radius: 5px; }
-.pchoice__body { min-width: 0; flex: 1; display: grid; gap: 3px; font-size: 15px; line-height: 1.35; overflow-wrap: anywhere; }
-.pchoice__meta { font-size: 13px; color: var(--label); }
-.pchoice__side { flex: none; max-width: 92px; font-size: 12px; font-weight: 700; text-align: right; color: var(--label); }
-.pchoice:hover { background: #f6f1e6; }
-.pchoice:focus-visible { outline: 2px solid var(--home-blue); outline-offset: -3px; z-index: 1; }
-.pchoice.is-chosen { border-left-color: var(--home-green); background: #f1f8ee; }
-.pchoice.is-chosen .pchoice__side { color: #17761a; }
-.pchoice.is-chosen .pchoice__mark {
-  border-color: var(--home-green);
-  background: var(--home-green) no-repeat center
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none' stroke='%23fefaf1' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 7.4 5.6 10.5 11.5 4'/%3E%3C/svg%3E");
-}
-.pchoice:active { background: #ece6d9; }
 
-/* -- Grouped item source -------------------------------------------------- */
+/* The delete row sits on the black canvas. On the customer page it sat on
+   .cust's cream, which showed as two cream strips either side of the button. */
+.cust .custedit-danger,
+.production .custedit-danger { background: var(--home-black); }
+.production .cust-footer { margin-top: auto; }
 
-.psource + .psource { border-top: 8px solid var(--home-white-dark); }
-.psource__head {
-  position: sticky;
-  /* Under the sticky app bar, not behind it: .appbar is 57px and sits at
-     z-index 20, so a header pinned to 0 is a header nobody sees. */
-  top: 57px;
-  z-index: 1;
-  margin: 0;
-  padding: 10px 24px;
+/* An error goes in the ledger under the title, never at the top of the view
+   where the fixed nav would cover it. */
+.custedit-ledger > .form-error,
+.order-ledger > .form-error { margin: 0 24px 24px; }
+
+body.is-productionpage a:focus-visible,
+body.is-productionpage button:focus-visible { outline: 2px solid var(--home-white); outline-offset: 2px; }
+
+/* ------------------------------- Figures --------------------------------- */
+
+/* Label left, figure right, one hairline between rows. Used for money, for a
+   job's facts, and for the wizard's running total. */
+.production-totals { margin: 0; display: grid; }
+.production-totals > div {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
   gap: 12px;
-  font-size: 13px;
-  line-height: 1.4;
-  color: var(--home-white);
-  background: var(--home-black-light);
+  padding: 10px 0;
+  border-bottom: 1px solid var(--home-white-dark);
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: -.42px;
 }
-.psource__head > :first-child { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
-.psource__head > :last-child { flex: none; max-width: 45%; color: rgba(254, 250, 241, .6); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.psource__empty { display: block; padding: 14px 24px; color: var(--home-black); background: var(--home-white); font-size: 14px; text-decoration: underline; }
+.production-totals > div:first-child { padding-top: 0; }
+.production-totals > div:last-child { padding-bottom: 0; border-bottom: 0; }
+.production-totals dt { color: var(--home-grid); }
+.production-totals dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+/* Named rather than counted from the end: Refunded and Credit drop out when
+   they are zero, and a positional rule would then bold whatever moved up. */
+.production-totals__lead dt,
+.production-totals__lead dd { color: var(--home-black); font-weight: 700; }
+.production-totals__owed dd { color: var(--danger); }
 
-/* -- Draft rows ----------------------------------------------------------- */
+.order-card__head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.order-card__badge { flex: none; font-size: 12px; font-weight: 700; line-height: 16px; letter-spacing: -.36px; }
+.production-empty { margin: 0; color: var(--home-grid); font-size: 14px; line-height: 20px; letter-spacing: -.42px; }
 
-/* Collapsed to the two things that differ between items — quantity and the
-   line total. Everything else comes from the shared card and is only unfolded
-   when this item is going to disagree with it. */
-.pjob { margin: 16px 24px; background: var(--home-white); color: var(--home-black); border-bottom: 8px solid var(--home-white-dark); }
-.pjob.is-custom { border-bottom-color: var(--home-green); }
-.pjob__head { display: flex; justify-content: space-between; align-items: start; gap: 12px; padding: 14px 16px 0; }
-.pjob__id { min-width: 0; display: grid; gap: 3px; font-size: 15px; line-height: 1.35; overflow-wrap: anywhere; }
-.pjob__id span { font-size: 13px; color: var(--label); }
-/* Quiet until reached for. Removing an item is one tap from undoing itself by
-   tapping it again on the previous step, so it does not need to shout next to
-   the name it would remove. */
-.pjob__drop { flex: none; margin: -10px -4px; padding: 10px 4px; border: 0; background: none; color: var(--label); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
-.pjob__drop:hover, .pjob__drop:focus-visible { color: var(--danger); text-decoration: underline; }
-.pjob__line { display: flex; align-items: end; justify-content: space-between; gap: 16px; padding: 12px 16px; }
-.pjob__qty { display: grid; gap: 4px; font-size: 13px; color: var(--label); }
-.pjob__qty .input { width: 84px; min-width: 0; border-radius: 0; background-color: transparent; font-size: 16px; }
-.pjob__total { margin: 0 0 8px; font-size: 16px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.pjob__more { border-top: 1px solid var(--home-white-dark); }
-.pjob__more summary { padding: 12px 16px; font-size: 13px; font-weight: 700; cursor: pointer; list-style: none; }
+/* ------------------------------- Actions --------------------------------- */
+
+/* Assign is the one thing this page is for, so it is the one coloured action,
+   in the quotation green — the same colour Save and Continue wear. */
+.order-action--assign .order-action__face { background: linear-gradient(180deg, rgba(0,0,0,.04), transparent), var(--home-green); }
+.order-action--assign .order-action__rail { background: #19aa16; border-bottom: 1px solid var(--home-grid); }
+.order-action--link .order-action__face { background: var(--home-grid); }
+.order-action--link .order-action__rail { background: var(--home-black-light); }
+.order-action[hidden] { display: none !important; }
+
+/* ------------------------------ Job ledger ------------------------------- */
+
+/* A filter strip on the black canvas, between the summary rail and the list.
+   Pressed is the cream face; the word is always there, so the state is never
+   carried by colour alone. */
+/* Sized to the words, not five equal columns: "Cancelled" is twice "All" and
+   was the one label pressed against its own border. */
+.production-filter {
+  padding: 12px 24px;
+  display: flex;
+  gap: 6px;
+  border-bottom: 1px solid var(--home-grid);
+}
+.production-filter button {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--home-grid);
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(254, 250, 241, .62);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: -.24px;
+  cursor: pointer;
+}
+.production-filter button[aria-pressed="true"] { border-color: var(--home-white); background: var(--home-white); color: var(--home-black); }
+
+/* Job records are order records: .cust-order-card, with tones for progress. */
+.cust-order-card--assigned  .cust-order-card__badge,
+.cust-order-card--cancelled .cust-order-card__badge { color: var(--home-grid); }
+.cust-order-card--progress  .cust-order-card__badge { color: #e72a90; }
+.cust-order-card--done      .cust-order-card__badge { color: #17761a; }
+.production-jobs .cust-order-card__meta span:first-child { flex: 1; width: auto; min-width: 0; overflow-wrap: anywhere; }
+.production-jobs .cust-order-card__meta span:last-child { flex: none; }
+.cust-order-card__meta--owed span:last-child { color: var(--danger); font-weight: 700; }
+.cust-order-card__meta--due { color: var(--home-grid); }
+.cust-order-card__meta--late { color: var(--danger); font-weight: 700; }
+
+/* ------------------------------- Stepper --------------------------------- */
+
+/* Three bars under the title, not a band of its own: a band of its own was
+   what put 80px of black between the nav and the question. */
+.pstep {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.pstep li { min-width: 0; display: grid; gap: 6px; color: rgba(254, 250, 241, .45); font-size: 12px; font-weight: 700; line-height: 16px; letter-spacing: -.24px; }
+.pstep i { display: block; height: 4px; background: var(--home-grid); }
+.pstep li.is-done { color: rgba(254, 250, 241, .75); }
+.pstep li.is-done i { background: var(--home-white-dark); }
+.pstep li.is-current { color: var(--home-white); }
+.pstep li.is-current i { background: var(--home-green); }
+
+/* --------------------------- Selectable cards ---------------------------- */
+
+/* A choice is a ledger card: cream face, grid-rule sides, a rail that gives its
+   height to the face on press. Chosen fills the mark, tints the face and turns
+   the rail green, and the side column says the word. */
+.pcard {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--home-black);
+  display: block;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.pcard__face {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--home-white);
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
+  transition: padding 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.pcard__rail {
+  display: block;
+  height: 12px;
+  background: var(--home-white-dark);
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
+  transition: height 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.pcard:active .pcard__face,
+.pcard.is-pressed .pcard__face { padding-top: 16px; padding-bottom: 16px; }
+.pcard:active .pcard__rail,
+.pcard.is-pressed .pcard__rail { height: 4px; }
+.pcard.is-chosen .pcard__face { background: linear-gradient(0deg, rgba(35, 182, 32, .1), rgba(35, 182, 32, .1)), var(--home-white); }
+.pcard.is-chosen .pcard__rail,
+.pcard__rail.is-chosen { background: var(--home-green); }
+
+.pmark { flex: none; width: 22px; height: 22px; border: 2px solid rgba(23, 21, 15, .3); border-radius: 50%; }
+.pmark--check { border-radius: 5px; }
+.is-chosen > .pmark,
+.is-chosen .pcard__face > .pmark {
+  border-color: var(--home-green);
+  background: var(--home-green) no-repeat center
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none' stroke='%23fefaf1' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 7.4 5.6 10.5 11.5 4'/%3E%3C/svg%3E");
+}
+.pcard__body { flex: 1; min-width: 0; display: grid; gap: 2px; overflow-wrap: anywhere; }
+.pcard__body strong { font-size: 16px; font-weight: 700; line-height: 20px; letter-spacing: -.48px; }
+.pcard__body span { color: var(--home-grid); font-size: 13px; line-height: 18px; letter-spacing: -.39px; }
+.pcard__side { flex: none; max-width: 96px; color: var(--home-grid); font-size: 12px; font-weight: 700; line-height: 16px; letter-spacing: -.36px; text-align: right; }
+.is-chosen .pcard__side { color: #17761a; }
+
+/* One card per order, its items as rows inside it. */
+.psource { background: var(--home-white); border-left: 1px solid var(--home-grid); border-right: 1px solid var(--home-grid); color: var(--home-black); }
+.psource__head { display: grid; gap: 2px; padding: 12px; border-bottom: 1px solid var(--home-white-dark); }
+.psource__head strong { font-size: 16px; font-weight: 700; line-height: 20px; letter-spacing: -.48px; overflow-wrap: anywhere; }
+.psource__head span { color: var(--home-grid); font-size: 13px; line-height: 18px; letter-spacing: -.39px; overflow-wrap: anywhere; }
+.psource__item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 0;
+  border-bottom: 1px solid var(--home-white-dark);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.psource__item:last-child { border-bottom: 0; }
+.psource__item.is-chosen { background: rgba(35, 182, 32, .1); }
+.psource__item:active { background: rgba(0, 0, 0, .06); }
+.psource__item:focus-visible { outline: 2px solid var(--home-black); outline-offset: -3px; }
+.psource__empty { display: block; padding: 12px; color: var(--home-black); font-size: 14px; line-height: 20px; }
+
+/* ------------------------------ Form cards ------------------------------- */
+
+/* A card that holds several fields. .custedit-input is borderless because its
+   card normally holds one; with several, each needs a line to sit on. */
+.pfields { display: grid; gap: 16px; }
+.pfield { min-width: 0; display: grid; gap: 6px; }
+.production-form .pfield .custedit-input,
+.production .pfield .custedit-input { padding-bottom: 6px; border-bottom: 1px solid var(--home-white-dark); }
+.production .pfield .custedit-input:focus { border-bottom-color: var(--home-black); }
+.ppair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; gap: 12px; }
+.custedit-card__hint { margin: 0; color: var(--home-grid); font-size: 12px; line-height: 16px; letter-spacing: -.36px; }
+/* Two add buttons share one row. The single-button rule gives each its own
+   24px side margins, which squeezed the pair until "+ New customer" wrapped;
+   the row takes the inset once and the buttons split what is left. */
+.production-add { padding: 0 24px 24px; }
+.cust-order-list.production-add .btn--empty { margin: 0; }
+.pcard-heading { display: block; margin-bottom: 4px; font-size: 16px; font-weight: 700; line-height: 20px; letter-spacing: -.48px; }
+select.custedit-input { appearance: none; -webkit-appearance: none; }
+.production .custedit-input { font-size: 16px; }
+
+/* Draft job cards in step 3. */
+.pjob__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.pjob__name { display: block; font-size: 16px; font-weight: 700; line-height: 20px; letter-spacing: -.48px; overflow-wrap: anywhere; }
+.pjob__ctx { display: block; margin-top: 2px; color: var(--home-grid); font-size: 13px; line-height: 18px; letter-spacing: -.39px; overflow-wrap: anywhere; }
+/* Quiet until reached for: taking an item back out is one tap on step 2. */
+.pjob__drop { flex: none; margin: -10px -4px; padding: 10px 4px; border: 0; background: none; color: var(--home-grid); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.pjob__drop:hover,
+.pjob__drop:focus-visible { color: var(--danger); text-decoration: underline; }
+.pjob__line { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.pjob__qty { display: grid; gap: 6px; }
+.pjob__qty .custedit-input { width: 72px; }
+.pjob__total { margin: 0; font-size: 16px; font-weight: 700; line-height: 24px; font-variant-numeric: tabular-nums; text-align: right; overflow-wrap: anywhere; }
+.pjob__more { border-top: 1px solid var(--home-white-dark); padding-top: 12px; }
+.pjob__more summary { font-size: 13px; font-weight: 700; line-height: 18px; cursor: pointer; list-style: none; }
 .pjob__more summary::-webkit-details-marker { display: none; }
 .pjob__more summary::after { content: ' +'; }
-.pjob__more[open] summary::after { content: ' −'; }
-.pjob__more summary:focus-visible { outline: 2px solid var(--home-blue); outline-offset: -3px; }
-.pjob__fields { display: grid; gap: 16px; padding: 0 16px 16px; }
-.pjob__fields .field { margin: 0; }
-.production-shared { border-bottom-color: var(--home-green); }
+.pjob__more[open] summary::after { content: ' \2212'; }
+.pjob__more .pfields { margin-top: 16px; }
+.pjob.is-custom + .custedit-card__rail { background: var(--home-green); }
 
-/* -- The wizard bar ------------------------------------------------------- */
+/* --------------------------- Payment entries ----------------------------- */
 
-/* The shared bar stacks its children; this one sets them side by side, so Back
-   sits under the thumb that is not reaching for Continue. */
-.production-bar .savebar__inner { display: flex; flex-direction: row; align-items: stretch; gap: 12px; }
-.production-bar #productionBack { flex: 0 0 34%; }
-.production-bar #productionNext { flex: 1; min-width: 0; display: grid; align-content: center; gap: 2px; }
-.btn__sub { display: block; font-size: 12px; font-weight: 400; opacity: .75; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ppay { display: grid; gap: 4px; padding: 12px 0; border-bottom: 1px solid var(--home-white-dark); font-size: 14px; line-height: 20px; letter-spacing: -.42px; }
+.ppay:first-child { padding-top: 0; }
+.ppay:last-child { padding-bottom: 0; border-bottom: 0; }
+.ppay__top { display: flex; justify-content: space-between; gap: 12px; font-weight: 700; }
+.ppay__top span:last-child { flex: none; font-variant-numeric: tabular-nums; }
+.ppay p { margin: 0; color: var(--home-grid); font-size: 13px; line-height: 18px; overflow-wrap: anywhere; }
+.ppay.is-voided .ppay__top { color: var(--home-grid); text-decoration: line-through; }
+.ppay__fix { justify-self: start; padding: 4px 0; border: 0; background: none; color: var(--home-black); font: inherit; font-size: 13px; font-weight: 700; text-decoration: underline; cursor: pointer; }
+
+/* Buttons inside a card: the face-and-rail idea at card scale. */
+.pactions { display: flex; gap: 12px; }
+.pactions > * { flex: 1 1 0; min-width: 0; }
+.pbtn {
+  min-height: 48px;
+  padding: 0 12px 6px;
+  border: 1px solid var(--home-grid);
+  border-radius: 0;
+  box-shadow: inset 0 -6px rgba(0, 0, 0, .18);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+  letter-spacing: -.42px;
+  cursor: pointer;
+}
+.pbtn--primary { border-color: #128f10; background: var(--home-green); color: var(--home-black); }
+.pbtn--quiet { background: var(--home-white-dark); color: var(--home-black); }
+.pbtn:not(:disabled):active { box-shadow: inset 0 -2px rgba(0, 0, 0, .18); }
+.pbtn:disabled { opacity: .6; cursor: default; }
+
+/* -------------------------------- Wizard bar ----------------------------- */
+
+/* The customer editor's save button, exactly: green face over a darker rail,
+   full width, pressed by moving the rail into the face. The wizard only adds a
+   second line naming what the tap carries. */
+body.is-custeditpage #productionNext {
+  width: 100%;
+  height: 64px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--home-black);
+  display: grid;
+  grid-template-rows: 56px 8px;
+  gap: 0;
+  align-items: stretch;
+  justify-items: stretch;
+  justify-content: stretch;
+  overflow: hidden;
+  transition: grid-template-rows 120ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+body.is-custeditpage #productionNext .btn__label {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, rgba(0,0,0,.04), transparent), var(--home-green);
+  color: var(--home-black);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 20px;
+  letter-spacing: -.48px;
+}
+body.is-custeditpage #productionNext .btn__rail { display: block; background: #128f10; }
+body.is-custeditpage #productionNext:disabled { cursor: default; }
+body.is-custeditpage #productionNext:disabled .btn__label { background: var(--home-black-light); color: var(--home-grid); }
+body.is-custeditpage #productionNext:disabled .btn__rail { background: var(--home-black); }
+body.is-custeditpage #productionNext:not(:disabled):active { grid-template-rows: 62px 2px; }
+.btn__sub { display: block; max-width: 90%; overflow: hidden; font-size: 12px; font-weight: 500; line-height: 16px; letter-spacing: -.24px; text-overflow: ellipsis; white-space: nowrap; opacity: .72; }
 .btn__sub[hidden] { display: none; }
-.production-job { display: block; margin: 24px; color: var(--home-black); text-decoration: none; }
+
+/* ------------------------ Order page penjahit card ----------------------- */
+
+.production-job { display: block; color: var(--home-black); text-decoration: none; }
 .production-job__face { padding: 16px; display: grid; gap: 8px; background: var(--home-white); font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
 .production-job__top { display: flex; justify-content: space-between; align-items: start; gap: 12px; }
 .production-job__top > :first-child { min-width: 0; overflow-wrap: anywhere; }
@@ -5193,19 +5373,7 @@ body.is-productionpage .appbar a, body.is-productionpage .appbar button { color:
 .production-status { font-size: 12px; font-weight: 700; max-width: 95px; }
 .production-job__meta { font-size: 13px; color: var(--label); }
 .production-job__rail { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 12px 16px; background: var(--home-white-dark); font-size: 14px; }
-.production-job__rail strong, .production-totals dd { font-variant-numeric: tabular-nums; }
-.production-totals { margin: 0; padding: 12px 24px; background: var(--home-white); color: var(--home-black); border-block: 1px solid var(--home-grid); }
-.production-totals > div { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--home-white-dark); font-size: 14px; }
-/* Named rather than counted from the end: Refunded and Credit drop out when
-   they are zero, and a positional rule would then bold whatever moved up. */
-.production-totals__lead { font-weight: 700; }
-.production-totals dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
-.production-note { margin: 0; padding: 16px 24px; color: var(--home-black); background: var(--home-white-dark); font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
-.production-fields .production-note { padding: 12px; margin-bottom: 12px; }
-.production-line-total { margin: 0; padding-block: 12px; border-block: 1px solid var(--home-white-dark); font-weight: 700; font-size: 14px; }
-.production-payment { margin: 24px; padding: 16px; background: var(--home-white); color: var(--home-black); border-bottom: 8px solid var(--home-white-dark); font-size: 14px; overflow-wrap: anywhere; }
-.production-payment.is-voided { background: var(--home-white-dark); }
-.production-payment.is-voided .production-job__top { text-decoration: line-through; }
+.production-job__rail strong { font-variant-numeric: tabular-nums; }
 .production-cost { display: grid; gap: 6px; padding: 16px 0; border-bottom: 1px solid var(--home-white-dark); color: var(--home-black); font-size: 14px; overflow-wrap: anywhere; }
 .production-cost:last-child { border-bottom: 0; padding-bottom: 0; }
 /* Label left, amount right, so the estimate and the committed cost land in one
@@ -5220,21 +5388,11 @@ body.is-productionpage .appbar a, body.is-productionpage .appbar button { color:
 #orderProductionJobs .production-job { margin: 16px 0 0; }
 #orderProductionJobs .production-job__face { border: 1px solid var(--home-white-dark); border-bottom: 0; }
 #orderProductionCosts + #orderProductionJobs:not(:empty) { margin-top: 4px; }
-body.is-productioneditpage .savebar { left: 50%; right: auto; width: min(390px, 100%); transform: translate(-50%, calc(-1 * var(--keyboard-offset))); background: var(--home-black); border: 0; }
-body.is-productioneditpage .savebar__inner { padding: 12px 12px calc(12px + env(safe-area-inset-bottom, 0px)); }
-body.is-productioneditpage .savebar .btn { border-radius: 0; min-height: 56px; height: auto; border: 0; box-shadow: inset 0 -6px rgba(0, 0, 0, .28); white-space: normal; }
-body.is-productioneditpage .savebar .btn--primary { color: var(--home-black); background: var(--home-green); }
-body.is-productioneditpage .savebar .btn--outline { color: var(--home-white); background: var(--home-black-light); }
-body.is-productioneditpage .savebar .btn:disabled { background: var(--home-black-light); color: rgba(254, 250, 241, .45); box-shadow: inset 0 -6px rgba(0, 0, 0, .2); }
-body.is-productioneditpage .savebar .btn:not(:disabled):active { transform: none; box-shadow: inset 0 -2px rgba(0, 0, 0, .28); }
-/* The page ends above the bar, and a field the bar covers is a field that
-   cannot be corrected. Steps are long; this is the one that matters. */
-body.is-productioneditpage .production .input { scroll-margin-block: 96px calc(var(--bottombar-h) + 24px); }
 body.is-custeditpage #saveBtn .btn__label, body.is-ordereditpage #saveBtn .btn__label { color: var(--home-black); }
 body.is-custeditpage #saveBtn:disabled .btn__label, body.is-ordereditpage #saveBtn:disabled .btn__label { color: var(--home-white-dark); }
-body.is-custeditpage .custedit-input { scroll-margin-block: 88px calc(var(--bottombar-h) + 24px); }
+body.is-custeditpage .custedit-input { scroll-margin-block: 88px 24px; }
+
 @media (max-width: 359px) {
-  .production-fields { margin: 16px; padding: 16px; }
-  .production-pair { grid-template-columns: minmax(0, 1fr); }
-  .production-job, .production-payment { margin: 16px; }
+  .ppair { grid-template-columns: minmax(0, 1fr); }
+  .production-filter { padding-inline: 16px; gap: 4px; }
 }

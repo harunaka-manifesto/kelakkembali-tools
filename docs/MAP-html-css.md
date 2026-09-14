@@ -4,7 +4,7 @@ Presentation layer. **Never read any of these files whole.** Jump to the range.
 
 ---
 
-## index.html (2108 lines)
+## index.html (2366 lines)
 
 Structure: boot gate → auth gate → app shell (bar + header + all views) → overlays → locked PDF templates → scripts.
 
@@ -40,15 +40,18 @@ Structure: boot gate → auth gate → app shell (bar + header + all views) → 
 | 1226 | `#viewEnquiry` | `.view` | `acceptEnquiry` 6306 |
 | 1255 | `#viewSchedules` | `.view.schedcal` | `showSchedules` 2759 |
 | 1320 | `#viewDocuments` | `.view.doclist` | `showDocuments` 3745 |
-| 875 | `#viewPenjahit` | `.view.production` | `showProductionRoute` 7878 |
-| 883 | `#viewPenjahitEdit` | `.view.production` | `showProductionRoute` / `savePenjahitForm` 8027 |
-| 900 | `#viewProductionEdit` | `.view.production` | the assignment wizard — `showProductionStep` 7651 |
-| 947 | `#viewProductionJob` | `.view.production` | `renderProductionJob` 8094 |
+| 882 | `#viewPenjahit` | `.view.production` — order page markup | `showProductionRoute` 8034 |
+| 961 | `#viewPenjahitEdit` | `.view.custedit.production-form` — customer editor markup | `savePenjahitForm` 8201 |
+| 1033 | `#viewProductionEdit` | `.view.custedit.production-form` — the assignment wizard | `showProductionStep` 7781 |
+| 1132 | `#viewProductionJob` | `.view.production` — order page markup | `renderProductionJob` 8268 |
 
-`#viewProductionEdit` holds **three `[data-step]` panels and one stepper**, not a
-page. Only one panel is ever visible; `showProductionStep` owns which. It is the
-only view with its own bottom bar (`#productionBar` 1718) rather than
-`#savebar` — a wizard step needs a way back as reachable as its way forward.
+The production views have **no layout of their own**. The two reading pages are
+built from `.order-nav`, `.order-ledger`, `.order-title-band`, `.order-card`,
+`.order-action` and `.cust-order-card`; the two forms from `.cust-nav`,
+`.custedit-ledger`, `.custedit-title`, `.custedit-field` / `.custedit-card`.
+`#viewProductionEdit` holds three `[data-step]` panels; its forward button is
+`#productionBar` 1977, which wears `.savebar` and, on that page, the customer
+editor's green save-button skin. Back is `#productionBack` in the fixed nav.
 
 The four `.production` views are one design, not four: heading band, white field
 cards on the black canvas, and the same `.production-actions` row. Their line
@@ -61,7 +64,7 @@ place a fitting log is edited; both old routes redirect there or to detail.
 
 ### Overlays & bars — id → line
 
-`#orderProductionSection` 1186 (inside `#viewOrder`, built exactly like the Payments section above it) · `#homeLedgerTabs` 235 and `#homePenjahit` 249 (inside `#viewCustomers`; the penjahit ledger reuses `.home-customer-*` wholesale, and both tabs share the one `#customerSearch` field) · `#productionBar` 1718 (the wizard bar; wears `.savebar`, so it inherits the fixed-bar contract) · `#docnewSheet` 1380 (new-document picker) · `#schedcalMonthbar` 1404 (fixed month paging, measured by `syncBottomBar`) · `#schedcalSheet` 1420 (calendar day sheet) · `#fittingPicker` 1438 (**the only fitting overlay left** — which fitting is this) · `#fittingPhotoViewer` 1442 · **`#fitmark` 1456** (full-screen red-pen mode) · `#fitdetBar` 1476 (two buttons) · `#fitaddUndo` 1493 · `#fitaddBar` 1500 · `#savebar` 1517 · `#calcSheet` 1530 · `#routeLoader` 1569 · `#toast` 1691
+`#orderProductionSection` 1186 (inside `#viewOrder`, built exactly like the Payments section above it) · `#homeLedgerTabs` 235 and `#homePenjahit` 249 (inside `#viewCustomers`; the penjahit ledger reuses `.home-customer-*` wholesale, and both tabs share the one `#customerSearch` field) · `#productionBar` 1977 (the wizard bar; wears `.savebar`, so like every form save bar it stays behind the keyboard) · `#docnewSheet` 1380 (new-document picker) · `#schedcalMonthbar` 1404 (fixed month paging, measured by `syncBottomBar`) · `#schedcalSheet` 1420 (calendar day sheet) · `#fittingPicker` 1438 (**the only fitting overlay left** — which fitting is this) · `#fittingPhotoViewer` 1442 · **`#fitmark` 1456** (full-screen red-pen mode) · `#fitdetBar` 1476 (two buttons) · `#fitaddUndo` 1493 · `#fitaddBar` 1500 · `#savebar` 1517 · `#calcSheet` 1530 · `#routeLoader` 1569 · `#toast` 1691
 
 Hidden file inputs: `#fitdetPhotoInput` 445 (multi-select entry from detail) · `#fitaddFileInput` 488 (append in the workspace)
 
@@ -105,7 +108,7 @@ Preceded by CDN: html2canvas 1.4.1, jsPDF 2.5.2, heic2any 0.0.4, supabase-js 2.4
 | Moodboard editor, canvas, overlay, journal | `moodboard.css` |
 | Fonts | `fonts.css` — never open, base64 only |
 
-### styles/pages.css (5240 lines) — section → line
+### styles/pages.css (5398 lines) — section → line
 
 **Homepage:** Customers homepage 94 · Stage and layers 124 · Hero 235 · Fixed nav bar 281 · **Shortcut row 344** (six-column grid: 3 + 2, then the neutral add row) · Submissions bar 473 · Search 521 · Customer ledger 546 · Footer 703 · Loading skeleton 719 · Error state 817
 
@@ -121,7 +124,7 @@ Preceded by CDN: html2canvas 1.4.1, jsPDF 2.5.2, heic2any 0.0.4, supabase-js 2.4
 
 **Quotations & invoices:** 4334 · Card 4402 · Panels, skeletons, footer 4508
 
-### styles/shared.css (2726 lines) — section → line
+### styles/shared.css (2765 lines) — section → line
 
 Boot 5 · Shared route loading 52 · Gate 300 · App bar 361 · Overflow menu 466 · Page header 514 · Layout 553 · Deadlines 749 · Lists and records 859 · Schedule 1117 · Items table 1215 · Payment chooser 1328 · Segmented 1396 · Download log 1420 · Fields 1474 · Item rows 1586 · Payment terms 1689 · Chips 1753 · Inline add row 1840 · Buttons 1851 · Fixed bottom bars 1964 · Cost sheet 2052 · Cost calc trigger 2158 · Toast 2192 · Interaction motion 2223 · New document picker 2279
 
@@ -140,7 +143,7 @@ Editor page 8 · Generated canvas 264 · Actions 352 · Full-screen overlay 437 
 | `.schedcal-*` | Schedules calendar (day keys, per-week bands, month bar, day sheet) | `pages.css` 3596+ |
 | `.doclist-*` | Quotations and invoices list (both routes) | `pages.css` 4334+ |
 | `.docnew*` | New-document picker — utility chrome, not ledger canvas | `shared.css` 2285+ |
-| `.swipe*` | A ledger row that slides left to one Delete button. `touch-action: pan-y` on the pane; `--swipe-x` inline while dragging, `.is-open` once settled | `shared.css`, above `.docnew*` |
+| `.swipe*` | A ledger row that slides left to Delete and, where rendered, right to a leading action (`.swipe__actions--start`, `.swipe__done`, `.is-open-start`). `touch-action: pan-y` on the pane; `--swipe-x` inline while dragging, `.is-open` once settled | `shared.css`, above `.docnew*` |
 | `.boot__panel` `.boot__quote` `.boot__kicker` | The line on the boot curtain and its travelling sheen (`@keyframes boot-sheen`, inside an `@supports (background-clip: text)` guard) | `shared.css`, in the Boot block |
 | `.fitlog-*` | Fitting logs feed (search block reused by `.doclist`) | `pages.css` 2295+ |
 | `.fitdet-*` | Fitting log detail (cards, actions and bars reused by the workspace) | `pages.css` 2862+ |
@@ -151,8 +154,8 @@ Editor page 8 · Generated canvas 264 · Actions 352 · Full-screen overlay 437 
 | `.cust*` / `.custedit*` | Customer pages | `pages.css` 661+, 994+ |
 | `.order*` | Order detail | `pages.css` 1350+ |
 | `.production-*` | Penjahit ledger, job rows, money totals, payment entries, assignment editor | `pages.css` 4912+ |
-| `.production-tabs`, `.home-summary__toggle` | The Customers/Penjahit ledger tabs and the archive toggle in the summary rail, both on the homepage | `pages.css` 4940+ (in the production block, not the homepage block) |
-| `.pstep`, `.pchoice`, `.psource`, `.pjob` | The assignment wizard: stepper, selectable rows (both steps use one shape), grouped item source, collapsed draft rows | `pages.css` 4940+ |
+| `.production-tabs` | The Customers/Penjahit ledger tabs on the homepage | `pages.css` 4939+ (in the production block, not the homepage block) |
+| `.pstep`, `.pcard`, `.pmark`, `.psource`, `.pjob`, `.pfields`, `.ppay`, `.pbtn`, `.production-filter` | What the production pages add to the order and customer-editor systems: stepper bars, selectable ledger cards, per-order item cards, multi-field cards, payment entries, in-card buttons, the job filter strip | `pages.css` 4939+ |
 | `.form-error`, `.field-error`, `.optional` | Shared inline validation — one page-level alert, one message per field, one Optional marker | `shared.css`, above Fixed bottom bars |
 | `.q`, `.q.inv` | Quotation / invoice documents | `documents.css` |
 | `.appbar`, `.pagehead`, `.savebar`, `.btn`, `.chip`, `.toast` | Shared chrome | `shared.css` |

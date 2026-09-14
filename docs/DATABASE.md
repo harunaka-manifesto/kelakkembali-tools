@@ -9,9 +9,9 @@ Read this instead of `schema.sql` (1143 lines) or `db.js` (482 lines). Open the 
 ## 1. Tables — column contract
 
 ### `customers`
-`id` uuid pk · `name` **not null** · `phone` · `instagram` · `source` (`Instagram|TikTok|Referral|Walk-in|Other`) · `wedding_date` · `wedding_date_precision` · `fitting_1_date` · `final_fitting_date` · `notes` · `stage` · `consult_date` · `moodboard_date` · `lost_reason` · `follow_up_date` · `follow_up_label` · `follow_up_google_event_id` · `follow_up_synced_at` · `cancelled_at` · `cancelled_reason` · `created_at` · `updated_at`
+`id` uuid pk · `name` **not null** · `phone` · `instagram` · `source` (`Instagram|TikTok|Referral|Walk-in|Other`) · `wedding_date` · `wedding_date_precision` · `fitting_1_date` · `final_fitting_date` · `notes` · `stage` · `consult_date` · `moodboard_date` · `lost_reason` · `follow_up_date` · `follow_up_label` · `follow_up_google_event_id` · `follow_up_synced_at` · `cancelled_at` · `cancelled_reason` · `completed_at` · `created_at` · `updated_at`
 
-The customer owns the pipeline: stage, consult, moodboard, follow-up, cancellation. Wedding dates live here, not on the order.
+The customer owns the pipeline: stage, consult, moodboard, follow-up, cancellation. `completed_at` is set by hand (swipe right on the homepage) and sends the customer to the foot of the ledger; clearing it undoes that. Nothing is derived from it. Wedding dates live here, not on the order.
 
 ### `orders`
 `id` uuid pk · `customer_id` fk→customers **cascade** · `title` · `doc_name` · `document_date` · `status` (`Quoted|Confirmed|In production|Delivered` — `Draft` was dropped) · `items` jsonb `[]` · `includes` jsonb `[]` · `payment_scheme` default `standard` · `payment_terms` jsonb `[]` · `first_payment_date` · `second_payment_date` · `final_payment_date` · `fitting_1_date` · `final_fitting_date` · `created_at` · `updated_at`
@@ -103,11 +103,13 @@ Backs `#/quotations` and `#/invoices`. `document_log` stores no customer name, n
 > three tables, four functions, the `orders.items` id trigger with every
 > existing order backfilled, the feed view, and the select-only grant model.
 > `tests/production-ledger.sql` passes against it and rolls its fixtures back.
+> `customer done and penjahit removal` is applied too: `customers.completed_at`
+> exists and `authenticated` holds DELETE on `penjahit`; payments remain RPC-only.
 
 ### `penjahit` — production partners
 `id` uuid pk · `name` **not null**, 1–200 characters after trimming · `phone` · `notes` · `archived_at` · `created_at`.
 
-Archiving is not deletion: an archived penjahit keeps every job and every rupiah of history and only stops receiving new work. Both RPCs check `archived_at is null` before accepting an assignment.
+Archiving is not deletion: an archived penjahit keeps every job and every rupiah of history and only stops receiving new work. Deletion is granted to `authenticated` since `customer done and penjahit removal`, but the restrict foreign key on `production_jobs` still refuses it for any penjahit with a job. Both RPCs check `archived_at is null` before accepting an assignment.
 
 ### `production_jobs` — one penjahit's work on one order item
 `id` uuid pk (**client-generated**) · `penjahit_id` fk→penjahit **restrict** · `order_id` fk→orders **restrict** · `item_id` uuid · `item_name` · `description` (1–500 characters) · `quantity` int > 0 · `unit_price` bigint ≥ 0 · `assigned_date` default today in Asia/Jakarta · `due_date` · `notes` · `status` (`Assigned|In progress|Done|Cancelled`) · `cancellation_charge` bigint · `created_at` · `updated_at` · `create_request` jsonb.
@@ -157,7 +159,7 @@ Append-only. To change the schema:
 2. Add that title to the navigation list at `schema.sql` lines 8–18.
 3. Never edit an applied block — the file is re-run whole after every pull.
 
-Existing migration titles (grep any of these to jump): `dashboard UX overhaul` · `document name + payment schemes` · `fitting schedule + Google` · `the real lifecycle` · `status stops being` · `schedule gets a second anchor` · `moodboard generator` · `fitting revisions log` · `atomic fitting photo batches` · `quotation and invoice feeds` · `fitting photo annotations` · `per-termin invoices` · `penjahit production ledger`.
+Existing migration titles (grep any of these to jump): `dashboard UX overhaul` · `document name + payment schemes` · `fitting schedule + Google` · `the real lifecycle` · `status stops being` · `schedule gets a second anchor` · `moodboard generator` · `fitting revisions log` · `atomic fitting photo batches` · `quotation and invoice feeds` · `fitting photo annotations` · `per-termin invoices` · `penjahit production ledger` · `customer done and penjahit removal`.
 
 ---
 
@@ -171,7 +173,7 @@ Everything below is on `window.KK.db`. All async unless noted.
 
 **Orders** — `listOrders(customerId)` 226 · `listAllOrders` 230 (carries `title` for the calendar) · `getOrder(id)` 234 · `createOrder` 238 (called only from `saveOrder`, on the `#/customer/:id/order/new/edit` route) · `updateOrder(id, record)` 242 · `deleteOrder(id)` 246
 
-**Production** — `productionAvailable()` 327 (the one probe; `42P01`/`PGRST205` answers `false` so the feature can ship before its migration) · `listPenjahit` 337 (TTL-cached) · `listProductionSources` 341 (every order with its items, for the item picker) · `savePenjahit(record)` 351 · `listProductionJobs({penjahitId?, orderId?, id?})` 356 · `listProductionPayments(jobId)` 371 · `saveProductionJobs(jobs)` 381 · `updateProductionJob(job)` 386 · `recordProductionPayment(change)` 391. The last three are `.rpc(` calls; every list pages past PostgREST's row cap in 500s, because a ledger that silently stops at 1000 rows is a wrong balance, not a short list.
+**Production** — `productionAvailable()` 327 (the one probe; `42P01`/`PGRST205` answers `false` so the feature can ship before its migration) · `listPenjahit` 337 (TTL-cached) · `listProductionSources` 341 (every order with its items, for the item picker) · `savePenjahit(record)` 351 · `deletePenjahit(id)` · `listProductionJobs({penjahitId?, orderId?, id?})` 356 · `listProductionPayments(jobId)` 371 · `saveProductionJobs(jobs)` 381 · `updateProductionJob(job)` 386 · `recordProductionPayment(change)` 391. The last three are `.rpc(` calls; every list pages past PostgREST's row cap in 500s, because a ledger that silently stops at 1000 rows is a wrong balance, not a short list.
 
 **Documents & history** — `logDocument(orderId, kind, total, termNumber?, termCount?)` 326 · `listDocumentLog(orderId)` 331 · `logOrderHistory(orderId, action, detail)` 340 · `listOrderHistory(orderId)` 344
 

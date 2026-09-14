@@ -20,6 +20,7 @@
 --   "fitting photo annotations"       fitting_photos.annotation + batch RPC v2
 --   "per-termin invoices"              invoice termin identity in document history
 --   "penjahit production ledger"      stable item IDs, jobs, payments and refunds
+--   "customer done and penjahit removal" customers.completed_at, penjahit delete grant
 
 create extension if not exists pgcrypto;
 
@@ -1762,5 +1763,20 @@ left join lateral (
     count(*) as history_count from public.production_payments where job_id = j.id
 ) pay on true;
 grant select on public.production_job_feed to authenticated;
+notify pgrst, 'reload schema';
+commit;
+
+-- ------------------ "customer done and penjahit removal" ------------------
+-- A customer can be marked done by hand, which sends them to the foot of the
+-- homepage ledger. It is a timestamp rather than a flag so "when" is kept, and
+-- nullable so un-marking is just clearing it. Nothing is derived from it.
+--
+-- Penjahit could be archived but never deleted: the table was granted select,
+-- insert and update only. A penjahit with jobs still cannot be deleted — the
+-- restrict foreign key on production_jobs refuses it — so this only lets an
+-- unused or mistaken profile go.
+begin;
+alter table public.customers add column if not exists completed_at timestamptz;
+grant delete on public.penjahit to authenticated;
 notify pgrst, 'reload schema';
 commit;

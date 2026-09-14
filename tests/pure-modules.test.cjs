@@ -848,7 +848,11 @@ test('the fitting feed and the customer page both offer a way to start one', () 
 /* Every bar pinned to the bottom of the screen is a bar the keyboard can hide.
    Four of them were not riding --keyboard-offset — the fitting workspace's
    save bar and its undo strip among them, on the one page that is all text
-   editors. A new bar must not be able to repeat that silently. */
+   editors. A new bar must not be able to repeat that silently.
+
+   The form save bar is the one deliberate exception, tested separately below:
+   on a page of fields, a bar riding the keyboard sits on top of the field being
+   typed into. */
 test('every fixed bottom bar follows the keyboard', () => {
   const stripped = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '');
   const offenders = [];
@@ -865,6 +869,7 @@ test('every fixed bottom bar follows the keyboard', () => {
       // carries the offset instead.
       if (/inset:\s*0/.test(body)) continue;
       if (/keyboard-offset/.test(body)) continue;
+      if (selector === '.savebar') continue;
       offenders.push(file + ' ' + selector);
     }
   });
@@ -900,6 +905,25 @@ test('switching ledger tabs never goes through the router', () => {
   assert.doesNotMatch(body, /\bgo\(|location\.hash\s*=/, 'the tab switch must not route');
   const handler = app.slice(app.indexOf('$("#homeLedgerTabs").addEventListener'));
   assert.match(handler.slice(0, 400), /preventDefault\(\)/, 'the tab link must be intercepted');
+});
+
+/* Tapping a field near the foot of a form raised the keyboard, the save bar rode
+   up on top of it, and the bar then covered the very field that had just taken
+   focus. On a form the keyboard is what you are using; the save button can wait
+   behind it until you are done typing. So no save bar may carry the offset. */
+test('form save bars stay behind the keyboard instead of covering the field', () => {
+  const stripped = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const offenders = [];
+  ['styles/shared.css', 'styles/pages.css'].forEach((file) => {
+    const css = stripped(readShipped(file));
+    const rule = /([^{}]+)\{([^{}]*)\}/g;
+    let m;
+    while ((m = rule.exec(css))) {
+      if (!/\.savebar(?![\w-])/.test(m[1])) continue;
+      if (/keyboard-offset/.test(m[2])) offenders.push(file + ' ' + m[1].trim().replace(/\s+/g, ' '));
+    }
+  });
+  assert.deepEqual(offenders, [], 'these save bars ride the keyboard over the field being edited');
 });
 
 /* The offset arrives already smoothed: the OS animates the visual viewport as

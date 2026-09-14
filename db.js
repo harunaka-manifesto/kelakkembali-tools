@@ -103,7 +103,7 @@ KK.db = (function () {
 
   /* -------------------------- Table Column Projections -------------------- */
 
-  const PROJECTION_CUSTOMERS = 'id,name,phone,instagram,source,wedding_date,wedding_date_precision,notes,moodboard_date,cancelled_at,cancelled_reason,follow_up_date,follow_up_label,follow_up_google_event_id,follow_up_synced_at,created_at';
+  const PROJECTION_CUSTOMERS = 'id,name,phone,instagram,source,wedding_date,wedding_date_precision,notes,moodboard_date,cancelled_at,cancelled_reason,completed_at,follow_up_date,follow_up_label,follow_up_google_event_id,follow_up_synced_at,created_at';
   const PROJECTION_ORDERS = 'id,customer_id,title,doc_name,document_date,status,items,includes,payment_scheme,payment_terms,first_payment_date,second_payment_date,final_payment_date,created_at';
   const PROJECTION_ORDER_EVENTS = 'id,order_id,stage,event_date,end_date,pinned,google_event_id,synced_at';
   const PROJECTION_FITTING_PHOTOS = 'id,order_id,session_id,stage,caption,annotation,drive_file_id,drive_link,position,created_at';
@@ -351,6 +351,13 @@ KK.db = (function () {
     savePenjahit: async function (record) {
       invalidate();
       return unwrap(await init().from('penjahit').upsert(record).select('*').single());
+    },
+
+    // Refused by the database for a penjahit with jobs (restrict foreign key);
+    // unwrap turns that into the linked-history message.
+    deletePenjahit: async function (id) {
+      invalidate();
+      unwrap(await init().from('penjahit').delete().eq('id', id));
     },
 
     listProductionJobs: async function (options) {

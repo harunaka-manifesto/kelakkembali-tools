@@ -247,7 +247,7 @@
              the grid rules between records, and the add row at the foot of the
              list: it is the same kind of ledger, so it is read the same way. -->
         <section class="home-customers" id="homePenjahit" aria-label="Penjahit" hidden>
-          <div class="home-summary"><span id="penjahitSummary" aria-live="polite"></span><label class="home-summary__toggle"><input id="penjahitArchived" type="checkbox"> Show archived</label></div>
+          <div class="home-summary" id="penjahitSummary" aria-live="polite"></div>
           <div class="home-grid-spacer" aria-hidden="true"></div>
           <div class="home-customer-list" id="penjahitList"></div>
         </section>
@@ -872,95 +872,356 @@
   </section>
 
   <!-- --------------------------- Penjahit ledger -------------------------- -->
+  <!-- ----------------------------- Penjahit -----------------------------
+       A record you read, so it is built as one: the order page's fixed tactile
+       nav and black ledger, cards on grid rules, the one primary action wearing
+       a coloured face directly under the card it acts on, and the job list in
+       the customer page's own record shape. Delete sits at the very bottom,
+       past everything the penjahit is, exactly where the customer page keeps
+       its own. -->
   <section class="view production" id="viewPenjahit" hidden>
-    <div class="production-heading"><p class="production-kicker">Penjahit</p><h1 id="penjahitTitle"></h1><p id="penjahitContact"></p></div>
-    <div class="production-actions"><a class="btn btn--outline" id="penjahitEditLink">Edit profile</a><a class="btn btn--primary" id="penjahitAssignLink">Assign work</a></div>
-    <dl class="production-totals" id="penjahitTotals"></dl>
-    <label class="field production-search"><span class="field__label">Show jobs</span><select class="input" id="productionFilter"><option>Ongoing</option><option>All</option><option>Done</option><option>Cancelled</option><option>Outstanding</option></select></label>
-    <div id="productionJobs"></div>
-  </section>
+    <nav class="order-nav" aria-label="Penjahit navigation">
+      <a class="order-nav-btn" id="penjahitBackBtn" href="#/customers?tab=penjahit">
+        <span class="order-nav-btn__face">
+          <img src="assets/cust-back-icon.svg" alt="" width="24" height="24">
+          <span>Penjahit</span>
+        </span>
+        <span class="order-nav-btn__rail" aria-hidden="true"></span>
+      </a>
+      <div class="order-nav__actions">
+        <a class="order-nav-btn order-nav-btn--icon" id="penjahitEditLink" href="#/customers?tab=penjahit" aria-label="Edit penjahit">
+          <span class="order-nav-btn__face"><img src="assets/cust-edit-icon.svg" alt="" width="24" height="24"></span>
+          <span class="order-nav-btn__rail" aria-hidden="true"></span>
+        </a>
+      </div>
+    </nav>
 
-  <section class="view production" id="viewPenjahitEdit" hidden>
-    <div class="production-heading"><p class="production-kicker">Production partners</p><h1 id="penjahitEditTitle">New penjahit</h1><p>Fields marked * are required.</p></div>
-    <div class="production-fields">
-      <label class="field"><span class="field__label">Name *</span><input class="input" id="pName" required aria-required="true" maxlength="200" autocomplete="name"></label>
-      <label class="field"><span class="field__label">Phone / WhatsApp <span class="optional">Optional</span></span><input class="input" id="pPhone" type="tel" autocomplete="tel"></label>
-      <label class="field"><span class="field__label">Notes <span class="optional">Optional</span></span><textarea class="input" id="pNotes" rows="3"></textarea></label>
-      <label class="check" id="pArchiveField"><input id="pArchived" type="checkbox"> Archive this penjahit</label>
-      <p class="field__hint">Archived penjahit keep their jobs and payment history. They cannot receive new assignments.</p>
+    <div class="order-ledger">
+      <div class="order-grid-spacer" aria-hidden="true"></div>
+      <div class="order-title-band">
+        <h1 class="order-title" id="penjahitTitle"></h1>
+        <p class="production-sub" id="penjahitContact" hidden></p>
+      </div>
+      <div class="order-grid-spacer" aria-hidden="true"></div>
+
+      <section class="order-section" aria-labelledby="penjahitMoneyTitle">
+        <div class="order-grid-rule" aria-hidden="true"></div>
+        <div class="order-inset">
+          <div class="order-card">
+            <div class="order-card__head">
+              <h2 class="order-card__title" id="penjahitMoneyTitle">Money</h2>
+              <span class="order-card__badge" id="penjahitOngoing"></span>
+            </div>
+            <dl class="production-totals" id="penjahitTotals"></dl>
+          </div>
+          <a class="order-action order-action--assign" id="penjahitAssignLink" href="#/production/new">
+            <span class="order-action__face">
+              <img class="order-action__icon" src="assets/home-penjahit-icon.svg" alt="" width="20" height="20">
+              <span class="order-action__label">Assign work</span>
+            </span>
+            <span class="order-action__rail" aria-hidden="true"></span>
+          </a>
+        </div>
+        <div class="order-grid-rule" aria-hidden="true"></div>
+      </section>
+      <div class="order-grid-spacer" aria-hidden="true"></div>
+
+      <section class="cust-orders production-jobs" aria-label="Jobs">
+        <div class="cust-summary">
+          <span id="penjahitJobsCount">0 jobs</span>
+          <span id="penjahitJobsSum"></span>
+        </div>
+        <div class="production-filter" role="group" aria-label="Show jobs">
+          <button type="button" data-job-filter="Ongoing" aria-pressed="true">Ongoing</button>
+          <button type="button" data-job-filter="Outstanding" aria-pressed="false">Owed</button>
+          <button type="button" data-job-filter="Done" aria-pressed="false">Done</button>
+          <button type="button" data-job-filter="Cancelled" aria-pressed="false">Cancelled</button>
+          <button type="button" data-job-filter="All" aria-pressed="false">All</button>
+        </div>
+        <div class="cust-order-list" id="productionJobs"></div>
+      </section>
+
+      <div class="custedit-danger" id="penjahitDeleteRow">
+        <div class="cust-grid-rule" aria-hidden="true"></div>
+        <div class="cust-inset">
+          <button type="button" class="custedit-danger__btn" id="penjahitDeleteBtn">
+            <span class="custedit-danger__face">Delete penjahit</span>
+            <span class="custedit-danger__rail" aria-hidden="true"></span>
+          </button>
+        </div>
+        <div class="cust-grid-rule" aria-hidden="true"></div>
+      </div>
+
+      <footer class="cust-footer">Made with love for Ichaku</footer>
     </div>
   </section>
 
-  <!-- One question per screen. This was a single page holding a penjahit
-       select, a scrolling list of every item in the studio, and a stack of full
-       editors — three unrelated decisions competing for the same scroll. Split
-       into steps, each screen asks one thing and the bar says what answering it
-       leads to. Editing one existing job skips straight to step 3, which is the
-       only step that applies to it. -->
-  <section class="view production" id="viewProductionEdit" hidden>
-    <nav class="pstep" id="productionStepper" aria-label="Progress">
-      <ol>
-        <li data-step-dot="1"><span class="pstep__num">1</span><span class="pstep__label">Penjahit</span></li>
-        <li data-step-dot="2"><span class="pstep__num">2</span><span class="pstep__label">Items</span></li>
-        <li data-step-dot="3"><span class="pstep__num">3</span><span class="pstep__label">Work</span></li>
-      </ol>
+  <!-- A form, so it is the customer editor: Cancel in the fixed nav, the title
+       inside the ledger, one opened card per field, Save in the green bar. -->
+  <section class="view custedit production-form" id="viewPenjahitEdit" hidden>
+    <nav class="cust-nav" aria-label="Editor navigation">
+      <a class="cust-nav-btn" id="penjahitEditCancel" href="#/customers?tab=penjahit">
+        <span class="cust-nav-btn__face">
+          <img src="assets/cust-back-icon.svg" alt="" width="24" height="24">
+          <span>Cancel</span>
+        </span>
+        <span class="cust-nav-btn__rail" aria-hidden="true"></span>
+      </a>
     </nav>
 
-    <!-- Step 1 — who -->
-    <section class="production-step" data-step="1" hidden aria-labelledby="productionStep1Title">
-      <div class="production-heading"><p class="production-kicker">Step 1 of 3</p><h1 id="productionStep1Title">Who is doing the work?</h1><p>Pick the penjahit this batch of work is going to. Payments are tracked against them.</p></div>
-      <label class="field production-search"><span class="field__label">Search penjahit</span><input class="input" id="productionTailorSearch" type="search" placeholder="Name or phone" autocomplete="off"></label>
-      <div id="productionTailorList" role="radiogroup" aria-labelledby="productionStep1Title"></div>
-      <div class="production-actions"><a class="btn btn--outline btn--block" id="productionAddTailor" href="#/penjahit/new/edit?from=production">+ Add a penjahit</a></div>
-    </section>
+    <div class="custedit-ledger">
+      <div class="cust-grid-spacer" aria-hidden="true"></div>
+      <div class="custedit-title"><h1 id="penjahitEditTitle">New penjahit</h1></div>
+      <div class="cust-grid-spacer" aria-hidden="true"></div>
 
-    <!-- Step 2 — what -->
-    <section class="production-step" data-step="2" hidden aria-labelledby="productionStep2Title">
-      <div class="production-heading"><p class="production-kicker">Step 2 of 3</p><h1 id="productionStep2Title">What are they making?</h1><p id="productionStep2Sub">Tap the items to send. The same item can go to more than one penjahit for different work.</p></div>
-      <label class="field production-search"><span class="field__label">Search customer, order, or item</span><input class="input" id="productionSearch" type="search" autocomplete="off"></label>
-      <div id="productionSourceList" class="production-source-list"></div>
-      <div class="production-actions"><a class="btn btn--outline" id="productionAddCustomer" href="#/customer/new/edit?from=production">+ New customer</a><button type="button" class="btn btn--outline" id="productionAddOrder">+ New order</button></div>
-    </section>
-
-    <!-- Step 3 — how much -->
-    <section class="production-step" data-step="3" hidden aria-labelledby="productionStep3Title">
-      <div class="production-heading"><p class="production-kicker" id="productionStep3Kicker">Step 3 of 3</p><h1 id="productionStep3Title">What is the work, and what does it cost?</h1><p>Prices are per piece. Fields marked * are required.</p></div>
-      <!-- Most batches are one job description at one price across every piece.
-           Typing it once and letting each row override it is the difference
-           between one form and eight. -->
-      <div class="production-fields production-shared" id="productionShared">
-        <h2>Same for every item</h2>
-        <label class="field"><span class="field__label">Work description *</span><input class="input" id="psDescription" maxlength="500" placeholder="e.g. Jahit gaun + finishing"></label>
-        <div class="production-pair">
-          <label class="field"><span class="field__label">Price per piece *</span><input class="input" id="psPrice" inputmode="numeric"></label>
-          <label class="field"><span class="field__label">Deadline <span class="optional">Optional</span></span><input class="input" id="psDue" type="date"></label>
+      <div class="custedit-field">
+        <div class="cust-grid-rule" aria-hidden="true"></div>
+        <div class="cust-inset">
+          <div class="custedit-card">
+            <label class="custedit-card__label" for="pName">Name<span class="custedit-card__req" aria-hidden="true">*</span></label>
+            <input class="custedit-input" id="pName" type="text" placeholder="e.g. Bu Siti" autocomplete="name" autocapitalize="words" spellcheck="false" maxlength="200" required aria-required="true">
+          </div>
+          <div class="custedit-card__rail" aria-hidden="true"></div>
         </div>
-        <p class="field__hint">Fills every item below. Open an item to give it its own description, price, or deadline.</p>
+        <div class="cust-grid-rule" aria-hidden="true"></div>
       </div>
-      <div id="productionDraftRows"></div>
-      <dl class="production-totals" id="productionDraftTotals"></dl>
-    </section>
-
-    <p class="production-note" id="productionRetryNote" hidden>A save could not be confirmed. Retry the same entries before making further changes.</p>
+      <div class="cust-grid-spacer" aria-hidden="true"></div>
+      <div class="custedit-field">
+        <div class="cust-grid-rule" aria-hidden="true"></div>
+        <div class="cust-inset">
+          <div class="custedit-card">
+            <label class="custedit-card__label" for="pPhone">Phone / WhatsApp</label>
+            <input class="custedit-input" id="pPhone" type="tel" placeholder="+62…" autocomplete="tel" spellcheck="false">
+          </div>
+          <div class="custedit-card__rail" aria-hidden="true"></div>
+        </div>
+        <div class="cust-grid-rule" aria-hidden="true"></div>
+      </div>
+      <div class="cust-grid-spacer" aria-hidden="true"></div>
+      <div class="custedit-field">
+        <div class="cust-grid-rule" aria-hidden="true"></div>
+        <div class="cust-inset">
+          <div class="custedit-card">
+            <label class="custedit-card__label" for="pNotes">Notes</label>
+            <textarea class="custedit-input" id="pNotes" rows="3" placeholder="Speciality, address, how they like to be paid…"></textarea>
+          </div>
+          <div class="custedit-card__rail" aria-hidden="true"></div>
+        </div>
+        <div class="cust-grid-rule" aria-hidden="true"></div>
+      </div>
+      <div class="cust-grid-spacer" aria-hidden="true"></div>
+      <div class="custedit-field" id="pArchiveField">
+        <div class="cust-grid-rule" aria-hidden="true"></div>
+        <div class="cust-inset">
+          <div class="custedit-card">
+            <span class="custedit-card__label" id="pStatusLabel">Status</span>
+            <div class="custedit-segmented" role="radiogroup" aria-labelledby="pStatusLabel"><button type="button" class="custedit-segmented__btn is-on" role="radio" aria-checked="true" data-archived="false"><span class="custedit-segmented__face">Active</span><span class="custedit-segmented__rail" aria-hidden="true"></span></button><button type="button" class="custedit-segmented__btn" role="radio" aria-checked="false" data-archived="true"><span class="custedit-segmented__face">Archived</span><span class="custedit-segmented__rail" aria-hidden="true"></span></button></div>
+            <p class="custedit-card__hint">Archived penjahit keep their jobs and payments, and stop appearing as a choice for new work.</p>
+          </div>
+          <div class="custedit-card__rail" aria-hidden="true"></div>
+        </div>
+        <div class="cust-grid-rule" aria-hidden="true"></div>
+      </div>
+      <div class="cust-grid-spacer" aria-hidden="true"></div>
+    </div>
   </section>
 
+  <!-- One question per screen, on the customer editor's page. Back lives in the
+       fixed nav where every other page keeps its way out; the green bar only
+       ever goes forward, and says what it is carrying. Editing a single existing
+       job skips straight to step 3, the only step that applies to it. -->
+  <section class="view custedit production-form" id="viewProductionEdit" hidden>
+    <nav class="cust-nav" aria-label="Assignment navigation">
+      <button type="button" class="cust-nav-btn" id="productionBack">
+        <span class="cust-nav-btn__face">
+          <img src="assets/cust-back-icon.svg" alt="" width="24" height="24">
+          <span id="productionBackLabel">Cancel</span>
+        </span>
+        <span class="cust-nav-btn__rail" aria-hidden="true"></span>
+      </button>
+    </nav>
+
+    <div class="custedit-ledger">
+      <div class="cust-grid-spacer" aria-hidden="true"></div>
+      <div class="custedit-title">
+        <p class="production-kicker" id="productionKicker">Step 1 of 3</p>
+        <h1 id="productionTitle">Who is doing the work?</h1>
+        <ol class="pstep" id="productionStepper" aria-hidden="true">
+          <li data-step-dot="1"><i></i>Penjahit</li>
+          <li data-step-dot="2"><i></i>Items</li>
+          <li data-step-dot="3"><i></i>Work</li>
+        </ol>
+      </div>
+      <div class="cust-grid-spacer" aria-hidden="true"></div>
+
+      <div class="production-step" data-step="1" hidden>
+      <div class="custedit-field">
+        <div class="cust-grid-rule" aria-hidden="true"></div>
+        <div class="cust-inset">
+          <div class="custedit-card">
+            <label class="custedit-card__label" for="productionTailorSearch">Search penjahit</label>
+            <input class="custedit-input" id="productionTailorSearch" type="search" enterkeyhint="search" placeholder="Name or phone" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="custedit-card__rail" aria-hidden="true"></div>
+        </div>
+        <div class="cust-grid-rule" aria-hidden="true"></div>
+      </div>
+      <div class="cust-grid-spacer" aria-hidden="true"></div>
+        <div id="productionTailorList" role="radiogroup" aria-label="Penjahit"></div>
+        <div class="cust-order-list"><a class="btn btn--outline btn--new btn--block btn--empty" id="productionAddTailor" href="#/penjahit/new/edit?from=production">+ Add a penjahit</a></div>
+      </div>
+
+      <div class="production-step" data-step="2" hidden>
+      <div class="custedit-field">
+        <div class="cust-grid-rule" aria-hidden="true"></div>
+        <div class="cust-inset">
+          <div class="custedit-card">
+            <label class="custedit-card__label" for="productionSearch">Search customer, order or item</label>
+            <input class="custedit-input" id="productionSearch" type="search" enterkeyhint="search" placeholder="e.g. Nadia, kebaya" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="custedit-card__rail" aria-hidden="true"></div>
+        </div>
+        <div class="cust-grid-rule" aria-hidden="true"></div>
+      </div>
+      <div class="cust-grid-spacer" aria-hidden="true"></div>
+        <div id="productionSourceList"></div>
+        <div class="cust-order-list pactions production-add">
+          <a class="btn btn--outline btn--new btn--block btn--empty" id="productionAddCustomer" href="#/customer/new/edit?from=production">+ New customer</a>
+          <button type="button" class="btn btn--outline btn--new btn--block btn--empty" id="productionAddOrder">+ New order</button>
+        </div>
+      </div>
+
+      <div class="production-step" data-step="3" hidden>
+        <div class="custedit-field" id="productionShared">
+          <div class="cust-grid-rule" aria-hidden="true"></div>
+          <div class="cust-inset">
+            <div class="custedit-card">
+              <span class="pcard-heading">Same for every item</span>
+              <div class="pfields">
+                <div class="pfield"><label class="custedit-card__label" for="psDescription">Work description<span class="custedit-card__req" aria-hidden="true">*</span></label><input class="custedit-input" id="psDescription" maxlength="500" placeholder="e.g. Jahit gaun + finishing"></div>
+                <div class="ppair">
+                  <div class="pfield"><label class="custedit-card__label" for="psPrice">Price / piece<span class="custedit-card__req" aria-hidden="true">*</span></label><input class="custedit-input" id="psPrice" inputmode="numeric" placeholder="Rp"></div>
+                  <div class="pfield"><label class="custedit-card__label" for="psDue">Deadline</label><input class="custedit-input" id="psDue" type="date"></div>
+                </div>
+                <p class="custedit-card__hint">Fills every item below. Open an item to give it its own.</p>
+              </div>
+            </div>
+            <div class="custedit-card__rail" aria-hidden="true"></div>
+          </div>
+          <div class="cust-grid-rule" aria-hidden="true"></div>
+        </div>
+        <div class="cust-grid-spacer" aria-hidden="true"></div>
+        <div id="productionDraftRows"></div>
+        <div class="custedit-field" id="productionDraftTotalsField">
+          <div class="cust-grid-rule" aria-hidden="true"></div>
+          <div class="cust-inset">
+            <div class="custedit-card"><dl class="production-totals" id="productionDraftTotals"></dl></div>
+            <div class="custedit-card__rail" aria-hidden="true"></div>
+          </div>
+          <div class="cust-grid-rule" aria-hidden="true"></div>
+        </div>
+        <div class="cust-grid-spacer" aria-hidden="true"></div>
+      </div>
+
+      <p class="production-sub production-retry" id="productionRetryNote" hidden>A save could not be confirmed. Retry the same entries before making further changes.</p>
+    </div>
+  </section>
+
+  <!-- A job is a record you read: order page structure, one card per concern,
+       the action that adds to a card directly beneath it. -->
   <section class="view production" id="viewProductionJob" hidden>
-    <div class="production-heading"><p class="production-kicker" id="productionJobStatus"></p><h1 id="productionJobTitle"></h1><p id="productionJobContext"></p></div>
-    <div class="production-actions"><a class="btn btn--outline" id="productionJobOrder">Customer order</a><a class="btn btn--outline" id="productionJobEdit">Edit job</a></div>
-    <dl class="production-totals" id="productionJobTotals"></dl>
-    <p class="production-note" id="productionJobNotes"></p>
-    <div class="production-heading"><h2>Payments &amp; refunds</h2><p>Every entry belongs to this job.</p></div>
-    <div id="productionPaymentHistory"></div>
-    <div class="production-actions"><button class="btn btn--primary" id="productionPaymentNew" type="button">Record payment or refund</button></div>
-    <form class="production-fields" id="productionPaymentForm" novalidate hidden>
-      <h2 id="productionPaymentTitle">Record payment</h2><p class="field__hint">Fields marked * are required.</p>
-      <label class="field"><span class="field__label">Entry type *</span><select class="input" id="ppKind" required><option value="payment">Payment to penjahit</option><option value="refund">Refund from penjahit</option><option value="void" hidden>Void without replacement</option></select></label>
-      <label class="field" id="ppAmountField"><span class="field__label">Amount (Rp) *</span><input class="input" id="ppAmount" inputmode="numeric" required></label>
-      <label class="field" id="ppDateField"><span class="field__label">Date *</span><input class="input" id="ppDate" type="date" required></label>
-      <label class="field"><span class="field__label">Notes <span class="optional">Optional</span></span><textarea class="input" id="ppNotes" rows="2"></textarea></label>
-      <label class="field" id="ppReasonField" hidden><span class="field__label">Reason for correction *</span><input class="input" id="ppReason"></label>
-      <div class="production-actions"><button type="button" class="btn btn--outline" id="productionPaymentCancel">Cancel</button><button type="submit" class="btn btn--primary" id="productionPaymentSave">Record entry</button></div>
-    </form>
+    <nav class="order-nav" aria-label="Job navigation">
+      <a class="order-nav-btn" id="productionJobBack" href="#/customers?tab=penjahit">
+        <span class="order-nav-btn__face">
+          <img src="assets/cust-back-icon.svg" alt="" width="24" height="24">
+          <span id="productionJobBackLabel">Penjahit</span>
+        </span>
+        <span class="order-nav-btn__rail" aria-hidden="true"></span>
+      </a>
+      <div class="order-nav__actions">
+        <a class="order-nav-btn order-nav-btn--icon" id="productionJobEdit" href="#/customers" aria-label="Edit job">
+          <span class="order-nav-btn__face"><img src="assets/cust-edit-icon.svg" alt="" width="24" height="24"></span>
+          <span class="order-nav-btn__rail" aria-hidden="true"></span>
+        </a>
+      </div>
+    </nav>
+
+    <div class="order-ledger">
+      <div class="order-grid-spacer" aria-hidden="true"></div>
+      <div class="order-title-band">
+        <h1 class="order-title" id="productionJobTitle"></h1>
+        <p class="production-sub" id="productionJobContext"></p>
+      </div>
+      <div class="order-grid-spacer" aria-hidden="true"></div>
+
+      <section class="order-section" aria-labelledby="productionJobWorkTitle">
+        <div class="order-grid-rule" aria-hidden="true"></div>
+        <div class="order-inset">
+          <div class="order-card">
+            <div class="order-card__head">
+              <h2 class="order-card__title" id="productionJobWorkTitle">Work</h2>
+              <span class="order-card__badge" id="productionJobStatus"></span>
+            </div>
+            <dl class="production-totals" id="productionJobFacts"></dl>
+          </div>
+          <a class="order-action order-action--link" id="productionJobOrder" href="#/customers">
+            <span class="order-action__face">
+              <img class="order-action__icon" src="assets/home-order-icon.svg" alt="" width="20" height="20">
+              <span class="order-action__label">Open the customer order</span>
+            </span>
+            <span class="order-action__rail" aria-hidden="true"></span>
+          </a>
+        </div>
+        <div class="order-grid-rule" aria-hidden="true"></div>
+      </section>
+      <div class="order-grid-spacer" aria-hidden="true"></div>
+
+      <section class="order-section" aria-labelledby="productionJobMoneyTitle">
+        <div class="order-grid-rule" aria-hidden="true"></div>
+        <div class="order-inset">
+          <div class="order-card">
+            <h2 class="order-card__title" id="productionJobMoneyTitle">Money</h2>
+            <dl class="production-totals" id="productionJobTotals"></dl>
+          </div>
+        </div>
+        <div class="order-grid-rule" aria-hidden="true"></div>
+      </section>
+      <div class="order-grid-spacer" aria-hidden="true"></div>
+
+      <section class="order-section" aria-labelledby="productionPaymentsTitle">
+        <div class="order-grid-rule" aria-hidden="true"></div>
+        <div class="order-inset">
+          <div class="order-card">
+            <h2 class="order-card__title" id="productionPaymentsTitle">Payments &amp; refunds</h2>
+            <div id="productionPaymentHistory"></div>
+          </div>
+          <form class="order-card production-payment-form" id="productionPaymentForm" novalidate hidden>
+            <h2 class="order-card__title" id="productionPaymentTitle">Record payment or refund</h2>
+            <div class="pfields">
+              <div class="pfield"><label class="custedit-card__label" for="ppKind">Entry type<span class="custedit-card__req" aria-hidden="true">*</span></label><select class="custedit-input" id="ppKind" required><option value="payment">Payment to penjahit</option><option value="refund">Refund from penjahit</option><option value="void" hidden>Void without replacement</option></select></div>
+              <div class="ppair">
+                <div class="pfield" id="ppAmountField"><label class="custedit-card__label" for="ppAmount">Amount<span class="custedit-card__req" aria-hidden="true">*</span></label><input class="custedit-input" id="ppAmount" inputmode="numeric" placeholder="Rp" required></div>
+                <div class="pfield" id="ppDateField"><label class="custedit-card__label" for="ppDate">Date<span class="custedit-card__req" aria-hidden="true">*</span></label><input class="custedit-input" id="ppDate" type="date" required></div>
+              </div>
+              <div class="pfield"><label class="custedit-card__label" for="ppNotes">Notes</label><input class="custedit-input" id="ppNotes" placeholder="e.g. Transfer BCA"></div>
+              <div class="pfield" id="ppReasonField" hidden><label class="custedit-card__label" for="ppReason">Reason for correction<span class="custedit-card__req" aria-hidden="true">*</span></label><input class="custedit-input" id="ppReason"></div>
+              <div class="pactions"><button type="button" class="pbtn pbtn--quiet" id="productionPaymentCancel">Cancel</button><button type="submit" class="pbtn pbtn--primary" id="productionPaymentSave">Record entry</button></div>
+            </div>
+          </form>
+          <button type="button" class="order-action order-action--payment" id="productionPaymentNew">
+            <span class="order-action__face">
+              <img class="order-action__icon" src="assets/order-invoice-icon.svg" alt="" width="20" height="20">
+              <span class="order-action__label">Record payment or refund</span>
+            </span>
+            <span class="order-action__rail" aria-hidden="true"></span>
+          </button>
+        </div>
+        <div class="order-grid-rule" aria-hidden="true"></div>
+      </section>
+      <div class="order-grid-spacer" aria-hidden="true"></div>
+
+      <footer class="cust-footer">Made with love for Ichaku</footer>
+    </div>
   </section>
 
   <!-- ---------------------------- Order detail ----------------------------
@@ -1711,16 +1972,13 @@
 
 <!-- Editing views only. Save is the primary action, so it sits in the thumb
      zone rather than in the top-right corner of the app bar. -->
-<!-- Wears .savebar so it inherits the fixed-bar contract wholesale, including
-     riding --keyboard-offset. Two controls, because a wizard step always has a
-     way forward and a way back, and the back has to be as reachable as the
-     forward is. -->
+<!-- Wears .savebar, and on the wizard's page .is-custeditpage, so it is the
+     customer editor's green save button in every respect. Back is in the nav. -->
 <div class="savebar production-bar" id="productionBar" hidden>
   <div class="savebar__inner">
-    <button type="button" class="btn btn--outline" id="productionBack">Back</button>
     <button type="button" class="btn btn--primary" id="productionNext">
-      <span class="btn__label">Continue</span>
-      <span class="btn__sub" id="productionNextSub"></span>
+      <span class="btn__label"><span id="productionNextText">Continue</span><span class="btn__sub" id="productionNextSub"></span></span>
+      <span class="btn__rail" aria-hidden="true"></span>
     </button>
   </div>
 </div>

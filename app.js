@@ -374,7 +374,7 @@ KK.app = (function () {
       available: null, penjahit: [], jobs: [], sources: [], profile: null, job: null,
       payments: [], draft: null, batchRequest: null, paymentRequest: null,
       paymentId: null, voidId: null, creatingOrder: false, createdCustomerId: null,
-      ledgerTab: "customers", ledgerLoaded: false, scroll: { customers: 0, penjahit: 0 },
+      ledgerTab: "customers", ledgerLoaded: false, scrollY: 0,
       search: { customers: "", penjahit: "" }, filters: {}
     },
     /* The fitting-log feed keeps its own island of state: it is a different
@@ -645,7 +645,12 @@ KK.app = (function () {
       error = document.createElement("p");
       error.className = "form-error";
       error.setAttribute("role", "alert");
-      root.prepend(error);
+      /* On the ledger pages the nav is fixed over the top 67px of the view, so
+         an error prepended to the view sat underneath it. It goes under the
+         page title instead, where the eye already is. */
+      const title = root.querySelector(".custedit-title, .order-title-band");
+      if (title) title.after(error);
+      else root.prepend(error);
     }
     error.textContent = message || "";
     error.hidden = !message;
@@ -729,26 +734,35 @@ KK.app = (function () {
 
   const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
 
+  /* A row can open either way: left reveals the trailing action (Delete),
+     right reveals the leading one (Done) on rows that render one. `side` is
+     "end", "start", or false for shut. */
   function closeSwipeRows(except) {
-    $$(".swipe.is-open").forEach((row) => {
+    $$(".swipe.is-open, .swipe.is-open-start").forEach((row) => {
       if (row === except) return;
       row.classList.add("is-settling");
-      row.classList.remove("is-open");
+      row.classList.remove("is-open", "is-open-start");
     });
   }
 
-  function setSwipeRow(row, isOpen) {
+  function setSwipeRow(row, side) {
     $(".swipe__pane", row).style.removeProperty("--swipe-x");
     row.classList.add("is-settling");
-    row.classList.toggle("is-open", isOpen);
-    if (isOpen) closeSwipeRows(row);
+    row.classList.toggle("is-open", "end" === side || true === side);
+    row.classList.toggle("is-open-start", "start" === side);
+    if (side) closeSwipeRows(row);
   }
+
+  const swipeBase = (row) => row.classList.contains("is-open") ? -SWIPE_REVEAL
+    : row.classList.contains("is-open-start") ? SWIPE_REVEAL : 0;
+  const swipeReach = (row) => row.querySelector(".swipe__actions--start") ? SWIPE_REVEAL : 0;
+  const SWIPE_ACTIONS = ".swipe__delete,.swipe__done";
 
   function bindSwipeRows() {
     document.addEventListener("pointerdown", (e) => {
       const pane = e.target.closest && e.target.closest(".swipe__pane");
       // A tap on the revealed button is not a drag on the row behind it.
-      if (!pane || (e.target.closest && e.target.closest(".swipe__delete"))) return;
+      if (!pane || (e.target.closest && e.target.closest(SWIPE_ACTIONS))) return;
       if ("mouse" === e.pointerType && 0 !== e.button) return;
       const row = pane.closest(".swipe");
       swipeMoved = false;
@@ -759,7 +773,8 @@ KK.app = (function () {
         startX: e.clientX,
         startY: e.clientY,
         startAt: e.timeStamp,
-        base: row.classList.contains("is-open") ? -SWIPE_REVEAL : 0,
+        base: swipeBase(row),
+        reach: swipeReach(row),
         axis: ""
       };
       row.classList.remove("is-settling");
@@ -784,7 +799,7 @@ KK.app = (function () {
           try { drag.pane.setPointerCapture(e.pointerId); } catch (err) { /* capture is a nicety */ }
         }
       }
-      drag.pane.style.setProperty("--swipe-x", clamp(drag.base + dx, -SWIPE_REVEAL, 0) + "px");
+      drag.pane.style.setProperty("--swipe-x", clamp(drag.base + dx, -SWIPE_REVEAL, drag.reach) + "px");
     });
 
     const endSwipe = (e) => {
@@ -796,18 +811,28 @@ KK.app = (function () {
         return;
       }
       const dx = e.clientX - drag.startX;
-      const travelled = clamp(drag.base + dx, -SWIPE_REVEAL, 0);
+      const travelled = clamp(drag.base + dx, -SWIPE_REVEAL, drag.reach);
       const elapsed = Math.max(1, e.timeStamp - drag.startAt);
-      const flickedOpen = dx < 0 && -dx / elapsed > SWIPE_FLICK;
-      const flickedShut = dx > 0 && dx / elapsed > SWIPE_FLICK;
-      setSwipeRow(drag.row, flickedOpen || (!flickedShut && travelled <= -SWIPE_REVEAL / 2));
+      const flick = Math.abs(dx) / elapsed > SWIPE_FLICK;
+      /* A flick moves one position in its direction — shut to open, or open
+         back to shut — and never skips from one side straight to the other.
+         A slow drag settles wherever it was let go, past halfway or not. */
+      let side;
+      if (flick) {
+        const from = drag.base < 0 ? -1 : drag.base > 0 ? 1 : 0;
+        const to = clamp(from + (dx < 0 ? -1 : 1), drag.reach ? -1 : -1, drag.reach ? 1 : 0);
+        side = to < 0 ? "end" : to > 0 ? "start" : false;
+      } else {
+        side = travelled <= -SWIPE_REVEAL / 2 ? "end" : travelled >= SWIPE_REVEAL / 2 ? "start" : false;
+      }
+      setSwipeRow(drag.row, side);
     };
     document.addEventListener("pointerup", endSwipe);
     document.addEventListener("pointercancel", (e) => {
       const drag = swipeDrag;
       if (!drag || e.pointerId !== drag.pointerId) return;
       swipeDrag = null;
-      setSwipeRow(drag.row, drag.base < 0);
+      setSwipeRow(drag.row, drag.base < 0 ? "end" : drag.base > 0 ? "start" : false);
     });
 
     /* Capture phase, because the pane holds a link: a drag that ends on a card
@@ -816,7 +841,7 @@ KK.app = (function () {
       const pane = e.target.closest && e.target.closest(".swipe__pane");
       if (!pane) {
         // A tap anywhere else puts the ledger back.
-        if (!(e.target.closest && e.target.closest(".swipe__delete"))) closeSwipeRows(null);
+        if (!(e.target.closest && e.target.closest(SWIPE_ACTIONS))) closeSwipeRows(null);
         return;
       }
       const row = pane.closest(".swipe");
@@ -831,7 +856,7 @@ KK.app = (function () {
         e.stopPropagation();
         return;
       }
-      if (!row.classList.contains("is-open")) return;
+      if (!swipeBase(row)) return;
       // A real tap on an open row puts it back rather than opening the record.
       e.preventDefault();
       e.stopPropagation();
@@ -841,14 +866,14 @@ KK.app = (function () {
     // Keyboard and screen-reader users reach the button through the tab order,
     // so the row has to open when it does.
     document.addEventListener("focusin", (e) => {
-      const btn = e.target.closest && e.target.closest(".swipe__delete");
-      if (btn) setSwipeRow(btn.closest(".swipe"), true);
+      const btn = e.target.closest && e.target.closest(SWIPE_ACTIONS);
+      if (btn) setSwipeRow(btn.closest(".swipe"), btn.matches(".swipe__done") ? "start" : "end");
       else if (!(e.target.closest && e.target.closest(".swipe__pane"))) closeSwipeRows(null);
     });
 
     document.addEventListener("keydown", (e) => {
       if ("Escape" !== e.key) return;
-      const open = $(".swipe.is-open");
+      const open = $(".swipe.is-open, .swipe.is-open-start");
       if (open) setSwipeRow(open, false);
     });
 
@@ -862,9 +887,15 @@ KK.app = (function () {
 
   /* Wraps one ledger row so it can be swiped. `deleteAttr` is the data
      attribute the delete handler reads; `label` names the record for anyone
-     who hears the button rather than sees which row it belongs to. */
-  function swipeRowHtml(cardHtml, deleteAttr, label) {
+     who hears the button rather than sees which row it belongs to. `start`,
+     when given, is the action a right swipe reveals: { attr, text, undo }. */
+  function swipeRowHtml(cardHtml, deleteAttr, label, start) {
     return '<div class="swipe">' +
+      (start ? '<div class="swipe__actions swipe__actions--start">' +
+        '<button type="button" class="swipe__done' + (start.undo ? ' is-undo' : '') + '"' + start.attr + '>' + U.escapeHtml(start.text) +
+          '<span class="sr-only"> ' + U.escapeHtml(label || "this record") + '</span>' +
+        '</button>' +
+      '</div>' : '') +
       '<div class="swipe__actions">' +
         '<button type="button" class="swipe__delete"' + deleteAttr + '>Delete' +
           '<span class="sr-only"> ' + U.escapeHtml(label || "this record") + '</span>' +
@@ -1469,6 +1500,50 @@ KK.app = (function () {
     }
   }
 
+  /* Swipe right on a customer: done, and to the foot of the ledger. Swiping a
+     done customer right again offers Undo, which puts them back where their
+     orders say they belong. The row re-sorts in place; scroll and search stay. */
+  async function toggleCustomerDone(customerId) {
+    const cust = (state.customers || []).find((c) => c.id === customerId);
+    if (!cust) return;
+    const completedAt = cust.completed_at ? null : new Date().toISOString();
+    try {
+      const saved = await db.updateCustomer(customerId, { completed_at: completedAt });
+      state.customers = state.customers.map((c) => (c.id === customerId ? Object.assign({}, c, saved) : c));
+      renderHomepageSummary();
+      renderCustomerList();
+      showToast(completedAt ? (cust.name || "Customer") + " marked done" : (cust.name || "Customer") + " is back in the list");
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || "Could not update that customer");
+    }
+  }
+
+  /* A penjahit with jobs cannot be deleted — the jobs carry money — so the
+     database refuses and says why; this checks first so the refusal comes
+     before the confirm, not after it. */
+  async function deletePenjahitById(penjahitId, fromDetail) {
+    const tailor = (state.production.penjahit || []).find((t) => t.id === penjahitId) || state.production.profile;
+    if (!tailor) return;
+    const name = tailor.name || "this penjahit";
+    const linked = (state.production.jobs || []).filter((job) => job.penjahit_id === penjahitId).length;
+    if (linked) {
+      window.alert(name + " has " + linked + (1 === linked ? " job" : " jobs") + " on record, so they can't be deleted — their payments would lose their history. Archive them from Edit instead.");
+      return;
+    }
+    if (!window.confirm("Delete " + name + "? This cannot be undone.")) return;
+    try {
+      await db.deletePenjahit(penjahitId);
+      state.production.penjahit = state.production.penjahit.filter((t) => t.id !== penjahitId);
+      showToast("Penjahit deleted");
+      if (fromDetail) go("#/customers?tab=penjahit");
+      else { $("#penjahitTabCount").textContent = state.production.penjahit.length || ""; renderPenjahitLedger(); }
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || "Could not delete");
+    }
+  }
+
   async function deleteOrderFromCustomer(orderId) {
     const order = (state.customerOrders || []).filter((o) => o.id === orderId)[0];
     if (!order) return;
@@ -1703,7 +1778,7 @@ KK.app = (function () {
 
     const prevRoute = state.route;
     if (prevRoute && prevRoute.view === "customers") {
-      state.production.scroll[state.production.ledgerTab] = window.scrollY;
+      state.production.scrollY = window.scrollY;
     }
 
     if (state.dirty && currentHash !== location.hash) {
@@ -2076,7 +2151,7 @@ KK.app = (function () {
         await enterView();
         KK.progress.done();
         focusRoute(targetRoute);
-        if (targetRoute.view === "customers") window.scrollTo(0, state.production.scroll[state.production.ledgerTab]);
+        if (targetRoute.view === "customers") window.scrollTo(0, state.production.scrollY || 0);
       } else {
         KK.progress.fail();
         await enterView();
@@ -2635,6 +2710,8 @@ KK.app = (function () {
       // customer list by whatever is in the shared search field, and coming
       // back from the penjahit tab that is still the penjahit query.
       state.production.ledgerLoaded = false;
+      elements.homeCustomers.style.minHeight = "";
+      elements.homePenjahit.style.minHeight = "";
       syncLedgerTab();
       renderHomepageReady({ customers: res[0], submissions: res[3] });
       try { await showHomepageLedger(); } catch (error) {
@@ -7327,14 +7404,22 @@ KK.app = (function () {
 
       const cardHtml = '<a class="home-customer-card home-customer-card--' + statusInfo.tone + '" href="#/customer/' + encodeURIComponent(c.id) + '" aria-label="' + U.escapeHtml((c.name || "Unnamed customer") + ", " + statusInfo.label) + '"><span class="home-customer-card__face"><span class="home-customer-card__top"><span class="home-customer-card__name">' + U.escapeHtml(c.name || "Unnamed customer") + '</span><span class="home-customer-card__badge">' + U.escapeHtml(statusInfo.label) + '</span></span>' + ("Cancelled" === statusInfo.label ? "" : '<span class="home-customer-card__meta"><span>' + U.escapeHtml(metaText) + '</span><span>' + U.formatRupiah(sumTotal) + '</span></span>') + '</span><span class="home-customer-card__rail"></span></a>';
 
+      const done = !!c.completed_at;
       return '<div class="home-customer-record"><div class="home-grid-rule"></div><div class="home-customer-record__inset">' +
-        swipeRowHtml(cardHtml, ' data-delete-customer="' + U.escapeHtml(c.id) + '"', c.name || "Unnamed customer") +
+        swipeRowHtml(cardHtml, ' data-delete-customer="' + U.escapeHtml(c.id) + '"', c.name || "Unnamed customer",
+          { attr: ' data-done-customer="' + U.escapeHtml(c.id) + '"', text: done ? "Undo" : "Done", undo: done }) +
         '</div><div class="home-grid-rule"></div><div class="home-grid-spacer" aria-hidden="true"></div></div>';
     }).join('') + addRow;
   }
 
   function homepageStatus(customerRecord, ordersList) {
     const orders = ordersList || [];
+    /* Marked done by hand, so it outranks everything derived from orders and
+       goes to the very foot of the ledger — below cancelled, which is at least
+       a customer someone might still call. */
+    if (customerRecord.completed_at) {
+      return { label: "Done", tone: "quiet", rank: 6 };
+    }
     if (customerRecord.cancelled_at) {
       return { label: "Cancelled", tone: "quiet", rank: 5 };
     }
@@ -7511,7 +7596,6 @@ KK.app = (function () {
       state.production.search[state.production.ledgerTab] = elements.customerSearch.value;
       elements.customerSearch.value = state.production.search[tab] || "";
     }
-    state.production.scroll[state.production.ledgerTab] = window.scrollY;
     state.production.ledgerTab = tab;
     elements.homeSearchSection.setAttribute("aria-label", tab === "penjahit" ? "Penjahit search" : "Customer search");
     elements.customerSearch.placeholder = tab === "penjahit" ? "Search penjahit name" : "Search customer name";
@@ -7574,11 +7658,19 @@ KK.app = (function () {
     state.route.query = new URLSearchParams(tab === "penjahit" ? "tab=penjahit" : "");
     syncLedgerTab();
     const penjahit = tab === "penjahit";
-    elements.homeCustomers.hidden = penjahit;
-    elements.homePenjahit.hidden = !penjahit;
+    const outgoing = penjahit ? elements.homeCustomers : elements.homePenjahit;
+    const incoming = penjahit ? elements.homePenjahit : elements.homeCustomers;
+    /* One scroll position for both tabs, so the tabs never move under the
+       finger that tapped them. The incoming list holds at least the outgoing
+       one's height: a shorter list would let the page end above the current
+       scroll, and the browser would clamp it — the jump this exists to stop. */
+    const y = window.scrollY;
+    incoming.style.minHeight = outgoing.offsetHeight + "px";
+    outgoing.hidden = true;
+    incoming.hidden = false;
     if (penjahit) loadPenjahitLedger(true).catch(() => {});
     else renderCustomerList();
-    window.scrollTo(0, state.production.scroll[tab] || 0);
+    window.scrollTo(0, y);
   }
 
   /* Deliberately the customer ledger's own shape — the same summary rail, grid
@@ -7587,14 +7679,15 @@ KK.app = (function () {
   function renderPenjahitLedger() {
     const searchVal = elements.customerSearch.value.trim();
     const query = searchVal.toLowerCase();
-    const showArchived = $("#penjahitArchived").checked;
-    const tailors = state.production.penjahit.filter((tailor) =>
-      (!tailor.archived_at || showArchived) &&
-      [tailor.name, tailor.phone].filter(Boolean).join(" ").toLowerCase().includes(query));
+    /* Archived penjahit are listed, not hidden behind a toggle: last, and
+       labelled. A toggle nobody understood was the only way to find them. */
+    const tailors = state.production.penjahit
+      .filter((tailor) => [tailor.name, tailor.phone].filter(Boolean).join(" ").toLowerCase().includes(query))
+      .sort((a, b) => (!!a.archived_at - !!b.archived_at) || String(a.name).localeCompare(String(b.name), undefined, { sensitivity: "base" }));
     const ongoing = productionTotals(state.production.jobs).ongoing;
+    const active = state.production.penjahit.filter((t) => !t.archived_at).length;
 
-    $("#penjahitSummary").innerHTML = '<span>' + U.escapeHtml(tailors.length + " penjahit") + '</span>' +
-      '<i></i><span>' + U.escapeHtml(ongoing + " ongoing") + '</span>';
+    $("#penjahitSummary").innerHTML = '<span>' + active + ' penjahit</span><i></i><span>' + ongoing + ' ongoing ' + (1 === ongoing ? 'job' : 'jobs') + '</span>';
 
     const addHref = "#/penjahit/new/edit" + (searchVal ? "?name=" + encodeURIComponent(searchVal) : "");
     const addLabel = searchVal ? '+ Add \u201c' + U.escapeHtml(searchVal) + '\u201d as a new penjahit' : "+ Add a penjahit";
@@ -7607,38 +7700,69 @@ KK.app = (function () {
       return;
     }
 
+    /* The customer card exactly, span for span: its meta row is laid out by
+       span:first-child and span:last-child, and a <strong> in the second slot
+       is what left the amount stranded beside its label instead of at the
+       right edge. */
     $("#penjahitList").innerHTML = tailors.map((tailor) => {
-      const totals = productionTotals(state.production.jobs.filter((job) => job.penjahit_id === tailor.id));
-      const badge = tailor.archived_at ? "Archived" : totals.ongoing + " ongoing";
-      const money = totals.credit > 0 && totals.outstanding === 0
-        ? { label: "Credit", amount: totals.credit }
-        : { label: "Outstanding", amount: totals.outstanding };
-      /* Outstanding and credit are never netted into one figure: they belong to
-         different jobs, and a credit on one must not read as a smaller debt on
-         another. When both exist the card leads with what is owed and says the
-         credit after it. */
-      const credit = totals.credit > 0 && totals.outstanding > 0
-        ? '<span class="home-customer-card__meta"><span>Credit held</span><strong>' + U.formatRupiah(totals.credit) + '</strong></span>' : '';
+      const jobs = state.production.jobs.filter((job) => job.penjahit_id === tailor.id);
+      const totals = productionTotals(jobs);
+      const badge = tailor.archived_at ? "Archived" : totals.ongoing ? totals.ongoing + " ongoing" : jobs.length ? "No work in hand" : "No jobs yet";
+      const tone = tailor.archived_at ? "quiet" : totals.ongoing ? "production" : "consultation";
+      const money = totals.outstanding > 0 ? { label: "Owed", amount: totals.outstanding }
+        : totals.credit > 0 ? { label: "Credit held", amount: totals.credit }
+        : { label: jobs.length ? "Settled" : "Nothing owed", amount: 0 };
       const label = tailor.name + ", " + badge + ", " + money.label + " " + U.formatRupiah(money.amount);
-      const cardHtml = '<a class="home-customer-card" href="#/penjahit/' + encodeURIComponent(tailor.id) + '" aria-label="' + U.escapeHtml(label) + '">' +
+      const cardHtml = '<a class="home-customer-card home-customer-card--' + tone + '" href="#/penjahit/' + encodeURIComponent(tailor.id) + '" aria-label="' + U.escapeHtml(label) + '">' +
         '<span class="home-customer-card__face"><span class="home-customer-card__top">' +
         '<span class="home-customer-card__name">' + U.escapeHtml(tailor.name) + '</span>' +
         '<span class="home-customer-card__badge">' + U.escapeHtml(badge) + '</span></span>' +
-        '<span class="home-customer-card__meta"><span>' + money.label + '</span><strong>' + U.formatRupiah(money.amount) + '</strong></span>' +
-        credit + '</span><span class="home-customer-card__rail"></span></a>';
-      return '<div class="home-customer-record"><div class="home-grid-rule"></div><div class="home-customer-record__inset">' + cardHtml +
+        '<span class="home-customer-card__meta"><span>' + U.escapeHtml(money.label) + '</span><span>' + U.formatRupiah(money.amount) + '</span></span>' +
+        (totals.credit > 0 && totals.outstanding > 0
+          ? '<span class="home-customer-card__meta"><span>Credit held</span><span>' + U.formatRupiah(totals.credit) + '</span></span>' : '') +
+        '</span><span class="home-customer-card__rail"></span></a>';
+      return '<div class="home-customer-record"><div class="home-grid-rule"></div><div class="home-customer-record__inset">' +
+        swipeRowHtml(cardHtml, ' data-delete-penjahit="' + U.escapeHtml(tailor.id) + '"', tailor.name) +
         '</div><div class="home-grid-rule"></div><div class="home-grid-spacer" aria-hidden="true"></div></div>';
     }).join("") + addRow;
   }
 
-  function renderProductionJobs() {
-    const filter = $("#productionFilter").value;
+
+  /* Jobs are listed the way a customer's orders are: the same record card, the
+     same rules and spacers, the name and badge on top and the money on the
+     right of the meta row. */
+  function setJobFilter(filter) {
     state.production.filters[state.production.profile.id] = filter;
-    const jobs = state.production.jobs.filter((job) => filter === "All" ||
+    $$("[data-job-filter]").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.jobFilter === filter)));
+    renderProductionJobs();
+  }
+
+  function renderProductionJobs() {
+    const filter = state.production.filters[state.production.profile.id] || "Ongoing";
+    const all = state.production.jobs;
+    const jobs = all.filter((job) => filter === "All" ||
       (filter === "Ongoing" ? ["Assigned", "In progress"].includes(job.status)
         : filter === "Outstanding" ? productionBalance(job) > 0 : job.status === filter));
-    $("#productionJobs").innerHTML = jobs.map(productionJobHtml).join("") || '<p class="empty">No ' + U.escapeHtml(filter.toLowerCase()) + ' jobs here.</p>';
+    $("#penjahitJobsCount").textContent = all.length + (all.length === 1 ? " job" : " jobs");
+    $("#penjahitJobsSum").textContent = U.formatRupiah(productionTotals(all).amount);
+    const today = U.todayISO();
+    const tones = { Assigned: "assigned", "In progress": "progress", Done: "done", Cancelled: "cancelled" };
+    const empty = { Ongoing: "No work in hand right now.", Outstanding: "Nothing owed to this penjahit.", Done: "No finished jobs yet.", Cancelled: "No cancelled jobs.", All: "No jobs yet." }[filter];
+    $("#productionJobs").innerHTML = jobs.length ? jobs.map((job) => {
+      const balance = productionBalance(job);
+      const money = balance > 0 ? U.formatRupiah(balance) + " owed" : balance < 0 ? U.formatRupiah(-balance) + " credit" : "Settled";
+      const late = job.due_date && job.due_date < today && ["Assigned", "In progress"].includes(job.status);
+      const card = '<a class="cust-order-card cust-order-card--' + tones[job.status] + '" href="#/production/' + encodeURIComponent(job.id) + '" aria-label="' + U.escapeHtml(job.description + ", " + job.status + ", " + money) + '">' +
+        '<span class="cust-order-card__face"><span class="cust-order-card__top"><span class="cust-order-card__name">' + U.escapeHtml(job.description) + '</span>' +
+        '<span class="cust-order-card__badge">' + U.escapeHtml(job.status) + '</span></span>' +
+        '<span class="cust-order-card__meta' + (balance > 0 ? ' cust-order-card__meta--owed' : '') + '"><span>' + U.escapeHtml(job.customer_name + " · " + job.item_name + " ×" + job.quantity) + '</span><span>' + U.escapeHtml(money) + '</span></span>' +
+        (job.due_date ? '<span class="cust-order-card__meta ' + (late ? 'cust-order-card__meta--late' : 'cust-order-card__meta--due') + '"><span>' + (late ? "Overdue since " : "Due ") + U.escapeHtml(U.formatLongDate(job.due_date)) + '</span></span>' : '') +
+        '</span><span class="cust-order-card__rail" aria-hidden="true"></span></a>';
+      return '<div class="cust-grid-spacer" aria-hidden="true"></div><div class="cust-grid-rule"></div><div class="cust-order-record__inset">' + card + '</div><div class="cust-grid-rule"></div>';
+    }).join("") + '<div class="cust-grid-spacer" aria-hidden="true"></div>'
+      : '<div class="cust-grid-spacer" aria-hidden="true"></div><p class="empty">' + empty + '</p>';
   }
+
 
   /* ------------------------- The assignment wizard ----------------------- */
 
@@ -7648,6 +7772,12 @@ KK.app = (function () {
     return state.route.view === "productionEdit" ? 1 : 3;
   }
 
+  const PRODUCTION_STEPS = {
+    1: { title: "Who is doing the work?" },
+    2: { title: "What are they making?" },
+    3: { title: "What is the work, and what does it cost?" }
+  };
+
   function showProductionStep(step) {
     const draft = productionDraft();
     const single = productionStepCount() === 1;
@@ -7656,23 +7786,27 @@ KK.app = (function () {
       panel.hidden = Number(panel.dataset.step) !== draft.step;
     });
     $("#productionStepper").hidden = single;
+    $("#productionKicker").textContent = single ? "Production work" : "Step " + draft.step + " of 3";
+    $("#productionTitle").textContent = single ? "Edit this job" : PRODUCTION_STEPS[draft.step].title;
     $$("[data-step-dot]").forEach((dot) => {
       const n = Number(dot.dataset.stepDot);
       dot.classList.toggle("is-current", n === draft.step);
       dot.classList.toggle("is-done", n < draft.step);
-      // The dot is decoration; the step's own "Step 2 of 3" kicker is what a
-      // screen reader reads, so the marker must not be announced twice.
-      dot.setAttribute("aria-hidden", "true");
     });
     if (draft.step === 1) renderProductionTailors();
     if (draft.step === 2) renderProductionSources();
     if (draft.step === 3) renderProductionDraft();
     syncProductionBar();
-    const heading = $('[data-step="' + draft.step + '"] h1', elements.viewProductionEdit);
-    if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
+    const heading = $("#productionTitle");
+    heading.tabIndex = -1;
+    heading.focus({ preventScroll: true });
     window.scrollTo(0, 0);
   }
 
+
+  /* The bar says where the next tap leads, and what it is carrying. "Continue"
+     alone made the reader scroll back up to check whether the taps had
+     registered; "Continue · 3 items" answers that where the thumb already is. */
   /* The bar says where the next tap leads, and what it is carrying. "Continue"
      alone made the reader scroll back up to check whether the taps had
      registered; "Continue · 3 items" answers that where the thumb already is. */
@@ -7682,26 +7816,29 @@ KK.app = (function () {
     const single = productionStepCount() === 1;
     const step = draft.step;
     const chosen = draft.jobs.length;
-    const label = $(".btn__label", $("#productionNext"));
+    const text = $("#productionNextText");
     const sub = $("#productionNextSub");
-    const back = $("#productionBack");
 
     if (step === 3) {
-      label.textContent = single ? "Save changes" : chosen === 1 ? "Save 1 assignment" : "Save " + chosen + " assignments";
+      text.textContent = state.saving ? "Saving…" : single ? "Save changes" : chosen === 1 ? "Save 1 assignment" : "Save " + chosen + " assignments";
       sub.textContent = state.production.draftTotal ? U.formatRupiah(state.production.draftTotal) : "";
     } else if (step === 2) {
-      label.textContent = "Continue";
+      text.textContent = "Continue";
       sub.textContent = chosen ? chosen + (chosen === 1 ? " item" : " items") + " selected" : "Choose at least one item";
     } else {
-      label.textContent = "Continue";
+      text.textContent = "Continue";
       const tailor = state.production.penjahit.find((t) => t.id === draft.penjahit_id);
       sub.textContent = tailor ? tailor.name : "Choose a penjahit";
     }
     $("#productionNext").disabled = state.saving ||
       (step === 1 && !draft.penjahit_id) || (step === 2 && !chosen);
-    back.textContent = single ? "Cancel" : step === 1 ? "Cancel" : "Back";
+    $("#productionBackLabel").textContent = single || step === 1 ? "Cancel" : "Back";
     sub.hidden = !sub.textContent;
   }
+
+
+  const ledgerRecord = (inner) => '<div class="cust-grid-rule" aria-hidden="true"></div><div class="cust-inset">' + inner +
+    '</div><div class="cust-grid-rule" aria-hidden="true"></div><div class="cust-grid-spacer" aria-hidden="true"></div>';
 
   function renderProductionTailors() {
     const draft = productionDraft();
@@ -7711,17 +7848,22 @@ KK.app = (function () {
     $("#productionTailorList").innerHTML = tailors.map((tailor) => {
       const totals = productionTotals(state.production.jobs.filter((job) => job.penjahit_id === tailor.id));
       const on = tailor.id === draft.penjahit_id;
-      return '<button type="button" class="pchoice' + (on ? ' is-chosen' : '') + '" role="radio" aria-checked="' + on + '" data-tailor="' + U.escapeHtml(tailor.id) + '">' +
-        '<span class="pchoice__mark" aria-hidden="true"></span>' +
-        '<span class="pchoice__body"><strong>' + U.escapeHtml(tailor.name) + '</strong>' +
-        '<span class="pchoice__meta">' + U.escapeHtml(tailor.phone || "No phone on file") + '</span></span>' +
-        '<span class="pchoice__side">' + U.escapeHtml(totals.ongoing + " ongoing") + '</span></button>';
-    }).join("") || '<p class="empty">' + (query ? "No matching penjahit." : "No penjahit yet. Add one to start assigning work.") + '</p>';
+      return ledgerRecord('<button type="button" class="pcard' + (on ? ' is-chosen' : '') + '" role="radio" aria-checked="' + on + '" data-tailor="' + U.escapeHtml(tailor.id) + '">' +
+        '<span class="pcard__face"><span class="pmark" aria-hidden="true"></span>' +
+        '<span class="pcard__body"><strong>' + U.escapeHtml(tailor.name) + '</strong>' +
+        '<span>' + U.escapeHtml(tailor.phone || "No phone on file") + '</span></span>' +
+        '<span class="pcard__side">' + U.escapeHtml(on ? "Chosen" : totals.ongoing + " ongoing") + '</span></span>' +
+        '<span class="pcard__rail" aria-hidden="true"></span></button>');
+    }).join("") || '<p class="empty production-list-empty">' + (query ? "No matching penjahit." : "No penjahit yet. Add one to start assigning work.") + '</p>';
   }
+
 
   /* Grouped by customer, then order. The flat list this replaces put "Bridal
      skirt" from four different weddings next to each other with the customer
      name buried in a meta line — the one thing you need to tell them apart. */
+  /* One card per order, its items as rows inside it, so the customer and the
+     order are read once at the top of the card instead of repeated on every
+     row. The rail under the card turns green once anything in it is chosen. */
   function renderProductionSources() {
     const draft = productionDraft();
     const query = $("#productionSearch").value.trim().toLowerCase();
@@ -7729,68 +7871,81 @@ KK.app = (function () {
     let shown = 0;
     const html = state.production.sources.map((order) => {
       const customer = (order.customers && order.customers.name) || "Customer";
-      const context = customer + " · " + orderLabel(order);
+      const label = orderLabel(order);
+      const context = customer + " · " + label;
       const named = (order.items || []).filter((item) => item.id && item.name && item.qty > 0);
       const items = named.filter((item) => (context + " " + item.name).toLowerCase().includes(query));
+      const head = '<div class="psource__head"><strong>' + U.escapeHtml(customer) + '</strong><span>' + U.escapeHtml(label) + '</span></div>';
       if (!items.length) {
         // An order with nothing named in it is still a real answer to a search
         // for that customer: offer the way to give it an item.
-        return named.length || !context.toLowerCase().includes(query) ? "" : (shown++,
-          '<section class="psource"><h3 class="psource__head"><span>' + U.escapeHtml(customer) + '</span><span>' + U.escapeHtml(orderLabel(order)) + '</span></h3>' +
-          '<a class="psource__empty" href="#/order/' + encodeURIComponent(order.id) + '/edit?from=production">No items on this order yet — add one</a></section>');
+        if (named.length || !context.toLowerCase().includes(query)) return "";
+        shown++;
+        return ledgerRecord('<div class="psource">' + head + '<a class="psource__empty" href="#/order/' + encodeURIComponent(order.id) + '/edit?from=production">No items on this order yet — add one</a></div>' +
+          '<span class="pcard__rail" aria-hidden="true"></span>');
       }
       shown += items.length;
-      return '<section class="psource"><h3 class="psource__head"><span>' + U.escapeHtml(customer) + '</span><span>' + U.escapeHtml(orderLabel(order)) + '</span></h3>' +
+      const any = items.some((item) => chosen.has(item.id));
+      return ledgerRecord('<div class="psource">' + head +
         items.map((item) => {
           const on = chosen.has(item.id);
-          return '<button type="button" class="pchoice pchoice--check' + (on ? ' is-chosen' : '') + '" aria-pressed="' + on + '"' +
+          return '<button type="button" class="psource__item' + (on ? ' is-chosen' : '') + '" aria-pressed="' + on + '"' +
             ' data-production-item="' + U.escapeHtml(item.id) + '" data-order-id="' + U.escapeHtml(order.id) + '">' +
-            '<span class="pchoice__mark" aria-hidden="true"></span>' +
-            '<span class="pchoice__body"><strong>' + U.escapeHtml(item.name) + '</strong>' +
-            '<span class="pchoice__meta">' + U.escapeHtml(item.qty + (item.qty === 1 ? " piece" : " pieces")) + '</span></span>' +
-            '<span class="pchoice__side">' + (on ? "Selected" : "Tap to add") + '</span></button>';
-        }).join("") + '</section>';
+            '<span class="pmark pmark--check" aria-hidden="true"></span>' +
+            '<span class="pcard__body"><strong>' + U.escapeHtml(item.name) + '</strong>' +
+            '<span>' + U.escapeHtml(item.qty + (item.qty === 1 ? " piece" : " pieces")) + '</span></span>' +
+            '<span class="pcard__side">' + (on ? "Selected" : "Tap to add") + '</span></button>';
+        }).join("") + '</div><span class="pcard__rail' + (any ? ' is-chosen' : '') + '" aria-hidden="true"></span>');
     }).join("");
     $("#productionSourceList").innerHTML = shown ? html
-      : '<p class="empty">' + (query ? 'No item matches “' + U.escapeHtml($("#productionSearch").value.trim()) + '”.' : "No saved order items yet.") + '</p>';
+      : '<p class="empty production-list-empty">' + (query ? 'No item matches “' + U.escapeHtml($("#productionSearch").value.trim()) + '”.' : "No saved order items yet.") + '</p>';
   }
 
+
   function productionField(label, key, value, type, required, extra) {
-    return '<label class="field"><span class="field__label">' + label + (required ? ' *' : ' <span class="optional">Optional</span>') + '</span><input class="input" data-pfield="' + key + '" type="' + (type || "text") + '" value="' + U.escapeHtml(value == null ? "" : value) + '"' + (required ? ' required aria-required="true"' : '') + (extra || '') + '></label>';
+    return '<div class="pfield"><label class="custedit-card__label">' + label + (required ? '<span class="custedit-card__req" aria-hidden="true">*</span>' : '') +
+      '</label><input class="custedit-input" data-pfield="' + key + '" type="' + (type || "text") + '" value="' + U.escapeHtml(value == null ? "" : value) + '"' +
+      ' aria-label="' + U.escapeHtml(label) + '"' + (required ? ' required aria-required="true"' : '') + (extra || '') + '></div>';
   }
+
 
   /* A row per item, collapsed to what changes between them — quantity and the
      line total. Description, price and dates come from the shared card above
      and are only spelled out here when this item differs from the rest. */
+  /* A card per item, collapsed to what changes between them — quantity and the
+     line total. Description, price and deadline come from the shared card and
+     are only spelled out here when this item differs from the rest. */
   function renderProductionDraft() {
     const draft = productionDraft();
     const editing = state.route.view === "productionEdit";
     $("#productionShared").hidden = editing;
-    $("#productionStep3Kicker").textContent = editing ? "Production work" : "Step 3 of 3";
-    $("#productionStep3Title").textContent = editing ? "Edit this job" : "What is the work, and what does it cost?";
     elements.productionDraftRows.innerHTML = draft.jobs.map((job) => {
       const custom = !editing && job.custom;
-      return '<article class="pjob' + (custom ? ' is-custom' : '') + '" data-job-id="' + U.escapeHtml(job.id) + '">' +
-        '<div class="pjob__head"><div class="pjob__id"><strong>' + U.escapeHtml(job.item_name) + '</strong>' +
-        '<span>' + U.escapeHtml(job.customer_name + " · " + job.order_title) + '</span></div>' +
+      return '<div class="custedit-field"><div class="cust-grid-rule" aria-hidden="true"></div><div class="cust-inset">' +
+        '<div class="custedit-card pjob' + (custom ? ' is-custom' : '') + '" data-job-id="' + U.escapeHtml(job.id) + '">' +
+        '<div class="pjob__head"><div><strong class="pjob__name">' + U.escapeHtml(job.item_name) + '</strong>' +
+        '<span class="pjob__ctx">' + U.escapeHtml(job.customer_name + " · " + job.order_title) + '</span></div>' +
         (editing ? '' : '<button type="button" class="pjob__drop" data-remove-job="' + U.escapeHtml(job.id) + '" aria-label="Remove ' + U.escapeHtml(job.item_name) + '">Remove</button>') + '</div>' +
-        '<div class="pjob__line"><label class="pjob__qty"><span>Qty</span><input class="input" data-pfield="quantity" type="number" min="1" step="1" max="' + U.escapeHtml(job.max_quantity) + '" inputmode="numeric" required aria-required="true" aria-label="Quantity for ' + U.escapeHtml(job.item_name) + '" value="' + U.escapeHtml(job.quantity) + '"></label>' +
+        '<div class="pjob__line"><div class="pfield pjob__qty"><label class="custedit-card__label">Qty<span class="custedit-card__req" aria-hidden="true">*</span></label>' +
+        '<input class="custedit-input" data-pfield="quantity" type="number" min="1" step="1" max="' + U.escapeHtml(job.max_quantity) + '" inputmode="numeric" required aria-required="true" aria-label="Quantity for ' + U.escapeHtml(job.item_name) + '" value="' + U.escapeHtml(job.quantity) + '"></div>' +
         '<p class="pjob__total" data-job-total></p></div>' +
-        '<details class="pjob__more"' + (custom || editing ? ' open' : '') + '><summary>' + (editing ? 'Job details' : custom ? 'Custom for this item' : 'Own work, price or deadline') + '</summary><div class="pjob__fields">' +
+        '<details class="pjob__more"' + (custom || editing ? ' open' : '') + '><summary>' + (editing ? 'Job details' : custom ? 'Custom for this item' : 'Own work, price or deadline') + '</summary><div class="pfields">' +
         productionField("Work description", "description", job.description, "text", true, ' maxlength="500"') +
-        '<div class="production-pair">' +
-        productionField("Price per piece", "unit_price", job.unit_price === "" ? "" : U.groupDigits(job.unit_price), "text", true, ' inputmode="numeric"') +
+        '<div class="ppair">' +
+        productionField("Price / piece", "unit_price", job.unit_price === "" ? "" : U.groupDigits(job.unit_price), "text", true, ' inputmode="numeric" placeholder="Rp"') +
         productionField("Deadline", "due_date", job.due_date, "date", false) + '</div>' +
         productionField("Assigned on", "assigned_date", job.assigned_date, "date", true) +
         productionField("Notes", "notes", job.notes, "text", false) +
-        (editing ? '<label class="field"><span class="field__label">Progress *</span><select class="input" data-pfield="status" required>' +
-          ["Assigned", "In progress", "Done", "Cancelled"].map((status) => '<option' + (job.status === status ? ' selected' : '') + '>' + status + '</option>').join("") + '</select></label>' +
-          '<div data-cancellation' + (job.status !== "Cancelled" ? ' hidden' : '') + '><p class="production-note">Confirm the final agreed charge. Payments remain recorded; any excess becomes credit.</p>' +
-          productionField("Final agreed charge (Rp)", "cancellation_charge", job.cancellation_charge == null ? "" : U.groupDigits(job.cancellation_charge), "text", job.status === "Cancelled", ' inputmode="numeric"') + '</div>' : '') +
-        '</div></details></article>';
-    }).join("") || '<p class="empty">No items selected yet.</p>';
+        (editing ? '<div class="pfield"><label class="custedit-card__label">Progress<span class="custedit-card__req" aria-hidden="true">*</span></label><select class="custedit-input" data-pfield="status" aria-label="Progress" required>' +
+          ["Assigned", "In progress", "Done", "Cancelled"].map((status) => '<option' + (job.status === status ? ' selected' : '') + '>' + status + '</option>').join("") + '</select></div>' +
+          '<div class="pfields" data-cancellation' + (job.status !== "Cancelled" ? ' hidden' : '') + '><p class="custedit-card__hint">Confirm the final agreed charge. Payments stay recorded; anything paid beyond it becomes credit.</p>' +
+          productionField("Final agreed charge", "cancellation_charge", job.cancellation_charge == null ? "" : U.groupDigits(job.cancellation_charge), "text", job.status === "Cancelled", ' inputmode="numeric" placeholder="Rp"') + '</div>' : '') +
+        '</div></details></div><div class="custedit-card__rail" aria-hidden="true"></div></div>' +
+        '<div class="cust-grid-rule" aria-hidden="true"></div></div><div class="cust-grid-spacer" aria-hidden="true"></div>';
+    }).join("") || '<p class="empty production-list-empty">No items selected yet.</p>';
     renderProductionDraftTotals();
   }
+
 
   /* Writes the shared card into every row that has not been given its own
      answer. A row becomes its own once its field is edited directly, and stops
@@ -7860,8 +8015,9 @@ KK.app = (function () {
     });
     state.production.draftTotal = total;
     const count = draft ? draft.jobs.length : 0;
+    $("#productionDraftTotalsField").hidden = !count;
     $("#productionDraftTotals").innerHTML = count
-      ? '<div><dt>' + (count === 1 ? "1 job" : count + " jobs") + '</dt><dd>' + (priced === count ? "" : priced + " of " + count + " priced") + '</dd></div>' +
+      ? '<div><dt>' + (count === 1 ? "1 job" : count + " jobs") + '</dt><dd>' + (priced === count ? "All priced" : priced + " of " + count + " priced") + '</dd></div>' +
         '<div class="production-totals__lead"><dt>Total agreed cost</dt><dd>' + U.formatRupiah(total) + '</dd></div>'
       : "";
     syncProductionBar();
@@ -7877,8 +8033,10 @@ KK.app = (function () {
 
   async function showProductionRoute(route) {
     const token = state.navigation.token;
-    const editable = ["penjahitEdit", "productionNew", "productionEdit"].includes(route.view);
-    setChrome({ title: "Production", up: { label: "Penjahit", hash: "#/customers?tab=penjahit" }, save: false, productionpage: true, productionedit: editable });
+    /* Reading pages wear the order page's chrome, forms the customer editor's.
+       Both hide the generic app bar and bring their own fixed nav. */
+    const form = ["penjahitEdit", "productionNew", "productionEdit"].includes(route.view);
+    setChrome({ title: "Production", save: false, productionpage: !form, custedit: form, productionedit: form });
     elements.productionBar.hidden = true;
     if (!await productionReady()) throw new Error("Production is not available yet. Please try again later.");
     const tailors = await db.listPenjahit();
@@ -7891,13 +8049,16 @@ KK.app = (function () {
       state.production.profile = profile;
       if (route.view === "penjahitEdit") {
         $("#penjahitEditTitle").textContent = isNew ? "New penjahit" : "Edit penjahit";
+        $("#penjahitEditCancel").href = route.query.get("from") === "production" ? "#/production/new?resume=1"
+          : isNew ? "#/customers?tab=penjahit" : "#/penjahit/" + encodeURIComponent(profile.id);
         // Seeded from the ledger's add row, the way the customer form is: the
         // name was already typed into the search once.
         $("#pName").value = profile.name || (isNew ? route.query.get("name") || "" : "");
         $("#pPhone").value = profile.phone || "";
         $("#pNotes").value = profile.notes || "";
-        $("#pArchived").checked = !!profile.archived_at;
+        setPenjahitArchived(!!profile.archived_at);
         $("#pArchiveField").hidden = isNew;
+        if ($("#pArchiveField").nextElementSibling) $("#pArchiveField").nextElementSibling.hidden = isNew;
         setSaveBar(true);
         setDirty(false);
         return;
@@ -7905,14 +8066,17 @@ KK.app = (function () {
       const jobs = await db.listProductionJobs({ penjahitId: profile.id });
       if (token !== state.navigation.token) return;
       state.production.jobs = jobs;
+      const totals = productionTotals(jobs);
+      const contact = [profile.phone, profile.archived_at ? "Archived" : ""].filter(Boolean).join(" · ");
       $("#penjahitTitle").textContent = profile.name;
-      $("#penjahitContact").textContent = [profile.phone, profile.notes, profile.archived_at ? "Archived" : ""].filter(Boolean).join(" · ");
-      $("#penjahitEditLink").href = "#/penjahit/" + profile.id + "/edit";
-      $("#penjahitAssignLink").href = "#/production/new?penjahit=" + profile.id;
+      $("#penjahitContact").textContent = contact + (profile.notes ? (contact ? " — " : "") + profile.notes : "");
+      $("#penjahitContact").hidden = !$("#penjahitContact").textContent;
+      $("#penjahitEditLink").href = "#/penjahit/" + encodeURIComponent(profile.id) + "/edit";
+      $("#penjahitAssignLink").href = "#/production/new?penjahit=" + encodeURIComponent(profile.id);
       $("#penjahitAssignLink").hidden = !!profile.archived_at;
-      $("#penjahitTotals").innerHTML = '<div><dt>Ongoing jobs</dt><dd>' + productionTotals(jobs).ongoing + '</dd></div>' + productionTotalsHtml(jobs);
-      $("#productionFilter").value = state.production.filters[profile.id] || "Ongoing";
-      renderProductionJobs();
+      $("#penjahitOngoing").textContent = totals.ongoing ? totals.ongoing + " ongoing" : "";
+      $("#penjahitTotals").innerHTML = productionTotalsHtml(jobs);
+      setJobFilter(state.production.filters[profile.id] || "Ongoing");
       return;
     }
     if (route.view === "productionJob") {
@@ -8024,11 +8188,21 @@ KK.app = (function () {
     }
   }
 
+  function setPenjahitArchived(archived) {
+    $$("[data-archived]", elements.viewPenjahitEdit).forEach((button) => {
+      const on = (button.dataset.archived === "true") === archived;
+      button.classList.toggle("is-on", on);
+      button.setAttribute("aria-checked", String(on));
+    });
+  }
+
+  const penjahitArchivedChoice = () => !!$('[data-archived="true"].is-on', elements.viewPenjahitEdit);
+
   async function savePenjahitForm() {
     if (!validateFields(elements.viewPenjahitEdit)) return false;
     const record = Object.assign({}, state.production.profile, {
       name: $("#pName").value.trim(), phone: orNull($("#pPhone").value), notes: orNull($("#pNotes").value),
-      archived_at: $("#pArchived").checked ? state.production.profile.archived_at || new Date().toISOString() : null
+      archived_at: penjahitArchivedChoice() ? state.production.profile.archived_at || new Date().toISOString() : null
     });
     const saved = await db.savePenjahit(record);
     setDirty(false);
@@ -8095,25 +8269,32 @@ KK.app = (function () {
     const job = state.production.job;
     const amounts = U.productionAmounts(job, state.production.payments);
     Object.assign(job, { amount: amounts.amount, paid: amounts.paid, refunded: amounts.refunded });
-    /* The kicker is uppercase and one line by design, so it carries the status
-       alone; a long penjahit name set in capitals reads as shouting and wraps
-       the heading away from its title. The name leads the context line instead,
-       where it is also the label on the back link. */
-    $("#productionJobStatus").textContent = job.status;
+    const tone = { Assigned: "var(--home-grid)", "In progress": "#e72a90", Done: "#17761a", Cancelled: "var(--home-grid)" }[job.status];
     $("#productionJobTitle").textContent = job.description;
-    $("#productionJobContext").textContent = [job.penjahit_name, job.customer_name, job.order_title, job.item_name].filter(Boolean).join(" · ");
-    $("#productionJobOrder").href = "#/order/" + job.order_id;
-    $("#productionJobEdit").href = "#/production/" + job.id + "/edit";
-    elements.upLink.href = "#/penjahit/" + job.penjahit_id;
-    elements.upLabel.textContent = job.penjahit_name;
+    $("#productionJobContext").textContent = [job.customer_name, job.order_title].filter(Boolean).join(" · ");
+    $("#productionJobStatus").textContent = job.status;
+    $("#productionJobStatus").style.color = tone || "";
+    $("#productionJobBack").href = "#/penjahit/" + encodeURIComponent(job.penjahit_id);
+    $("#productionJobBackLabel").textContent = job.penjahit_name || "Penjahit";
+    $("#productionJobOrder").href = "#/order/" + encodeURIComponent(job.order_id);
+    $("#productionJobEdit").href = "#/production/" + encodeURIComponent(job.id) + "/edit";
+    const late = job.due_date && job.due_date < U.todayISO() && ["Assigned", "In progress"].includes(job.status);
+    $("#productionJobFacts").innerHTML = [
+      ["Penjahit", U.escapeHtml(job.penjahit_name || "—")],
+      ["Item", U.escapeHtml(job.item_name)],
+      ["Quantity", U.escapeHtml(job.quantity + " × " + U.formatRupiah(job.unit_price))],
+      ["Assigned", U.escapeHtml(U.formatLongDate(job.assigned_date))],
+      ["Deadline", job.due_date ? U.escapeHtml(U.formatLongDate(job.due_date)) + (late ? " · overdue" : "") : "None set"],
+      job.notes ? ["Notes", U.escapeHtml(job.notes)] : null
+    ].filter(Boolean).map(([label, value]) => '<div' + (label === "Deadline" && late ? ' class="production-totals__owed"' : '') + '><dt>' + label + '</dt><dd>' + value + '</dd></div>').join("");
     $("#productionJobTotals").innerHTML = productionTotalsHtml([job]);
-    $("#productionJobNotes").textContent = job.quantity + " × " + U.formatRupiah(job.unit_price) + " · Assigned " + U.formatLongDate(job.assigned_date) +
-      (job.due_date ? " · Due " + U.formatLongDate(job.due_date) : "") + (job.notes ? " · " + job.notes : "");
     $("#productionPaymentHistory").innerHTML = state.production.payments.map((entry) =>
-      '<article class="production-payment' + (entry.voided_at ? ' is-voided' : '') + '"><div class="production-job__top"><strong>' + (entry.kind === "refund" ? "Refund" : "Payment") + '</strong><strong>' + U.formatRupiah(entry.amount) + '</strong></div>' +
+      '<article class="ppay' + (entry.voided_at ? ' is-voided' : '') + '"><div class="ppay__top"><span>' + (entry.kind === "refund" ? "Refund" : "Payment") + '</span><span>' + U.formatRupiah(entry.amount) + '</span></div>' +
       '<p>' + U.escapeHtml(U.formatLongDate(entry.payment_date)) + (entry.notes ? ' · ' + U.escapeHtml(entry.notes) : '') + '</p>' +
-      (entry.voided_at ? '<p>Voided · ' + U.escapeHtml(entry.void_reason) + '</p>' : '<button type="button" class="btn btn--outline" data-correct-payment="' + U.escapeHtml(entry.id) + '">Correct entry</button>') + '</article>').join("") || '<p class="empty">No payments recorded yet.</p>';
+      (entry.voided_at ? '<p>Voided · ' + U.escapeHtml(entry.void_reason) + '</p>' : '<button type="button" class="ppay__fix" data-correct-payment="' + U.escapeHtml(entry.id) + '">Correct this entry</button>') + '</article>').join("") ||
+      '<p class="production-empty">No payments recorded yet.</p>';
   }
+
 
   function openProductionPayment(entryId) {
     const entry = state.production.payments.find((payment) => payment.id === entryId);
@@ -8234,7 +8415,6 @@ KK.app = (function () {
   }
 
   function bindProductionEvents() {
-    $("#penjahitArchived").addEventListener("change", renderPenjahitLedger);
     $("#homeLedgerTabs").addEventListener("click", (event) => {
       const tab = event.target.closest("[data-ledger-tab]");
       if (!tab || event.metaKey || event.ctrlKey || event.shiftKey || event.button) return;
@@ -8246,7 +8426,31 @@ KK.app = (function () {
       state.production.ledgerLoaded = false;
       loadPenjahitLedger(true).catch(() => {});
     });
-    $("#productionFilter").addEventListener("change", renderProductionJobs);
+    $("#viewPenjahit .production-filter").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-job-filter]");
+      if (button) setJobFilter(button.dataset.jobFilter);
+    });
+    $("#penjahitDeleteBtn").addEventListener("click", () => {
+      if (state.production.profile) deletePenjahitById(state.production.profile.id, true);
+    });
+    elements.viewPenjahitEdit.addEventListener("click", (event) => {
+      const choice = event.target.closest("[data-archived]");
+      if (!choice) return;
+      setPenjahitArchived(choice.dataset.archived === "true");
+      setDirty(true);
+    });
+    /* Press feedback on the production pages, the way the order and customer
+       pages give it: the rail moves into the face while the finger is down. */
+    const PRESSABLE = ".order-nav-btn,.order-action,.cust-nav-btn,.cust-order-card,.custedit-danger__btn,.custedit-segmented__btn,.pcard";
+    [elements.viewPenjahit, elements.viewPenjahitEdit, elements.viewProductionEdit, elements.viewProductionJob].forEach((view) => {
+      view.addEventListener("pointerdown", (event) => {
+        const target = event.target.closest(PRESSABLE);
+        if (target && !target.disabled) target.classList.add("is-pressed");
+      });
+    });
+    ["pointerup", "pointercancel", "blur"].forEach((type) => window.addEventListener(type, () => {
+      $$(".production .is-pressed, .production-form .is-pressed").forEach((el) => el.classList.remove("is-pressed"));
+    }));
     $("#productionSearch").addEventListener("input", renderProductionSources);
     $("#productionTailorSearch").addEventListener("input", renderProductionTailors);
     $("#productionBack").addEventListener("click", productionStepBack);
@@ -10569,10 +10773,13 @@ KK.app = (function () {
        same reason the gesture is: these lists re-render on every keystroke. */
     bindSwipeRows();
     document.addEventListener("click", (e) => {
+      const done = e.target.closest && e.target.closest(".swipe__done");
+      if (done && done.dataset.doneCustomer) { toggleCustomerDone(done.dataset.doneCustomer); return; }
       const btn = e.target.closest && e.target.closest(".swipe__delete");
       if (!btn) return;
       if (btn.dataset.deleteCustomer) deleteCustomerFromLedger(btn.dataset.deleteCustomer);
       else if (btn.dataset.deleteOrder) deleteOrderFromCustomer(btn.dataset.deleteOrder);
+      else if (btn.dataset.deletePenjahit) deletePenjahitById(btn.dataset.deletePenjahit, false);
     });
     elements.customerSearch.addEventListener("input", () => {
       if ("penjahit" === state.production.ledgerTab) renderPenjahitLedger();

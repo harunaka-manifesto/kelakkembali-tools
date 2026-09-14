@@ -2101,20 +2101,35 @@ select.input {
 .actionbar[hidden],
 .savebar[hidden] { display: none; }
 
-.actionbar,
 /* The keyboard is reported in several steps as it animates, and `bottom` is a
    layout property — so driving the bar with it made the bar jump from step to
    step and reflowed the page under the caret each time. A transform is
-   compositor-only and can be transitioned, which turns the same steps into one
-   smooth move. */
-.savebar {
+   compositor-only, so the action bar rides the keyboard on one. */
+.actionbar {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
   transform: translateY(calc(-1 * var(--keyboard-offset)));
-  /* The visual viewport already animates with the keyboard. A second CSS
-     transition trails it and leaves the save bar visibly floating. */
+  transition: none;
+  z-index: 20;
+  background: rgba(228, 226, 221, 0.94);
+  backdrop-filter: saturate(150%) blur(12px);
+  border-top: 1px solid var(--line);
+}
+
+/* The save bar stays where it is when the keyboard opens, on purpose. It used
+   to ride the keyboard up, and on a page of fields that put it directly on top
+   of the field that had just taken focus — tap the last input, watch the bar
+   cover it. On a form the keyboard is the thing in use; Save can wait behind it
+   until the typing is done. The action bar and the fitting bars are not form
+   save bars and still follow the keyboard; the tests say which is which. */
+.savebar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  transform: none;
   transition: none;
   z-index: 20;
   background: rgba(228, 226, 221, 0.94);
@@ -2479,6 +2494,25 @@ body:not(.has-savebar) .toast {
   cursor: pointer;
 }
 .swipe__delete:active { background: #a80c0c; }
+/* The leading side, revealed by swiping right. Only rows that have something
+   to put there render it, so a row without one simply stops at its resting
+   place when dragged right. */
+.swipe__actions--start { right: auto; left: 0; }
+.swipe__done {
+  flex: 1 1 auto;
+  border: 0;
+  border-radius: 0;
+  background: #17851a;
+  color: var(--home-white, #fdfbf5);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 18px;
+  letter-spacing: -.26px;
+  cursor: pointer;
+}
+.swipe__done:active { background: #126c15; }
+.swipe__done.is-undo { background: var(--home-black-light, #292929); }
 .swipe__pane {
   position: relative;
   transform: translateX(var(--swipe-x, 0px));
@@ -2492,6 +2526,7 @@ body:not(.has-savebar) .toast {
   transition: transform var(--motion-standard) var(--ease-standard);
 }
 .swipe.is-open .swipe__pane { --swipe-x: -96px; }
+.swipe.is-open-start .swipe__pane { --swipe-x: 96px; }
 
 @media (prefers-reduced-motion: reduce) {
   .swipe.is-settling .swipe__pane { transition: none; }
