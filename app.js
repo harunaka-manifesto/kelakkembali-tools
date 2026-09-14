@@ -695,6 +695,10 @@ KK.app = (function () {
      the same one. */
   let viewportFrame = 0;
 
+  let keyboardBaseline = 0;
+  let keyboardBaselineWidth = 0;
+  const EDITABLE = 'input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="date"]):not([type="month"]), textarea, [contenteditable="true"]';
+
   function measureVisualViewport() {
     viewportFrame = 0;
     const vp = window.visualViewport;
@@ -702,6 +706,21 @@ KK.app = (function () {
     const visualBottom = vp && vp.scale === 1 ? vp.offsetTop + vp.height : layoutBottom;
     const offset = Math.max(0, Math.min(layoutBottom, layoutBottom - visualBottom));
     document.documentElement.style.setProperty("--keyboard-offset", Math.round(offset) + "px");
+
+    /* Keyboard open = a text field has focus and the visual viewport has lost
+       more than a toolbar's worth of height against the tallest it has been at
+       this width. Both halves matter: focus alone is true with the keyboard
+       dismissed, and height alone is true when the browser's own bars move.
+       The form save bars hide while it holds (see .savebar in shared.css) —
+       parked behind the keyboard they still showed on browsers with a bottom
+       toolbar, floating on a strip of empty chrome above the keys. */
+    if (vp && vp.scale === 1) {
+      if (Math.abs(window.innerWidth - keyboardBaselineWidth) > 40) { keyboardBaseline = 0; keyboardBaselineWidth = window.innerWidth; }
+      keyboardBaseline = Math.max(keyboardBaseline, vp.height);
+    }
+    const editing = !!(document.activeElement && document.activeElement.matches && document.activeElement.matches(EDITABLE));
+    const open = !!(vp && vp.scale === 1 && editing && vp.height < keyboardBaseline - 150);
+    if (document.body.classList.contains("is-keyboard-open") !== open) document.body.classList.toggle("is-keyboard-open", open);
   }
 
   function syncVisualViewport() {
@@ -1202,17 +1221,32 @@ KK.app = (function () {
     schedules: "schedules",
     documents: "documents",
     calendar: "calendar settings",
-    enquiry: "enquiry"
+    enquiry: "enquiry",
+    penjahit: "penjahit",
+    penjahitEdit: "penjahit editor",
+    productionNew: "assignment",
+    productionEdit: "production job editor",
+    productionJob: "production job"
   };
 
-  const routeLoaderKind = (r) =>
-    "fittingLogDetail" === r.view
-      ? "fitdet"
-      : "customer" === r.view || "customerEdit" === r.view
-      ? "ledger"
-      : "moodboard" === r.view || "moodboardPreview" === r.view
-      ? "moodboard"
-      : "form";
+  /* Which silhouette the shared loader draws. Each kind is the shape of the
+     page about to arrive: the customer page, an editor, an order-style record,
+     the fitting log, the moodboard. "form" is the old card stack, kept for the
+     settings and enquiry pages, which still look like it. */
+  const LOADER_KINDS = {
+    customer: "cust",
+    customerEdit: "editor",
+    orderEdit: "editor",
+    penjahitEdit: "editor",
+    productionNew: "editor",
+    productionEdit: "editor",
+    penjahit: "record",
+    productionJob: "record",
+    fittingLogDetail: "fitdet",
+    moodboard: "moodboard",
+    moodboardPreview: "moodboard"
+  };
+  const routeLoaderKind = (r) => LOADER_KINDS[r.view] || "form";
 
   /* The skeleton is armed, not shown. A route that resolves inside
      SKELETON_DELAY_MS never paints one at all, which is what stops a warm
@@ -1885,7 +1919,14 @@ KK.app = (function () {
     syncBottomBar();
     window.scrollTo(0, 0);
     armRouteLoader(targetRoute);
-    if (!skipMotion) armEnterView();
+    /* A route with its own skeleton has to be seen while it loads — that is
+       the skeleton's whole job. Arming the enter here held the page at opacity
+       0 until the data arrived, so those skeletons were only ever painted
+       invisibly. They enter now; the enter after the data is then a no-op. */
+    if (!skipMotion) {
+      armEnterView();
+      if (routeHasOwnLoader(targetRoute)) enterView();
+    }
 
     const renderFn = async () => {
       if ("customers" === targetRoute.view) {
@@ -4125,6 +4166,17 @@ KK.app = (function () {
 
   async function showFittingLogs(queryParams) {
     const params = queryParams || new URLSearchParams("");
+    /* ?new=1 is the homepage shortcut. The list comes first; the picker opens
+       on top of it only when there is nothing in it to look at. The flag is
+       stripped straight away so Back and a reload do not reopen the sheet. */
+    const wantsNew = "1" === params.get("new");
+    if (wantsNew) {
+      params.delete("new");
+      const rest = params.toString();
+      const cleanHash = "#/fittings" + (rest ? "?" + rest : "");
+      history.replaceState(null, "", location.pathname + location.search + cleanHash);
+      currentHash = cleanHash;
+    }
     const seedName = String(params.get("q") || "");
     const seedId = String(params.get("customerId") || "");
     const hasSeed = "customer" === params.get("from") && UUID_PATTERN.test(seedId);
@@ -4176,6 +4228,7 @@ KK.app = (function () {
       setFittingBackControl(null);
       await startFittingFirstPage();
     }
+    if (wantsNew && isFittingRoute() && "ready" === fs.phase && !fs.items.length) openDocumentPicker("fitting");
   }
 
   /* The router scrolls to the top before any view renders, and the curtain
@@ -4590,6 +4643,7 @@ KK.app = (function () {
        heading take focus back is what made the keyboard flash up and drop. */
     const openPickerIfEmpty = () => {
       if (!wantsNew || !isDocumentsRoute() || ds.kind !== wanted) return;
+      if ("ready" !== ds.phase || ds.items.length) return;
       openDocumentPicker(wanted);
     };
 
@@ -4710,7 +4764,9 @@ KK.app = (function () {
         ' docnew__row--new');
 
       elements.docnewList.innerHTML = matches.map((c) => docnewRowHtml(
-        ' data-customer="' + U.escapeHtml(c.id) + '"', c.name, weddingText(c)
+        // Only a real wedding date earns the meta line. "Not set" beside every
+        // customer without one read as an error in the picker.
+        ' data-customer="' + U.escapeHtml(c.id) + '"', c.name, c.wedding_date ? "Wedding " + weddingText(c) : ""
       )).join('') + addRow;
       announceDocumentPickerStatus(matches.length + (1 === matches.length ? " customer" : " customers"));
       return;
@@ -7731,23 +7787,44 @@ KK.app = (function () {
   /* Jobs are listed the way a customer's orders are: the same record card, the
      same rules and spacers, the name and badge on top and the money on the
      right of the meta row. */
+  /* The fitting feed's filter, on purpose: a search field, then toggle chips
+     that combine — none on means every job, any number on means jobs matching
+     any of them. */
+  const JOB_FILTERS = {
+    Ongoing: (job) => ["Assigned", "In progress"].includes(job.status),
+    Outstanding: (job) => productionBalance(job) > 0,
+    Done: (job) => job.status === "Done",
+    Cancelled: (job) => job.status === "Cancelled"
+  };
+
+  function jobFilterState() {
+    const id = state.production.profile.id;
+    if (!Array.isArray(state.production.filters[id])) state.production.filters[id] = [];
+    return state.production.filters[id];
+  }
+
   function setJobFilter(filter) {
-    state.production.filters[state.production.profile.id] = filter;
-    $$("[data-job-filter]").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.jobFilter === filter)));
+    const on = jobFilterState();
+    const at = on.indexOf(filter);
+    if (at === -1) on.push(filter); else on.splice(at, 1);
     renderProductionJobs();
   }
 
+
   function renderProductionJobs() {
-    const filter = state.production.filters[state.production.profile.id] || "Ongoing";
+    const on = jobFilterState();
+    $$("[data-job-filter]").forEach((button) => button.setAttribute("aria-pressed", String(on.includes(button.dataset.jobFilter))));
+    const needle = $("#penjahitJobSearch").value.trim().toLowerCase();
+    $("#penjahitJobSearchClear").hidden = !needle;
     const all = state.production.jobs;
-    const jobs = all.filter((job) => filter === "All" ||
-      (filter === "Ongoing" ? ["Assigned", "In progress"].includes(job.status)
-        : filter === "Outstanding" ? productionBalance(job) > 0 : job.status === filter));
+    const jobs = all.filter((job) =>
+      (!on.length || on.some((key) => JOB_FILTERS[key](job))) &&
+      (!needle || [job.description, job.customer_name, job.item_name, job.order_title].filter(Boolean).join(" ").toLowerCase().includes(needle)));
     $("#penjahitJobsCount").textContent = all.length + (all.length === 1 ? " job" : " jobs");
     $("#penjahitJobsSum").textContent = U.formatRupiah(productionTotals(all).amount);
     const today = U.todayISO();
     const tones = { Assigned: "assigned", "In progress": "progress", Done: "done", Cancelled: "cancelled" };
-    const empty = { Ongoing: "No work in hand right now.", Outstanding: "Nothing owed to this penjahit.", Done: "No finished jobs yet.", Cancelled: "No cancelled jobs.", All: "No jobs yet." }[filter];
+    const empty = !all.length ? "No jobs yet." : "No jobs match.";
     $("#productionJobs").innerHTML = jobs.length ? jobs.map((job) => {
       const balance = productionBalance(job);
       const money = balance > 0 ? U.formatRupiah(balance) + " owed" : balance < 0 ? U.formatRupiah(-balance) + " credit" : "Settled";
@@ -7762,6 +7839,7 @@ KK.app = (function () {
     }).join("") + '<div class="cust-grid-spacer" aria-hidden="true"></div>'
       : '<div class="cust-grid-spacer" aria-hidden="true"></div><p class="empty">' + empty + '</p>';
   }
+
 
 
   /* ------------------------- The assignment wizard ----------------------- */
@@ -7788,6 +7866,10 @@ KK.app = (function () {
     $("#productionStepper").hidden = single;
     $("#productionKicker").textContent = single ? "Production work" : "Step " + draft.step + " of 3";
     $("#productionTitle").textContent = single ? "Edit this job" : PRODUCTION_STEPS[draft.step].title;
+    // Once answered, who the work is for travels with every later question.
+    const chosenTailor = state.production.penjahit.find((t) => t.id === draft.penjahit_id);
+    $("#productionFor").textContent = (single || draft.step > 1) && chosenTailor ? "For " + chosenTailor.name : "";
+    $("#productionFor").hidden = !$("#productionFor").textContent;
     $$("[data-step-dot]").forEach((dot) => {
       const n = Number(dot.dataset.stepDot);
       dot.classList.toggle("is-current", n === draft.step);
@@ -7889,12 +7971,16 @@ KK.app = (function () {
       return ledgerRecord('<div class="psource">' + head +
         items.map((item) => {
           const on = chosen.has(item.id);
+          /* The check mark and the tint already say chosen; a word beside them
+             said it a third time and took the width the name needed. The price
+             goes in the subtitle, where it can be read against the quantity. */
+          const price = typeof item.price === "number" ? item.price : U.parseRupiahInput(String(item.price || ""));
+          const sub = item.qty + (item.qty === 1 ? " piece" : " pieces") + (price > 0 ? " \u00b7 " + U.formatRupiah(price) : "");
           return '<button type="button" class="psource__item' + (on ? ' is-chosen' : '') + '" aria-pressed="' + on + '"' +
             ' data-production-item="' + U.escapeHtml(item.id) + '" data-order-id="' + U.escapeHtml(order.id) + '">' +
             '<span class="pmark pmark--check" aria-hidden="true"></span>' +
             '<span class="pcard__body"><strong>' + U.escapeHtml(item.name) + '</strong>' +
-            '<span>' + U.escapeHtml(item.qty + (item.qty === 1 ? " piece" : " pieces")) + '</span></span>' +
-            '<span class="pcard__side">' + (on ? "Selected" : "Tap to add") + '</span></button>';
+            '<span>' + U.escapeHtml(sub) + '</span></span></button>';
         }).join("") + '</div><span class="pcard__rail' + (any ? ' is-chosen' : '') + '" aria-hidden="true"></span>');
     }).join("");
     $("#productionSourceList").innerHTML = shown ? html
@@ -8076,7 +8162,8 @@ KK.app = (function () {
       $("#penjahitAssignLink").hidden = !!profile.archived_at;
       $("#penjahitOngoing").textContent = totals.ongoing ? totals.ongoing + " ongoing" : "";
       $("#penjahitTotals").innerHTML = productionTotalsHtml(jobs);
-      setJobFilter(state.production.filters[profile.id] || "Ongoing");
+      $("#penjahitJobSearch").value = "";
+      renderProductionJobs();
       return;
     }
     if (route.view === "productionJob") {
@@ -8426,9 +8513,15 @@ KK.app = (function () {
       state.production.ledgerLoaded = false;
       loadPenjahitLedger(true).catch(() => {});
     });
-    $("#viewPenjahit .production-filter").addEventListener("click", (event) => {
+    $("#penjahitJobStages").addEventListener("click", (event) => {
       const button = event.target.closest("[data-job-filter]");
       if (button) setJobFilter(button.dataset.jobFilter);
+    });
+    $("#penjahitJobSearch").addEventListener("input", renderProductionJobs);
+    $("#penjahitJobSearchClear").addEventListener("click", () => {
+      $("#penjahitJobSearch").value = "";
+      renderProductionJobs();
+      $("#penjahitJobSearch").focus({ preventScroll: true });
     });
     $("#penjahitDeleteBtn").addEventListener("click", () => {
       if (state.production.profile) deletePenjahitById(state.production.profile.id, true);
@@ -10709,9 +10802,15 @@ KK.app = (function () {
     // cases the picker is the whole entry point.
     elements.homeMoodboardBtn.addEventListener("click", () => openDocumentPicker("moodboard"));
     elements.homeAddOrderBtn.addEventListener("click", () => openDocumentPicker("neworder"));
-    elements.homeFittingBtn.addEventListener("click", (event) => {
+    /* The customer list is on this page, so the Customer shortcut goes to it:
+       the Customers tab, scrolled to the ledger. Only with nobody in it does
+       the shortcut go straight to making one. */
+    $(".home-action--customer").addEventListener("click", (event) => {
+      if (!state.customers || !state.customers.length) return;
       event.preventDefault();
-      openDocumentPicker("fitting");
+      switchLedgerTab("customers");
+      const anchor = document.querySelector("#homeLedgerTabs:not([hidden])") || elements.homeSearchSection;
+      window.scrollTo({ top: Math.max(0, anchor.getBoundingClientRect().top + window.scrollY - 12), behavior: reducedMotion() ? "auto" : "smooth" });
     });
 
     if (elements.homeNavHome) {
@@ -10989,6 +11088,10 @@ KK.app = (function () {
 
     if (window.visualViewport) {
       window.visualViewport.addEventListener("resize", syncVisualViewport);
+      // Focus lands before the keyboard's resize, so the baseline is taken at
+      // full height; blur puts the bars back even if no resize follows.
+      window.addEventListener("focusin", syncVisualViewport);
+      window.addEventListener("focusout", () => setTimeout(syncVisualViewport, 0));
       window.visualViewport.addEventListener("scroll", syncVisualViewport);
       // The software keyboard changing the visual viewport is the only signal
       // that the search field's position has actually settled.

@@ -2124,6 +2124,10 @@ select.input {
    cover it. On a form the keyboard is the thing in use; Save can wait behind it
    until the typing is done. The action bar and the fitting bars are not form
    save bars and still follow the keyboard; the tests say which is which. */
+/* While the keyboard is up (app.js sets the class) the form bar steps aside.
+   Parked behind the keyboard it still showed on browsers with a bottom toolbar,
+   floating over a strip of empty browser chrome. */
+body.is-keyboard-open .savebar { visibility: hidden; pointer-events: none; }
 .savebar {
   position: fixed;
   left: 0;

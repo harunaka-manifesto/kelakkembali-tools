@@ -1,4 +1,4 @@
-# MAP — app.js (11154 lines, ~465 KB)
+# MAP — app.js (11257 lines, ~475 KB)
 
 **Never read this file whole.** It costs ~60k tokens. Jump to a region below, read ≤400 lines.
 
@@ -216,9 +216,9 @@ canvas and clamps them to 0..1, so nothing is ever stored outside the image.
 
 **Homepage ledger tabs** `syncLedgerTab` · **`showHomepageLedger`** · `loadPenjahitLedger` · **`switchLedgerTab`** 7653 · `renderPenjahitLedger` 7679
 
-**Penjahit detail** `setJobFilter` 7734 · `renderProductionJobs` 7740 · `setPenjahitArchived` 8191 · `savePenjahitForm` 8201
+**Penjahit detail** `JOB_FILTERS` · `jobFilterState` · `setJobFilter` 7806 · `renderProductionJobs` 7814 · `setPenjahitArchived` 8191 · `savePenjahitForm` 8201
 
-**The assignment wizard** `productionStepCount` · **`showProductionStep`** 7781 · `syncProductionBar` 7813 · `renderProductionTailors` 7843 (step 1) · `renderProductionSources` 7867 (step 2) · `productionField` · `renderProductionDraft` 7918 (step 3) · `applyProductionShared` · `markProductionRowCustom` · `snapshotProductionDraft` · `renderProductionDraftTotals` · `productionStepBack` · `productionStepNext`
+**The assignment wizard** `productionStepCount` · **`showProductionStep`** 7859 · `syncProductionBar` 7813 · `renderProductionTailors` 7843 (step 1) · `renderProductionSources` 7867 (step 2) · `productionField` · `renderProductionDraft` 7918 (step 3) · `applyProductionShared` · `markProductionRowCustom` · `snapshotProductionDraft` · `renderProductionDraftTotals` · `productionStepBack` · `productionStepNext`
 
 **Routes & saving** `setProductionBusy` · **`showProductionRoute`** 8034 · **`saveProductionDraft`** · `renderProductionJob` 8268 · `openProductionPayment` · `syncProductionPaymentKind` · `saveProductionPayment` · `renderOrderProduction` · `bindProductionEvents` 8417
 
@@ -249,6 +249,8 @@ canvas and clamps them to 0..1, so nothing is ever stored outside the image.
 - The workspace owns the annotation overlay outright: `state.fittingPhotoAdd.mark` is the only place a stroke lives before it is committed, and `closeFittingMark` is the only writer of `annotationPatches`. The detail page and the PDF are pure readers of `photo.annotation`.
 - Order detail and order editor share nothing but `db.getOrder`. Editing one does not require reading the other.
 - **Production is gated on one probe.** `productionReady` asks `db.productionAvailable()` once a session, caches the answer in `state.production.available`, and mirrors it to `localStorage` so the homepage skeleton reserves the assignment tile's row on the next visit. Everything marked `data-production-entry` in `index.html` is shown or stood down by `applyProductionEntries`; nothing else may toggle those elements. Until the migration is applied the probe answers `false` and every entry point stays hidden, which is how the feature ships ahead of the database.
+- **Route motion and loaders.** `LOADER_KINDS` (1236) picks the shared loader's canvas per route; `routeHasOwnLoader` lists the routes that draw their own skeleton, and `handleRoute` runs `enterView()` immediately for those so the skeleton is visible while it loads.
+- **Keyboard state.** `measureVisualViewport` (702) publishes `--keyboard-offset` and toggles `body.is-keyboard-open` from focus plus viewport height against a per-width baseline; `window` focusin/focusout re-measure. Registered on `window`, not `document`: a test locates the one scrolling focusin handler by `document.addEventListener("focusin"`.
 - **Swipe rows are two-sided.** `bindSwipeRows` clamps a drag to `[-SWIPE_REVEAL, reach]`, where `reach` is `SWIPE_REVEAL` only when the row rendered `.swipe__actions--start`. `setSwipeRow(row, "end" | "start" | false)`. Delegated clicks: `.swipe__done[data-done-customer]` → `toggleCustomerDone`; `.swipe__delete` with `data-delete-customer` / `-order` / `-penjahit`.
 - **The shared form validators live in the chrome region** (`setFieldError`, `fieldValidityMessage`, `validateFields`, `focusInvalid`, `showFormError`, ~570–660). Every editor calls them; the customer, order, production, and payment forms have no private validation. Focus is moved only on submit — the live `input` listener in `bindEvents` revalidates the field being corrected and never calls `focusInvalid`, because the reader is mid-word in it.
 - **Production pages borrow chrome, they do not own any.** `showProductionRoute` calls `setChrome({ productionpage: true })` for the penjahit and job pages, which then use the order page's markup, and `setChrome({ custedit: true, productionedit: true })` for the penjahit editor and the wizard, which use the customer editor's. Both hide the generic app bar; each view carries its own fixed nav, whose hrefs are set in the render functions. Press feedback on those views is one delegated `pointerdown` in `bindProductionEvents`.

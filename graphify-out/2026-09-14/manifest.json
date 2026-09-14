@@ -55,8 +55,8 @@
     "semantic_hash": ""
   },
   "app.js": {
-    "mtime": 1789318432.4893477,
-    "ast_hash": "aabf8afb7dac40f84dab4fd9062f3ef0",
+    "mtime": 1789345559.1731918,
+    "ast_hash": "b48412f3d62af0da79e2796146c0966e",
     "semantic_hash": ""
   },
   "calendar.js": {
@@ -70,8 +70,8 @@
     "semantic_hash": ""
   },
   "db.js": {
-    "mtime": 1789314015.468366,
-    "ast_hash": "fa12215ac046f2c9bbd0631c8612d514",
+    "mtime": 1789345022.3622944,
+    "ast_hash": "1aea1f244338ea31ee711876006af2ea",
     "semantic_hash": ""
   },
   "docs.js": {
@@ -95,8 +95,8 @@
     "semantic_hash": ""
   },
   "schema.sql": {
-    "mtime": 1789313187.1388738,
-    "ast_hash": "05212f44d170a9001c00ca8bb05f82a2",
+    "mtime": 1789345017.2407844,
+    "ast_hash": "9c77643cbf43c737a6a18a26184be141",
     "semantic_hash": ""
   },
   "serve.ps1": {
@@ -107,11 +107,6 @@
   "skills-lock.json": {
     "mtime": 1785339496.9419525,
     "ast_hash": "dac483c468782f443409d7a6c18ba5b0",
-    "semantic_hash": ""
-  },
-  "supabase/.temp/linked-project.json": {
-    "mtime": 1789317378.2513418,
-    "ast_hash": "f5e8761cf09df53ed3b1b51dd281f833",
     "semantic_hash": ""
   },
   "supabase/functions/google-calendar/index.ts": {
@@ -130,8 +125,8 @@
     "semantic_hash": ""
   },
   "tests/pure-modules.test.cjs": {
-    "mtime": 1789318478.3186724,
-    "ast_hash": "0a9208d8e68c1358d5db88a6e7a212e4",
+    "mtime": 1789345033.3229916,
+    "ast_hash": "2bf0c224e620e66233f557dfd41844f7",
     "semantic_hash": ""
   },
   "util.js": {
@@ -270,8 +265,8 @@
     "semantic_hash": ""
   },
   "docs/DATABASE.md": {
-    "mtime": 1789318557.3714223,
-    "ast_hash": "d5b80c48c79a45a14263768a9b1369e6",
+    "mtime": 1789345939.1309888,
+    "ast_hash": "083a2120c1cea186a71ca512d44817f6",
     "semantic_hash": ""
   },
   "docs/DESIGN-SYSTEM.md": {
@@ -280,18 +275,18 @@
     "semantic_hash": ""
   },
   "docs/FEATURES.md": {
-    "mtime": 1789318551.1941411,
-    "ast_hash": "199d64c21e95fd5502feb81fb7c67ce9",
+    "mtime": 1789345901.4742384,
+    "ast_hash": "e106989d39f7c1d340d374fc8d8d1721",
     "semantic_hash": ""
   },
   "docs/MAP-app.md": {
-    "mtime": 1789318497.376123,
-    "ast_hash": "5a88cde2f917ccefcf8d46bb3502ec5f",
+    "mtime": 1789345917.6890016,
+    "ast_hash": "50c6b6089787006d33128409a536cda5",
     "semantic_hash": ""
   },
   "docs/MAP-html-css.md": {
-    "mtime": 1789318513.3992195,
-    "ast_hash": "43af4c33ed302d131811f5970c0407a2",
+    "mtime": 1789345931.1314359,
+    "ast_hash": "ff78b505abfb6f0543de2c310179b8c8",
     "semantic_hash": ""
   },
   "docs/MODULES.md": {
@@ -310,8 +305,8 @@
     "semantic_hash": ""
   },
   "index.html": {
-    "mtime": 1789318188.8668957,
-    "ast_hash": "4833c7d8ed2c9b64a09b96d5cf4e8c6f",
+    "mtime": 1789345758.441969,
+    "ast_hash": "2e13306365b429dc252a98d614e816da",
     "semantic_hash": ""
   },
   "plan-with-me-to-inherited-cake.md": {

@@ -667,6 +667,11 @@ body.is-homepage .empty {
 }
 /* The customer page's order list is the same black ledger with the same add
    row at the end of it, so it takes the same treatment rather than a copy. */
+/* shared.css loads after this file, so its .btn--outline:hover wins a tie and,
+   on a touch screen where hover sticks after a tap, turned these cream add
+   rows transparent — ink label on a black canvas, an empty box. */
+body.is-homepage .btn--empty:hover,
+.cust-order-list .btn--empty:hover { background: var(--home-white); border-color: var(--home-grid); }
 body.is-homepage .btn--empty,
 .cust-order-list .btn--empty {
   /* .btn--block sets width:100%, which resolves against the ledger's full
@@ -753,6 +758,19 @@ body.has-production .home-skel__actions { height: 208px; }
 .home-skel__actions i::after  { background: rgba(76,76,76,.32); }
 .home-skel__search { height: 48px; background: var(--home-white); }
 .home-skel__rail { height: 7px; background: var(--home-white-dark); }
+/* The ledger tabs: 1px rule, 8px of canvas, two 48px tabs, the first one the
+   cream folder tab over the search band. Reserved from the same stored probe
+   answer as the assignment row, for the same reason. */
+.home-skel__tabs {
+  height: 57px;
+  padding-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  background: var(--home-black);
+  border-top: 1px solid var(--home-grid);
+}
+.home-skel__tabs i:first-child { background: var(--home-white); }
+.home-skel__tabs i:last-child { border-bottom: 1px solid var(--home-grid); }
 .home-skel__ledger { flex: 1; background: var(--home-black); }
 .home-skel__summary {
   height: 36px;
@@ -2267,6 +2285,11 @@ body.is-orderpage .view { gap: 0; }
 .order-skel__split .order-skel__action { flex: 1 1 0; }
 .order-skel__record { display: block; height: 72px; background: rgba(76,76,76,.22); }
 .order-skel__footer { height: 72px; background: var(--home-black); }
+/* The Designs well is 147px plus its 4px rail in the page, and the delete row
+   is the danger button's 56px — both drawn at the size they replace. */
+.order-skel__designs { display: block; height: 151px; border: 1px solid rgba(76,76,76,.3); background: rgba(76,76,76,.08); }
+.order-skel__danger { display: block; height: 56px; background: rgba(164,52,31,.45); }
+.order-skel__section[hidden] { display: none !important; }
 
 /* ------------------------------ Error state ------------------------------ */
 
@@ -3652,6 +3675,78 @@ body.has-fitadd-bar .fitadd { padding-bottom: calc(var(--bottombar-h) + 8px); }
 .route-loader__canvas--fitdet .fitdet-action__face i { width: 48px; height: 12px; background: rgba(13,13,13,.08); }
 .route-loader__canvas--fitdet .fitdet-delete__face { background: rgba(75,0,0,.55); }
 .route-loader__canvas--fitdet .fitdet-delete__rail { background: rgba(52,0,0,.55); }
+
+/* ----------------------- Customer, editor, record ------------------------ */
+
+/* Three more loader canvases, one per page shape that no longer looks like the
+   default card stack: the customer page, every editor, and the order-style
+   record pages. Each borrows the page's own ledger classes, like fitdet above,
+   so the skeleton is the silhouette of what is about to arrive. */
+/* Qualified by kind, like fitdet: a bare class here loses to shared.css's
+   .route-loader__canvas { display: flex }, which loads later at the same
+   specificity — and all three canvases drew on top of one another. */
+.route-loader:not([data-kind="cust"]) .route-loader__canvas--cust,
+.route-loader:not([data-kind="editor"]) .route-loader__canvas--editor,
+.route-loader:not([data-kind="record"]) .route-loader__canvas--record { display: none; }
+.route-loader[data-kind="cust"],
+.route-loader[data-kind="editor"],
+.route-loader[data-kind="record"] { background: #292929; }
+.route-loader[data-kind="cust"] .route-loader__canvas--default,
+.route-loader[data-kind="editor"] .route-loader__canvas--default,
+.route-loader[data-kind="record"] .route-loader__canvas--default { display: none; }
+.route-loader[data-kind="cust"] .route-loader__canvas--cust,
+.route-loader[data-kind="editor"] .route-loader__canvas--editor,
+.route-loader[data-kind="record"] .route-loader__canvas--record {
+  width: min(390px, 100%);
+  max-width: 390px;
+  min-height: 100svh;
+  margin: 0 auto;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: var(--home-black);
+}
+.route-loader__canvas--cust i,
+.route-loader__canvas--editor i {
+  display: block;
+  border-radius: 0;
+  background: rgba(76,76,76,.18);
+  animation: home-shimmer 1.2s ease-in-out infinite;
+}
+.route-loader__canvas--cust .cust-hero { background: var(--home-white); }
+.route-loader__skel-name { width: 62%; height: 40px; }
+.route-loader__skel-banners { display: grid; }
+.route-loader__canvas--cust .route-loader__skel-banners i { height: 60px; animation: none; }
+.route-loader__skel-banners > i:nth-child(1) { background: var(--home-black-light); }
+.route-loader__skel-banners > i:nth-child(2) { background: rgba(255,106,0,.55); }
+.route-loader__skel-banners > i:nth-child(3) { background: rgba(252,79,172,.55); }
+.route-loader__skel-banners > span { display: flex; }
+.route-loader__skel-banners > span i { flex: 1 1 0; }
+.route-loader__skel-banners > span i:first-child { background: rgba(35,182,32,.55); }
+.route-loader__skel-banners > span i:last-child { background: rgba(30,114,239,.55); }
+.route-loader__canvas--cust .route-loader__skel-inline { width: 120px; height: 14px; background: rgba(255,255,255,.12); animation-name: home-shimmer-dark; }
+.route-loader__skel-card {
+  height: 80px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: var(--home-white);
+  border-left: 1px solid var(--home-grid);
+  border-right: 1px solid var(--home-grid);
+}
+.route-loader__skel-card i:first-child { width: 60%; height: 20px; }
+.route-loader__skel-card i:last-child { width: 100%; height: 14px; }
+.route-loader__skel-cardrail { height: 12px; background: var(--home-white-dark); border-left: 1px solid var(--home-grid); border-right: 1px solid var(--home-grid); }
+.route-loader__canvas--editor .custedit-title .route-loader__skel-heading { width: 64%; height: 32px; margin: 4px 0; background: rgba(255,255,255,.14); animation-name: home-shimmer-dark; }
+.route-loader__skel-label { width: 34%; height: 12px; }
+.route-loader__skel-value { width: 72%; height: 20px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .route-loader__canvas--cust i,
+  .route-loader__canvas--editor i { animation: none; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .fitdet-record,
@@ -5105,34 +5200,15 @@ body.is-productionpage button:focus-visible { outline: 2px solid var(--home-whit
 
 /* ------------------------------ Job ledger ------------------------------- */
 
-/* A filter strip on the black canvas, between the summary rail and the list.
-   Pressed is the cream face; the word is always there, so the state is never
-   carried by colour alone. */
-/* Sized to the words, not five equal columns: "Cancelled" is twice "All" and
-   was the one label pressed against its own border. */
-.production-filter {
-  padding: 12px 24px;
-  display: flex;
-  gap: 6px;
-  border-bottom: 1px solid var(--home-grid);
-}
-.production-filter button {
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 36px;
-  padding: 0 8px;
-  border: 1px solid var(--home-grid);
-  border-radius: 4px;
-  background: transparent;
-  color: rgba(254, 250, 241, .62);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 16px;
-  letter-spacing: -.24px;
-  cursor: pointer;
-}
-.production-filter button[aria-pressed="true"] { border-color: var(--home-white); background: var(--home-white); color: var(--home-black); }
+/* The fitting feed's search field and stage chips, reused as-is. Four chips fit
+   the 390px column, so they share it instead of scrolling sideways. */
+.production-stages .fitlog-stage { flex: 1 1 0; min-width: 0; }
+.production-stages .fitlog-stage__face { padding-inline: 6px; }
+.fitlog-stage--job-ongoing   { --fitlog-stage-color: #e72a90; }
+.fitlog-stage--job-owed      { --fitlog-stage-color: var(--danger); }
+.fitlog-stage--job-done      { --fitlog-stage-color: #17761a; }
+.fitlog-stage--job-cancelled { --fitlog-stage-color: var(--home-grid); }
+.production-jobs .fitlog-search-section { border-top: 0; }
 
 /* Job records are order records: .cust-order-card, with tones for progress. */
 .cust-order-card--assigned  .cust-order-card__badge,

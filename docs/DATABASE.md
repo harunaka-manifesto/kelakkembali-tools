@@ -103,6 +103,9 @@ Backs `#/quotations` and `#/invoices`. `document_log` stores no customer name, n
 > three tables, four functions, the `orders.items` id trigger with every
 > existing order backfilled, the feed view, and the select-only grant model.
 > `tests/production-ledger.sql` passes against it and rolls its fixtures back.
+> `per-termin invoices` is applied as of 2026-09-14. It had been committed but never run against
+> the project, so `document_feed` lacked `term_number` / `term_count`, PostgREST rejected the
+> feed request, and the quotation and invoice lists showed the connection error.
 > `customer done and penjahit removal` is applied too: `customers.completed_at`
 > exists and `authenticated` holds DELETE on `penjahit`; payments remain RPC-only.
 

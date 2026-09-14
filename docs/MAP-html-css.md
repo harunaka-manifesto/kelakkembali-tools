@@ -4,7 +4,7 @@ Presentation layer. **Never read any of these files whole.** Jump to the range.
 
 ---
 
-## index.html (2366 lines)
+## index.html (2486 lines)
 
 Structure: boot gate → auth gate → app shell (bar + header + all views) → overlays → locked PDF templates → scripts.
 
@@ -108,7 +108,7 @@ Preceded by CDN: html2canvas 1.4.1, jsPDF 2.5.2, heic2any 0.0.4, supabase-js 2.4
 | Moodboard editor, canvas, overlay, journal | `moodboard.css` |
 | Fonts | `fonts.css` — never open, base64 only |
 
-### styles/pages.css (5398 lines) — section → line
+### styles/pages.css (5474 lines) — section → line
 
 **Homepage:** Customers homepage 94 · Stage and layers 124 · Hero 235 · Fixed nav bar 281 · **Shortcut row 344** (six-column grid: 3 + 2, then the neutral add row) · Submissions bar 473 · Search 521 · Customer ledger 546 · Footer 703 · Loading skeleton 719 · Error state 817
 
@@ -124,7 +124,7 @@ Preceded by CDN: html2canvas 1.4.1, jsPDF 2.5.2, heic2any 0.0.4, supabase-js 2.4
 
 **Quotations & invoices:** 4334 · Card 4402 · Panels, skeletons, footer 4508
 
-### styles/shared.css (2765 lines) — section → line
+### styles/shared.css (2769 lines) — section → line
 
 Boot 5 · Shared route loading 52 · Gate 300 · App bar 361 · Overflow menu 466 · Page header 514 · Layout 553 · Deadlines 749 · Lists and records 859 · Schedule 1117 · Items table 1215 · Payment chooser 1328 · Segmented 1396 · Download log 1420 · Fields 1474 · Item rows 1586 · Payment terms 1689 · Chips 1753 · Inline add row 1840 · Buttons 1851 · Fixed bottom bars 1964 · Cost sheet 2052 · Cost calc trigger 2158 · Toast 2192 · Interaction motion 2223 · New document picker 2279
 
@@ -143,6 +143,9 @@ Editor page 8 · Generated canvas 264 · Actions 352 · Full-screen overlay 437 
 | `.schedcal-*` | Schedules calendar (day keys, per-week bands, month bar, day sheet) | `pages.css` 3596+ |
 | `.doclist-*` | Quotations and invoices list (both routes) | `pages.css` 4334+ |
 | `.docnew*` | New-document picker — utility chrome, not ledger canvas | `shared.css` 2285+ |
+| `.route-loader__canvas--cust` / `--editor` / `--record` | Shared loader silhouettes for the customer page, every editor, and the order-style record pages; chosen by `LOADER_KINDS` | index.html 2150+, `pages.css` 3679+ |
+| `.home-skel__tabs`, `.order-skel__section` / `__designs` / `__danger` | Homepage skeleton's ledger tabs row; order skeleton's per-section wrapper, Designs well, and delete row | `pages.css` home and order skeleton blocks |
+| `.production-stages`, `.fitlog-stage--job-*` | The penjahit job chips — the fitting feed's stage chips with job colours, sharing the 390px column | `pages.css` 5205+ |
 | `.swipe*` | A ledger row that slides left to Delete and, where rendered, right to a leading action (`.swipe__actions--start`, `.swipe__done`, `.is-open-start`). `touch-action: pan-y` on the pane; `--swipe-x` inline while dragging, `.is-open` once settled | `shared.css`, above `.docnew*` |
 | `.boot__panel` `.boot__quote` `.boot__kicker` | The line on the boot curtain and its travelling sheen (`@keyframes boot-sheen`, inside an `@supports (background-clip: text)` guard) | `shared.css`, in the Boot block |
 | `.fitlog-*` | Fitting logs feed (search block reused by `.doclist`) | `pages.css` 2295+ |
