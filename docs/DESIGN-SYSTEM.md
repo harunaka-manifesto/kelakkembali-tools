@@ -37,6 +37,9 @@ a token.
 | **Utility chrome** | Boot, gate, app bar, order editor, calendar settings, enquiry, cost sheet, toast, save bar, moodboard editor | §8. 560px page, warm grey ground, rounded surfaces, `--ink` palette | `styles/shared.css`, `styles/moodboard.css` |
 | **Documents** | `#quotation`, `#invoice`, moodboard PDF | **Locked.** Aileron, fixed 595px frame, pixel contract with Figma. Do not restyle — see README 458–594 | `styles/documents.css` |
 
+Every surface above has a wide-screen layout from 744px — see §14. The 390px
+canvas is the phone's; at 744px and up it fills the page.
+
 The ledger canvas is the **direction of travel**. New user-facing pages get the
 ledger canvas unless there is a reason they cannot. The utility chrome is the
 older layer; extend it only when you are adding to a page that already uses it.
@@ -667,3 +670,73 @@ Recorded so the next person does not read it as intent:
   under it jumps. The correct pair is `14px / 14px` — take back exactly what the
   rail gives up (§5.1). `.doclist-card` was copied from it and has been fixed;
   the fitting feed still carries the bug and should get the same one-line change.
+
+---
+
+## 14. Wide screens — iPad and desktop
+
+The phone layout (<744px) is the reference and never changes for a wide-screen
+reason. Every wide rule lives in a `@media` block at the **end of its section**,
+commented "Wide screens" (or "<Section>, wide screens"), so it can be found by
+grepping the banner.
+
+### 14.1 Breakpoints and tokens — `pages.css :root`
+
+| Width | Name | What changes |
+| :--- | :--- | :--- |
+| < 744px | phone | The 390px canvas in its #292929 frame. Untouched |
+| ≥ 744px | tablet | The canvas fills the page; the frame is gone; content centres within a max width; grids reflow; sheets become centred dialogs |
+| ≥ 1100px | desktop | The side rail appears (iPad landscape and every laptop). Detail panels may sit beside their page instead of over it |
+
+| Token | Phone | ≥744 | ≥1100 | Use |
+| :--- | :--- | :--- | :--- | :--- |
+| `--rail-w` | 0px | 0px | 232px | Side rail width. `.app` is padded by it |
+| `--page-mid` | 50% | 50% | 50% + 116px | Horizontal centre of the page beside the rail — **every fixed, centred element uses it** instead of `left: 50%` |
+| `--gutter` | 24px | 32px | 40px | The ledger's side inset at full width |
+| `--content-max` | — | 1280px | 1280px | Widest any page's content runs; the black ledger keeps going past it |
+
+Because `--rail-w` and `--page-mid` equal `0` / `50%` below 1100px, a fixed bar
+can use them unconditionally without changing the phone.
+
+### 14.2 The rules
+
+- **The ledger stays the ledger.** Wide screens get more of it, not a different
+  product: black ground edge to edge, hairline rules full width, ticks on the
+  content edges and on every card edge, cream cards with side borders and a
+  rail beneath. No radius, no shadow, no translucency, no hover lift.
+- **Peers become grids.** Customers, orders on a customer page, fitting logs,
+  photos, quotations and invoices are card grids. Each cell is its own ledger
+  strip; a record's rules are drawn long and clipped so a row's rules run
+  unbroken across it.
+- **Records become main + aside** where there is a natural second column
+  (order: items/designs/payments | schedule; job: work/money | payments). The
+  calendar's day sheet becomes a side panel at ≥1100.
+- **Forms stay one column** (760px; the order editor 820px) with short related
+  fields side by side. The save bar is centred on `--page-mid` at the form's
+  width (`--savebar-w`), never the window's.
+- **Sheets become dialogs** at ≥744: centred on `--page-mid`, ~560px wide,
+  height-capped, backdrop kept, Esc closes.
+- **Titles** 32px phone → 40px ≥744 → 48px ≥1100, same −3% tracking.
+- **Hover** only inside `(hover: hover) and (pointer: fine)`: a face tint, never
+  a transform. iPad landscape is touch, so nothing may depend on hover.
+- **Skeletons match the wide layout.** A wide layout change without its
+  skeleton/loader change is a layout shift. Wide-only skeleton parts are hidden
+  below 744 by a rule that touches only them.
+
+### 14.3 The side rail — `.shell-rail`
+
+`index.html` top of `#app`; CSS in `shared.css` after the App bar section;
+`syncShellRail` and the rail click wiring in `app.js`. It is the overflow menu
+held open plus the homepage shortcuts: navigation (Customers, Penjahit,
+Quotations, Invoices, Fittings — current section marked with `aria-current`,
+drawn as the cream face on its rail) and **Create** keys. Unlike the homepage
+tiles, the create keys create: Quotation, Invoice, Order, Moodboard and Fitting
+open the document picker in their own mode over the current page — starting at
+the current customer when one is open — and Customer and Assign go straight to
+their forms. On desktop the homepage hides its own shortcut tiles and Home/Menu
+buttons, which the rail replaces.
+
+### 14.4 Keyboard
+
+`/` focuses the search field of whatever list is showing. Esc closes every
+dialog, sheet, menu and the calendar's side panel.

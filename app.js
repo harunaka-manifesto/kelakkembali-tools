@@ -237,6 +237,8 @@ KK.app = (function () {
     homeFittingBtn: $("#homeFittingBtn"),
     homeMoodboardBtn: $("#homeMoodboardBtn"),
     homeAddOrderBtn: $("#homeAddOrderBtn"),
+    shellRail: $("#shellRail"),
+    shellRailSignOut: $("#shellRailSignOut"),
     enquiriesCard: $("#enquiriesCard"),
     enquiriesCount: $("#enquiriesCount"),
     viewEnquiry: $("#viewEnquiry"),
@@ -1032,6 +1034,33 @@ KK.app = (function () {
     syncBottomBar();
   }
 
+  /* The side rail marks the section a page is filed under, not the page
+     itself: an order or a customer editor lives under Customers because that
+     is where it is reached from, and a job lives under Penjahit. The homepage
+     is either, depending on which ledger tab is showing. */
+  const RAIL_SECTIONS = {
+    customers: "customers", customer: "customers", customerEdit: "customers",
+    order: "customers", orderEdit: "customers", moodboard: "customers",
+    moodboardPreview: "customers", enquiry: "customers",
+    penjahit: "penjahit", penjahitEdit: "penjahit", productionNew: "penjahit",
+    productionEdit: "penjahit", productionJob: "penjahit",
+    fittingLogs: "fittings", fittingLogDetail: "fittings", fittingPhotoAdd: "fittings", fittingNew: "fittings"
+  };
+
+  function syncShellRail() {
+    const route = state.route || {};
+    let section = RAIL_SECTIONS[route.view] || "";
+    if ("customers" === route.view && route.query && "penjahit" === route.query.get("tab")) section = "penjahit";
+    if ("documents" === route.view) section = "invoice" === route.kind ? "invoices" : "quotations";
+    $$("[data-rail]").forEach((link) => {
+      if (link.dataset.rail === section) link.setAttribute("aria-current", "page");
+      else link.removeAttribute("aria-current");
+    });
+    // Known from the route alone, before any data, so the homepage skeleton
+    // can put its folder tab on the ledger that is actually loading.
+    document.body.classList.toggle("is-penjahit-ledger", "customers" === route.view && "penjahit" === section);
+  }
+
   function closeMenu() {
     elements.menuList.hidden = true;
     elements.menuBtn.setAttribute("aria-expanded", "false");
@@ -1274,6 +1303,9 @@ KK.app = (function () {
     if (routeHasOwnLoader(r)) return hideRouteLoader(true);
     routeLoaderShownAt = Date.now();
     elements.routeLoader.dataset.kind = routeLoaderKind(r);
+    /* The kind is the silhouette; the view lets one page refine it where its
+       wide layout parts from its kind's (the order editor, under its app bar). */
+    elements.routeLoader.dataset.view = r.view;
     elements.routeLoader.setAttribute("aria-busy", "true");
     elements.routeLoader.classList.remove("is-leaving");
     $(".route-loader__canvas", elements.routeLoader).hidden = false;
@@ -1851,6 +1883,7 @@ KK.app = (function () {
     }
 
     state.route = targetRoute;
+    syncShellRail();
     elements.viewCustomers.hidden = "customers" !== targetRoute.view;
     elements.viewCustomer.hidden = "customer" !== targetRoute.view;
     elements.viewCustomerEdit.hidden = "customerEdit" !== targetRoute.view;
@@ -1862,6 +1895,10 @@ KK.app = (function () {
     elements.viewFittingPhotoAdd.hidden = "fittingPhotoAdd" !== targetRoute.view;
     elements.viewCalendar.hidden = "calendar" !== targetRoute.view;
     elements.viewEnquiry.hidden = "enquiry" !== targetRoute.view;
+    // The two pages still on the light utility chrome take a narrower column
+    // on wide screens. A class says which page this is in one place; asking
+    // .app:has() instead made every hidden toggle in the app re-test it.
+    document.body.classList.toggle("is-utilitypage", "calendar" === targetRoute.view || "enquiry" === targetRoute.view);
     elements.viewSchedules.hidden = "schedules" !== targetRoute.view;
     elements.viewDocuments.hidden = "documents" !== targetRoute.view;
     elements.viewPenjahit.hidden = "penjahit" !== targetRoute.view;
@@ -2667,11 +2704,23 @@ KK.app = (function () {
       "Nearest deadline is <strong>" + U.escapeHtml(firstName(activeDeadlineCust.customer.name) + " - " + activeDeadlineCust.deadline.what) + "</strong> " + relativeText + ". Prep up!";
   }
 
+  /* Whether the last homepage had submissions waiting, so the next skeleton can
+     keep the bar's 63px instead of dropping the whole ledger when it lands. A
+     guess, like the production probe's: a wrong one costs the same shift the
+     page had before, a right one costs nothing. */
+  const ENQUIRIES_WAITING_KEY = "kk.enquiries.waiting";
+
+  function enquiriesWaitingGuess() {
+    try { return localStorage.getItem(ENQUIRIES_WAITING_KEY) === "1"; } catch (err) { return false; }
+  }
+
   function renderHomepageAlert(submissionsList) {
     elements.enquiriesCard.hidden = !submissionsList.length;
     if (submissionsList.length) {
       elements.enquiriesCount.textContent = submissionsList.length + " new order submission" + (1 === submissionsList.length ? "" : "s");
     }
+    document.body.classList.toggle("has-enquiries", !!submissionsList.length);
+    try { localStorage.setItem(ENQUIRIES_WAITING_KEY, submissionsList.length ? "1" : "0"); } catch (err) { /* private mode */ }
   }
 
   function renderHomepageSummary() {
@@ -2893,6 +2942,13 @@ KK.app = (function () {
   });
 
   elements.viewOrder.addEventListener("keydown", (e) => {
+    // The payment chooser is a disclosure, so a keyboard gets the way out
+    // every other open thing in the app has, and lands back on its key.
+    if ("Escape" === e.key && !elements.paymentChooser.hidden) {
+      closeOrderPaymentChooser();
+      elements.logPaymentBtn.focus({ preventScroll: true });
+      return;
+    }
     if (" " !== e.key && "Enter" !== e.key) return;
     const target = e.target.closest(".order-nav-btn,.order-action,.order-schedule-record,.order-choice");
     if (target && !target.disabled) {
@@ -3193,6 +3249,15 @@ KK.app = (function () {
       '<i class="schedcal-dot schedcal-dot--' +
         U.escapeHtml(points.length > 2 && 1 === index ? "more" : item.colorKey) + '"></i>'
     ).join('');
+    /* The same two points by name, for a wide grid whose keys are tall enough
+       to carry them; a phone never shows these. Who, not what — the dot's
+       colour already says payment or follow-up. */
+    const notesHtml = points.slice(0, 2).map((item, index) =>
+      points.length > 2 && 1 === index
+        ? '<span class="schedcal-day__note schedcal-day__note--more">+' + (points.length - 1) + ' more</span>'
+        : '<span class="schedcal-day__note schedcal-day__note--' + U.escapeHtml(item.colorKey) + '">' +
+            U.escapeHtml(item.customerName || item.label) + '</span>'
+    ).join('');
 
     const weekdayName = calendar.WEEKDAYS[calendar.weekdayIndex(cell.iso)] || "";
     const monthName = U.MONTHS[Number(cell.iso.slice(5, 7)) - 1] || "";
@@ -3216,6 +3281,7 @@ KK.app = (function () {
       '<span class="schedcal-day__face">' +
         '<span class="schedcal-day__num">' + cell.day + '</span>' +
         '<span class="schedcal-day__dots" aria-hidden="true">' + dotsHtml + '</span>' +
+        '<span class="schedcal-day__notes" aria-hidden="true">' + notesHtml + '</span>' +
       '</span>' +
       '<span class="schedcal-day__rail" aria-hidden="true"></span>' +
     '</button>';
@@ -3249,25 +3315,33 @@ KK.app = (function () {
       const from = Math.max(start, weekStart) - weekStart + 1;
       const to = Math.min(end, weekEnd) - weekStart + 2;
       const lane = laneByKey.get(item.key);
+      const text = item.label + (item.customerName ? " · " + item.customerName : "");
       if (lane === undefined || lane >= SCHEDULE_LANES) overflow.push({ lane, from, to });
-      else drawn.push({ lane, from, to, colorKey: item.colorKey });
+      else drawn.push({ lane, from, to, colorKey: item.colorKey, text });
     });
 
     /* The last lane is where "there is more here than fits" gets said, so a week
        that overflows gives it up as a real band. Nothing is lost: the cell's own
-       label and the day sheet both still carry everything. */
+       label and the day sheet both still carry everything.
+
+       Each band carries its words too. A phone's 5px lane never shows them; a
+       wide grid's lanes are tall enough to read, which is what turns a stripe
+       into a calendar entry. They are aria-hidden, like the stripe always was —
+       the cells' labels and the day sheet are what a screen reader hears. */
     const bars = overflow.length ? drawn.filter((bar) => bar.lane !== lastLane) : drawn;
     let html = bars.map((bar) =>
-      '<i class="schedcal-band schedcal-band--' + U.escapeHtml(bar.colorKey) + '"' +
-      ' style="grid-row:' + (bar.lane + 2) + ';grid-column:' + bar.from + '/' + bar.to + '"></i>'
+      '<i class="schedcal-band schedcal-band--' + U.escapeHtml(bar.colorKey) + '" aria-hidden="true"' +
+      ' style="grid-row:' + (bar.lane + 2) + ';grid-column:' + bar.from + '/' + bar.to + '">' +
+      '<span class="schedcal-band__label">' + U.escapeHtml(bar.text) + '</span></i>'
     ).join('');
 
     if (overflow.length) {
       const spans = overflow.concat(drawn.filter((bar) => bar.lane === lastLane));
       const from = Math.min.apply(null, spans.map((span) => span.from));
       const to = Math.max.apply(null, spans.map((span) => span.to));
-      html += '<i class="schedcal-band schedcal-band--more"' +
-        ' style="grid-row:' + (lastLane + 2) + ';grid-column:' + from + '/' + to + '"></i>';
+      html += '<i class="schedcal-band schedcal-band--more" aria-hidden="true"' +
+        ' style="grid-row:' + (lastLane + 2) + ';grid-column:' + from + '/' + to + '">' +
+        '<span class="schedcal-band__label">+' + spans.length + ' more</span></i>';
     }
     return html;
   }
@@ -3457,6 +3531,12 @@ KK.app = (function () {
 
   /* ----------------------------- The day sheet --------------------------- */
 
+  /* With the side rail showing, the sheet is a column beside a month that stays
+     live — a click on the next day is the whole point — so it is a non-modal
+     dialog there: no trap, no aria-modal. The same query as the CSS that moves
+     it into the column, read when it matters rather than tracked. */
+  const scheduleSheetIsPanel = () => !!(window.matchMedia && window.matchMedia("(min-width: 1100px)").matches);
+
   function renderScheduleSheet(iso) {
     const items = scheduleDayItems(iso);
     const weekdayName = calendar.WEEKDAYS[calendar.weekdayIndex(iso)] || "";
@@ -3500,12 +3580,17 @@ KK.app = (function () {
   function openScheduleDay(iso, returnEl) {
     const sc = sched();
     if (calendar.toDay(iso) === null) return;
+    // Where the sheet is a side panel the grid stays live beside it, so a second
+    // day can be opened over the first; only one cell may say it is the one.
+    const previous = sc.openDate && sc.openDate !== iso && scheduleCellFor(sc.openDate);
+    if (previous) previous.removeAttribute("aria-selected");
     sc.openDate = iso;
     sc.sheetReturn = returnEl || document.activeElement;
     renderScheduleSheet(iso);
     // Tapping a second day while the first is still closing: cancel that hide
     // before showing, or it lands on the sheet that just opened.
     cancelSheetClose(elements.schedcalSheet);
+    elements.schedcalSheet.setAttribute("aria-modal", scheduleSheetIsPanel() ? "false" : "true");
     elements.schedcalSheet.hidden = false;
     document.body.classList.add("has-schedcal-sheet");
     const cell = scheduleCellFor(iso);
@@ -3538,6 +3623,15 @@ KK.app = (function () {
     const cell = e.target.closest(".schedcal-day");
     if (!cell) return;
 
+    // The side panel leaves focus free to come back to the grid, so Escape has
+    // to close it from here too, not only from inside it — leaving focus on the
+    // day it is on, not sending it back to the day that was opened.
+    if ("Escape" === e.key && sched().openDate) {
+      e.preventDefault();
+      sched().sheetReturn = cell;
+      closeScheduleDay();
+      return;
+    }
     if ("ArrowLeft" === e.key) { e.preventDefault(); shiftScheduleFocus(-1); return; }
     if ("ArrowRight" === e.key) { e.preventDefault(); shiftScheduleFocus(1); return; }
     if ("ArrowUp" === e.key) { e.preventDefault(); shiftScheduleFocus(-7); return; }
@@ -3760,6 +3854,16 @@ KK.app = (function () {
     '<span class="fitlog-card__rail" aria-hidden="true"></span>';
   }
 
+  /* Each skeleton block gets its own cell, as each record has its own <li>:
+     a block is four siblings, and a grid needs them held together. */
+  function fittingSkeletonGridHtml(count) {
+    let cells = "";
+    for (let i = 0; i < count; i += 1) {
+      cells += '<div class="fitlog-skel-cell">' + fittingBlockHtml(fittingSkeletonHtml()) + '</div>';
+    }
+    return '<div class="fitlog-skel-grid">' + cells + '</div>';
+  }
+
   function fittingPanelHtml(title, copyHtml, extraAttr, actionHtml) {
     return '<div class="fitlog-panel"' + (extraAttr || '') + '>' +
       '<p class="fitlog-panel__title">' + U.escapeHtml(title) + '</p>' +
@@ -3798,10 +3902,11 @@ KK.app = (function () {
   function fittingStateHtml() {
     const fs = feed();
 
+    // Six cells in the same grid the records use, so a wide screen loads two
+    // full rows rather than one ragged one. Only the first three show on a
+    // phone (pages.css), where the feed is a single column.
     if ("initial-loading" === fs.phase) {
-      return fittingBlockHtml(fittingSkeletonHtml()) +
-        fittingBlockHtml(fittingSkeletonHtml()) +
-        fittingBlockHtml(fittingSkeletonHtml());
+      return fittingSkeletonGridHtml(6);
     }
     if ("initial-error" === fs.phase) {
       // Alerted once; a retry that fails again must not shout a second time.
@@ -3813,7 +3918,7 @@ KK.app = (function () {
       ));
     }
     if (!fs.items.length) return fittingBlockHtml(fittingEmptyHtml());
-    if (fs.loadingMore) return fittingBlockHtml(fittingSkeletonHtml());
+    if (fs.loadingMore) return fittingSkeletonGridHtml(1);
     if (fs.loadMoreError) {
       // Page 1 stays exactly where it is; only the bottom slot changes.
       return fittingBlockHtml(fittingPanelHtml(
@@ -4339,6 +4444,17 @@ KK.app = (function () {
     '<span class="doclist-card__rail" aria-hidden="true"></span>';
   }
 
+  /* Each skeleton block gets its own cell, as each record has its own <li>: a
+     block is four siblings, and the wide grid needs them held together. A phone
+     shows the first three; the wide grid shows them all, so it loads in rows. */
+  function documentSkeletonGridHtml(count) {
+    let cells = "";
+    for (let i = 0; i < count; i += 1) {
+      cells += '<div class="doclist-skel-cell">' + documentBlockHtml(documentSkeletonHtml()) + '</div>';
+    }
+    return '<div class="doclist-skel-grid">' + cells + '</div>';
+  }
+
   function documentPanelHtml(title, copyHtml, extraAttr, actionHtml) {
     return '<div class="doclist-panel"' + (extraAttr || '') + '>' +
       '<p class="doclist-panel__title">' + U.escapeHtml(title) + '</p>' +
@@ -4370,11 +4486,7 @@ KK.app = (function () {
     const ds = docFeed();
     const plural = documentKindPlural(ds.kind).toLowerCase();
 
-    if ("initial-loading" === ds.phase) {
-      return documentBlockHtml(documentSkeletonHtml()) +
-        documentBlockHtml(documentSkeletonHtml()) +
-        documentBlockHtml(documentSkeletonHtml());
-    }
+    if ("initial-loading" === ds.phase) return documentSkeletonGridHtml(6);
     if ("initial-error" === ds.phase) {
       return documentBlockHtml(documentPanelHtml(
         "Couldn't load " + plural,
@@ -4384,7 +4496,7 @@ KK.app = (function () {
       ));
     }
     if (!ds.items.length) return documentBlockHtml(documentEmptyHtml());
-    if (ds.loadingMore) return documentBlockHtml(documentSkeletonHtml());
+    if (ds.loadingMore) return documentSkeletonGridHtml(1);
     if (ds.loadMoreError) {
       return documentBlockHtml(documentPanelHtml(
         "Couldn't load more " + plural,
@@ -7659,6 +7771,7 @@ KK.app = (function () {
       if (link.dataset.ledgerTab === tab) link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");
     });
+    syncShellRail();
     return tab;
   }
 
@@ -7721,12 +7834,20 @@ KK.app = (function () {
        one's height: a shorter list would let the page end above the current
        scroll, and the browser would clamp it — the jump this exists to stop. */
     const y = window.scrollY;
-    incoming.style.minHeight = outgoing.offsetHeight + "px";
+    /* Beside the side rail the ledger head is sticky. There the incoming list
+       starts at its top, just under the pinned head, rather than wherever the
+       outgoing one was scrolled to; holding a screen's height is enough to keep
+       the head pinned, and so under the pointer, without leaving a short list
+       floating over the whole of a long one's void. */
+    const head = $(".home-ledger-head");
+    const pinned = head && "sticky" === getComputedStyle(head).position;
+    incoming.style.minHeight = (pinned ? window.innerHeight - head.offsetHeight : outgoing.offsetHeight) + "px";
+    const listTop = pinned ? outgoing.getBoundingClientRect().top + y - head.offsetHeight : y;
     outgoing.hidden = true;
     incoming.hidden = false;
     if (penjahit) loadPenjahitLedger(true).catch(() => {});
     else renderCustomerList();
-    window.scrollTo(0, y);
+    window.scrollTo(0, Math.min(y, listTop));
   }
 
   /* Deliberately the customer ledger's own shape — the same summary rail, grid
@@ -7919,8 +8040,10 @@ KK.app = (function () {
   }
 
 
-  const ledgerRecord = (inner) => '<div class="cust-grid-rule" aria-hidden="true"></div><div class="cust-inset">' + inner +
-    '</div><div class="cust-grid-rule" aria-hidden="true"></div><div class="cust-grid-spacer" aria-hidden="true"></div>';
+  /* Wrapped so that on a wide screen each record — its rules and its card —
+     is one grid cell; on a phone the wrapper is an inert block. */
+  const ledgerRecord = (inner) => '<div class="production-record"><div class="cust-grid-rule" aria-hidden="true"></div><div class="cust-inset">' + inner +
+    '</div><div class="cust-grid-rule" aria-hidden="true"></div></div><div class="cust-grid-spacer" aria-hidden="true"></div>';
 
   function renderProductionTailors() {
     const draft = productionDraft();
@@ -8807,9 +8930,11 @@ KK.app = (function () {
           const itemLen = (o.items || []).length;
           const cardHtml = '<a class="cust-order-card cust-order-card--' + st.tone + '" href="#/order/' + encodeURIComponent(o.id) + '" aria-label="' + U.escapeHtml(orderLabel(o) + ", " + st.label) + '"><span class="cust-order-card__face"><span class="cust-order-card__top"><span class="cust-order-card__name">' + U.escapeHtml(orderLabel(o)) + '</span><span class="cust-order-card__badge">' + U.escapeHtml(st.label) + '</span></span><span class="cust-order-card__meta"><span>' + itemLen + " item" + (1 === itemLen ? "" : "s") + '</span><span>' + U.formatRupiah(docs.computeTotal(o.items)) + '</span></span></span><span class="cust-order-card__rail" aria-hidden="true"></span></a>';
 
-          return '<div class="cust-grid-spacer" aria-hidden="true"></div><div class="cust-grid-rule"></div><div class="cust-order-record__inset">' +
+          /* One wrapper per record, so a wide ledger can lay orders out as
+             peers in a grid. On a phone it is an unstyled block. */
+          return '<div class="cust-order-record"><div class="cust-grid-spacer" aria-hidden="true"></div><div class="cust-grid-rule"></div><div class="cust-order-record__inset">' +
             swipeRowHtml(cardHtml, ' data-delete-order="' + U.escapeHtml(o.id) + '"', orderLabel(o)) +
-            '</div><div class="cust-grid-rule"></div>';
+            '</div><div class="cust-grid-rule"></div></div>';
         }).join('') + '<div class="cust-grid-spacer" aria-hidden="true"></div>' + addOrderRow
       : '<div class="cust-grid-spacer" aria-hidden="true"></div><p class="empty">No orders for this customer yet.</p>' + addOrderRow;
   }
@@ -10001,6 +10126,8 @@ KK.app = (function () {
   let isMoodboardOverlayBusy = false;
 
   let moodboardResizeObserver = null;
+  /* Must match the wide-screen block in moodboard.css's "Generated canvas". */
+  const moodboardUprightQuery = window.matchMedia("(min-width: 744px)");
 
   const MB_EXPORTS = {
     drive: { el: "mbUpload", idle: "Upload", busy: "Uploading…", done: "Uploaded" },
@@ -10171,6 +10298,10 @@ KK.app = (function () {
     elements.mbBoardScaler.style.height = KK.moodboard.stageHeight + "px";
     elements.mbBoardScaler.replaceChildren(stageClone);
 
+    /* The frame takes the document's own shape wherever it is shown upright
+       (moodboard.css reads this), so the scale below is measured against the
+       right box. */
+    elements.mbBoard.dataset.orientation = KK.moodboard.orientation;
     fitMoodboardBoard();
 
     elements.mbRotate.setAttribute("aria-label", isPortrait ? "Rotate to landscape" : "Rotate to portrait");
@@ -10178,7 +10309,9 @@ KK.app = (function () {
       "aria-label",
       isPortrait
         ? "Open the portrait moodboard full screen"
-        : "Open the landscape moodboard full screen. It is shown sideways here — turn your device to read it upright."
+        : moodboardUprightQuery.matches
+          ? "Open the landscape moodboard full screen"
+          : "Open the landscape moodboard full screen. It is shown sideways here — turn your device to read it upright."
     );
 
     if (!moodboardResizeObserver && typeof ResizeObserver === "function") {
@@ -10193,12 +10326,16 @@ KK.app = (function () {
     const h = elements.mbBoard.clientHeight;
     if (!w || !h) return;
 
-    const isPortrait = "portrait" === KK.moodboard.orientation;
-    const scale = isPortrait
+    /* Sideways is a phone's answer to a landscape board on a portrait
+       screen. From 744px there is room to show it upright, and the frame is
+       already landscape there; the ResizeObserver refits when the frame
+       changes shape across that width. */
+    const isUpright = "portrait" === KK.moodboard.orientation || moodboardUprightQuery.matches;
+    const scale = isUpright
       ? Math.min(w / KK.moodboard.stageWidth, h / KK.moodboard.stageHeight)
       : Math.min(h / KK.moodboard.stageWidth, w / KK.moodboard.stageHeight);
 
-    elements.mbBoardScaler.style.transform = "translate(-50%, -50%) " + (isPortrait ? "" : "rotate(90deg) ") + "scale(" + scale + ")";
+    elements.mbBoardScaler.style.transform = "translate(-50%, -50%) " + (isUpright ? "" : "rotate(90deg) ") + "scale(" + scale + ")";
   }
 
   function openMoodboardOverlay() {
@@ -10686,6 +10823,7 @@ KK.app = (function () {
        answered. So the guess buys the skeleton the right shape and never shows
        a tile it has to take back. */
     applyProductionEntries(productionReadyGuess());
+    document.body.classList.toggle("has-enquiries", enquiriesWaitingGuess());
 
     /* A field that is already showing an error revalidates as it is corrected,
        so the message clears on the keystroke that fixes it rather than on the
@@ -10754,7 +10892,7 @@ KK.app = (function () {
         closeScheduleDay();
         return;
       }
-      trapModalFocus(e, elements.schedcalSheet);
+      if (!scheduleSheetIsPanel()) trapModalFocus(e, elements.schedcalSheet);
     });
 
     elements.pageAction.addEventListener("click", () => {
@@ -10854,10 +10992,62 @@ KK.app = (function () {
     document.addEventListener("keydown", (e) => {
       if ("Escape" !== e.key || elements.menuList.hidden) return;
       closeMenu();
-      elements.menuBtn.focus({ preventScroll: true });
+      // Back to whichever button opened it: on the homepage the app bar's own
+      // button is hidden, and focusing it dropped focus on the floor.
+      const opener = elements.homeNavMenuWrapper && elements.menuList.parentNode === elements.homeNavMenuWrapper ? elements.homeNavMenu : elements.menuBtn;
+      opener.focus({ preventScroll: true });
     });
 
     elements.menuSignOut.addEventListener("click", signOutFromMenu);
+    elements.shellRailSignOut.addEventListener("click", signOutFromMenu);
+    /* "/" jumps to the search field of whatever list is showing — the one
+       keyboard shortcut every list page shares, and the one a desk user
+       reaches for first. Never while typing, and never with a modifier, so it
+       cannot steal a slash from a field or a browser shortcut. */
+    document.addEventListener("keydown", (event) => {
+      if ("/" !== event.key || event.metaKey || event.ctrlKey || event.altKey || event.defaultPrevented) return;
+      const active = document.activeElement;
+      if (active && active.matches && active.matches(EDITABLE)) return;
+      const scope = elements.docnewSheet.hidden ? document.querySelector(".view:not([hidden])") : elements.docnewSheet;
+      const field = scope && Array.from(scope.querySelectorAll('input[type="search"]')).find((input) => input.getClientRects().length);
+      if (!field) return;
+      event.preventDefault();
+      field.focus({ preventScroll: true });
+      field.select();
+    });
+    $$("[data-rail-fitting]").forEach((key) => { key.hidden = !SHOW_FITTING_SHORTCUT; });
+    /* The rail's create keys open the picker in their own mode over whatever
+       page is showing — its lists are already one row up, so a create key
+       that landed on a list would be a dead click. The two ledger links behave like the
+       homepage's own tabs while the homepage is showing: swapping one list for
+       another already in memory is a filter, not a navigation. */
+    elements.shellRail.addEventListener("click", (event) => {
+      const create = event.target.closest("[data-rail-create]");
+      if (create) {
+        /* Asked from a customer's page or one of their orders, the picker
+           starts at that customer's orders: the question it opens with has
+           already been answered by the page behind it. Back still returns to
+           the full list. A new order is the exception — its customer step is
+           the whole flow, and skipping it would navigate away on one click. */
+        const mode = create.dataset.railCreate;
+        const route = state.route || {};
+        let customerId = null;
+        if ("customer" === route.view && "new" !== route.id) customerId = route.id;
+        if ("order" === route.view && state.order && state.order.id === route.id) customerId = state.order.customer_id;
+        openDocumentPicker(mode).then(() => {
+          const pk = picker();
+          if (!customerId || "neworder" === mode || !pk.open || pk.mode !== mode || "customer" !== pk.step) return;
+          if ((pk.customers || []).some((c) => c.id === customerId)) pickDocumentCustomer(customerId);
+        });
+        return;
+      }
+      const tab = event.target.closest('[data-rail="customers"], [data-rail="penjahit"]');
+      if (!tab || !state.route || "customers" !== state.route.view) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      switchLedgerTab(tab.dataset.rail);
+      syncShellRail();
+    });
     elements.menuDelete.addEventListener("click", () => {
       closeMenu();
       if ("order" === elements.menuDelete.dataset.kind) deleteOrderRecord();
@@ -11172,6 +11362,10 @@ KK.app = (function () {
     elements.gate.hidden = true;
     elements.app.hidden = false;
     await handleRoute();
+    /* The side rail lists Penjahit on every page, not only after the homepage
+       has asked. One probe per session, after the first page is up, so it
+       never sits in front of it. */
+    productionReady().catch(() => {});
 
     await (async function () {
       const queryParams = new URLSearchParams(location.search);

@@ -32,6 +32,7 @@ Column key: **app.js** = entry function + line ([MAP-app.md](MAP-app.md)) · **H
 | mark customer done, swipe right, swipe left, delete from list | [1](#1-homepage--customer-ledger), [18](#18-shared-chrome) |
 | keyboard, save bar covering a field, bottom CTA position | [18](#18-shared-chrome) |
 | required field, inline error, form validation, "Saved" label | [22](#22-shared-form-validation) |
+| iPad, desktop, wide screen, responsive, side rail, breakpoint | [23](#23-wide-screens--side-rail) |
 
 ---
 
@@ -263,3 +264,12 @@ Column key: **app.js** = entry function + line ([MAP-app.md](MAP-app.md)) · **H
 - **Focus moves on submit only.** `validateFields` ends by focusing the first invalid field; the live listener deliberately does not, because the reader is mid-word in the field being corrected. `validateOrderItems(false)` is the non-focusing form of the same check
 - **The save button says what it will do.** `setDirty` labels it Create customer / Create order / Create penjahit / Save assignments / Save changes from the route, and an untouched **new** form is enabled and never reads "Saved" — there is nothing saved yet to report
 - **A failed save keeps the draft.** `showFormError` puts a `role="alert"` message at the top of the view and the values stay in the fields; `state.saving` blocks a second submit. A save that succeeded but whose follow-up failed says so as itself, not as a failed save
+
+## 23. Wide screens & side rail
+- **Rulebook** [DESIGN-SYSTEM.md §14](DESIGN-SYSTEM.md) — breakpoints (744 / 1100), tokens (`--rail-w`, `--page-mid`, `--gutter`, `--content-max`), the grid and dialog rules
+- **Where the CSS is** every page section in `pages.css`, `shared.css` and `moodboard.css` ends with its own wide `@media` block, commented "Wide screens" / "<Section>, wide screens". Grep the banner, then the comment
+- **Side rail** `<aside class="shell-rail">` at the top of `#app` in index.html; `.shell-rail` / `.shell-key` in `shared.css` after the App bar section; `syncShellRail` + `RAIL_SECTIONS` (chrome region, beside `closeMenu`) and the rail click handler in `bindEvents`. Hidden below 1100px. Penjahit and Assign are `[data-production-entry]`; the probe runs once after the first route so the rail lists them everywhere
+- **Rail create keys create.** `[data-rail-create]` opens `openDocumentPicker(mode)`; on a customer or order page it then calls `pickDocumentCustomer` for that customer (never for `neworder`, whose customer step is the whole flow)
+- **`/` shortcut** one `keydown` listener in `bindEvents` focuses the visible list search (or the picker's, when it is open)
+- **Phone never changes for a wide reason.** Every wide rule is inside `min-width: 744px` / `1100px`; the only unconditional changes are `left: 50%` → `var(--page-mid)` and `left: 0` → `var(--rail-w)`, which are identical below 1100px
+- **Preview** the layouts need data; there is no fixture mode in the repo. A local mock `db.js` served beside symlinks of the repo is how they were built and checked

@@ -57,6 +57,24 @@
   --motion-sheet-in: 260ms;
   --motion-sheet-out: 180ms;
   --motion-skeleton-min: 250ms;
+  /* Wide-screen layout. --rail-w is the side rail's width (0 until 1100px);
+     --page-mid is the horizontal centre of the page beside it, which is what
+     every fixed bar centres on instead of the window. */
+  --rail-w: 0px;
+  --page-mid: calc(50% + var(--rail-w) / 2);
+  /* The ledger's side inset. 24px is the phone's; wider screens get more air
+     between the hairline ticks and the window edge, never less. */
+  --gutter: 24px;
+  /* The widest any page's content runs. Past it the black ledger keeps going
+     to the edge, and the content stays centred in it. */
+  --content-max: 1280px;
+}
+
+@media (min-width: 744px) {
+  :root { --gutter: 32px; }
+}
+@media (min-width: 1100px) {
+  :root { --rail-w: 232px; --gutter: 40px; }
 }
 
 * { box-sizing: border-box; }
@@ -280,7 +298,7 @@ body.is-homepage .view { gap: 0; }
 .home-nav {
   position: fixed;
   top: 0;
-  left: 50%;
+  left: var(--page-mid);
   transform: translateX(-50%);
   width: 100%;
   max-width: 390px;
@@ -756,6 +774,9 @@ body.has-production .home-skel__actions { height: 208px; }
 .home-skel__actions i::after { content: ''; display: block; }
 .home-skel__actions i::before { background: rgba(76,76,76,.18); animation: home-shimmer 1.2s ease-in-out infinite; }
 .home-skel__actions i::after  { background: rgba(76,76,76,.32); }
+/* The submissions bar's stand-in; wide screens only reserve it (see Wide
+   screens), so on a phone it is not there at all. */
+.home-skel__alert { display: none; }
 .home-skel__search { height: 48px; background: var(--home-white); }
 .home-skel__rail { height: 7px; background: var(--home-white-dark); }
 /* The ledger tabs: 1px rule, 8px of canvas, two 48px tabs, the first one the
@@ -806,6 +827,9 @@ body.has-production .home-skel__actions { height: 208px; }
   border-right: 1px solid var(--home-grid);
 }
 .home-skel__footer { height: 72px; background: var(--home-black); }
+/* Stand-ins for the columns a wide screen has to fill; a phone's one column is
+   already covered by the five above. */
+.home-skel__more { display: none; }
 @keyframes home-shimmer {
   50% { background-color: rgba(76,76,76,.32); }
 }
@@ -883,6 +907,354 @@ body.has-production .home-skel__actions { height: 208px; }
   .home-customer-card__rail { transition: none; }
 }
 
+/* ---------------------------- Wide screens ------------------------------ */
+
+/* From 744px the canvas is the whole page area. The bands — hero, shortcuts,
+   enquiries, ledger head, summary, footer — still run edge to edge the way
+   they do on a phone; what they hold is inset to one content column, and the
+   customers are laid out as a grid of ledger strips inside it. Nothing here
+   applies below 744px, so the phone is the phone. */
+@media (min-width: 744px) {
+  body.is-homepage { background: var(--home-black); }
+  body.is-homepage .page { width: 100%; max-width: none; }
+
+  /* Where the content column starts: the gutter, or the centred margin once
+     the page is wider than --content-max. A percentage, so it is resolved by
+     whichever full-width band uses it, and needs no measuring. */
+  #viewCustomers { --home-inset: max(var(--gutter), calc((100% - var(--content-max)) / 2)); }
+
+  /* The phone's 1322px floor was a 390px column's worth of ledger. A grid is
+     shorter for the same records, so the floor is the screen instead. */
+  .home-stage,
+  .home-skel,
+  .home-state--error { min-height: 100svh; }
+
+  /* The buttons sit over the content's edges, not the window's. */
+  .home-nav {
+    width: calc(100% - 2 * var(--gutter));
+    max-width: var(--content-max);
+    padding: 12px 0 0;
+  }
+
+  /* On an iPad held upright the menu is the navigation — the side rail only
+     arrives at 1100px — so here it is drawn as the rail rather than as the
+     app bar's rounded popover: black, ruled, square, the current section a
+     cream face on its rail, and open at once rather than popping in. The
+     phone keeps its popover. */
+  .home-nav-menu-wrapper .menu__list {
+    top: calc(100% + 8px);
+    min-width: 232px;
+    padding: 8px;
+    background: var(--home-black);
+    border: 1px solid var(--home-grid);
+    border-radius: 0;
+    box-shadow: none;
+    animation: none;
+  }
+  .home-nav-menu-wrapper .menu__item {
+    min-height: 48px;
+    border-bottom: 4px solid transparent;
+    border-radius: 0;
+    background-clip: padding-box;
+    color: rgba(254,250,241,.72);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -.45px;
+    text-decoration: none;
+  }
+  .home-nav-menu-wrapper .menu__item[aria-current="page"] {
+    background-color: var(--home-white);
+    border-bottom-color: var(--home-white-dark);
+    color: var(--home-black);
+  }
+  .home-nav-menu-wrapper #menuSignOut { margin-top: 4px; border-top: 1px solid var(--home-grid); }
+  .home-nav-menu-wrapper .menu__item:focus-visible { outline: 2px solid var(--home-white); outline-offset: -2px; }
+  .home-nav-menu-wrapper .menu__item[aria-current="page"]:focus-visible { outline-color: var(--home-black); }
+
+  /* The time field is laid out in percentages of a box that is now wider than
+     it is tall, so the fields are sized from the band's height as much as its
+     width; at the phone's 64–110% of a 1000px band they would be washes too
+     broad to read as five colours. Still transform-only. */
+  .home-atmosphere__blob { width: calc(var(--blob-size) * .3 + 240px); }
+
+  .home-hero { padding: 240px var(--home-inset) 24px; }
+  .home-hero__greeting { font-size: 40px; line-height: 48px; letter-spacing: -1.2px; }
+  .home-hero__deadline { max-width: 64ch; }
+  .home-skel__hero { padding: 240px var(--home-inset) 24px; }
+  .home-skel__line { height: 48px; }
+  .home-skel__lines { max-width: 560px; }
+
+  /* One row of six, under the assignment row. The bands stay full bleed; only
+     the row's own label comes in to the gutter, where the ledger starts. */
+  .home-actions { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .home-action--production .home-action__face { padding: 0 var(--gutter); }
+  .home-skel__actions { height: 76px; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  body.has-production .home-skel__actions { height: 132px; }
+
+  .home-alert__face { padding: 16px var(--home-inset); }
+  /* The bar's own face and rail, reserved when the last visit had submissions
+     waiting (body.has-enquiries, from app.js), so the ledger does not drop
+     63px under the reader when they arrive. */
+  body.has-enquiries .home-skel__alert {
+    display: block;
+    height: 63px;
+    flex: none;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.1), transparent) 0 0 / 100% 56px no-repeat,
+      linear-gradient(#292929, #292929) 0 0 / 100% 56px no-repeat,
+      var(--home-black);
+  }
+
+  /* Tabs and search on one band. The tab keys are styled with the tabs in the
+     production block; this is the band they share with the search key. */
+  .home-ledger-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px var(--home-inset);
+    background: var(--home-black);
+    border-top: 1px solid var(--home-grid);
+  }
+  .home-search-section { flex: 1; min-width: 0; }
+  .home-skel__head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 48px 7px;
+    column-gap: 12px;
+    padding: 12px var(--home-inset);
+    background: var(--home-black);
+    border-top: 1px solid var(--home-grid);
+  }
+  body.has-production .home-skel__head { grid-template-columns: auto minmax(0, 1fr); }
+  body.has-production .home-skel__search,
+  body.has-production .home-skel__rail { grid-column: 2; }
+  .home-skel__tabs {
+    grid-row: 1 / 3;
+    height: 55px;
+    padding: 0;
+    gap: 1px;
+    grid-template-columns: repeat(2, 168px);
+    border-top: 0;
+  }
+  .home-skel__tabs i:first-child { border-bottom: 7px solid var(--home-white-dark); }
+  .home-skel__tabs i:last-child { background: var(--home-black-light); border-bottom: 7px solid var(--home-black); }
+  /* Loading the penjahit ledger: the cream key is the second one, as it will
+     be, rather than flipping across once the list lands. */
+  body.is-penjahit-ledger .home-skel__tabs i:first-child { background: var(--home-black-light); border-bottom-color: var(--home-black); }
+  body.is-penjahit-ledger .home-skel__tabs i:last-child { background: var(--home-white); border-bottom-color: var(--home-white-dark); }
+
+  /* The rule between the head and the summary belongs to the head here, so
+     that once the head is pinned the cards scroll away under a rule rather
+     than under a bare edge. Same 1px, moved, so nothing below shifts. */
+  .home-ledger-head,
+  .home-skel__head { border-bottom: 1px solid var(--home-grid); }
+  .home-summary,
+  .home-skel__summary { padding: 8px var(--home-inset); border-top: 0; }
+
+  /* ---- The ledger as a grid ----
+     Every record is a cell: its 24px spacer moves to the top, so each row of
+     cards opens with ticks at every card edge and the spacer after the
+     summary has nothing left to do. Cells meet with no gap, and each card is
+     inset 12px inside its cell, so neighbours sit 24px apart and the rules
+     run unbroken across the row. They run further — out to the page edges —
+     the way they do on a phone, by a pseudo-element the list clips. */
+  .home-customers > .home-grid-spacer,
+  .home-skel__ledger > .home-grid-spacer { display: none; }
+  .home-customer-list {
+    display: grid;
+    /* 344px cells hold a 320px card: two columns from 744px, three from a
+       laptop, and never the four that made a 300px card clip a long name. */
+    grid-template-columns: repeat(auto-fill, minmax(344px, 1fr));
+    padding: 0 calc(var(--home-inset) - 12px) 24px;
+    overflow-x: clip;
+  }
+  .home-customer-record,
+  .home-customer-record.home-skel__more { display: flex; flex-direction: column; min-width: 0; }
+  .home-customer-record > .home-grid-spacer { order: -1; }
+  .home-customer-record > .home-grid-spacer::before { left: 12px; }
+  .home-customer-record > .home-grid-spacer::after { right: 12px; }
+  .home-customer-record > .home-grid-rule { position: relative; }
+  .home-customer-record > .home-grid-rule::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100vw;
+    right: -100vw;
+    height: 1px;
+    background: var(--home-grid);
+  }
+  /* A row is as tall as its tallest card and every card in it fills the row,
+     so the rules under a row are one line rather than a staircase. The name
+     takes the slack, which leaves every meta row on the same baseline. */
+  .home-customer-record__inset { flex: 1; display: flex; flex-direction: column; padding: 0 12px; }
+  .home-customer-record__inset > .swipe,
+  .home-customer-record .swipe__pane,
+  .home-customer-record .home-customer-card { flex: 1; display: flex; flex-direction: column; }
+  .home-customer-card__face,
+  .home-skel__face { flex: 1; }
+  /* A 320px-plus card fits most names on one line where a phone needs two, so
+     the stand-in rows are one-line rows too; the second name bar would make
+     every placeholder row 24px taller than the row that replaces it. 12px
+     between name and status, not 24: the status is right-aligned and coloured,
+     so it never needs the room to read as separate, and at the narrowest
+     three-column width (iPad Pro landscape, a 335px card) those 12px are what
+     keeps a three-word name like "Cahaya Amelia Hartono" on one line. */
+  .home-skel__name span + span { display: none; }
+  .home-customer-card__top { flex: 1 0 auto; gap: 12px; }
+
+  /* The add row becomes the next card: a cell of its own after the last
+     record, cream on a rail, its top and bottom edges on the row's rules. */
+  body.is-homepage .home-customer-list > .btn--empty {
+    min-height: 94px;
+    margin: 24px 12px 0;
+    padding: 12px 12px 24px;
+    background: linear-gradient(to top, var(--home-white-dark) 12px, var(--home-white) 12px);
+    transition: none;
+  }
+  body.is-homepage .home-customer-list > .btn--empty:active {
+    transform: none;
+    padding-bottom: 16px;
+    background: linear-gradient(to top, var(--home-white-dark) 4px, var(--home-white) 4px);
+  }
+  /* Alone in its row the add card would float: no ticks above it, no rule
+     under it. It draws its own — ticks down the 24px spacer at its edges, and
+     the row's two rules out to the page edges — which land exactly on a
+     neighbour's when it shares a row, so they only show when it is alone. */
+  body.is-homepage .home-customer-list > .btn--empty { position: relative; overflow: visible; }
+  body.is-homepage .home-customer-list > .btn--empty::before,
+  body.is-homepage .home-customer-list > .btn--empty::after {
+    content: '';
+    position: absolute;
+    pointer-events: none;
+  }
+  body.is-homepage .home-customer-list > .btn--empty::before {
+    top: -25px;
+    left: -1px;
+    right: -1px;
+    height: 24px;
+    border-left: 1px solid var(--home-grid);
+    border-right: 1px solid var(--home-grid);
+  }
+  body.is-homepage .home-customer-list > .btn--empty::after {
+    top: -1px;
+    bottom: -1px;
+    left: -100vw;
+    right: -100vw;
+    border-top: 1px solid var(--home-grid);
+    border-bottom: 1px solid var(--home-grid);
+  }
+  /* Nothing to list: the message spans the grid and the add card sits under
+     it, centred, at a card's width rather than the page's. */
+  .home-customer-list > .empty { grid-column: 1 / -1; padding: 48px 24px 24px; }
+  body.is-homepage .home-customer-list > .empty ~ .btn--empty {
+    grid-column: 1 / -1;
+    justify-self: center;
+    width: min(100%, 360px);
+    margin: 0 0 24px;
+  }
+  body.is-homepage .home-customer-list > .empty ~ .btn--empty::before,
+  body.is-homepage .home-customer-list > .empty ~ .btn--empty::after { content: none; }
+
+  /* The global ink focus ring vanishes on this canvas. Paper on the black
+     ledger, ink drawn inside a cream card — the three-way rule every ledger
+     page carries. The tab keys keep their own ring from the tabs block. */
+  body.is-homepage .home-nav-btn:focus-visible {
+    outline: 2px solid var(--home-white);
+    outline-offset: 2px;
+  }
+  /* Full-bleed bands and the tiles that touch each other have no canvas
+     around them to draw on, so their ring goes inside the face. */
+  body.is-homepage .home-alert:focus-visible,
+  body.is-homepage .home-action:focus-visible,
+  body.is-homepage .swipe__delete:focus-visible,
+  body.is-homepage .swipe__done:focus-visible {
+    outline: 2px solid var(--home-white);
+    outline-offset: -4px;
+  }
+  body.is-homepage .home-customer-card:focus-visible,
+  body.is-homepage .home-customer-list > .btn--empty:focus-visible {
+    outline: 2px solid var(--home-black);
+    outline-offset: -2px;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .home-customer-card:hover:not(:active):not(.is-pressed) .home-customer-card__face {
+      background: linear-gradient(rgba(0,0,0,.03), rgba(0,0,0,.03)), var(--home-white);
+    }
+    body.is-homepage .home-customer-list > .btn--empty:hover:not(:active) {
+      background: linear-gradient(to top, var(--home-white-dark) 12px, transparent 12px), linear-gradient(rgba(0,0,0,.03), rgba(0,0,0,.03)), var(--home-white);
+    }
+    .home-action:hover:not(:active):not(.is-pressed) .home-action__face,
+    .home-alert:hover:not(:active):not(.is-pressed) .home-alert__face {
+      background-image: linear-gradient(180deg, rgba(255,255,255,.06), transparent);
+    }
+    .home-nav-menu-wrapper .menu__item:not([aria-current="page"]):hover {
+      background: var(--home-black-light) padding-box;
+      color: var(--home-white);
+    }
+  }
+}
+
+/* With the side rail showing, the rail is the navigation and carries every
+   create shortcut, so the homepage's own Home and Menu buttons and its tile
+   rows would only say the same thing twice. The page becomes the greeting and
+   the ledger, and the ledger head stays put while the grid scrolls under it. */
+@media (min-width: 1100px) {
+  body.is-homepage .home-nav,
+  .home-actions,
+  .home-skel__actions { display: none; }
+
+  /* No buttons ride over the hero any more, so its 240px of headroom was only
+     sky — 45% of a 768px laptop screen before the first customer. It now
+     takes a third of the screen's height, never less than the greeting needs
+     and never more than the phone's 344. svh, not vh, so an iPad's toolbar
+     coming and going cannot resize it. The greeting stays on the hero's foot;
+     the field, the skeleton and the skeleton's paint all read the same value,
+     so the swap is still opacity only. */
+  #viewCustomers { --home-hero-h: clamp(232px, 34svh, 344px); }
+  .home-atmosphere,
+  .home-hero,
+  .home-skel__hero { height: var(--home-hero-h); }
+  .home-skel { background: linear-gradient(to bottom, transparent 0 var(--home-hero-h), var(--home-black) var(--home-hero-h)); }
+  .home-hero { padding: 0 var(--home-inset) 32px; }
+  .home-hero__greeting { font-size: 48px; line-height: 56px; letter-spacing: -1.44px; }
+  .home-hero__deadline { font-size: 16px; line-height: 24px; letter-spacing: -.48px; }
+  .home-skel__hero { padding: 0 var(--home-inset) 32px; justify-content: flex-end; }
+  /* A 48px greeting over a 32px foot stands taller in the band than the
+     phone's 32px one, and its cap height had climbed out past the clearing's
+     densest part (4.8:1 at worst against an evening field). The first field is
+     taller here, so the whole greeting sits inside it. Same colours, same
+     drift; only the clearing's height changes. */
+  .home-atmosphere__scrim {
+    background:
+      radial-gradient(
+        ellipse 64% 42% at 34% 78%,
+        color-mix(in srgb, var(--home-atmosphere-scrim, var(--home-white)) 94%, transparent) 0%,
+        color-mix(in srgb, var(--home-atmosphere-scrim, var(--home-white)) 78%, transparent) 42%,
+        transparent 100%),
+      radial-gradient(
+        ellipse 56% 32% at 74% 88%,
+        color-mix(in srgb, var(--home-atmosphere-scrim, var(--home-white)) 80%, transparent) 0%,
+        color-mix(in srgb, var(--home-atmosphere-scrim, var(--home-white)) 48%, transparent) 48%,
+        transparent 100%),
+      linear-gradient(
+        180deg,
+        transparent 55%,
+        color-mix(in srgb, var(--home-atmosphere-scrim, var(--home-white)) 12%, transparent) 70%,
+        color-mix(in srgb, var(--home-atmosphere-scrim, var(--home-white)) 54%, transparent) 104%);
+  }
+  .home-skel__line { height: 56px; }
+  .home-skel__line .home-skel__block { width: 440px !important; height: 44px !important; }
+  .home-skel__lines { height: 24px; }
+  .home-skel__lines .home-skel__block + .home-skel__block { display: none; }
+
+  .home-ledger-head {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+  }
+}
+
 /* --------------------------- Customer detail ---------------------------- */
 
 /* Figma node 65:399. The same canvas the homepage uses — a 390px mobile page
@@ -916,7 +1288,8 @@ body.is-custpage .view { gap: 0; }
 .cust-nav {
   position: fixed;
   top: 0;
-  left: 50%;
+  /* The centre of the page beside the side rail; 50% wherever there is none. */
+  left: var(--page-mid);
   transform: translateX(-50%);
   width: 100%;
   max-width: 390px;
@@ -1216,6 +1589,185 @@ body.is-custpage .view { gap: 0; }
   letter-spacing: -.42px;
 }
 
+/* Wide screens: one ledger, read top to bottom, the way the homepage reads.
+   Who the customer is — the cream hero and the coloured banners — becomes a
+   header as wide as the content column, and the orders under it are laid out
+   the way the homepage lays out customers: a grid of ledger strips whose rules
+   run to the page edges, with the add row as the next card. An earlier pass
+   pinned the header as a column beside the orders; with the one to three
+   orders most customers have, that left the orders a 270px strip on an iPad
+   and a black void under both columns on a laptop. The loader canvas wears
+   these same rules — every selector names both — so the skeleton is the page. */
+@media (min-width: 744px) {
+  body.is-custpage { background: var(--home-black); }
+  body.is-custpage .page { width: 100%; max-width: none; }
+
+  /* Where the content column starts: the gutter, or the centred margin once
+     the page is wider than --content-max. A percentage, so whichever
+     full-width band uses it resolves it, with nothing measured. */
+  #viewCustomer,
+  .route-loader__canvas--cust {
+    --cust-inset: max(var(--gutter), calc((100% - var(--content-max)) / 2));
+    background: var(--home-black);
+  }
+
+  /* The buttons ride the header's corners, as they ride the canvas's on a
+     phone: the header is the content column, so the nav is too. */
+  #viewCustomer .cust-nav,
+  .route-loader[data-kind="cust"] .cust-nav {
+    width: min(var(--content-max), 100% - var(--rail-w) - 2 * var(--gutter));
+    max-width: none;
+  }
+
+  :is(#viewCustomer, .route-loader__canvas--cust) .cust-id {
+    margin: 0 var(--cust-inset);
+    container-type: inline-size;
+  }
+  :is(#viewCustomer, .route-loader__canvas--cust) .cust-hero { padding: 123px 24px 32px; }
+  .cust-hero__name {
+    font-size: 40px;
+    line-height: 48px;
+    letter-spacing: -1.2px;
+    text-wrap: balance;
+  }
+
+  /* The doors share a row; the two dates take a row of their own until there
+     is room for both values unclipped ("Next: Final fitting" and "02 Nov '26
+     (in 25 days)" want about 360px between them). */
+  #viewCustomer .cust-banners,
+  .route-loader__canvas--cust .route-loader__skel-banners {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  #viewCustomer .cust-banner-split,
+  .route-loader__canvas--cust .route-loader__skel-banners > span { display: contents; }
+  #viewCustomer .cust-banner { grid-column: 1 / -1; }
+  #viewCustomer .cust-banner--fittings,
+  #viewCustomer .cust-banner-split .cust-banner,
+  .route-loader__canvas--cust .route-loader__skel-banners i { grid-column: span 2; }
+  .route-loader__canvas--cust .route-loader__skel-banners > i:nth-child(-n+2) { grid-column: 1 / -1; }
+  @container (min-width: 760px) {
+    #viewCustomer .cust-banner--wedding,
+    #viewCustomer .cust-banner--next,
+    .route-loader__canvas--cust .route-loader__skel-banners > i:nth-child(-n+2) { grid-column: span 3; }
+  }
+
+  /* ---- The order ledger as a grid ----
+     The homepage's geometry exactly (see its "Wide screens"): every record is
+     a cell with its spacer on top, cells meet with no gap, each card is inset
+     12px in its cell so neighbours sit 24px apart and the outer cards land on
+     the content edge, and the rules run on out to the page edges. */
+  :is(#viewCustomer, .route-loader__canvas--cust) .cust-summary { padding: 8px var(--cust-inset); }
+  :is(#viewCustomer, .route-loader__canvas--cust) .cust-orders > .cust-grid-spacer::before { left: var(--cust-inset); }
+  :is(#viewCustomer, .route-loader__canvas--cust) .cust-orders > .cust-grid-spacer::after { right: var(--cust-inset); }
+
+  :is(#custOrderList, .route-loader__canvas--cust .cust-order-list) {
+    display: grid;
+    /* 344px cells hold a 320px card: two from 744px, three from a laptop. */
+    grid-template-columns: repeat(auto-fill, minmax(344px, 1fr));
+    padding: 0 calc(var(--cust-inset) - 12px) 24px;
+    overflow-x: clip;
+  }
+  #custOrderList > .cust-grid-spacer { display: none; }
+  :is(#custOrderList, .route-loader__canvas--cust) .cust-order-record { display: flex; flex-direction: column; min-width: 0; }
+  :is(#custOrderList, .route-loader__canvas--cust) .cust-order-record > .cust-grid-spacer::before { left: 12px; }
+  :is(#custOrderList, .route-loader__canvas--cust) .cust-order-record > .cust-grid-spacer::after { right: 12px; }
+  :is(#custOrderList, .route-loader__canvas--cust) .cust-order-record > .cust-grid-rule { position: relative; }
+  :is(#custOrderList, .route-loader__canvas--cust) .cust-order-record > .cust-grid-rule::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100vw;
+    right: -100vw;
+    height: 1px;
+    background: var(--home-grid);
+  }
+  /* A row is as tall as its tallest card and every card fills it, so the rule
+     under a row is one line, not a staircase; the name takes the slack and
+     every meta row shares a baseline. */
+  :is(#custOrderList, .route-loader__canvas--cust) .cust-order-record > :is(.cust-order-record__inset, .cust-inset) {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 0 12px;
+  }
+  #custOrderList .cust-order-record .swipe,
+  #custOrderList .cust-order-record .swipe__pane,
+  #custOrderList .cust-order-card { flex: 1; display: flex; flex-direction: column; }
+  #custOrderList .cust-order-card__face { flex: 1; }
+  /* The stand-in keeps its 80px as a floor; a zero basis let it collapse to
+     its two bars and drew the row 22px short of the cards replacing it. */
+  .route-loader__canvas--cust .route-loader__skel-card { flex: 1 0 auto; }
+  #custOrderList .cust-order-card__top { flex: 1 0 auto; }
+
+  /* The add row becomes the next card: a cell of its own after the last
+     order, cream on a rail, its top and bottom edges on the row's rules. */
+  #custOrderList > .btn--empty,
+  .route-loader__canvas--cust .route-loader__skel-add {
+    min-height: 94px;
+    margin: 24px 12px 0;
+    padding: 12px 12px 24px;
+    background: linear-gradient(to top, var(--home-white-dark) 12px, var(--home-white) 12px);
+    transition: none;
+  }
+  #custOrderList > .btn--empty:active {
+    transform: none;
+    padding-bottom: 16px;
+    background: linear-gradient(to top, var(--home-white-dark) 4px, var(--home-white) 4px);
+  }
+  /* No orders: the message spans the grid and the add card sits under it,
+     centred, at a card's width rather than the page's — the homepage's empty
+     ledger, word for word. */
+  #custOrderList > .empty { grid-column: 1 / -1; padding: 48px 24px 24px; }
+  #custOrderList > .empty ~ .btn--empty {
+    grid-column: 1 / -1;
+    justify-self: center;
+    width: min(100%, 360px);
+    margin: 0 0 24px;
+  }
+
+  /* The one irreversible key is exactly one card wide, under the first card:
+     the same grid as the orders, so it lands on their tracks at every width. */
+  #viewCustomer > .custedit-danger .cust-inset {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(344px, 1fr));
+    padding: 0 calc(var(--cust-inset) - 12px);
+  }
+  #viewCustomer > .custedit-danger .custedit-danger__btn { width: auto; margin: 0 12px; }
+}
+
+/* 48px, the title size of every wide page: the header is the content column
+   now, so even "Kusumawardhani" has a line to itself rather than breaking
+   mid-word, as it did in the 380px column this replaced. */
+@media (min-width: 1100px) {
+  .cust-hero__name {
+    font-size: 48px;
+    line-height: 56px;
+    letter-spacing: -1.44px;
+  }
+}
+
+/* Pointer only: a tint on the face, never a lift. The press is unchanged, so
+   :active still wins over the hover it starts from. */
+@media (min-width: 744px) and (hover: hover) and (pointer: fine) {
+  .cust-nav-btn:not(:active):hover .cust-nav-btn__face,
+  .cust-order-card:not(:active):hover .cust-order-card__face {
+    background-image: linear-gradient(rgba(0,0,0,.03), rgba(0,0,0,.03));
+  }
+  a.cust-banner:not(:active):hover .cust-banner__face,
+  .custedit-danger__btn:not(:active):hover .custedit-danger__face {
+    background-image: linear-gradient(180deg, rgba(255,255,255,.08), transparent);
+  }
+  .cust-order-list .btn--empty:hover {
+    background-image: linear-gradient(rgba(0,0,0,.03), rgba(0,0,0,.03));
+  }
+  /* The add card carries its rail in its background, which outranks the tint
+     above; the homepage's add card is tinted the same way. */
+  #custOrderList > .btn--empty:hover:not(:active) {
+    background: linear-gradient(to top, var(--home-white-dark) 12px, transparent 12px), linear-gradient(rgba(0,0,0,.03), rgba(0,0,0,.03)), var(--home-white);
+  }
+}
+
 /* --------------------------- Customer editor ---------------------------- */
 
 /* The editor is the detail page's ledger with the cards opened up: same 24px
@@ -1385,6 +1937,124 @@ body.is-custeditpage .view { gap: 0; }
 .custedit-segmented__btn:active,
 .custedit-segmented__btn.is-pressed { grid-template-rows: 35px 2px; }
 
+/* Wide screens: the same ledger as one centred form column, no wider than a
+   form wants to be read. Short fields that belong together share a row — the
+   three ways to reach someone, then the two dates — so the whole record fits
+   on an iPad without scrolling. A row is still ledger: each field keeps its own
+   rules, the halves join into one full-width rule, and each card draws its own
+   ticks into the spacer bands above and below it, because the shared spacer
+   only knows the column's two outer edges. */
+@media (min-width: 744px) {
+  body.is-custeditpage {
+    --form-w: 760px;
+    background: var(--home-black);
+  }
+  body.is-custeditpage .page,
+  body.is-custeditpage.has-savebar .page {
+    width: 100%;
+    max-width: none;
+    padding: 0 var(--gutter) var(--bottombar-h, 0px);
+  }
+  body.is-custeditpage .custedit-ledger,
+  body.is-custeditpage .custedit-actions {
+    width: 100%;
+    max-width: var(--form-w);
+    margin: 0 auto;
+  }
+  /* Cancel stands on the cards' edge, 24px in, like Back on every other wide
+     page; the phone's 16px left it 8px proud of the column it leads. */
+  body.is-custeditpage .cust-nav {
+    width: min(var(--form-w), 100% - var(--rail-w) - 2 * var(--gutter));
+    max-width: none;
+    padding-inline: 24px;
+  }
+
+  body.is-custeditpage .custedit-ledger {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  body.is-custeditpage .custedit-ledger > * { grid-column: 1 / -1; }
+  body.is-custeditpage .custedit-field--third { grid-column: span 2; }
+  body.is-custeditpage .custedit-field--half { grid-column: span 3; }
+  body.is-custeditpage .custedit-gap--inrow { display: none; }
+
+  /* Row-mates stretch to the taller card; the face takes the extra, the rail
+     keeps its 12px, so a press still only moves height between the two. */
+  body.is-custeditpage .custedit-field--third:not([hidden]),
+  body.is-custeditpage .custedit-field--half:not([hidden]),
+  body.is-custeditpage .custedit-field--third > .cust-inset,
+  body.is-custeditpage .custedit-field--half > .cust-inset {
+    display: flex;
+    flex-direction: column;
+  }
+  body.is-custeditpage .custedit-field--third > .cust-inset,
+  body.is-custeditpage .custedit-field--half > .cust-inset,
+  body.is-custeditpage .custedit-field--third .custedit-card,
+  body.is-custeditpage .custedit-field--half .custedit-card { flex: 1 1 auto; }
+  /* Beside the wedding card's toggles, the moodboard date drops to the same
+     line as the wedding date, so the two dates read across. */
+  body.is-custeditpage .custedit-card--date { justify-content: space-between; }
+
+  body.is-custeditpage .custedit-field--third > .cust-grid-rule,
+  body.is-custeditpage .custedit-field--half > .cust-grid-rule { position: relative; }
+  body.is-custeditpage .custedit-field--third > .cust-grid-rule::before,
+  body.is-custeditpage .custedit-field--third > .cust-grid-rule::after,
+  body.is-custeditpage .custedit-field--half > .cust-grid-rule::before,
+  body.is-custeditpage .custedit-field--half > .cust-grid-rule::after {
+    content: '';
+    position: absolute;
+    width: 1px;
+    height: 24px;
+    background: var(--home-grid);
+  }
+  body.is-custeditpage .custedit-field--third > .cust-grid-rule:first-child::before,
+  body.is-custeditpage .custedit-field--third > .cust-grid-rule:first-child::after,
+  body.is-custeditpage .custedit-field--half > .cust-grid-rule:first-child::before,
+  body.is-custeditpage .custedit-field--half > .cust-grid-rule:first-child::after { bottom: 100%; }
+  body.is-custeditpage .custedit-field--third > .cust-grid-rule:last-child::before,
+  body.is-custeditpage .custedit-field--third > .cust-grid-rule:last-child::after,
+  body.is-custeditpage .custedit-field--half > .cust-grid-rule:last-child::before,
+  body.is-custeditpage .custedit-field--half > .cust-grid-rule:last-child::after { top: 100%; }
+  body.is-custeditpage .custedit-field--third > .cust-grid-rule::before,
+  body.is-custeditpage .custedit-field--half > .cust-grid-rule::before { left: 24px; }
+  body.is-custeditpage .custedit-field--third > .cust-grid-rule::after,
+  body.is-custeditpage .custedit-field--half > .cust-grid-rule::after { right: 24px; }
+
+  /* The follow-up pair goes side by side inside its card: when, then what,
+     with the longer answer given the longer field. */
+  body.is-custeditpage .custedit-card--followup {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    grid-template-rows: auto auto;
+    grid-auto-flow: column;
+    gap: 8px 32px;
+  }
+  body.is-custeditpage .custedit-card--followup .custedit-card__label--split { margin-top: 0; }
+
+  body.is-custeditpage .custedit-title h1 {
+    font-size: 40px;
+    line-height: 48px;
+    letter-spacing: -1.2px;
+  }
+}
+
+@media (min-width: 1100px) {
+  body.is-custeditpage .custedit-title h1 {
+    font-size: 48px;
+    line-height: 56px;
+    letter-spacing: -1.44px;
+  }
+}
+
+@media (min-width: 744px) and (hover: hover) and (pointer: fine) {
+  body.is-custeditpage .custedit-card:not(:focus-within):not(.is-invalid):hover {
+    background-image: linear-gradient(rgba(0,0,0,.03), rgba(0,0,0,.03));
+  }
+  body.is-custeditpage .custedit-segmented__btn:not(.is-on):not(:active):hover .custedit-segmented__face {
+    background-image: linear-gradient(rgba(0,0,0,.04), rgba(0,0,0,.04));
+  }
+}
+
 /* ------------------------------ Error state ------------------------------ */
 
 /* A field that is wrong says so in three places at once: the label, the value,
@@ -1484,7 +2154,7 @@ body.is-custeditpage .view { gap: 0; }
    saving states keep driving it. */
 body.is-custeditpage .savebar,
 body.is-ordereditpage .savebar {
-  left: 50%;
+  left: var(--page-mid);
   right: auto;
   /* Centring only. The bar no longer rides the keyboard — on a form it sat on
      top of the field being typed into. See .savebar in shared.css. */
@@ -1549,12 +2219,33 @@ body.is-ordereditpage #saveBtn:disabled .btn__label {
   background: var(--home-black-light);
   color: var(--home-grid);
 }
-body.is-custeditpage #saveBtn:disabled .btn__rail { background: var(--home-black); }
+body.is-custeditpage #saveBtn:disabled .btn__rail,
+body.is-ordereditpage #saveBtn:disabled .btn__rail { background: var(--home-black); }
 body.is-custeditpage #saveBtn:not(:disabled):active,
 body.is-custeditpage #saveBtn.is-pressed { grid-template-rows: 62px 2px; }
 body.is-custeditpage #saveBtn:not(:disabled):active .btn__label,
 body.is-custeditpage #saveBtn.is-pressed .btn__label {
   background-image: linear-gradient(180deg, transparent, rgba(0,0,0,.14));
+}
+
+/* Wide screens: Save belongs to the form, not the window, so the bar is the
+   form column's width and sits under it, centred on the page beside the rail.
+   --savebar-w is the column it acts on; a page whose form runs another width
+   sets it on its own body class — the order editor's runs 820px (see
+   "Order editor (ledger)"). */
+@media (min-width: 744px) {
+  body.is-ordereditpage { --savebar-w: 820px; }
+  body.is-custeditpage .savebar,
+  body.is-ordereditpage .savebar {
+    width: min(var(--savebar-w, 760px), 100% - var(--rail-w) - 2 * var(--gutter));
+    max-width: none;
+  }
+}
+@media (min-width: 744px) and (hover: hover) and (pointer: fine) {
+  body.is-custeditpage #saveBtn:not(:disabled):not(:active):hover .btn__label,
+  body.is-ordereditpage #saveBtn:not(:disabled):not(:active):hover .btn__label {
+    background-image: linear-gradient(180deg, rgba(255,255,255,.1), transparent);
+  }
 }
 
 /* The global focus ring is the ink colour, which disappears on these pages.
@@ -1643,7 +2334,7 @@ body.is-orderpage .view { gap: 0; }
 .order-skel__nav {
   position: fixed;
   top: 0;
-  left: 50%;
+  left: var(--page-mid);
   transform: translateX(-50%);
   width: 100%;
   max-width: 390px;
@@ -2284,6 +2975,7 @@ body.is-orderpage .view { gap: 0; }
 .order-skel__split { display: flex; }
 .order-skel__split .order-skel__action { flex: 1 1 0; }
 .order-skel__record { display: block; height: 72px; background: rgba(76,76,76,.22); }
+.order-skel__record--wide { display: none; }
 .order-skel__footer { height: 72px; background: var(--home-black); }
 /* The Designs well is 147px plus its 4px rail in the page, and the delete row
    is the danger button's 56px — both drawn at the size they replace. */
@@ -2362,6 +3054,201 @@ body.is-orderpage .order-schedule-record:focus-visible {
   .order-schedule-record__rail { transition: none; }
 }
 
+/* ------------------------------ Wide screens ----------------------------- */
+
+/* From 744px the 390px canvas becomes the whole page and the ledger splits in
+   two: the order and its money — items, designs, payments, penjahit costs —
+   down the left, and its calendar — the schedule, then delete — down the
+   right. That makes the right the shorter column, so a sidebar that runs out
+   early is the only gap the page ever has. One grid holds both so the
+   hairlines can still run to the page edges the way they run to the phone's:
+   each column's rules start at its outer page edge and stop at a vertical rule
+   between the columns, which is how a ledger's columns are ruled. The wrappers
+   and sections are subgrids of that one grid, so every card in a column sits
+   on the same track however deep the markup nests, and the spacers' ticks land
+   on the card edges instead of 24px in from a canvas that is no longer there.
+   The skeleton takes the same grid, so the handover moves nothing.
+
+   Scoped to #viewOrder throughout: the penjahit and job pages borrow these
+   class names and lay themselves out on their own terms. */
+@media (min-width: 744px) {
+  body.is-orderpage { background: var(--home-black); }
+  body.is-orderpage .page { width: 100%; max-width: none; }
+
+  #viewOrder {
+    --order-main: 820px;
+    --order-aside: 300px;
+  }
+
+  /* The buttons sit over the columns' outer edges, not the window's. */
+  #viewOrder .order-nav,
+  #viewOrder .order-skel__nav {
+    left: var(--page-mid);
+    width: calc(100% - var(--rail-w));
+    max-width: calc(var(--order-main) + 48px + var(--order-aside) + 2 * var(--gutter));
+    padding-left: var(--gutter);
+    padding-right: var(--gutter);
+  }
+
+  #viewOrder .order-ledger,
+  #viewOrder .order-skel__ledger {
+    display: grid;
+    grid-template-columns:
+      [bleed-start] minmax(var(--gutter), 1fr)
+      [main-start] minmax(0, var(--order-main))
+      [main-end] 24px [divider] 24px
+      [aside-start] var(--order-aside)
+      [aside-end] minmax(var(--gutter), 1fr) [bleed-end];
+    align-content: start;
+  }
+  #viewOrder .order-ledger > .order-grid-spacer,
+  #viewOrder .order-skel__ledger > .order-grid-spacer { grid-column: main-start / aside-end; }
+
+  #viewOrder .order-title-band,
+  #viewOrder .order-skel__title {
+    grid-column: bleed-start / bleed-end;
+    padding-left: 0;
+    padding-right: 0;
+    display: grid;
+    grid-template-columns: subgrid;
+  }
+  #viewOrder .order-title {
+    grid-column: main-start / aside-end;
+    font-size: 40px;
+    line-height: 48px;
+    letter-spacing: -1.2px;
+  }
+  /* A title is one line at this width, so the skeleton reserves one. */
+  #viewOrder .order-skel__title .order-skel__block {
+    grid-column: main-start / aside-end;
+    width: min(480px, 60%);
+    height: 48px;
+  }
+  #viewOrder .order-skel__title .order-skel__block--short { display: none; }
+  /* Every other ledger page's title band opens to 16px here and 20px from
+     1100 (fitting logs, a fitting, schedules, the document lists). This band
+     is shared by the order, the penjahit and the job pages and by their
+     skeletons, so it stays unscoped, and a title no longer jumps 8px as you
+     move from one family of pages to the next. */
+  .order-title-band,
+  .order-skel__title { padding-top: 16px; padding-bottom: 16px; }
+
+  #viewOrder .order-main { grid-column: bleed-start / divider; }
+  #viewOrder .order-aside {
+    grid-column: divider / bleed-end;
+    border-left: 1px solid var(--home-grid);
+  }
+  #viewOrder .order-main,
+  #viewOrder .order-aside,
+  #viewOrder .order-main > *,
+  #viewOrder .order-aside > * {
+    display: grid;
+    grid-template-columns: subgrid;
+    align-content: start;
+  }
+  #viewOrder .order-main > *,
+  #viewOrder .order-aside > * { grid-column: 1 / -1; }
+  /* Every block above restates display, so the hidden case is restated too. */
+  #viewOrder .order-main > [hidden],
+  #viewOrder .order-aside > [hidden] { display: none; }
+
+  #viewOrder .order-main .order-grid-rule,
+  #viewOrder .order-aside .order-grid-rule,
+  #viewOrder .order-aside .cust-grid-rule { grid-column: 1 / -1; }
+  #viewOrder .order-main .order-inset,
+  #viewOrder .order-aside .order-inset,
+  #viewOrder .order-aside .cust-inset,
+  #viewOrder .order-main > .order-grid-spacer,
+  #viewOrder .order-aside > .order-grid-spacer,
+  #viewOrder .order-skel__section > .order-grid-spacer {
+    grid-column: 2;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  #viewOrder .order-grid-spacer::before { left: 0; }
+  #viewOrder .order-grid-spacer::after { right: 0; }
+
+  /* Without the production tables the section is withdrawn but its spacer
+     is not; on a phone that reads as one taller gap, here as a stray pair of
+     ticks at the foot of the column. */
+  #viewOrder .order-main > #orderProductionSection[hidden] + .order-grid-spacer { display: none; }
+
+  /* Room for the columns the table has always had: the name takes what is
+     left, and the amounts get a fixed column wide enough for any total. */
+  #viewOrder .order-items__row { grid-template-columns: minmax(0, 1fr) 32px 104px; }
+
+  /* A date range is one phrase; it gets the width it needs before the stage
+     name does, so it breaks only when the column truly cannot hold it. */
+  #viewOrder .order-schedule-record__date,
+  #viewOrder .order-schedule-record__count { flex: 0 1 auto; }
+
+  /* The ledger closes with a full-width rule over the footer, which is where
+     both columns' last lines run out. */
+  #viewOrder .order-footer,
+  #viewOrder .order-skel__footer { border-top: 1px solid var(--home-grid); }
+  #viewOrder .order-skel__footer { height: 73px; }
+
+  /* The schedule always holds five stages, so the skeleton draws five, each
+     the 66px of a dated record's face and rail with the card's 24px spacer
+     between: the column below it — the fitting key, Delete — then lands where
+     the page draws it. (Photo strips add height the skeleton cannot know.) */
+  #viewOrder .order-skel__card--grey { gap: 24px; padding-bottom: 24px; }
+  #viewOrder .order-skel__card--grey .order-skel__block--head { margin-bottom: -8px; }
+  #viewOrder .order-skel__card--grey .order-skel__record { height: 66px; }
+  #viewOrder .order-skel__record--wide { display: block; }
+  /* Items: the height of a two-item table — a gown and its veil, the usual
+     order — rather than of no table at all, so the keys under it move by a
+     row or so when the order arrives instead of by half the card. */
+  #viewOrder .order-skel__ledger .order-main > :first-child .order-skel__card { min-height: 230px; }
+
+  /* Balanced, so a wrap never leaves one word on a line of its own:
+     "logged" under a photo count in the narrow aside, "here." under the
+     empty Designs copy. Two lines either way, so no height changes. */
+  #viewOrder .order-schedule-record__count,
+  #viewOrder .order-designs__empty-copy { text-wrap: balance; }
+}
+
+@media (min-width: 1100px) {
+  #viewOrder { --order-aside: 340px; }
+  #viewOrder .order-items__row { grid-template-columns: minmax(0, 1fr) 48px 152px; }
+  #viewOrder .order-title {
+    font-size: 48px;
+    line-height: 56px;
+    letter-spacing: -1.44px;
+  }
+  #viewOrder .order-skel__title .order-skel__block { height: 56px; }
+  .order-title-band,
+  .order-skel__title { padding-top: 20px; padding-bottom: 20px; }
+}
+
+/* Once the left column is wide enough for three labels side by side, the
+   three document keys stop stacking: one row, moodboard then quotation then
+   invoice, sharing one outer border like the split always has. */
+@media (min-width: 1280px) {
+  #viewOrder .order-main > :first-child > .order-inset {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  }
+  #viewOrder .order-main > :first-child > .order-inset > :first-child { grid-column: 1 / -1; }
+  #viewOrder .order-action--moodboard .order-action__face,
+  #viewOrder .order-action--moodboard .order-action__rail { border-right: 0; }
+  #viewOrder .order-action--moodboard .order-action__rail { border-bottom: 0; }
+}
+
+/* A pointer gets a faint lift on anything pressable; the press itself is
+   unchanged. Nothing moves, nothing scales. */
+@media (min-width: 744px) and (hover: hover) and (pointer: fine) {
+  #viewOrder .order-action:not(:disabled):not([aria-disabled="true"]):not(.is-pressed):not(:active):hover .order-action__face {
+    background-image: linear-gradient(180deg, rgba(255,255,255,.08), transparent);
+  }
+  #viewOrder .order-nav-btn:not([aria-disabled="true"]):not(.is-pressed):not(:active):hover .order-nav-btn__face,
+  #viewOrder .order-schedule-record:not(.is-pressed):not(:active):hover .order-schedule-record__face,
+  #viewOrder .order-choice:not(:disabled):not(.is-pressed):not(:active):hover .order-choice__face,
+  #orderProductionJobs .production-job:hover .production-job__face {
+    background-image: linear-gradient(180deg, rgba(0,0,0,.03), rgba(0,0,0,.03));
+  }
+}
+
 /* ----------------------------- Fitting logs ------------------------------ */
 
 /* Figma nodes 218:1958 / 219:2547 / 219:2731. Same 390px canvas, same black
@@ -2402,7 +3289,8 @@ body.is-fittinglogspage .view { gap: 0; }
    banner's, blue is the one that already means invoice and payment. */
 .fitlog,
 .schedcal,
-.schedcal-sheet {
+.schedcal-sheet,
+.fitting-picker {
   --stage-sizing:    #1866da;
   --stage-fitting-1: #19aa16;
   --stage-fitting-2: #e72a90;
@@ -2830,6 +3718,119 @@ body.is-fittinglogspage #fitlogNewBtn:disabled {
 .fitlog-card-link:active .fitlog-card__rail,
 .fitlog-card-link.is-pressed .fitlog-card__rail { height: 4px; }
 
+/* ------------------------- Fitting logs, wide screens --------------------- */
+
+/* A phone sees three skeleton cards. The wide grid below asks app.js for six,
+   so it loads in whole rows; the spare three stay out of the single column. */
+.fitlog-skel-cell:nth-child(n+4) { display: none; }
+
+/* From iPad portrait up the canvas is the whole page area and the feed becomes
+   a grid of the same cards. Each column is its own ledger strip: a card keeps
+   its 1px sides and its ticks, neighbours sit 24px apart, and the rules above
+   and below a row run unbroken from one edge of the page to the other.
+
+   Everything is scoped to .fitlog, because the search band and the stage keys
+   are also the penjahit and document lists' controls. */
+@media (min-width: 744px) {
+  body.is-fittinglogspage { background: var(--home-black); }
+  body.is-fittinglogspage .page { width: 100%; max-width: none; }
+
+  /* Where content starts: the gutter, or wherever centring a --content-max
+     column puts it. The percentage resolves against whoever uses it, so only
+     blocks that span the page may — the grids subtract their own half gap. */
+  .fitlog,
+  .fitdet,
+  .fitadd,
+  .route-loader__canvas--fitdet { --fit-edge: max(var(--gutter), calc((100% - var(--content-max)) / 2)); }
+
+  /* The nav spans the same column, so Back sits over the first card's edge
+     rather than the window's. */
+  body.is-fittinglogspage .cust-nav {
+    left: var(--page-mid);
+    width: calc(100% - var(--rail-w));
+    max-width: calc(var(--content-max) + 2 * var(--gutter));
+    padding-inline: var(--gutter);
+  }
+
+  .fitlog-head > .fitlog-grid-spacer::before,
+  .fitlog-state > .fitlog-grid-spacer::before { left: var(--fit-edge); }
+  .fitlog-head > .fitlog-grid-spacer::after,
+  .fitlog-state > .fitlog-grid-spacer::after { right: var(--fit-edge); }
+  .fitlog-title { padding: 16px var(--fit-edge); }
+  .fitlog-title h1 { font-size: 40px; line-height: 48px; letter-spacing: -1.2px; }
+
+  .fitlog .fitlog-search { padding-inline: var(--fit-edge); }
+
+  .fitlog .fitlog-list,
+  .fitlog .fitlog-skel-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding-inline: calc(var(--fit-edge) - 12px);
+  }
+  .fitlog .fitlog-skel-cell:nth-child(n+4) { display: block; }
+  .fitlog .fitlog-list .fitlog-inset,
+  .fitlog .fitlog-skel-grid .fitlog-inset { padding-inline: 12px; }
+  .fitlog .fitlog-list .fitlog-grid-spacer::before,
+  .fitlog .fitlog-skel-grid .fitlog-grid-spacer::before { left: 12px; }
+  .fitlog .fitlog-list .fitlog-grid-spacer::after,
+  .fitlog .fitlog-skel-grid .fitlog-grid-spacer::after { right: 12px; }
+  /* Every card in a row is the same height, so each record's rules can simply
+     be drawn long: they overlap their neighbours' exactly, cover the gaps and
+     the margins, and the feed clips them at the page edge. */
+  .fitlog .fitlog-feed { overflow-x: clip; }
+  .fitlog .fitlog-list .fitlog-grid-rule,
+  .fitlog .fitlog-skel-grid .fitlog-grid-rule { position: relative; }
+  .fitlog .fitlog-list .fitlog-grid-rule::before,
+  .fitlog .fitlog-skel-grid .fitlog-grid-rule::before {
+    content: '';
+    position: absolute;
+    inset: 0 -100vw;
+    background: var(--home-grid);
+  }
+  .fitlog-state > .fitlog-inset { padding-inline: var(--fit-edge); }
+}
+
+/* With the side rail showing, search and the five stage keys share one band:
+   one cream face, one rail, one rule, keys at the right edge of the column. */
+@media (min-width: 1100px) {
+  .fitlog-title { padding-block: 20px; }
+  .fitlog-title h1 { font-size: 48px; line-height: 56px; letter-spacing: -1.44px; }
+
+  .fitlog-tools {
+    display: flex;
+    padding-inline: var(--fit-edge);
+    background:
+      linear-gradient(180deg, var(--home-white) 48px, var(--home-white-dark) 48px 55px, var(--home-grid) 55px)
+      top / 100% 56px no-repeat;
+  }
+  .fitlog .fitlog-search-section { flex: 1 1 auto; min-width: 0; }
+  .fitlog .fitlog-search { padding: 12px 16px 12px 0; }
+  /* The keys' rule sits under a 7px rail; the field's sat a pixel higher, so
+     the one hairline under the band stepped where search met the first key. */
+  .fitlog .fitlog-search__rail { height: 8px; }
+  .fitlog .fitlog-stages {
+    flex: none;
+    overflow: visible;
+    border-left: 1px solid var(--home-grid);
+    border-right: 1px solid var(--home-grid);
+    border-bottom: 1px solid var(--home-grid);
+  }
+  .fitlog .fitlog-stage { flex: none; min-width: 112px; grid-template-rows: 48px 7px; }
+  .fitlog .fitlog-stage__face { padding-inline: 20px; }
+}
+
+@media (min-width: 1280px) {
+  .fitlog .fitlog-list,
+  .fitlog .fitlog-skel-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (min-width: 744px) and (hover: hover) and (pointer: fine) {
+  .fitlog-card-link:hover .fitlog-card { background-image: linear-gradient(rgba(0,0,0,.03), rgba(0,0,0,.03)); }
+  .fitlog .fitlog-stage:not(:active):hover .fitlog-stage__face {
+    background-image: linear-gradient(rgba(0,0,0,.03), rgba(0,0,0,.03));
+  }
+}
+
 /* ============================ Fitting log detail ========================== */
 
 /* Figma 229:2847. Same ledger as the feed, one session deep. The five stage
@@ -3086,7 +4087,8 @@ button.fitdet-card__frame { appearance: none; -webkit-appearance: none; }
    under the caret at every step of the keyboard animation. */
 .fitdet-bar {
   position: fixed;
-  left: 0;
+  /* 0 below 1100px; beside the side rail above it, never under it. */
+  left: var(--rail-w);
   right: 0;
   bottom: 0;
   transform: translateY(calc(-1 * var(--keyboard-offset, 0px)));
@@ -3334,7 +4336,7 @@ button.fitdet-card__frame { appearance: none; -webkit-appearance: none; }
    rather than making the whole strip clickable. */
 .fitadd-undo {
   position: fixed;
-  left: 0;
+  left: var(--rail-w);
   right: 0;
   bottom: var(--bottombar-h, 0px);
   /* Rides with the bar it sits on, or it would be left behind under the
@@ -3529,6 +4531,15 @@ button.fitdet-card__frame { appearance: none; -webkit-appearance: none; }
   .fitmark__btn { transition: none; }
 }
 
+/* Wide screens: the controls gather into a 760px column so Cancel and Done are
+   not a window apart, and the stage steps in from the edges. The margin moves
+   the stage box itself, and layoutFittingMark measures that box, so the canvas
+   still lands exactly on the contained image. */
+@media (min-width: 744px) {
+  .fitmark__bar { padding-inline: max(var(--gutter), calc((100% - 760px) / 2)); }
+  .fitmark__stage { margin: 16px var(--gutter); }
+}
+
 /* ------------------------------- Photo viewer ----------------------------- */
 
 .fitview {
@@ -3586,6 +4597,35 @@ button.fitdet-card__frame { appearance: none; -webkit-appearance: none; }
   color: #fff;
   font: 400 28px/1 'Plus Jakarta Sans', sans-serif;
   cursor: pointer;
+}
+
+/* Wide screens: the photo is held clear of the close key and the window edges,
+   and the note keeps a readable measure under it instead of running the full
+   width of a desktop. Esc closes, focus is trapped (app.js); there is still
+   deliberately no next/previous. */
+@media (min-width: 744px) {
+  .fitview { padding-top: calc(env(safe-area-inset-top, 0px) + 68px); }
+  .fitview__stage { padding-inline: var(--gutter); }
+  .fitview__caption {
+    width: 100%;
+    max-width: calc(72ch + 2 * var(--gutter));
+    margin-inline: auto;
+    padding: 16px var(--gutter) 24px;
+    /* Under a centred photo whose width CSS cannot know, a centred note is the
+       only alignment that reads as belonging to it. */
+    text-align: center;
+  }
+  /* Square and solid, like every other key on these pages: the round
+     see-through dot was the one floating control on the ledger. */
+  .fitview__close {
+    right: var(--gutter);
+    border: 1px solid var(--home-grid);
+    border-radius: 0;
+    background: var(--home-black-light);
+  }
+}
+@media (min-width: 744px) and (hover: hover) and (pointer: fine) {
+  .fitview__close:hover { background: linear-gradient(180deg, rgba(255,255,255,.1), transparent), var(--home-black-light); }
 }
 
 /* ------------------------- Detail page focus rings ------------------------ */
@@ -3675,6 +4715,147 @@ body.has-fitadd-bar .fitadd { padding-bottom: calc(var(--bottombar-h) + 8px); }
 .route-loader__canvas--fitdet .fitdet-action__face i { width: 48px; height: 12px; background: rgba(13,13,13,.08); }
 .route-loader__canvas--fitdet .fitdet-delete__face { background: rgba(75,0,0,.55); }
 .route-loader__canvas--fitdet .fitdet-delete__rail { background: rgba(52,0,0,.55); }
+/* The loader's records are wrapped so the wide grid can hold each one
+   together. The wrappers are skeleton, so they arrive without the records'
+   entrance; the extra spacer and third record only exist at wide sizes. */
+.route-loader__canvas--fitdet .fitdet-record { animation: none; }
+.route-loader__canvas--fitdet .route-loader__fitdet-wide,
+.route-loader__canvas--fitdet .route-loader__fitdet-wide3,
+.route-loader__canvas--fitdet .route-loader__fitdet-wide4 { display: none; }
+
+/* -------------------- Fitting log detail, wide screens -------------------- */
+
+/* The detail page and the workspace share this block: same canvas, same card,
+   same bar. From iPad portrait up the photos are a grid in reading order, each
+   record still a ledger strip with its own sides and ticks. A row is as tall
+   as its tallest photo; a shorter one keeps its natural ratio and its card
+   grows cream below the note, so a row's keys share one line and the rules
+   above and below it run straight across the page. */
+@media (min-width: 744px) {
+  body.is-fitdetailpage { background: var(--home-black); }
+  body.is-fitdetailpage .page { width: 100%; max-width: none; }
+  body.is-fitdetailpage .cust-nav,
+  .route-loader__canvas--fitdet .cust-nav {
+    left: var(--page-mid);
+    width: calc(100% - var(--rail-w));
+    max-width: calc(var(--content-max) + 2 * var(--gutter));
+    padding-inline: var(--gutter);
+  }
+
+  .fitdet-head > .fitlog-grid-spacer::before,
+  .fitdet > .fitlog-grid-spacer::before,
+  .fitadd > .fitlog-grid-spacer::before,
+  .fitdet-state > .fitlog-grid-spacer::before,
+  .route-loader__canvas--fitdet > .fitlog-grid-spacer::before { left: var(--fit-edge); }
+  .fitdet-head > .fitlog-grid-spacer::after,
+  .fitdet > .fitlog-grid-spacer::after,
+  .fitadd > .fitlog-grid-spacer::after,
+  .fitdet-state > .fitlog-grid-spacer::after,
+  .route-loader__canvas--fitdet > .fitlog-grid-spacer::after { right: var(--fit-edge); }
+
+  .fitdet-titleband { padding: 16px var(--fit-edge); }
+  .fitdet-title { font-size: 40px; line-height: 48px; letter-spacing: -1.2px; }
+  /* Below the rail the column is narrow enough that three equal thirds read as
+     one strip ending on the cards' edge; 1100 up gives them fixed widths. */
+  .fitdet-meta { padding-inline: var(--fit-edge); }
+  /* The first row of photos opens with its own spacer, ticked at the card
+     edges — the outer two of which are the content edges. The head's spacer
+     on top of it made a 48px band whose ticks moved half-way down. */
+  .fitdet-head > .fitlog-grid-spacer:last-child { display: none; }
+
+  .fitdet-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding-inline: calc(var(--fit-edge) - 12px);
+  }
+  .fitdet-record { display: flex; flex-direction: column; }
+  .fitdet-list .fitdet-inset {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    padding-inline: 12px;
+  }
+  .fitdet-list .fitdet-card { flex: 1 1 auto; }
+  .fitdet-list .fitlog-grid-spacer::before { left: 12px; }
+  .fitdet-list .fitlog-grid-spacer::after { right: 12px; }
+  /* Rows are equal height, so each record's rules are drawn long and overlap
+     their neighbours' exactly; the body clips them at the page edge. */
+  .fitdet-body,
+  .route-loader__canvas--fitdet { overflow-x: clip; }
+  .fitdet-list .fitlog-grid-rule { position: relative; }
+  .fitdet-list .fitlog-grid-rule::before {
+    content: '';
+    position: absolute;
+    inset: 0 -100vw;
+    background: var(--home-grid);
+  }
+  .fitdet-state > .fitlog-inset { padding-inline: var(--fit-edge); }
+
+  /* One card's width, under the first column: a full-width red slab across a
+     desktop is a louder warning than deleting one log deserves, and a fixed
+     360px overhung the column edge at every width but one. */
+  .fitdet-delete-band { padding-inline: var(--fit-edge); }
+  .fitdet-delete { max-width: calc((100% - 24px) / 2); }
+
+  /* The bar and its Undo stay full-width black bands — content scrolls under
+     them — but the keys are a pair, not a page-wide strip. */
+  .fitdet-bar { border-top: 1px solid var(--home-grid); }
+  .fitdet-bar__inner,
+  .fitadd-undo__inner { max-width: 560px; }
+  .fitadd-undo__inner { border-left: 1px solid var(--home-grid); border-right: 1px solid var(--home-grid); }
+  .fitadd-undo__btn { min-height: 44px; padding-inline: 20px; }
+  /* With the on-screen keyboard up the open caption card's own Cancel and Save
+     are the actions, and the bar riding the keyboard sat on top of them. It
+     stands down exactly as the form save bars do. */
+  body.is-keyboard-open #fitaddBar { visibility: hidden; pointer-events: none; }
+
+  .route-loader[data-kind="fitdet"] { left: var(--rail-w); background: var(--home-black); }
+  .route-loader[data-kind="fitdet"] .route-loader__canvas--fitdet { width: 100%; max-width: none; }
+  .route-loader__canvas--fitdet .route-loader__skel-heading { width: min(72%, 560px); height: 40px; }
+  .route-loader__canvas--fitdet .route-loader__fitdet-wide { display: block; }
+  /* Fitting photos are shot portrait. A 4:3 placeholder left every row below
+     it ~190px short until the photos landed. */
+  .route-loader__canvas--fitdet .route-loader__skel-photo,
+  .fitadd-skel__stage { aspect-ratio: 3 / 4; }
+}
+
+/* With the rail showing, three portrait cards to a row on a landscape iPad and
+   four on a desktop: two left one photo filling an 820px-tall screen. */
+@media (min-width: 1100px) {
+  .fitdet-titleband { padding-block: 20px; }
+  .fitdet-title { font-size: 48px; line-height: 56px; letter-spacing: -1.44px; }
+  /* Three fixed cells from the content edge, not three thirds of the page: a
+     date does not need 400px, and the row's rules carry on past it. */
+  .fitdet-meta .fitdet-stage,
+  .fitdet-meta__cell { flex: 0 1 240px; }
+  .route-loader__canvas--fitdet .route-loader__skel-heading { height: 48px; }
+  .fitdet-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .fitdet-delete { max-width: calc((100% - 48px) / 3); }
+  .route-loader__canvas--fitdet .route-loader__fitdet-wide3 { display: flex; }
+}
+/* The workspace's three keys a card (Delete, Edit mark, Edit caption) need
+   ~90px each; a third column below 1280 leaves them 81px and the labels touch
+   the rules. */
+@media (min-width: 1100px) and (max-width: 1279.98px) {
+  .fitadd .fitdet-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (min-width: 1600px) {
+  .fitdet-list { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .fitdet-delete { max-width: calc((100% - 72px) / 4); }
+  .route-loader__canvas--fitdet .route-loader__fitdet-wide4 { display: flex; }
+}
+
+@media (min-width: 744px) and (hover: hover) and (pointer: fine) {
+  .fitdet-card__frame { cursor: zoom-in; }
+  .fitdet-action:not(:disabled):hover .fitdet-action__face {
+    background-image: linear-gradient(rgba(0,0,0,.03), rgba(0,0,0,.03));
+  }
+  .fitdet-delete:not(:disabled):hover .fitdet-delete__face,
+  .fitdet-bar__btn:not(:disabled):hover .fitdet-bar__face {
+    background-image: linear-gradient(180deg, rgba(255,255,255,.06), transparent);
+  }
+}
 
 /* ----------------------- Customer, editor, record ------------------------ */
 
@@ -3742,6 +4923,70 @@ body.has-fitadd-bar .fitadd { padding-bottom: calc(var(--bottombar-h) + 8px); }
 .route-loader__canvas--editor .custedit-title .route-loader__skel-heading { width: 64%; height: 32px; margin: 4px 0; background: rgba(255,255,255,.14); animation-name: home-shimmer-dark; }
 .route-loader__skel-label { width: 34%; height: 12px; }
 .route-loader__skel-value { width: 72%; height: 20px; }
+/* The wedding card's two toggles, at their exact box with its margins. */
+.route-loader__skel-toggle { height: 37px; margin: 2px 0 4px; }
+.route-loader__custedit-only,
+.route-loader__skel-add { display: none; }
+
+/* Wide screens: each canvas takes its page's wide layout, class for class —
+   the customer page's header and order grid (its rules are written for both,
+   under "Order ledger"), and the editors' centred form column, with the
+   customer editor's own contact and date rows when it is the customer editor
+   that is loading (its body class is already set by then). Black edge to
+   edge, like the pages. */
+@media (min-width: 744px) {
+  .route-loader[data-kind="cust"],
+  .route-loader[data-kind="editor"] { background: var(--home-black); }
+
+  .route-loader[data-kind="cust"] .route-loader__canvas--cust { width: 100%; max-width: none; }
+  .route-loader__canvas--cust .route-loader__skel-name { width: min(62%, 520px); height: 48px; }
+  /* The add card the page always ends its orders with. */
+  .route-loader__canvas--cust .route-loader__skel-add {
+    display: block;
+    border: 1px solid var(--home-grid);
+  }
+
+  .route-loader[data-kind="editor"] .route-loader__canvas--editor {
+    width: 100%;
+    max-width: none;
+    padding: 0 var(--gutter);
+  }
+  .route-loader__canvas--editor .custedit-ledger {
+    width: 100%;
+    max-width: var(--form-w, 760px);
+    margin: 0 auto;
+  }
+  body.is-custeditpage .route-loader__canvas--editor .route-loader__skel-label,
+  body.is-custeditpage .route-loader__canvas--editor .route-loader__skel-value { margin: 2px 0; }
+  body.is-custeditpage .route-loader__canvas--editor .cust-grid-spacer.route-loader__custedit-only:not(.custedit-gap--inrow) { display: block; }
+  body.is-custeditpage .route-loader__canvas--editor .custedit-title .route-loader__skel-heading { height: 40px; }
+
+  /* The order editor is the one editor still under an app bar, in its own
+     820px column of bordered cards with no ledger rules (see "Order editor
+     (ledger)"). Drawn as the customer editor's column it put the title 53px
+     right of where it lands and the cards 110px narrow, so it gets the bar's
+     hairline, the title at the bar's 89px, and its own column instead. */
+  .route-loader[data-view="orderEdit"] .route-loader__canvas--editor {
+    background: linear-gradient(var(--home-grid), var(--home-grid)) 0 56px / 100% 1px no-repeat, var(--home-black);
+  }
+  .route-loader[data-view="orderEdit"] .route-loader__canvas--editor .cust-nav,
+  .route-loader[data-view="orderEdit"] .route-loader__canvas--editor :is(.cust-grid-spacer, .cust-grid-rule) { display: none; }
+  .route-loader[data-view="orderEdit"] .route-loader__canvas--editor .custedit-ledger {
+    max-width: 820px;
+    padding-top: 89px;
+    background: none;
+  }
+  .route-loader[data-view="orderEdit"] .route-loader__canvas--editor .custedit-title { padding: 0; margin-bottom: 24px; }
+  .route-loader[data-view="orderEdit"] .route-loader__canvas--editor .custedit-title .route-loader__skel-heading { width: 216px; height: 48px; margin: 0; }
+  .route-loader[data-view="orderEdit"] .route-loader__canvas--editor .custedit-field { margin-bottom: 36px; }
+  .route-loader[data-view="orderEdit"] .route-loader__canvas--editor .cust-inset { padding: 0; }
+  .route-loader[data-view="orderEdit"] .route-loader__canvas--editor .custedit-card { padding: 20px 24px 24px; border-top: 1px solid var(--home-grid); }
+}
+@media (min-width: 1100px) {
+  .route-loader__canvas--cust .route-loader__skel-name { height: 56px; }
+  body.is-custeditpage .route-loader__canvas--editor .custedit-title .route-loader__skel-heading,
+  .route-loader[data-view="orderEdit"] .route-loader__canvas--editor .custedit-title .route-loader__skel-heading { height: 56px; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .route-loader__canvas--cust i,
@@ -4532,6 +5777,400 @@ body.is-schedulespage .schedcal-panel__retry:focus-visible {
   .schedcal-sheet__close { transition: none; }
 }
 
+/* ------------------------- Schedules, wide screens ------------------------ */
+
+/* Words a phone's grid has no room for: a band's name in its 5px lane, a day's
+   names in its 40px key, and the hint that only the wide layout's side column
+   gives. Present in the markup at every size; drawn only where they fit. */
+.schedcal-band__label,
+.schedcal-day__notes,
+.schedcal-aside__hint { display: none; }
+
+/* From iPad portrait up the canvas is the whole page area and the month gets
+   real cells: a key tall enough to name who is on it, and lanes tall enough to
+   say what each band is. The geometry stays fixed exactly as on a phone — every
+   week reserves its three lanes whether or not they are used — so the skeleton,
+   an empty month and a busy one are still all the same height.
+
+   With the side rail showing, the page splits into the month and a right-hand
+   column. The column holds the key and the unplaced weddings, the day sheet
+   opens into it as a panel instead of rising over the grid, and the month pager
+   sits at its head like a toolbar. Choosing a day therefore never hides the
+   month, and choosing the next one is a single click on it.
+
+   --schedcal-max is the month and that column together; past it the ledger
+   keeps going to the edge and the two stay centred. Fixed pieces cannot see the
+   grid, so they work out the same margin from the viewport. */
+@media (min-width: 744px) {
+  body.is-schedulespage {
+    --schedcal-max: 1440px;
+    --schedcal-aside: 0px;
+    background: var(--home-black);
+  }
+  body.is-schedulespage .page { width: 100%; max-width: none; }
+
+  /* Where content starts, for blocks that span the page: the gutter, plus
+     whatever centring --schedcal-max leaves either side. */
+  .schedcal { --sched-edge: calc(max(0px, (100% - var(--schedcal-max)) / 2) + var(--gutter)); }
+
+  /* Over the month: Home on its left edge, Today on its right, never over the
+     side column. */
+  body.is-schedulespage .cust-nav {
+    left: calc(var(--rail-w) + max(0px, (100% - var(--rail-w) - var(--schedcal-max)) / 2));
+    transform: none;
+    width: calc(100% - var(--rail-w) - 2 * max(0px, (100% - var(--rail-w) - var(--schedcal-max)) / 2) - var(--schedcal-aside));
+    max-width: none;
+    padding-inline: var(--gutter);
+  }
+
+  .schedcal-head > .schedcal-grid-spacer::before,
+  .schedcal-aside > .schedcal-grid-spacer::before { left: var(--sched-edge); }
+  .schedcal-head > .schedcal-grid-spacer::after,
+  .schedcal-aside > .schedcal-grid-spacer::after { right: var(--sched-edge); }
+  .schedcal-titleband { padding: 16px var(--sched-edge); }
+  .schedcal-title { font-size: 40px; line-height: 48px; letter-spacing: -1.2px; }
+  .schedcal-title__year { margin-left: 10px; font-size: 24px; line-height: 28px; letter-spacing: -.72px; }
+
+  .schedcal-grid { padding: 16px var(--sched-edge) 20px; }
+  .schedcal-state { padding: 0 var(--sched-edge); }
+
+  /* Names, not initials, once a column is wide enough to hold three letters —
+     set on the left edge, where each day's number now sits. The alt-text form
+     keeps the pseudo-element silent; the sr-only full name is still what is
+     read. */
+  .schedcal-weekdays { column-gap: 4px; padding-bottom: 10px; }
+  .schedcal-weekday {
+    padding-left: 8px;
+    text-align: left;
+    text-transform: uppercase;
+  }
+  .schedcal-weekday > [aria-hidden="true"] { display: none; }
+  .schedcal-weekday::before {
+    content: attr(data-short);
+    content: attr(data-short) / "";
+  }
+
+  /* 71px holds a 64px face on a 6px rail, as 47 holds 40 on 6 on a phone. */
+  .schedcal-week {
+    grid-template-rows: 71px repeat(3, 16px);
+    column-gap: 4px;
+    margin-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  /* The number moves to the top-left corner and the names run beneath it, the
+     way a wall calendar is written in. The face height is exactly a number, a
+     2px gap and two 16px names inside 5px of padding. */
+  .schedcal-day { height: 70px; grid-template-rows: 64px 6px; text-align: left; }
+  .schedcal-day:active,
+  .schedcal-day.is-pressed { grid-template-rows: 68px 2px; }
+  .schedcal-day--quiet,
+  .schedcal-day--outside,
+  .schedcal-day--skel { grid-template-rows: 6px 64px; }
+  .schedcal-day--quiet:active,
+  .schedcal-day--quiet.is-pressed,
+  .schedcal-day--outside:active,
+  .schedcal-day--outside.is-pressed { grid-template-rows: 2px 68px; }
+  .schedcal-day__face {
+    min-width: 0;
+    padding: 5px 8px;
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+  .schedcal-day__num { align-self: flex-start; }
+  .schedcal-day__dots { display: none; }
+  .schedcal-day__notes { display: flex; flex-direction: column; min-width: 0; }
+  .schedcal-day__note {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--home-black-light);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 16px;
+    letter-spacing: -.22px;
+  }
+  /* The dot the phone draws on its own is now the bullet of the name it
+     stands for. */
+  .schedcal-day__note::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-right: 5px;
+    vertical-align: 1px;
+    border-radius: 50%;
+    background: var(--stage-more);
+  }
+  .schedcal-day__note--follow-up::before { background: var(--stage-follow-up); }
+  .schedcal-day__note--payment::before   { background: var(--stage-payment); }
+  .schedcal-day__note--more { color: var(--home-grid); }
+  /* A day with one name has the second line to itself, so the name wraps into
+     it instead of ending in an ellipsis after four letters — which is what a
+     72px column beside the iPad-landscape side column left of "Laras Sasmita".
+     Where the column is wide enough the name still fits on one line and
+     nothing changes. A single word longer than the key still breaks rather
+     than running out under the face. */
+  .schedcal-day__note:only-child {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+    overflow-wrap: break-word;
+  }
+
+  /* The day the sheet is showing is held down for as long as it is open, and
+     ringed — ink on paper, paper on a sunk key. Where the sheet is a side panel
+     that is how the grid says which day the panel is about. The ring takes over
+     from today's orange while it is open; today keeps its rail. */
+  .schedcal-day[aria-selected="true"] { grid-template-rows: 68px 2px; }
+  .schedcal-day--quiet[aria-selected="true"],
+  .schedcal-day--outside[aria-selected="true"] { grid-template-rows: 2px 68px; }
+  .schedcal-day[aria-selected="true"] .schedcal-day__face { box-shadow: inset 0 0 0 2px var(--home-black); }
+  .schedcal-day--quiet[aria-selected="true"] .schedcal-day__face,
+  .schedcal-day--outside[aria-selected="true"] .schedcal-day__face { box-shadow: inset 0 0 0 2px var(--home-white); }
+
+  /* A lane tall enough to read. The <i> is italic by default, hence the reset;
+     green and orange are too light for paper-coloured words, so those two
+     carry ink. */
+  .schedcal-band {
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+  }
+  .schedcal-band__label {
+    display: block;
+    min-width: 0;
+    padding: 0 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--home-white);
+    font-size: 11px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: 16px;
+    letter-spacing: -.22px;
+  }
+  .schedcal-band--fitting-1 .schedcal-band__label,
+  .schedcal-band--fitting-3 .schedcal-band__label { color: var(--home-black); }
+
+  .schedcal-approx { padding: 20px var(--sched-edge) 0; }
+  .schedcal-legend { padding: 0 var(--sched-edge) 12px; gap: 8px 20px; }
+
+  /* Below the rail the day sheet is a dialog in the middle of the page, as
+     every sheet is at this width. */
+  .schedcal-sheet {
+    align-items: center;
+    padding: 24px 24px 24px calc(var(--rail-w) + 24px);
+  }
+  .schedcal-sheet__panel {
+    width: min(560px, 100%);
+    max-height: min(720px, 80svh);
+    transform: none;
+    padding-bottom: 24px;
+    border: 1px solid var(--home-grid);
+    animation: dialog-rise var(--motion-sheet-in) var(--ease-out-expo);
+  }
+  .schedcal-sheet.is-closing .schedcal-sheet__panel {
+    animation: dialog-fall var(--motion-sheet-out) var(--ease-standard) both;
+  }
+
+  /* The pager stays in thumb reach at the foot on iPad portrait; it just stops
+     stretching its two keys to the window's edges. */
+  .schedcal-monthbar { left: var(--rail-w); }
+  .schedcal-monthbar__inner { max-width: 480px; padding-inline: var(--gutter); }
+}
+
+@media (min-width: 1100px) {
+  body.is-schedulespage { --schedcal-aside: 340px; }
+
+  .view.schedcal:not([hidden]) {
+    display: grid;
+    grid-template-columns:
+      [bleed-start] minmax(0, 1fr)
+      [main-start] minmax(0, calc(var(--schedcal-max) - var(--schedcal-aside)))
+      [main-end aside-start] var(--schedcal-aside)
+      [aside-end] minmax(0, 1fr) [bleed-end];
+    grid-template-rows: auto auto 1fr auto auto;
+    min-height: 100svh;
+    min-height: 100dvh;
+  }
+  .schedcal-head { grid-column: bleed-start / bleed-end; grid-row: 1; }
+  .schedcal-body { grid-column: main; grid-row: 2; }
+  /* The grid's closing rule runs the full width under both columns, which is
+     where the side column's vertical rule stops. */
+  .schedcal > .schedcal-grid-rule { grid-column: bleed-start / bleed-end; grid-row: 4; }
+  .schedcal-footer { grid-column: bleed-start / bleed-end; grid-row: 5; }
+
+  .schedcal-titleband { padding-block: 20px; }
+  .schedcal-title { font-size: 48px; line-height: 56px; letter-spacing: -1.44px; }
+  .schedcal-title__year { font-size: 28px; line-height: 32px; letter-spacing: -.84px; }
+
+  /* Inside the month column the edge is the column's own. */
+  .schedcal-grid { padding-inline: var(--gutter); }
+  .schedcal-state { padding-inline: var(--gutter); }
+  /* So are the head's ticks: the right one stands on the grid's edge, under
+     Today, not out in the side column on the edge of the pager. */
+  .schedcal-head > .schedcal-grid-spacer::after {
+    right: calc(max(0px, (100% - var(--schedcal-max)) / 2) + var(--schedcal-aside) + var(--gutter));
+  }
+
+  /* The column's rule starts at the title band, not 24px under it: the ::before
+     carries it up through the spacer the head ends with. */
+  .schedcal-aside {
+    position: relative;
+    grid-column: aside;
+    grid-row: 2 / 4;
+    padding: 24px var(--gutter);
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    border-left: 1px solid var(--home-grid);
+  }
+  .schedcal-aside::before {
+    content: '';
+    position: absolute;
+    top: -24px;
+    left: -1px;
+    width: 1px;
+    height: 24px;
+    background: var(--home-grid);
+  }
+  .schedcal-aside__hint {
+    display: block;
+    margin: 0;
+    color: var(--home-white-dark);
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 20px;
+    letter-spacing: -.28px;
+  }
+  .schedcal-aside > .schedcal-grid-spacer { display: none; }
+  .schedcal-approx { padding: 0; }
+  /* The key, read down a column rather than across a line. */
+  .schedcal-legend {
+    padding: 0;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 10px;
+  }
+  .schedcal-legend::before {
+    content: 'In this month';
+    color: var(--home-grid);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 16px;
+    letter-spacing: .6px;
+    text-transform: uppercase;
+  }
+  .schedcal-legend__item { font-size: 13px; line-height: 18px; }
+
+  /* The pager at the head of the side column. Its keys are the nav's 48 + 7,
+     so the three controls along the top read as one row, and its lower rule
+     lands on the title band's upper one. It no longer takes room at the foot,
+     so the page stops reserving it. */
+  .schedcal-monthbar {
+    top: 0;
+    bottom: auto;
+    left: auto;
+    right: max(0px, (100% - var(--rail-w) - var(--schedcal-max)) / 2);
+    width: var(--schedcal-aside);
+    padding-bottom: 0;
+    transform: none;
+    border-top: 0;
+    border-left: 1px solid var(--home-grid);
+    border-bottom: 1px solid var(--home-grid);
+  }
+  .schedcal-monthbar__inner {
+    max-width: none;
+    padding: 12px var(--gutter) 24px;
+    grid-template-columns: 56px 1fr 56px;
+  }
+  .schedcal-monthbar__btn { grid-template-rows: 48px 7px; }
+  .schedcal-monthbar__btn:active,
+  .schedcal-monthbar__btn.is-pressed { grid-template-rows: 53px 2px; }
+  body.has-schedcal-monthbar .schedcal { padding-bottom: 0; }
+
+  /* The day sheet as the side column itself: no veil, nothing between the
+     pointer and the month, so the next day is one click away. Only the panel
+     takes events; the full-screen box around it lets them through. */
+  .schedcal-sheet {
+    display: block;
+    padding: 0;
+    pointer-events: none;
+  }
+  .schedcal-sheet__backdrop { display: none; }
+  .schedcal-sheet__panel {
+    position: absolute;
+    top: 92px;
+    bottom: 0;
+    right: max(0px, (100% - var(--rail-w) - var(--schedcal-max)) / 2);
+    width: var(--schedcal-aside);
+    max-height: none;
+    padding-bottom: 24px;
+    pointer-events: auto;
+    border: 0;
+    border-left: 1px solid var(--home-grid);
+    animation: pane-in var(--motion-sheet-in) var(--ease-out-expo);
+  }
+  .schedcal-sheet.is-closing .schedcal-sheet__panel {
+    animation: pane-out var(--motion-sheet-out) var(--ease-standard) both;
+  }
+  /* The panel's head is the month's title band continued: the eyebrow and the
+     title start on the same lines as the month's, and the rule under them is
+     the same rule — 20 + an 18px eyebrow + the 56px month title + 20, plus the
+     rule itself. Past the column's edge the title band's own rule carries on
+     to the window, so the two read as one line rather than a step. */
+  .schedcal-sheet__head {
+    min-height: calc(20px + 18px + 56px + 20px + 1px);
+    padding: 20px var(--gutter) 16px;
+  }
+  .schedcal-sheet__list { padding: 16px var(--gutter); }
+  .schedcal-sheet__close { margin: 0 var(--gutter); }
+  /* The column is narrower than a phone's sheet, so the dates drop under the
+     names instead of squeezing them: who, what, when, each a whole line. */
+  .schedcal-sheet__face {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+  /* Stacked, the face's narrowest is its longest unbroken line; the row's one
+     track has to be allowed below that or the names push past the padding
+     instead of ending in an ellipsis. */
+  .schedcal-sheet__link { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (min-width: 1400px) {
+  body.is-schedulespage { --schedcal-aside: 380px; }
+}
+
+@media (min-width: 744px) and (prefers-reduced-motion: reduce) {
+  .schedcal-sheet__panel,
+  .schedcal-sheet.is-closing .schedcal-sheet__panel { animation: none; }
+}
+
+/* Pointer only: a tint on the face, never a lift. The press still wins,
+   because a hover never matches a key that is going down. */
+@media (min-width: 744px) and (hover: hover) and (pointer: fine) {
+  .schedcal-day:not(.schedcal-day--skel):not(.schedcal-day--quiet):not(.schedcal-day--outside):not(:active):not(.is-pressed):hover .schedcal-day__face,
+  .schedcal-monthbar__btn:not(:active):not(.is-pressed):hover .schedcal-monthbar__face,
+  .schedcal-sheet__link:not(:active):not(.is-pressed):hover .schedcal-sheet__face,
+  .schedcal-sheet__close:not(:active):not(.is-pressed):hover .schedcal-sheet__close-face {
+    background-image: linear-gradient(rgba(0,0,0,.03), rgba(0,0,0,.03)), linear-gradient(180deg, rgba(0,0,0,.04), transparent);
+  }
+  .schedcal-day--quiet:not(:active):not(.is-pressed):hover .schedcal-day__face {
+    background-image: linear-gradient(rgba(255,255,255,.06), rgba(255,255,255,.06)), linear-gradient(180deg, rgba(0,0,0,.28), transparent 70%);
+  }
+  .schedcal-day--outside:not(:active):not(.is-pressed):hover .schedcal-day__face {
+    background-image: linear-gradient(rgba(255,255,255,.04), rgba(255,255,255,.04));
+  }
+  .schedcal-panel__retry:not(:active):not(.is-pressed):hover .schedcal-panel__retry-face {
+    background-image: linear-gradient(180deg, rgba(255,255,255,.14), transparent);
+  }
+}
+
 /* ------------------------- Quotations & invoices -------------------------- */
 
 /* One page, two routes. Structurally the fitting feed — same black ledger, same
@@ -4794,6 +6433,103 @@ body.is-doclistpage .fitlog-search__clear:focus-visible {
   .doclist-card__rail { transition: none; }
 }
 
+/* ------------------------ Documents, wide screens ------------------------ */
+
+/* A phone sees three skeleton cards. The wide grid below asks app.js for six,
+   so it loads in whole rows; the spare three stay out of the single column. */
+.doclist-skel-cell:nth-child(n+4) { display: none; }
+
+/* The fitting feed's wide layout, line for line, because this is the same
+   object on the same canvas: from iPad portrait up the canvas is the whole page
+   area, documents become a grid of the same cards, each column its own ledger
+   strip — 1px sides, a tick at every card edge, 24px between neighbours — and
+   the rules above and below a row run unbroken from one page edge to the other.
+
+   Scoped to .doclist throughout: the search band is the fitting feed's block,
+   and that page owns its own wide version of it. */
+@media (min-width: 744px) {
+  body.is-doclistpage { background: var(--home-black); }
+  body.is-doclistpage .page { width: 100%; max-width: none; }
+
+  /* Where content starts: the gutter, or wherever centring a --content-max
+     column puts it. The percentage resolves against whoever uses it, so only
+     blocks that span the page may — the grids subtract their own half gap. */
+  .doclist { --doc-edge: max(var(--gutter), calc((100% - var(--content-max)) / 2)); }
+
+  /* Back over the first card's edge, New over the last one's. */
+  body.is-doclistpage .cust-nav {
+    left: var(--page-mid);
+    width: calc(100% - var(--rail-w));
+    max-width: calc(var(--content-max) + 2 * var(--gutter));
+    padding-inline: var(--gutter);
+  }
+
+  .doclist-head > .doclist-grid-spacer::before,
+  .doclist-state > .doclist-grid-spacer::before { left: var(--doc-edge); }
+  .doclist-head > .doclist-grid-spacer::after,
+  .doclist-state > .doclist-grid-spacer::after { right: var(--doc-edge); }
+  .doclist-title { padding: 16px var(--doc-edge); }
+  .doclist-title h1 { font-size: 40px; line-height: 48px; letter-spacing: -1.2px; }
+
+  /* The band runs the page's width; the field starts on the cards' edge. */
+  .doclist .fitlog-search { padding-inline: var(--doc-edge); }
+
+  /* A wider card has room for "Invoice · Termin 2 of 3" whole. The names keep
+     at least half, because they are what the eye is scanning for. */
+  .doclist-card__kind { width: auto; max-width: 50%; }
+
+  .doclist-list,
+  .doclist-skel-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding-inline: calc(var(--doc-edge) - 12px);
+  }
+  .doclist-skel-cell:nth-child(n+4) { display: block; }
+  .doclist-list .doclist-inset,
+  .doclist-skel-grid .doclist-inset { padding-inline: 12px; }
+  .doclist-list .doclist-grid-spacer::before,
+  .doclist-skel-grid .doclist-grid-spacer::before { left: 12px; }
+  .doclist-list .doclist-grid-spacer::after,
+  .doclist-skel-grid .doclist-grid-spacer::after { right: 12px; }
+  /* Every card is the same height — one line per name, one for the kind, one
+     for date and amount — so each record's rules can simply be drawn long:
+     they overlap their neighbours' exactly, cover the gaps and the margins,
+     and the feed clips them at the page edge. */
+  .doclist-feed { overflow-x: clip; }
+  .doclist-list .doclist-grid-rule,
+  .doclist-skel-grid .doclist-grid-rule { position: relative; }
+  .doclist-list .doclist-grid-rule::before,
+  .doclist-skel-grid .doclist-grid-rule::before {
+    content: '';
+    position: absolute;
+    inset: 0 -100vw;
+    background: var(--home-grid);
+  }
+  /* Empty and error read across the whole column, the way the search band
+     above them does, rather than as one more card in the first slot. */
+  .doclist-state > .doclist-inset { padding-inline: var(--doc-edge); }
+  .doclist-panel__copy { max-width: 60ch; }
+}
+
+@media (min-width: 1100px) {
+  .doclist-title { padding-block: 20px; }
+  .doclist-title h1 { font-size: 48px; line-height: 56px; letter-spacing: -1.44px; }
+}
+
+/* Three across once each card is still wider than the phone's — the same
+   break the fitting feed takes, so the two lists change shape together. */
+@media (min-width: 1280px) {
+  .doclist-list,
+  .doclist-skel-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (min-width: 744px) and (hover: hover) and (pointer: fine) {
+  .doclist-card-link:not(:active):hover .doclist-card {
+    background-image: linear-gradient(rgba(0,0,0,.03), rgba(0,0,0,.03));
+  }
+  .doclist-panel__retry:hover { background-image: linear-gradient(180deg, rgba(255,255,255,.08), transparent); }
+}
+
 /* ------------------------- Order editor (ledger) ------------------------- */
 
 /* The last form still speaking the app-chrome language: light rounded cards on
@@ -4815,6 +6551,12 @@ body.is-ordereditpage .appbar {
 body.is-ordereditpage .appbar,
 body.is-ordereditpage .appbar a,
 body.is-ordereditpage .appbar button { color: var(--home-white); }
+/* The overflow menu lives inside the bar but is drawn on paper, so the bar's
+   cream ink made Delete order, the destinations and Sign out cream on cream. */
+body.is-ordereditpage .appbar .menu__item { color: var(--ink); text-decoration: none; }
+body.is-ordereditpage .appbar .menu__item--danger { color: var(--danger); }
+/* The bar's icons kept the paper bar's muted ink and all but vanished on black. */
+body.is-ordereditpage .appbar__icon svg { color: rgba(254,250,241,.6); }
 
 /* The title sits in the ledger the way the customer editor's does — the same
    32px paper heading, inside the black rather than above it. */
@@ -4967,6 +6709,134 @@ body.is-ordereditpage .card .input:focus-visible {
   outline-offset: 1px;
 }
 
+/* Wide screens. The form stays one column — it is read top to bottom and
+   saved as one — but the column is a comfortable 820px on the black ledger
+   instead of a phone held up against a grey frame, and what is short sits
+   side by side: the two names, the three payment dates, an item's numbers on
+   the same line as its description, the custom terms two to a row. */
+@media (min-width: 744px) {
+  body.is-ordereditpage { background: var(--home-black); }
+  body.is-ordereditpage .page,
+  body.is-ordereditpage.has-savebar .page { width: 100%; max-width: none; }
+  body.is-ordereditpage .pagehead,
+  body.is-ordereditpage #viewOrderEdit {
+    width: min(100% - 2 * var(--gutter), 820px);
+    margin-left: auto;
+    margin-right: auto;
+  }
+  body.is-ordereditpage .pagehead { padding: 32px 0 24px; }
+  body.is-ordereditpage .pagehead__title { font-size: 40px; line-height: 48px; letter-spacing: -1.2px; }
+
+  /* The bar shares the form's column, not the utility pages' 560px, so Up
+     sits over the cards' left edge and the menu's dots end on their right —
+     the same insets the enquiry and calendar bars use. Its icons were ink at
+     half strength on black, which is to say not there; and on this page
+     nothing else is round. */
+  body.is-ordereditpage .appbar__inner {
+    max-width: calc(820px + 2 * var(--gutter));
+    padding-right: calc(var(--gutter) - 20px);
+    padding-left: calc(var(--gutter) - 12px);
+  }
+  body.is-ordereditpage .appbar__icon svg { color: rgba(254,250,241,.6); }
+  body.is-ordereditpage .appbar__up,
+  body.is-ordereditpage .appbar__icon { border-radius: 0; }
+  /* The paper colour given to the bar's links above reached into the menu
+     too, which is cream: every item was cream on cream. The menu becomes a
+     ledger card — square, ruled, no shadow — with its ink back. */
+  body.is-ordereditpage .appbar .menu__list {
+    background: var(--home-white);
+    border-color: var(--home-grid);
+    border-radius: 0;
+    box-shadow: none;
+  }
+  body.is-ordereditpage .appbar .menu__item { color: var(--home-black); border-radius: 0; text-decoration: none; }
+  body.is-ordereditpage .appbar .menu__item--danger { color: var(--danger); }
+  body.is-ordereditpage .card { margin: 0 0 36px; padding: 20px 24px 24px; gap: 16px; }
+
+  /* Details: the two names on one line, the three dates on the next. */
+  body.is-ordereditpage #viewOrderEdit > .card:has(#oTitle) {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 20px 24px;
+    align-items: start;
+  }
+  body.is-ordereditpage #viewOrderEdit > .card:has(#oTitle) > * { grid-column: 1 / -1; }
+  body.is-ordereditpage #viewOrderEdit > .card:has(#oTitle) > label[for="oTitle"],
+  body.is-ordereditpage #viewOrderEdit > .card:has(#oTitle) > label[for="oDocName"] { grid-column: span 3; }
+  body.is-ordereditpage #viewOrderEdit > .card:has(#oTitle) > label[for="oFirstPayment"],
+  body.is-ordereditpage #viewOrderEdit > .card:has(#oTitle) > label[for="oSecondPayment"],
+  body.is-ordereditpage #viewOrderEdit > .card:has(#oTitle) > label[for="oFinalPayment"] { grid-column: span 2; }
+
+  /* Items: the description over one row of numbers — qty, price, cost —
+     and, once the card is wide enough, the description joins that row too.
+     The row wrapper steps aside (display: contents) so qty and price are
+     cells of the item's own grid; the running sum and any error follow the
+     row rather than interrupting it. A container query, because the width
+     that matters is the card's, not the window's. */
+  /* The card, not the list, is the container: containment scopes counters,
+     and on the list itself it reset "Item N" to 1 on every row. */
+  body.is-ordereditpage #viewOrderEdit > .card:has(#itemList) { container-type: inline-size; }
+  body.is-ordereditpage #itemList .item {
+    display: grid;
+    grid-template-columns: 88px minmax(0, 1fr) minmax(0, 1.25fr);
+    gap: 12px 16px;
+    align-items: start;
+    /* The rule above is the item's only edge, as the comment on .item says;
+       the shared box's other three sides were still showing through. */
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    padding-bottom: 4px;
+  }
+  body.is-ordereditpage #itemList .item > * { grid-column: 1 / -1; }
+  body.is-ordereditpage #itemList .item__row2 { display: contents; }
+  body.is-ordereditpage #itemList .item__row2 .field--qty { grid-column: 1; width: auto; }
+  body.is-ordereditpage #itemList .item__row2 .field--price { grid-column: 2; }
+  body.is-ordereditpage #itemList .item > .field:has(.js-cost) { grid-column: 3; }
+  body.is-ordereditpage #itemList .item__sum { order: 1; grid-column: 1 / 3; }
+  body.is-ordereditpage #itemList .item > .err { order: 2; }
+  body.is-ordereditpage #itemList .item > .err[hidden] { display: none; }
+}
+
+@container (min-width: 740px) {
+  body.is-ordereditpage #itemList .item {
+    grid-template-columns: minmax(0, 1fr) 56px 150px 240px;
+  }
+  body.is-ordereditpage #itemList .item > .field:has(.js-name) { grid-column: 1; }
+  body.is-ordereditpage #itemList .item__row2 .field--qty { grid-column: 2; }
+  body.is-ordereditpage #itemList .item__row2 .field--price { grid-column: 3; }
+  body.is-ordereditpage #itemList .item > .field:has(.js-cost) { grid-column: 4; }
+  body.is-ordereditpage #itemList .item__sum { grid-column: 2 / 4; }
+  /* The calculator keeps its 44px target but not its 44px of row: it hangs
+     over the field's own line so every input on the row shares a baseline. */
+  body.is-ordereditpage #itemList .calc-trigger { margin-block: -6px; }
+}
+
+@media (min-width: 744px) {
+  /* Custom terms: a label and a share are short, so two terms to a row. */
+  body.is-ordereditpage .termlist {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px 24px;
+  }
+  body.is-ordereditpage .termlist > .term:nth-child(2) { border-top: 0; padding-top: 0; }
+  /* As with items: the rule above a term is its only edge. */
+  body.is-ordereditpage .termlist > .term { border-right: 0; border-bottom: 0; border-left: 0; }
+  body.is-ordereditpage .addrow { max-width: 520px; }
+}
+
+@media (min-width: 1100px) {
+  body.is-ordereditpage .pagehead__title { font-size: 48px; line-height: 56px; letter-spacing: -1.44px; }
+  /* Customers is the rail's first link; the bar's house only repeated it. */
+  body.is-ordereditpage #homeLink { display: none; }
+}
+
+/* The shared hover is an ink tint, which on this black bar is nothing. */
+@media (min-width: 744px) and (hover: hover) and (pointer: fine) {
+  body.is-ordereditpage .appbar__up:hover,
+  body.is-ordereditpage .appbar__icon:hover { background: rgba(254,250,241,.08); }
+}
+
 /* ------------------ Cost sheet, over the order editor ------------------- */
 
 /* It opens from the editor and covers it entirely, so leaving it in the light
@@ -5030,6 +6900,78 @@ body.is-ordereditpage .calcsheet a:focus-visible,
 body.is-ordereditpage .calcsheet button:focus-visible { outline: 2px solid var(--home-white); outline-offset: 2px; }
 body.is-ordereditpage .calcrow button:focus-visible,
 body.is-ordereditpage .calcrow .input:focus-visible { outline: 2px solid var(--home-black); outline-offset: 1px; }
+
+/* Wide screens: a scratchpad, so a dialog rather than a page. It centres on
+   the page beside the rail, over a dimmed editor, with its total and its two
+   keys inside its own frame instead of fixed to the bottom of the window —
+   the bar belongs to the sheet, not the screen. Rows lay category and amount
+   side by side, which the phone could not afford. */
+@media (min-width: 744px) {
+  /* A modal over the whole window, the side rail included — the rail sits at
+     120, so at the sheet's phone layer (50) it stayed lit and live beside a
+     dialog that is meant to hold focus. 210 is where the other pickers sit. */
+  body.is-ordereditpage .calcsheet {
+    z-index: 210;
+    padding: max(48px, 8vh) var(--gutter);
+    padding-left: calc(var(--rail-w) + var(--gutter));
+    align-items: center;
+    justify-content: center;
+    background: rgba(13,13,13,.62);
+    /* The phone sheet rises as one surface. Here the dim is a veil and the
+       frame is a dialog, so they move the way the other wide dialogs do: the
+       veil fades in place, the panel and its bar take the 14px rise. */
+    animation: sheet-veil-in var(--motion-sheet-in) var(--ease-standard) both;
+  }
+  body.is-ordereditpage .calcsheet__panel,
+  body.is-ordereditpage #calcActionbar {
+    animation: dialog-rise var(--motion-sheet-in) var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+  }
+  body.is-ordereditpage .calcsheet__panel {
+    flex: 0 1 auto;
+    width: min(100%, 600px);
+    max-width: none;
+    margin: 0;
+    padding: 0 24px 24px;
+    background: var(--home-black);
+    border: 1px solid var(--home-grid);
+    border-bottom: 0;
+  }
+  body.is-ordereditpage .calcsheet__head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    margin: 0 -24px 24px;
+    padding: 20px 24px;
+  }
+  body.is-ordereditpage .calcrow {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 200px;
+    gap: 16px;
+    padding-right: 64px;
+  }
+  /* With the fields on one line the dismiss belongs on that line, and at a
+     touch target's 44px rather than the phone corner's 40. */
+  body.is-ordereditpage .calcrow__remove {
+    top: calc(50% - 22px);
+    right: 12px;
+    width: 44px;
+    height: 44px;
+  }
+  body.is-ordereditpage #calcActionbar {
+    position: relative;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    flex: none;
+    width: min(100%, 600px);
+    transform: none;
+    border: 1px solid var(--home-grid);
+  }
+  body.is-ordereditpage #calcActionbar .actionbar__inner {
+    max-width: none;
+    padding: 16px 24px 20px;
+  }
+}
 
 /* ----------------------- Penjahit production ledger ---------------------- */
 
@@ -5095,6 +7037,42 @@ body.is-ordereditpage .calcrow .input:focus-visible { outline: 2px solid var(--h
   background: rgba(254, 250, 241, .12);
 }
 .production-tabs a[aria-current="page"] .production-tabs__count { color: var(--home-white); background: var(--home-black); }
+
+/* Wide screens put the tabs beside the search rather than over it, so there is
+   no panel below for a folder tab to open into. They become a pair of keys
+   the height of the search key: the selected one wears the search's cream and
+   rail, so the tab and the field it filters still read as one surface, and the
+   other is the dark face the enquiries bar wears. */
+@media (min-width: 744px) {
+  .production-tabs {
+    flex: none;
+    grid-template-columns: repeat(2, minmax(168px, auto));
+    gap: 1px;
+    padding: 0;
+    background: none;
+    border-top: 0;
+  }
+  .production-tabs a {
+    min-height: 0;
+    height: 55px;
+    padding: 0 20px;
+    background: linear-gradient(180deg, rgba(255,255,255,.1), transparent), var(--home-black-light);
+    border-bottom: 7px solid var(--home-black);
+    transition: color var(--motion-quick) var(--ease-standard), border-bottom-width 120ms var(--ease-out-expo);
+  }
+  .production-tabs a[aria-current="page"] {
+    background: var(--home-white);
+    border-bottom-color: var(--home-white-dark);
+  }
+  .production-tabs a[aria-current="page"]::after { content: none; }
+  /* The press: rail height moves into the face, the key's total stays 55px. */
+  .production-tabs a:active { border-bottom-width: 2px; }
+}
+@media (min-width: 744px) and (hover: hover) and (pointer: fine) {
+  .production-tabs a:not([aria-current="page"]):hover {
+    background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.06)), var(--home-black-light);
+  }
+}
 
 /* Summary rail on the penjahit tab is the customer tab's rail exactly — the
    count is the rail, nothing shares it. */
@@ -5220,6 +7198,9 @@ body.is-productionpage button:focus-visible { outline: 2px solid var(--home-whit
 .cust-order-card__meta--owed span:last-child { color: var(--danger); font-weight: 700; }
 .cust-order-card__meta--due { color: var(--home-grid); }
 .cust-order-card__meta--late { color: var(--danger); font-weight: 700; }
+/* Column heads exist only for the wide-screen table; a phone card labels its
+   own lines. */
+.production-jobs__head { display: none; }
 
 /* ------------------------------- Stepper --------------------------------- */
 
@@ -5396,6 +7377,10 @@ select.custedit-input { appearance: none; -webkit-appearance: none; }
 .pbtn:not(:disabled):active { box-shadow: inset 0 -2px rgba(0, 0, 0, .18); }
 .pbtn:disabled { opacity: .6; cursor: default; }
 
+/* Parts of the record skeleton drawn only on a wide screen (see the wide
+   block below); the phone skeleton is the shared stack it always was. */
+.route-loader__canvas--record .production-skel-wide { display: none; }
+
 /* -------------------------------- Wizard bar ----------------------------- */
 
 /* The customer editor's save button, exactly: green face over a darker rail,
@@ -5439,6 +7424,476 @@ body.is-custeditpage #productionNext:not(:disabled):active { grid-template-rows:
 .btn__sub { display: block; max-width: 90%; overflow: hidden; font-size: 12px; font-weight: 500; line-height: 16px; letter-spacing: -.24px; text-overflow: ellipsis; white-space: nowrap; opacity: .72; }
 .btn__sub[hidden] { display: none; }
 
+/* Wide screens — every production page, the wizard bar and the record
+   skeleton.
+
+   Reading pages (penjahit, job): the ledger runs edge to edge and its rules
+   stay full width; what is centred is the content inside it. --prod-in is the
+   inset that centres --prod-max in whatever box uses it — a percentage, so it
+   resolves against that box, which is why the ticks, the insets and the title
+   band can all share it and still land on the same two vertical lines.
+
+   Forms (penjahit editor, wizard, job edit) are the customer editor's page
+   and take its wide geometry from body.is-custeditpage as they stand: one
+   centred --form-w column, cards at the usual 24px inset inside it. Only what
+   that editor does not have is added here. */
+@media (min-width: 744px) {
+  .production,
+  .route-loader__canvas--record {
+    /* The order page's measure (main + gap + aside), so going order → job →
+       penjahit, Back and every content edge stay exactly where they were. */
+    --prod-max: 1208px;
+    --prod-in: max(var(--gutter), calc((100% - var(--prod-max)) / 2));
+  }
+
+  /* The #292929 frame was a phone device; here the black ledger is the page. */
+  body.is-productionpage { background: var(--home-black); }
+  body.is-productionpage .page { width: 100%; max-width: none; }
+
+  /* The nav centres on the page beside the side rail and stops at the
+     content's width, so Back sits over the content's left edge. */
+  .production .order-nav,
+  .route-loader__canvas--record .order-skel__nav {
+    left: var(--page-mid);
+    width: calc(100% - var(--rail-w));
+    max-width: calc(var(--prod-max) + 2 * var(--gutter));
+    padding-inline: var(--gutter);
+  }
+
+  .production .order-title-band,
+  .production .order-inset,
+  .production .cust-summary,
+  .production .cust-inset,
+  .production .cust-order-record__inset,
+  .route-loader__canvas--record .order-skel__title,
+  .route-loader__canvas--record .order-inset { padding-inline: var(--prod-in); }
+  .production .order-grid-spacer::before,
+  .production .cust-grid-spacer::before,
+  .route-loader__canvas--record .order-grid-spacer::before { left: var(--prod-in); }
+  .production .order-grid-spacer::after,
+  .production .cust-grid-spacer::after,
+  .route-loader__canvas--record .order-grid-spacer::after { right: var(--prod-in); }
+  .production .order-ledger > .form-error { margin-inline: var(--prod-in); }
+  /* The same 48px (two insets) that splits the order cards above, so each
+     button sits under a column of cards. */
+  .production-form .production-add { gap: 48px; }
+
+  .production .order-title { font-size: 40px; line-height: 48px; letter-spacing: -1.2px; }
+  .production-sub { max-width: 75ch; }
+  /* The order page's wide title band is a subgrid of its two-column ledger.
+     These ledgers are not grids, so the band goes back to a plain block. */
+  .production .order-title-band { display: block; }
+
+  /* The record skeleton is drawn for these pages only, so it takes their
+     geometry rather than the order page's grid. */
+  .route-loader[data-kind="record"] .route-loader__canvas--record .order-skel__ledger { display: block; }
+  /* The sub line hangs 4px under the title, so the band's rules land where
+     the loaded band's do. */
+  .route-loader[data-kind="record"] .route-loader__canvas--record .order-skel__title { display: flex; gap: 4px; }
+  .route-loader[data-kind="record"] .route-loader__canvas--record .order-skel__title .order-skel__block { width: min(480px, 60%); height: 48px; }
+  .route-loader[data-kind="record"] .route-loader__canvas--record .order-skel__title .order-skel__block--short { display: block; width: min(360px, 40%); height: 20px; }
+
+  /* Penjahit page: the money is the headline, so its rows open out into a
+     band of figures read left to right, one hairline between each. */
+  #penjahitTotals { grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+  #penjahitTotals > div {
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 0 16px;
+    border-bottom: 0;
+    border-left: 1px solid var(--home-white-dark);
+  }
+  #penjahitTotals > div:first-child { padding-left: 0; border-left: 0; }
+  #penjahitTotals > div:last-child { padding-right: 0; }
+  #penjahitTotals dt { font-size: 13px; line-height: 18px; letter-spacing: -.39px; }
+  #penjahitTotals dd {
+    text-align: left;
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 28px;
+    letter-spacing: -.6px;
+    overflow-wrap: normal;
+    white-space: nowrap;
+  }
+  #penjahitTotals .production-totals__lead dd { font-weight: 700; }
+
+  /* The filter strip: search and the four chips on one line, hung from the
+     summary rule like any card, both 56px so their rails meet. */
+  .production-jobs {
+    display: grid;
+    grid-template-columns: [full-start] var(--prod-in) [content-start] minmax(0, 1fr) minmax(0, var(--prod-chips, 352px)) [content-end] var(--prod-in) [full-end];
+  }
+  .production-jobs > * { grid-column: full; min-width: 0; }
+  .production-jobs > .fitlog-search-section { grid-column: content-start / span 1; border-left: 1px solid var(--home-grid); }
+  .production-jobs > .production-stages {
+    grid-column: 3 / content-end;
+    border-left: 1px solid var(--home-grid);
+    border-right: 1px solid var(--home-grid);
+    border-bottom: 1px solid var(--home-grid);
+  }
+  .production-stages .fitlog-stage { grid-template-rows: 48px 7px; }
+  /* The search's rule moves from its rail to the strip's bottom edge, where
+     the chips draw theirs; on the rail it sat 1px above them. */
+  .production-jobs > .fitlog-search-section { border-bottom: 1px solid var(--home-grid); }
+  .production-jobs > .fitlog-search-section .fitlog-search__rail { border-bottom: 0; }
+
+  /* Jobs become a ledger table: one cream sheet, a row per job, columns that
+     line up down the page. The card's own spans are placed into the columns
+     (top and meta give up their boxes), so the phone card and the table row
+     are the same markup. Each row keeps a 4px rail — a shallow key — and the
+     last a full one, so pressing still moves the rail into the face. */
+  .production {
+    --pjob-cols: minmax(0, 1fr) 128px 88px 136px;
+  }
+  .production .production-jobs__head { display: block; }
+  .production-jobs:has(#productionJobs > .empty) .production-jobs__head { display: none; }
+  .production-jobs__cols,
+  .production #productionJobs .cust-order-card__face {
+    display: grid;
+    grid-template-columns: var(--pjob-cols);
+    gap: 2px 16px;
+    align-items: baseline;
+    padding: 12px 16px;
+  }
+  .production-jobs__cols {
+    background: var(--home-white);
+    border-left: 1px solid var(--home-grid);
+    border-right: 1px solid var(--home-grid);
+    border-bottom: 1px solid var(--home-white-dark);
+    color: var(--home-grid);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 16px;
+    letter-spacing: .6px;
+    text-transform: uppercase;
+  }
+  .production-jobs__cols > :nth-child(2) { display: none; }
+  .production-jobs__cols > :last-child { text-align: right; }
+
+  .production #productionJobs > .cust-grid-spacer:not(:last-child):not(:has(+ .empty)),
+  .production #productionJobs > .cust-grid-rule:not(:nth-last-child(2)) { display: none; }
+  .production #productionJobs .cust-order-card__rail { height: 4px; }
+  .production #productionJobs > .cust-order-record__inset:nth-last-child(3) .cust-order-card__rail { height: 12px; }
+  .production #productionJobs .cust-order-card:active .cust-order-card__face,
+  .production #productionJobs .cust-order-card.is-pressed .cust-order-card__face { padding-top: 14px; padding-bottom: 14px; }
+  .production #productionJobs .cust-order-card:active .cust-order-card__rail,
+  .production #productionJobs .cust-order-card.is-pressed .cust-order-card__rail { height: 0; }
+  .production #productionJobs > .cust-order-record__inset:nth-last-child(3) .cust-order-card:active .cust-order-card__rail,
+  .production #productionJobs > .cust-order-record__inset:nth-last-child(3) .cust-order-card.is-pressed .cust-order-card__rail { height: 8px; }
+
+  .production #productionJobs .cust-order-card__top,
+  .production #productionJobs .cust-order-card__meta { display: contents; }
+  .production #productionJobs .cust-order-card__name {
+    grid-column: 1;
+    grid-row: 1;
+    font-size: 16px;
+    line-height: 20px;
+    letter-spacing: -.48px;
+  }
+  .production #productionJobs .cust-order-card__badge { grid-column: 3; grid-row: 1; height: auto; padding: 0; white-space: normal; }
+  .production #productionJobs .cust-order-card__top + .cust-order-card__meta > span:first-child {
+    grid-column: 1;
+    grid-row: 2;
+    width: auto;
+    color: var(--home-grid);
+  }
+  .production #productionJobs .cust-order-card__top + .cust-order-card__meta > span:last-child { grid-column: 4; grid-row: 1; text-align: right; }
+  .production #productionJobs .cust-order-card__meta + .cust-order-card__meta > span { grid-column: 2; grid-row: 1; width: auto; text-align: left; }
+  /* Below the rail breakpoint the customer line sits under the work, so the
+     other cells take both lines rather than pushing it down when they wrap. */
+  .production #productionJobs .cust-order-card__badge,
+  .production #productionJobs .cust-order-card__top + .cust-order-card__meta > span:last-child,
+  .production #productionJobs .cust-order-card__meta + .cust-order-card__meta > span { grid-row: 1 / span 2; }
+  /* A row sits on cream, where the page's paper focus ring disappears, so its
+     ring is ink and drawn inside the row, as the order page does on cards. */
+  body.is-productionpage #productionJobs .cust-order-card:focus-visible { outline: 2px solid var(--home-black); outline-offset: -2px; }
+
+  /* Delete is the narrowest control on the page at every width. */
+  .production .custedit-danger__btn { max-width: 320px; }
+
+  /* Job page: what was agreed on the left, what has been paid against it on
+     the right. Each column is its own ledger strip — rules the width of its
+     cards, ticks on the card edges — the way a multi-column ledger is ruled. */
+  .production .production-cols,
+  .route-loader[data-view="productionJob"] .route-loader__canvas--record .production-cols {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 24px;
+    align-items: start;
+    padding-inline: var(--prod-in);
+  }
+  .production .production-cols__break,
+  .route-loader[data-view="productionJob"] .route-loader__canvas--record .production-cols__break { display: none; }
+  .production .production-col .order-inset,
+  .route-loader[data-view="productionJob"] .route-loader__canvas--record .production-col .order-inset { padding-inline: 0; }
+  .production .production-col .order-grid-spacer::before,
+  .route-loader[data-view="productionJob"] .route-loader__canvas--record .production-col .order-grid-spacer::before { left: 0; }
+  .production .production-col .order-grid-spacer::after,
+  .route-loader[data-view="productionJob"] .route-loader__canvas--record .production-col .order-grid-spacer::after { right: 0; }
+  /* Each column ends in its own tick band, under its own last card. The one
+     shared band below them hung a tick under the shorter column, a hand's
+     breadth below where that column had already stopped. */
+  .production .production-col::after,
+  .route-loader[data-view="productionJob"] .route-loader__canvas--record .production-col::after {
+    content: '';
+    display: block;
+    height: 24px;
+    border-left: 1px solid var(--home-grid);
+    border-right: 1px solid var(--home-grid);
+  }
+  .production .production-cols + .order-grid-spacer,
+  .route-loader[data-view="productionJob"] .route-loader__canvas--record .production-cols + .order-grid-spacer { display: none; }
+
+  /* The record skeleton is shared by the job page and the penjahit page; the
+     loader carries the route's view in data-view, so each page picks its own
+     variant there rather than asking body:has() which view is showing, a
+     question every hidden toggle in the app made the browser ask again. It
+     draws each page's own layout, at the size the loaded page will have in
+     the common case: for the job, Work (five facts) over Money (three
+     figures) beside one payment and its action; for the penjahit, the money
+     band — four figures as tiles — then the job count, the filter strip and
+     the jobs sheet. */
+  .route-loader[data-kind="record"] { background: var(--home-black); }
+  .route-loader[data-kind="record"] .route-loader__canvas--record { width: 100%; max-width: none; }
+  .route-loader[data-view="productionJob"] .route-loader__canvas--record .production-skel--job,
+  .route-loader[data-view="penjahit"] .route-loader__canvas--record .production-skel--penjahit { display: block; }
+
+  .route-loader[data-view="productionJob"] .route-loader__canvas--record .order-skel__card { box-sizing: border-box; }
+  .route-loader[data-view="productionJob"] .route-loader__canvas--record .production-col:first-child > .order-inset > .order-skel__card { height: 261px; }
+  .route-loader[data-view="productionJob"] .route-loader__canvas--record .production-skel__money { height: 179px; }
+  .route-loader[data-view="productionJob"] .route-loader__canvas--record .production-col:last-child .order-skel__card { height: 151px; }
+  .route-loader[data-view="productionJob"] .route-loader__canvas--record .production-col:last-child .order-skel__record { height: 74px; }
+  .route-loader[data-view="productionJob"] .route-loader__canvas--record .production-col:last-child .order-skel__record + .order-skel__record { display: none; }
+
+  .route-loader[data-view="penjahit"] .route-loader__canvas--record .production-col:last-child { display: none; }
+  .route-loader[data-view="penjahit"] .route-loader__canvas--record .production-col:first-child .order-skel__card {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+  }
+  .route-loader[data-view="penjahit"] .route-loader__canvas--record .production-col:first-child .order-skel__block--head { grid-column: 1 / -1; }
+  .route-loader[data-view="penjahit"] .route-loader__canvas--record .production-col:first-child .order-skel__block:not(.order-skel__block--head) { width: auto; height: 50px; }
+  .production-skel-jobs__summary {
+    height: 46px;
+    padding-inline: var(--prod-in);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid var(--home-grid);
+    border-bottom: 1px solid var(--home-grid);
+  }
+  .production-skel-jobs__summary i,
+  .production-skel-jobs__strip i::before {
+    display: block;
+    width: 56px;
+    height: 16px;
+    background-color: rgba(255,255,255,.12);
+    animation: home-shimmer-dark 1.2s ease-in-out infinite;
+  }
+  .production-skel-jobs__summary i + i { width: 96px; }
+  /* Search, then the chips: cream face, 7px rail, the grid rule under both. */
+  .production-skel-jobs__strip { height: 56px; padding-inline: var(--prod-in); display: flex; }
+  .production-skel-jobs__strip i {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 16px;
+    background: linear-gradient(var(--home-white) 48px, var(--home-white-dark) 48px 55px, var(--home-grid) 55px);
+    border-left: 1px solid var(--home-grid);
+  }
+  .production-skel-jobs__strip i + i { flex: 0 1 var(--prod-chips, 352px); border-right: 1px solid var(--home-grid); }
+  .production-skel-jobs__strip i::before { content: ''; width: min(240px, 60%); background-color: rgba(76,76,76,.18); animation-name: home-shimmer; }
+  .production-skel-jobs__strip i + i::before { width: 100%; }
+  /* The sheet: column heads, then three rows on 4px rails, the last on a
+     full one — the table's own rhythm. */
+  .production-skel-jobs__sheet {
+    display: grid;
+    background: var(--home-white);
+    border-left: 1px solid var(--home-grid);
+    border-right: 1px solid var(--home-grid);
+  }
+  .production-skel-jobs__sheet span { height: 41px; border-bottom: 1px solid var(--home-white-dark); }
+  .production-skel-jobs__sheet i {
+    display: block;
+    height: 68px;
+    box-sizing: border-box;
+    border-bottom: 4px solid var(--home-white-dark);
+    background: linear-gradient(rgba(76,76,76,.18), rgba(76,76,76,.18)) 16px 12px / min(240px, 40%) 20px no-repeat;
+  }
+  .production-skel-jobs__sheet i:last-child { height: 76px; border-bottom-width: 12px; }
+
+  /* Wizard: the choices are peers, so they share rows, the way the customer
+     editor's short fields do — each record keeps its own rules and 24px
+     inset, the rules of a row join into one ledger-wide rule, and each card
+     draws its own ticks into the 24px between rows, because a spacer only
+     knows the column's two outer edges. Penjahit three across where they
+     fit, orders two, draft jobs two (a single one fills the row). Row-mates
+     stretch to the taller card; the face takes the extra height. */
+  #productionTailorList,
+  #productionSourceList,
+  #productionDraftRows {
+    display: grid;
+    gap: 24px 0;
+    padding-bottom: 24px;
+  }
+  #productionTailorList { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+  #productionSourceList { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #productionDraftRows { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+  #productionTailorList > .cust-grid-spacer,
+  #productionSourceList > .cust-grid-spacer,
+  #productionDraftRows > .cust-grid-spacer { display: none; }
+  #productionTailorList > .empty,
+  #productionSourceList > .empty,
+  #productionDraftRows > .empty { grid-column: 1 / -1; }
+
+  .production-record,
+  .production-record > .cust-inset,
+  #productionDraftRows > .custedit-field:not([hidden]),
+  #productionDraftRows > .custedit-field > .cust-inset,
+  #productionTailorList .pcard { display: flex; flex-direction: column; }
+  .production-record > .cust-inset,
+  #productionDraftRows > .custedit-field > .cust-inset,
+  #productionTailorList .pcard,
+  #productionTailorList .pcard__face,
+  #productionSourceList .psource,
+  #productionDraftRows .custedit-card { flex: 1 1 auto; }
+
+  .production-record > .cust-grid-rule,
+  #productionDraftRows > .custedit-field > .cust-grid-rule { position: relative; }
+  .production-record > .cust-grid-rule::before,
+  .production-record > .cust-grid-rule::after,
+  #productionDraftRows > .custedit-field > .cust-grid-rule::before,
+  #productionDraftRows > .custedit-field > .cust-grid-rule::after {
+    content: '';
+    position: absolute;
+    width: 1px;
+    height: 24px;
+    background: var(--home-grid);
+  }
+  .production-record > .cust-grid-rule:first-child::before,
+  .production-record > .cust-grid-rule:first-child::after,
+  #productionDraftRows > .custedit-field > .cust-grid-rule:first-child::before,
+  #productionDraftRows > .custedit-field > .cust-grid-rule:first-child::after { bottom: 100%; }
+  .production-record > .cust-grid-rule:last-child::before,
+  .production-record > .cust-grid-rule:last-child::after,
+  #productionDraftRows > .custedit-field > .cust-grid-rule:last-child::before,
+  #productionDraftRows > .custedit-field > .cust-grid-rule:last-child::after { top: 100%; }
+  .production-record > .cust-grid-rule::before,
+  #productionDraftRows > .custedit-field > .cust-grid-rule::before { left: 24px; }
+  .production-record > .cust-grid-rule::after,
+  #productionDraftRows > .custedit-field > .cust-grid-rule::after { right: 24px; }
+
+  /* A third of the column is too narrow for name, phone and the side word on
+     one line, so the side word drops under the phone. */
+  #productionTailorList .pcard__face {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr);
+    align-content: center;
+    gap: 4px 12px;
+  }
+  #productionTailorList .pmark { grid-row: 1 / span 2; align-self: center; }
+  #productionTailorList .pcard__side { grid-column: 2; max-width: none; text-align: left; }
+
+  /* Step 3's shared answers fit one line: what, how much, by when. */
+  #productionShared .pfields {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 16px;
+    align-items: start;
+  }
+  #productionShared .ppair { display: contents; }
+  #productionShared .custedit-card__hint { grid-column: 1 / -1; }
+  /* Editing one job hides the shared card, which left its spacer under the
+     title's own: two bands of black with doubled ticks. */
+  #productionShared[hidden] + .cust-grid-spacer { display: none; }
+  /* A job with its details open takes the whole row — beside a closed one it
+     stretched its row-mate into an empty cream slab — and with the column to
+     itself its details pair up: what, then price and deadline, then assigned
+     and notes, then progress. */
+  #productionDraftRows > .custedit-field:has(.pjob__more[open]) { grid-column: 1 / -1; }
+  #productionDraftRows .pjob__more > .pfields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 16px;
+    align-items: start;
+  }
+  #productionDraftRows .pjob__more > .pfields > .ppair { display: contents; }
+  #productionDraftRows .pjob__more > .pfields > :first-child,
+  #productionDraftRows .pjob__more > .pfields > [data-cancellation] { grid-column: 1 / -1; }
+
+  /* Paired fields line up by their tops, so an error under one never pushes
+     its neighbour down; and a date field gets a text field's height (it was
+     7px shorter), so the underlines of a pair share one line. */
+  .production-form .ppair,
+  .production .ppair { align-items: start; }
+  .production-form .pfield .custedit-input[type="date"],
+  .production .pfield .custedit-input[type="date"] { height: 31px; }
+  /* Voiding hides amount and date; their empty pair still took a row gap,
+     so the form opened a double gap where they had been. */
+  .production .ppair:not(:has(> :not([hidden]))) { display: none; }
+  /* "Correct this entry" is 13px text: on a tablet the target grows to 44px
+     with the margin giving the growth back, so nothing around it moves. */
+  .production .ppay__fix { padding-block: 13px; margin-block: -9px; }
+
+  /* #productionBar wears .savebar, so the customer editor's wide save bar —
+     the form column's width, centred on the page beside the rail — is
+     already its geometry. Nothing to add. */
+}
+
+@media (min-width: 1100px) {
+  .production .order-title { font-size: 48px; line-height: 56px; letter-spacing: -1.44px; }
+  #penjahitTotals dd { font-size: 24px; line-height: 32px; letter-spacing: -.72px; }
+
+  /* Until the sheet reaches its full measure, five columns squeeze the work
+     and the customer into two narrow wrapping cells (at 1180 the work was
+     clipped), so the customer stays under the work and the other cells widen
+     enough to keep to one line. */
+  .production { --pjob-cols: minmax(0, 1fr) 168px 96px 168px; --prod-chips: 448px; }
+  .route-loader__canvas--record { --prod-chips: 448px; }
+  .route-loader[data-kind="record"] .route-loader__canvas--record .order-skel__title .order-skel__block:not(.order-skel__block--short) { height: 56px; }
+  .route-loader[data-view="penjahit"] .route-loader__canvas--record .production-col:first-child .order-skel__block:not(.order-skel__block--head) { height: 54px; }
+
+  /* The rail stays readable while a page loads; the skeleton fills the page
+     beside it, which is where the page will be. */
+  .route-loader[data-kind="record"] { left: var(--rail-w); }
+}
+
+/* The sheet at its full 1208px (1520 = rail + measure + gutters): room for the
+   customer and item to have a column of their own, each on one line. */
+@media (min-width: 1520px) {
+  .production { --pjob-cols: minmax(0, 1.2fr) minmax(0, 1.5fr) 168px 96px 168px; }
+  /* One line per row now, so the skeleton's rows are one line too. */
+  .production-skel-jobs__sheet i { height: 49px; }
+  .production-skel-jobs__sheet i:last-child { height: 57px; }
+  .production-jobs__cols > :nth-child(2) { display: block; }
+  .production #productionJobs .cust-order-card__top + .cust-order-card__meta > span:first-child { grid-column: 2; grid-row: 1; color: var(--home-black); }
+  .production #productionJobs .cust-order-card__badge { grid-column: 4; }
+  .production #productionJobs .cust-order-card__top + .cust-order-card__meta > span:last-child { grid-column: 5; }
+  .production #productionJobs .cust-order-card__meta + .cust-order-card__meta > span { grid-column: 3; }
+  .production #productionJobs .cust-order-card__badge,
+  .production #productionJobs .cust-order-card__top + .cust-order-card__meta > span:last-child,
+  .production #productionJobs .cust-order-card__meta + .cust-order-card__meta > span { grid-row: 1; }
+}
+
+/* A pointer gets a faint tint on what it is over. Never a lift or a scale:
+   the press is still the rail moving into the face. */
+@media (min-width: 744px) and (hover: hover) and (pointer: fine) {
+  .production #productionJobs .cust-order-card:not(:active):hover .cust-order-card__face,
+  .production-form .pcard:not(:active):hover .pcard__face {
+    background: linear-gradient(rgba(0,0,0,.03), rgba(0,0,0,.03)), var(--home-white);
+  }
+  .production-form .pcard.is-chosen:not(:active):hover .pcard__face {
+    background: linear-gradient(rgba(0,0,0,.03), rgba(0,0,0,.03)), linear-gradient(rgba(35,182,32,.1), rgba(35,182,32,.1)), var(--home-white);
+  }
+  .production-form .psource__item:not(:active):hover { background: rgba(0, 0, 0, .03); }
+  .production-form .psource__item.is-chosen:not(:active):hover { background: rgba(35, 182, 32, .14); }
+  .production .order-action:not(:active):hover .order-action__face { background-image: linear-gradient(180deg, rgba(255,255,255,.06), transparent); }
+  .production .pbtn:not(:disabled):hover { background-image: linear-gradient(rgba(0,0,0,.04), rgba(0,0,0,.04)); }
+  /* The save button's own hover, for the wizard's forward button. */
+  body.is-custeditpage #productionNext:not(:disabled):not(:active):hover .btn__label {
+    background-image: linear-gradient(180deg, rgba(255,255,255,.1), transparent);
+  }
+}
+
 /* ------------------------ Order page penjahit card ----------------------- */
 
 .production-job { display: block; color: var(--home-black); text-decoration: none; }
@@ -5464,6 +7919,32 @@ body.is-custeditpage #productionNext:not(:disabled):active { grid-template-rows:
 #orderProductionJobs .production-job { margin: 16px 0 0; }
 #orderProductionJobs .production-job__face { border: 1px solid var(--home-white-dark); border-bottom: 0; }
 #orderProductionCosts + #orderProductionJobs:not(:empty) { margin-top: 4px; }
+
+/* On a wide order page this card sits in the left column, a table's width
+   rather than a phone's. Label-left, amount-right across 700px is a gap the
+   eye has to cross, so the per-item costs become side-by-side blocks, ruled
+   across their tops, and the jobs pair up beneath them. */
+@media (min-width: 1100px) {
+  #orderProductionCosts:not(:empty) {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px 24px;
+  }
+  #orderProductionCosts .production-cost,
+  #orderProductionCosts .production-cost:last-child {
+    align-content: start;
+    padding: 12px 0 0;
+    border-bottom: 0;
+    border-top: 1px solid var(--home-white-dark);
+  }
+  #orderProductionJobs {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    column-gap: 16px;
+  }
+  #orderProductionJobs > :not(.production-job) { grid-column: 1 / -1; }
+  #orderProductionCosts + #orderProductionJobs:not(:empty) { margin-top: 8px; }
+}
 body.is-custeditpage #saveBtn .btn__label, body.is-ordereditpage #saveBtn .btn__label { color: var(--home-black); }
 body.is-custeditpage #saveBtn:disabled .btn__label, body.is-ordereditpage #saveBtn:disabled .btn__label { color: var(--home-white-dark); }
 body.is-custeditpage .custedit-input { scroll-margin-block: 88px 24px; }

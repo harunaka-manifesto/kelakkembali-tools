@@ -1038,3 +1038,41 @@ test('the boot line shimmers, and stops for reduced motion', () => {
   const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce) {\n  .boot__quote'));
   assert.match(reduced.slice(0, 400), /animation:\s*none/, 'reduced motion still animates the boot line');
 });
+
+/* ------------------------------ Wide screens ------------------------------ */
+
+/* From 1100px the side rail is the only navigation on most pages — the
+   homepage's Menu button is hidden there. A destination added to the overflow
+   menu and not to the rail would be unreachable on a laptop. */
+test('the side rail reaches every destination the overflow menu does', () => {
+  const html = readShipped('index.html');
+  const menu = html.slice(html.indexOf('id="menuList"'), html.indexOf('</div>', html.indexOf('id="menuList"')));
+  const rail = html.slice(html.indexOf('class="shell-rail"'), html.indexOf('</aside>', html.indexOf('class="shell-rail"')));
+  // A link the app never shows (Google Calendar has no way into the menu
+  // today) is not a destination; one hidden only behind the production probe is.
+  const hrefs = (block) => Array.from(block.matchAll(/<a([^>]*)href="(#\/[^"]+)"([^>]*)>/g))
+    .filter((m) => !/\shidden(\s|$)/.test(m[1] + m[3]) || /data-production-entry/.test(m[1] + m[3]))
+    .map((m) => m[2]);
+  const missing = hrefs(menu).filter((href) => !hrefs(rail).includes(href));
+  assert.deepEqual(missing, [], 'menu destinations missing from the side rail');
+  assert.match(rail, /id="shellRailSignOut"/, 'the rail has no Sign out');
+});
+
+/* A phone-width rule is the phone's. Wide layouts must not leak below 744px:
+   the only unconditional wide-screen changes allowed are the two tokens that
+   are identical to their phone values below 1100px. */
+test('fixed elements centre on the page, not the window', () => {
+  const stripped = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const offenders = [];
+  ['styles/shared.css', 'styles/pages.css', 'styles/moodboard.css'].forEach((file) => {
+    const css = stripped(readShipped(file));
+    const rule = /([^{}]+)\{([^{}]*)\}/g;
+    let m;
+    while ((m = rule.exec(css))) {
+      const body = m[2];
+      if (!/position:\s*fixed/.test(body)) continue;
+      if (/left:\s*50%/.test(body)) offenders.push(file + ' ' + m[1].trim().replace(/\s+/g, ' '));
+    }
+  });
+  assert.deepEqual(offenders, [], 'fixed and centred on the window — use left: var(--page-mid)');
+});

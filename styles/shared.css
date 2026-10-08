@@ -174,7 +174,9 @@ body.is-page-transitioning { overflow: hidden; pointer-events: none; }
 .route-loader {
   position: fixed;
   z-index: 300;
-  inset: 0;
+  /* Beside the side rail rather than over it: the rail is the one thing that
+     does not change between routes, so it stays put while the page loads. */
+  inset: 0 0 0 var(--rail-w);
   overflow: hidden auto;
   background: var(--bg);
   opacity: 1;
@@ -286,7 +288,7 @@ body.is-page-transitioning { overflow: hidden; pointer-events: none; }
 .route-loader[data-kind="moodboard"] .moodboard-nav {
   position: fixed;
   top: 0;
-  left: 50%;
+  left: var(--page-mid);
   transform: translateX(-50%);
   width: 100%;
   max-width: 390px;
@@ -392,6 +394,44 @@ body.is-page-transitioning { overflow: hidden; pointer-events: none; }
   background-size: 220% 100%;
 }
 
+/* Wide screens: the moodboard loader takes the editor's wide layout (see
+   moodboard.css, "Editor page" — the grid, insets and ticks come from there)
+   and sits beside the side rail instead of over it, so the nav, title and
+   grid land exactly where the page will draw them. */
+@media (min-width: 744px) {
+  .route-loader[data-kind="moodboard"] { left: var(--rail-w); background: var(--home-black); }
+  /* The ledger inside already clears the nav; the canvas's own 67px on top of
+     it put the whole skeleton a nav-height below the page. */
+  .route-loader[data-kind="moodboard"] .route-loader__canvas--moodboard { width: 100%; max-width: none; padding-top: 0; }
+  /* Ticks are hairlines, not shimmer bars; and the two keys sit flush under
+     the card the way the page draws them, 60px tall face and rail. */
+  .route-loader[data-kind="moodboard"] .mb-upload-ticks i { background: none; border-radius: 0; animation: none; }
+  .route-loader[data-kind="moodboard"] .moodboard-actions { gap: 0; margin: 9px -25px -25px; width: auto; }
+  .route-loader[data-kind="moodboard"] .route-loader__skel-action { height: 60px; padding: 16px; }
+  .route-loader[data-kind="moodboard"] .moodboard-nav {
+    left: var(--page-mid);
+    width: calc(100% - var(--rail-w));
+    max-width: calc(var(--mb-max, 1120px) + 2 * var(--gutter));
+    padding-left: var(--gutter);
+    padding-right: var(--gutter);
+  }
+  .route-loader[data-kind="moodboard"] .route-loader__skel-title i { width: min(420px, 60%); height: 48px; }
+  /* Measured against the page: its nav keys are 48px of face on a 7px rail,
+     its card head is a 24px title over a 24px hint, and its two keys sit
+     outside the card, edge to edge with its borders. The skeleton nests the
+     keys inside the card, so they reach out through its padding and border
+     (the margins on .moodboard-actions above; 9px is the page's 24px padding
+     and 1px border less the card's own 16px gap). */
+  .route-loader[data-kind="moodboard"] .route-loader__skel-btn { height: 55px; }
+  .route-loader[data-kind="moodboard"] .moodboard-card__head { height: 48px; }
+  /* The keys' labels are centred on the page, so their stand-ins are too. */
+  .route-loader[data-kind="moodboard"] .route-loader__skel-btn--back i,
+  .route-loader[data-kind="moodboard"] .route-loader__skel-action i { margin-right: auto; margin-left: auto; }
+}
+@media (min-width: 1100px) {
+  .route-loader[data-kind="moodboard"] .route-loader__skel-title i { height: 56px; }
+}
+
 .route-loader__error {
   width: min(420px, calc(100% - 40px));
   margin: max(96px, 18vh) auto 40px;
@@ -408,6 +448,29 @@ body.is-page-transitioning { overflow: hidden; pointer-events: none; }
 
 @keyframes route-loader-shimmer {
   to { background-position: -220% 0; }
+}
+
+/* Wide screens: the card-stack fallback is drawn at the width of the pages
+   that still use it (--utility-w, under App bar) and, from 1100px, in their
+   main-and-aside split: the tall card left, the two short ones right. */
+@media (min-width: 744px) {
+  .route-loader[data-kind="form"] .route-loader__canvas--default {
+    width: min(640px, 100%);
+    padding-right: var(--gutter);
+    padding-left: var(--gutter);
+  }
+}
+@media (min-width: 1100px) {
+  .route-loader[data-kind="form"] .route-loader__canvas--default:not([hidden]) {
+    width: min(960px, 100%);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    align-content: start;
+    gap: 16px 24px;
+  }
+  .route-loader[data-kind="form"] .route-loader__nav,
+  .route-loader[data-kind="form"] .route-loader__hero { grid-column: 1 / -1; }
+  .route-loader[data-kind="form"] .route-loader__hero + .route-loader__card { grid-row: span 2; }
 }
 
 .boot__msg code {
@@ -583,6 +646,230 @@ body.is-page-transitioning { overflow: hidden; pointer-events: none; }
 .appbar__icon[hidden] { display: none; }
 .appbar__icon svg { width: 19px; height: 19px; color: var(--muted); }
 
+/* The side rail. Below 1100px it does not exist and nothing about the phone
+   layout changes. From 1100px it is the overflow menu held open and the
+   homepage shortcuts made reachable from everywhere, drawn in the ledger's own
+   vocabulary: a black column ruled off by one hairline, the current section a
+   cream face on its rail, every create key the same face-over-rail press the
+   homepage tiles use, just smaller. --rail-w is published on :root so every
+   fixed bar can centre itself on the page rather than the window. */
+.shell-rail { display: none; }
+
+@media (min-width: 1100px) {
+  .shell-rail {
+    /* A full-height column, not a bottom bar: nothing here can sit under
+       the keyboard. */
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 120;
+    width: var(--rail-w);
+    padding: calc(20px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+    background: var(--home-black);
+    border-right: 1px solid var(--home-grid);
+    color: var(--home-white);
+  }
+  .shell-rail::-webkit-scrollbar { display: none; }
+
+  .shell-rail__brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    /* 12px, like every row under it, so the mark, the link icons, the Create
+       label and Sign out all start on one vertical. */
+    padding: 4px 12px;
+    color: var(--home-white);
+    text-decoration: none;
+  }
+  .shell-rail__mark { width: 38px; height: auto; filter: invert(96%) sepia(6%) saturate(320%) hue-rotate(5deg); }
+  .shell-rail__wordmark { font-size: 16px; font-weight: 700; line-height: 20px; letter-spacing: -.48px; }
+
+  .shell-rail__nav { display: flex; flex-direction: column; }
+  .shell-rail__link[hidden] { display: none; }
+  /* Every row is a key at rest with no face showing; the current section is
+     the one that is pressed into the page — the cream face of the homepage's
+     folder tab, on its rail. Every row keeps its 4px of rail whether it shows
+     or not, so marking a different section never moves the rows under it, and
+     the rail is a real border rather than a shadow. Square, like the tab it
+     echoes. */
+  .shell-rail__link {
+    position: relative;
+    height: 48px;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 4px solid transparent;
+    background-clip: padding-box;
+    color: rgba(254,250,241,.72);
+    text-decoration: none;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 20px;
+    letter-spacing: -.45px;
+    transition: background-color var(--motion-quick) var(--ease-standard), color var(--motion-quick) var(--ease-standard);
+  }
+  .shell-rail__link img { flex: none; width: 20px; height: 20px; opacity: .72; transition: opacity var(--motion-quick) var(--ease-standard), filter var(--motion-quick) var(--ease-standard); }
+  .shell-rail__link[aria-current="page"] {
+    background-color: var(--home-white);
+    border-bottom-color: var(--home-white-dark);
+    color: var(--home-black);
+  }
+  .shell-rail__link[aria-current="page"] img { opacity: 1; filter: brightness(0) saturate(100%); }
+  /* Paper on the black canvas, as on every ledger page. */
+  .shell-rail__link:focus-visible,
+  .shell-rail__brand:focus-visible,
+  .shell-rail__signout:focus-visible,
+  .shell-key:focus-visible { outline: 2px solid var(--home-white); outline-offset: 2px; }
+
+  .shell-rail__label {
+    margin: 0 0 10px;
+    padding: 0 12px;
+    color: var(--home-grid);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 16px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+  .shell-rail__keys { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .shell-key[hidden] { display: none; }
+  /* The homepage tile at two-thirds size: icon over label, centred, so the
+     longest label ("Moodboard") fits a half-rail column without truncating. */
+  .shell-key {
+    height: 62px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--home-white);
+    text-decoration: none;
+    display: grid;
+    grid-template-rows: 56px 6px;
+    cursor: pointer;
+    transition: grid-template-rows 120ms var(--ease-out-expo);
+  }
+  .shell-key__face {
+    min-width: 0;
+    padding: 0 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    overflow: hidden;
+    white-space: nowrap;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 16px;
+    letter-spacing: -.39px;
+  }
+  .shell-key__face img { flex: none; width: 18px; height: 18px; }
+  .shell-key__rail { display: block; }
+  .shell-key:active,
+  .shell-key.is-pressed { grid-template-rows: 60px 2px; }
+  .shell-key--production { height: 50px; grid-template-rows: 44px 6px; }
+  .shell-key--production .shell-key__face { flex-direction: row; justify-content: flex-start; gap: 10px; padding: 0 12px; }
+  .shell-key--production:active,
+  .shell-key--production.is-pressed { grid-template-rows: 48px 2px; }
+  .shell-key:active .shell-key__face { background-image: linear-gradient(180deg, transparent, rgba(0,0,0,.1)); }
+  .shell-key--customer  .shell-key__face { background-color: #ff6a00; }
+  .shell-key--customer  .shell-key__rail { background: #dd5d01; }
+  .shell-key--quotation .shell-key__face { background-color: #23b620; }
+  .shell-key--quotation .shell-key__rail { background: #19aa16; }
+  .shell-key--invoice   .shell-key__face { background-color: #1e72ef; }
+  .shell-key--invoice   .shell-key__rail { background: #1866da; }
+  .shell-key--moodboard .shell-key__face { background-color: #8b4ff6; }
+  .shell-key--moodboard .shell-key__rail { background: #7a3ee4; }
+  .shell-key--fitting   .shell-key__face { background-color: #fc4fac; }
+  .shell-key--fitting   .shell-key__rail { background: #e72a90; }
+  .shell-key--add .shell-key__face,
+  .shell-key--production .shell-key__face { background-color: var(--home-black-light); }
+  .shell-key--add .shell-key__rail,
+  .shell-key--production .shell-key__rail { background: #1a1a1a; }
+  .shell-key--production { grid-column: 1 / -1; }
+  .shell-key__go { margin-left: auto; width: 14px !important; height: 14px !important; opacity: .6; }
+  /* Same rule as the homepage: with Fitting stood down, Moodboard takes the
+     spare column and its pink so the grid never shows a hole. */
+  body:not(.has-fitting-shortcut) .shell-key--moodboard { grid-column: 1 / -1; }
+  body:not(.has-fitting-shortcut) .shell-key--moodboard .shell-key__face { background-color: #fc4fac; }
+  body:not(.has-fitting-shortcut) .shell-key--moodboard .shell-key__rail { background: #e72a90; }
+
+  .shell-rail__foot { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--home-grid); }
+  .shell-rail__signout {
+    width: 100%;
+    height: 44px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: rgba(254,250,241,.56);
+    font: 600 14px/20px 'Plus Jakarta Sans', sans-serif;
+    letter-spacing: -.42px;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  /* The page moves over by the rail and keeps its own centring inside what is
+     left. */
+  .app { padding-left: var(--rail-w); }
+}
+
+/* Pointer only. iPad landscape gets the rail too, and a tapped key would keep
+   its hover tint until the next tap somewhere else. */
+@media (min-width: 1100px) and (hover: hover) and (pointer: fine) {
+  .shell-rail__link:not([aria-current="page"]):hover { background-color: var(--home-black-light); color: var(--home-white); }
+  .shell-rail__link:hover img { opacity: 1; }
+  .shell-key:hover:not(:active) .shell-key__face { background-image: linear-gradient(180deg, rgba(255,255,255,.08), transparent); }
+  .shell-rail__signout:hover { background: var(--home-black-light); color: var(--home-white); }
+}
+
+/* A 1366×768 or 1280×720 laptop leaves about 650px of browser viewport, and
+   the rail's 720px would put Sign out below a fold whose scrollbar is hidden.
+   Shorter screens close the gaps between the three groups and take 8px off
+   each create key's face, which is enough to keep the whole column in view;
+   every target stays at 44px or more. */
+@media (min-width: 1100px) and (max-height: 760px) {
+  .shell-rail { gap: 12px; padding-top: calc(12px + env(safe-area-inset-top, 0px)); padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
+  .shell-rail__label { margin-bottom: 8px; }
+  .shell-key { height: 54px; grid-template-rows: 48px 6px; }
+  .shell-key:active,
+  .shell-key.is-pressed { grid-template-rows: 52px 2px; }
+  .shell-key--production { height: 50px; grid-template-rows: 44px 6px; }
+  .shell-key--production:active,
+  .shell-key--production.is-pressed { grid-template-rows: 48px 2px; }
+  .shell-rail__foot { padding-top: 4px; }
+}
+
+@media (min-width: 1100px) and (prefers-reduced-motion: reduce) {
+  .shell-key,
+  .shell-rail__link,
+  .shell-rail__link img { transition: none; }
+}
+
+/* Wide screens, for the two pages still on this chrome — enquiry review and
+   Google Calendar. --utility-w is their column, published on .app so the bar
+   and the page below it share one edge: Up sits over the cards, not out at the
+   window's corner. Beside the rail the bar's brand would only repeat it. */
+@media (min-width: 744px) {
+  body.is-utilitypage .app { --utility-w: 640px; }
+  /* Insets chosen so the Up chevron starts on the cards' left edge and the
+     menu's dots end on their right edge. */
+  body.is-utilitypage .appbar__inner {
+    max-width: var(--utility-w);
+    padding-right: calc(var(--gutter) - 20px);
+    padding-left: calc(var(--gutter) - 12px);
+  }
+}
+@media (min-width: 1100px) {
+  body.is-utilitypage .app { --utility-w: 960px; }
+  .appbar__brand { display: none; }
+}
+
 /* ------------------------------ Overflow menu ---------------------------- */
 
 /* Sign out and the two deletes are rare, and two of the three are
@@ -669,6 +956,16 @@ body.is-page-transitioning { overflow: hidden; pointer-events: none; }
 
 /* Aligns with the cap height of the title rather than the top of its line box. */
 .pagehead > .btn { margin-top: 2px; }
+
+/* A wider page carries a larger title; the ledger pages' own title bands go
+   further, but this is still the quieter chrome. */
+@media (min-width: 744px) {
+  .pagehead { margin-bottom: 24px; }
+  .pagehead__title { font-size: 28px; letter-spacing: -.84px; }
+}
+@media (min-width: 1100px) {
+  .pagehead__title { font-size: 32px; letter-spacing: -.96px; }
+}
 
 /* -------------------------------- Layout -------------------------------- */
 
@@ -864,6 +1161,39 @@ body.has-savebar .page {
 .hintbox__list > li.hintbox__warn { color: var(--danger); }
 
 .hintbox__list > li.hintbox__warn::before { background: currentColor; }
+
+/* Wide screens: enquiry review and Google Calendar keep their cards but get a
+   column of their own width (see --utility-w under App bar). From 1100px each
+   is a main column and an aside: what you read on the left — the answers, how
+   syncing works — and what you do on the right, pinned below the bar while
+   the left side scrolls. The explanation stays under ~75 characters a line. */
+@media (min-width: 744px) {
+  body.is-utilitypage .page {
+    --page-pad: var(--gutter);
+    max-width: var(--utility-w);
+    padding-top: 24px;
+  }
+  /* In the single 640px column the sync explanation ran to ~90 characters a
+     line at 13px; the card stays full width, the prose does not. */
+  #viewCalendar .card__hint { max-width: 72ch; }
+}
+@media (min-width: 1100px) {
+  #viewEnquiry:not([hidden]),
+  #viewCalendar:not([hidden]) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    align-items: start;
+    gap: 24px;
+  }
+  #viewEnquiry > .card:last-child,
+  #viewCalendar > .card:first-child {
+    grid-column: 2;
+    grid-row: 1;
+    position: sticky;
+    top: 81px;
+  }
+  #viewCalendar > .card:last-child { grid-column: 1; grid-row: 1; }
+}
 
 /* ------------------------------- Deadlines ------------------------------- */
 
@@ -2130,7 +2460,8 @@ select.input {
 body.is-keyboard-open .savebar { visibility: hidden; pointer-events: none; }
 .savebar {
   position: fixed;
-  left: 0;
+  /* Starts after the side rail, so its centred contents centre on the page. */
+  left: var(--rail-w);
   right: 0;
   bottom: 0;
   transform: none;
@@ -2363,7 +2694,7 @@ body.is-keyboard-open .savebar { visibility: hidden; pointer-events: none; }
    slide, and a toast reflows nothing but itself. */
 .toast {
   position: fixed;
-  left: 50%;
+  left: var(--page-mid);
   bottom: calc(var(--bottombar-h) + var(--keyboard-offset, 0px) + 16px);
   transform: translate(-50%, 12px);
   z-index: 300;
@@ -2385,6 +2716,29 @@ body.is-keyboard-open .savebar { visibility: hidden; pointer-events: none; }
    home indicator on its own. */
 body:not(.has-savebar) .toast {
   bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+}
+
+/* On a wide page a sentence should stay a sentence: the window-minus-40px cap
+   let a long error run across a desktop in one line, far from where the eye
+   is. It is measured against the page beside the rail, not the window. */
+@media (min-width: 744px) {
+  .toast {
+    max-width: min(560px, calc(100vw - var(--rail-w) - 48px));
+    text-align: center;
+    /* Wide, the toast mostly lands on the black ledger rather than on a card,
+       and ink on #0d0d0d has no edge at all — the words float. A paper
+       hairline gives it one without changing what it is. */
+    box-shadow: inset 0 0 0 1px rgba(254,250,241,.16);
+  }
+}
+
+/* The calendar's month pager is a bottom bar too, and publishes its height the
+   way the save bar does, but the no-save-bar rule above drops the toast to 24px
+   — onto the pager's keys. Until the side rail moves the pager to the top. */
+@media (min-width: 744px) and (max-width: 1099.98px) {
+  body.has-schedcal-monthbar:not(.has-savebar) .toast {
+    bottom: calc(var(--bottombar-h) + 16px);
+  }
 }
 
 /* -------------------------- Interaction motion -------------------------- */
@@ -2417,6 +2771,29 @@ body:not(.has-savebar) .toast {
 @keyframes sheet-veil-out {
   from { opacity: 1; }
   to { opacity: 0; }
+}
+/* What a bottom sheet becomes once the screen is wide enough to hold it in the
+   middle: it is no longer attached to an edge, so travelling in from one would
+   be a lie. A short rise, the same 14px surface-rise uses, and the same move
+   back down on the way out. */
+@keyframes dialog-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes dialog-fall {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(14px); }
+}
+/* A side panel is attached to the right edge of the page, so it comes from
+   there — but only a short way, because at desktop widths the edge can be a
+   long way off and a full-width slide reads as slow. */
+@keyframes pane-in {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes pane-out {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(24px); }
 }
 
 .appbar__up,
@@ -2452,6 +2829,24 @@ body:not(.has-savebar) .toast {
   .btn--primary:hover:not(:disabled) { box-shadow: 0 6px 16px rgba(23, 21, 15, .18); transform: translateY(-1px); }
   .btn--outline:hover:not(:disabled),
   .btn--secondary:hover:not(:disabled) { box-shadow: 0 4px 12px rgba(23, 21, 15, .08); transform: translateY(-1px); }
+}
+
+/* Wide screens are where a pointer actually lives, and where these controls
+   now sit inside ledger pages — the picker's actions, the order editor's
+   buttons — whose rule is that nothing moves until it is pressed. So on wide
+   screens the lift and the cast shadow go, and a hover is a faint tint on the
+   face, the same one every ledger key takes. */
+@media (min-width: 744px) and (hover: hover) and (pointer: fine) {
+  .row:hover,
+  .dcal:hover { transform: none; }
+  .btn--primary:hover:not(:disabled),
+  .btn--outline:hover:not(:disabled),
+  .btn--secondary:hover:not(:disabled) { box-shadow: none; transform: none; }
+  .btn--primary:hover:not(:disabled) { background-image: linear-gradient(180deg, rgba(255,255,255,.08), transparent); }
+  .row:hover,
+  .dcal:hover,
+  .btn--outline:hover:not(:disabled),
+  .btn--secondary:hover:not(:disabled) { background-image: linear-gradient(rgba(0,0,0,.03), rgba(0,0,0,.03)); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2531,6 +2926,16 @@ body:not(.has-savebar) .toast {
 }
 .swipe.is-open .swipe__pane { --swipe-x: -96px; }
 .swipe.is-open-start .swipe__pane { --swipe-x: 96px; }
+
+/* Keyboard reach. app.js opens a row when its action button takes focus, but
+   the browser got there first: it scrolled the hidden-overflow row sideways to
+   show the button, and that scroll never came back, so on top of the opened
+   row the card sat a further 50px out of its cell. clip is overflow without a
+   scroll position — nothing can shift the row but the row. The ring is drawn
+   inside the key, since outside it would be clipped. */
+.swipe { overflow: clip; }
+.swipe .swipe__delete:focus-visible,
+.swipe .swipe__done:focus-visible { outline: 2px solid var(--home-white, #fdfbf5); outline-offset: -4px; }
 
 @media (prefers-reduced-motion: reduce) {
   .swipe.is-settling .swipe__pane { transition: none; }
@@ -2766,4 +3171,72 @@ body:not(.has-savebar) .toast {
   .docnew.is-closing .docnew__panel,
   .docnew.is-closing .docnew__backdrop { animation: none; }
   .docnew__skeleton-row i { animation: none; background-color: rgba(254,250,241,.2); }
+}
+
+/* From iPad portrait up the sheet is a dialog over the page beside the side
+   rail, not over the window, which is what the rail-width left padding buys.
+   The veil still covers everything, the rail included, because this is modal.
+
+   It hangs from a fixed line near the top rather than sitting in the middle,
+   so stepping from customers to orders to termins never moves the title, the
+   hint or the first row — the pointer that chose a customer is already over the
+   first order. The customer step, the one with a search, keeps the full height:
+   filtering by the letter must not make the box jump with every keystroke, and
+   the skeleton it opens with is the size of the list that replaces it. The
+   order and termin steps fit what they hold; a two-order list used to sit at
+   the top of 720px of empty black with Back and Cancel stranded at its foot.
+
+   The keyboard is handled by the container, not the panel: the bottom padding
+   grows by --keyboard-offset and the top margin gives way to it, so the dialog
+   keeps what is left above the keyboard instead of being pushed up off the top
+   by a translate. */
+@media (min-width: 744px) {
+  .docnew {
+    --docnew-top: max(24px, calc(12svh - var(--keyboard-offset, 0px)));
+    --docnew-room: min(720px, calc(100svh - var(--docnew-top) - 24px - var(--keyboard-offset, 0px)));
+    align-items: flex-start;
+    padding: var(--docnew-top) 24px calc(24px + var(--keyboard-offset, 0px)) calc(var(--rail-w) + 24px);
+  }
+  .docnew__panel {
+    width: min(560px, 100%);
+    height: auto;
+    max-height: var(--docnew-room);
+    transform: none;
+    padding: 24px;
+    gap: 14px;
+    border: 1px solid var(--home-grid);
+    animation: dialog-rise var(--motion-sheet-in) var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+  }
+  .docnew.is-closing .docnew__panel {
+    animation: dialog-fall var(--motion-sheet-out) var(--ease-standard) both;
+  }
+  .docnew__title { font-size: 24px; line-height: 32px; letter-spacing: -.72px; }
+  .docnew__panel:has(> .input--search:not([hidden])) { height: var(--docnew-room); }
+
+  /* A tap on an iPad leaves :hover behind on whatever it touched, so the row
+     you just chose, or Back, stayed grey into the next step. The tints come
+     back below for a real pointer only. */
+  .docnew__row:hover { background: var(--home-white); }
+  .docnew__row--new:hover,
+  .docnew__actions .btn:hover:not(:disabled) { background: transparent; }
+
+  /* The base ring is ink, which is the panel's own colour. The list is the
+     scroller, and a scroller clips an outline drawn outside its children, so
+     it gets 4px of room on every side and gives it straight back as margin —
+     the rows stay exactly where they were. */
+  .docnew__list { margin: -4px; padding: 4px; }
+  .docnew__row:focus-visible,
+  .docnew__actions .btn:focus-visible {
+    outline: 2px solid var(--home-white);
+    outline-offset: 2px;
+  }
+}
+
+/* A list you point into, so the menu hover rather than the faint card one. */
+@media (min-width: 744px) and (hover: hover) and (pointer: fine) {
+  .docnew__row:not(:disabled):not(.docnew__row--new):hover {
+    background: linear-gradient(rgba(0,0,0,.06), rgba(0,0,0,.06)), var(--home-white);
+  }
+  .docnew__row--new:hover,
+  .docnew__actions .btn:hover:not(:disabled) { background: rgba(254,250,241,.06); }
 }

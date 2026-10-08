@@ -32,7 +32,7 @@ body.is-moodboardpage .view { gap: 0; }
 .moodboard-nav {
   position: fixed;
   top: 0;
-  left: 50%;
+  left: var(--page-mid);
   transform: translateX(-50%);
   width: 100%;
   max-width: 390px;
@@ -260,6 +260,81 @@ body.is-moodboardpage .view { gap: 0; }
 }
 .mb-upload-cell__control:focus-visible { outline: 2px solid var(--home-white); outline-offset: -4px; }
 
+/* The top and bottom tick rows carry eight marks so the wide 8 × 2 grid below
+   can tick every column; the phone's 4 × 4 grid only ever shows four. */
+.mb-upload-ticks--top i:nth-child(n+5),
+.mb-upload-ticks--bottom i:nth-child(n+5) { display: none; }
+
+/* Wide screens. The 390px canvas becomes the page: the black ledger runs
+   edge to edge, its rules stay full width, and the content centres in
+   --mb-max — --mb-in is the inset that does the centring, a percentage so it
+   resolves against the ledger wherever it is used, which keeps the ticks, the
+   title and the card on the same two vertical lines. Portrait tablets keep
+   the square 4 × 4 grid, just larger; anything landscape lays the sixteen
+   slots out 8 × 2, which shows every image at a usable size without the
+   page having to scroll to reach Generate. */
+@media (min-width: 744px) {
+  body.is-moodboardpage { background: var(--home-black); }
+  body.is-moodboardpage .page { width: 100%; max-width: none; }
+
+  .moodboard-page,
+  .route-loader__canvas--moodboard {
+    --mb-max: 1120px;
+    --mb-in: max(var(--gutter), calc((100% - var(--mb-max)) / 2));
+  }
+  .moodboard-page .moodboard-nav {
+    left: var(--page-mid);
+    width: calc(100% - var(--rail-w));
+    max-width: calc(var(--mb-max) + 2 * var(--gutter));
+    padding-left: var(--gutter);
+    padding-right: var(--gutter);
+  }
+  .moodboard-page .moodboard-grid-spacer,
+  .route-loader__canvas--moodboard .moodboard-grid-spacer,
+  .moodboard-page .moodboard-inset,
+  .route-loader__canvas--moodboard .moodboard-inset {
+    margin-left: var(--mb-in);
+    margin-right: var(--mb-in);
+  }
+  .moodboard-page .moodboard-title-band,
+  .route-loader__canvas--moodboard .moodboard-title-band {
+    padding-left: var(--mb-in);
+    padding-right: var(--mb-in);
+  }
+  .moodboard-page .moodboard-title { font-size: 40px; line-height: 48px; letter-spacing: -1.2px; }
+  .moodboard-page .moodboard-card,
+  .route-loader__canvas--moodboard .moodboard-card { padding: 20px 24px 24px; }
+}
+
+@media (min-width: 1100px), (min-width: 744px) and (orientation: landscape) {
+  .moodboard-page .mb-upload-grid,
+  .route-loader__canvas--moodboard .mb-upload-grid {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    aspect-ratio: 4 / 1;
+  }
+  .moodboard-page .mb-upload-ticks--top,
+  .moodboard-page .mb-upload-ticks--bottom,
+  .route-loader__canvas--moodboard .mb-upload-ticks--top,
+  .route-loader__canvas--moodboard .mb-upload-ticks--bottom { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+  .moodboard-page .mb-upload-ticks--top i:nth-child(n+5),
+  .moodboard-page .mb-upload-ticks--bottom i:nth-child(n+5),
+  .route-loader__canvas--moodboard .mb-upload-ticks--top i:nth-child(n+5),
+  .route-loader__canvas--moodboard .mb-upload-ticks--bottom i:nth-child(n+5) { display: block; }
+  .moodboard-page .mb-upload-ticks--left,
+  .moodboard-page .mb-upload-ticks--right,
+  .route-loader__canvas--moodboard .mb-upload-ticks--left,
+  .route-loader__canvas--moodboard .mb-upload-ticks--right { grid-template-rows: repeat(2, minmax(0, 1fr)); }
+  .moodboard-page .mb-upload-ticks--left i:nth-child(n+3),
+  .moodboard-page .mb-upload-ticks--right i:nth-child(n+3),
+  .route-loader__canvas--moodboard .mb-upload-ticks--left i:nth-child(n+3),
+  .route-loader__canvas--moodboard .mb-upload-ticks--right i:nth-child(n+3) { display: none; }
+}
+
+@media (min-width: 1100px) {
+  .moodboard-page .moodboard-title { font-size: 48px; line-height: 56px; letter-spacing: -1.44px; }
+}
+
 /* --------------------------- Generated canvas ---------------------------- */
 
 /* The framed board. Its top edge is the ledger rule above it, so the frame
@@ -348,6 +423,49 @@ body.is-moodboardpage .view { gap: 0; }
 }
 .moodboard-strip:disabled { cursor: not-allowed; opacity: .55; }
 
+/* Wide screens: the board is shown upright in its own shape (app.js stops
+   rotating it from 744px and stamps data-orientation on it), sized so the
+   whole of it is on screen under the nav — this is the page where the board
+   is read, the full-screen overlay is where it is studied. The 250px is
+   everything else that has to stay in view with it: nav, spacer, the frame's
+   padding, Randomize and the export keys. A landscape board keeps those keys
+   under it at every width — stacked is what gives it the most width. A
+   portrait board on a landscape screen is the other way round: height-bound
+   and narrow, so from 1100px its keys stand in a column beside it and the
+   board takes the whole height, with Randomize still in reach of the result. */
+@media (min-width: 744px) {
+  .moodboard-page .mb-board-frame { padding: 16px; }
+  /* The board's own black showed as a hairline wherever the scaled document
+     fell a fraction of a pixel short of its edge; under it now is the
+     document's paper, so a short edge is simply more paper. */
+  .moodboard-page .mb-board {
+    width: min(100%, calc((100svh - 250px) * 9 / 16));
+    margin: 0 auto;
+    background: #FEFAF1;
+  }
+  .moodboard-page .mb-board[data-orientation="landscape"] {
+    width: min(100%, calc((100svh - 250px) * 16 / 9));
+    aspect-ratio: 16 / 9;
+  }
+}
+
+/* The frame's column is the board's own width plus its 16px mount and side
+   rules, so the paper hugs the board instead of standing 150px clear of it on
+   each side; what the board does not need goes to the keys, never under 300px. */
+@media (min-width: 1100px) {
+  .moodboard-canvas:has(.mb-board[data-orientation="portrait"]) .moodboard-inset {
+    display: grid;
+    grid-template-columns: minmax(0, calc((100svh - 150px) * 9 / 16 + 34px)) minmax(300px, 1fr);
+    grid-template-rows: auto auto 1fr;
+    column-gap: 24px;
+    align-items: start;
+  }
+  .moodboard-canvas:has(.mb-board[data-orientation="portrait"]) .mb-board-frame { grid-column: 1; grid-row: 1 / -1; }
+  .moodboard-canvas:has(.mb-board[data-orientation="portrait"]) .moodboard-strip { grid-column: 2; grid-row: 1; }
+  .moodboard-canvas:has(.mb-board[data-orientation="portrait"]) .moodboard-actions { grid-column: 2; grid-row: 2; }
+  .moodboard-page .mb-board[data-orientation="portrait"] { width: min(100%, calc((100svh - 150px) * 9 / 16)); }
+}
+
 /* ------------------------------ Actions --------------------------------- */
 
 .moodboard-actions { display: flex; }
@@ -434,6 +552,17 @@ body.is-moodboardpage .view { gap: 0; }
   .moodboard-action.is-busy .moodboard-action__face { animation: none; }
 }
 
+/* A pointer gets a faint lift on the keys; the press is unchanged. */
+@media (min-width: 744px) and (hover: hover) and (pointer: fine) {
+  .moodboard-page .moodboard-action:not(:disabled):not(.is-pressed):not(:active):hover .moodboard-action__face {
+    background-image: linear-gradient(180deg, rgba(255,255,255,.08), transparent);
+  }
+  .moodboard-page .moodboard-strip:not(:disabled):not(.is-pressed):not(:active):hover .moodboard-strip__face,
+  .moodboard-page .order-nav-btn:not(:disabled):not(.is-pressed):not(:active):hover .order-nav-btn__face {
+    background-image: linear-gradient(180deg, rgba(0,0,0,.03), rgba(0,0,0,.03));
+  }
+}
+
 /* ---------------------- Full-screen moodboard overlay -------------------- */
 
 .mb-overlay {
@@ -499,6 +628,16 @@ body.is-moodboardpage .view { gap: 0; }
 
 body.moodboard-presenting { overflow: hidden; }
 
+/* Wide screens: the overlay has to clear the side rail (120) and the page's
+   own fixed nav (100), not just the page. On a screen this size the board is
+   height-bound, so the canvas gives up a band top and bottom for the close
+   key and the hint — app.js fits the board to the canvas, so it lands
+   between them instead of under them. */
+@media (min-width: 744px) {
+  .mb-overlay { z-index: 140; }
+  .mb-overlay__canvas { inset: 64px 0 56px; }
+}
+
 /* ------------------------- Fitting stage picker --------------------------- */
 /* All that is left of the fitting journal: the sheet that asks which fitting
    a new log is for. The camera, its confirmation step, its caption step and
@@ -511,6 +650,83 @@ body.moodboard-presenting { overflow: hidden; }
 .fitting-picker__option { transition: background-color var(--motion-standard) var(--ease-standard), padding-left var(--motion-standard) var(--ease-standard); }
 .fitting-picker__option:hover { padding-left: 8px; background: rgba(23,21,15,.04); }
 .fitting-picker__sheet .btn { margin-top: 10px; }
+
+/* From iPad portrait up the sheet is a centred dialog over the page area: five
+   short choices pinned to the bottom of a 1024px-tall screen are a long way
+   from where the eye is. `translate` composes with sheet-rise's transform, so
+   the entrance is unchanged. */
+@media (min-width: 744px) {
+  .fitting-picker__sheet {
+    top: 50%;
+    right: auto;
+    bottom: auto;
+    left: var(--page-mid);
+    width: min(560px, calc(100% - 2 * var(--gutter)));
+    max-height: 80vh;
+    max-height: 80dvh;
+    padding: 24px;
+    border-radius: 16px;
+    translate: -50% -50%;
+  }
+
+  /* The feed's New button reaches this through the "New fitting log" dialog,
+     which is drawn in the ledger (docnew, shared.css). A rounded white sheet one
+     step later read as another app taking over half-way through, so from here
+     up it wears the same black panel, cream rows and outline Cancel, and each
+     stage carries the colour the feed and the detail page give it. */
+  .fitting-picker__backdrop { background: rgba(13,13,13,.62); }
+  .fitting-picker__sheet {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    border: 1px solid var(--home-grid);
+    border-radius: 0;
+    background: var(--home-black);
+    color: var(--home-white);
+    animation: dialog-rise var(--motion-sheet-in) var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+  }
+  .fitting-picker__sheet .card__title {
+    margin: 0;
+    color: var(--home-white);
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 32px;
+    letter-spacing: -.72px;
+    text-transform: none;
+  }
+  #fittingPickerOptions { display: flex; flex-direction: column; gap: 8px; }
+  .fitting-picker__option,
+  .fitting-picker__option:hover {
+    min-height: 52px;
+    padding: 14px 16px;
+    border: 1px solid var(--home-grid);
+    background: var(--home-white);
+    color: var(--home-black);
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 22px;
+    letter-spacing: -.45px;
+    transition: none;
+  }
+  .fitting-picker__option[data-stage="Sizing"]    { color: var(--stage-sizing); }
+  .fitting-picker__option[data-stage="Fitting 1"] { color: var(--stage-fitting-1); }
+  .fitting-picker__option[data-stage="Fitting 2"] { color: var(--stage-fitting-2); }
+  .fitting-picker__option[data-stage="Fitting 3"] { color: var(--stage-fitting-3); }
+  .fitting-picker__option[data-stage="Final fitting"] { color: var(--stage-final-fitting); }
+  .fitting-picker__sheet .btn {
+    min-height: 48px;
+    margin-top: 0;
+    border: 1px solid var(--home-grid);
+    border-radius: 0;
+    background: transparent;
+    color: var(--home-white);
+  }
+  .fitting-picker__sheet button:focus-visible { outline: 2px solid var(--home-white); outline-offset: 2px; }
+}
+@media (min-width: 744px) and (hover: hover) and (pointer: fine) {
+  .fitting-picker__option:hover { background: var(--home-white-dark); }
+  .fitting-picker__sheet .btn:hover { border-color: var(--home-grid); background: rgba(254,250,241,.06); }
+}
 
 @keyframes presentation-in {
   from { opacity: 0; }

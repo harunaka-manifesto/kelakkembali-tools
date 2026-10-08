@@ -72,6 +72,45 @@
 <!-- ============================ APP UI ============================ -->
 <div class="app" id="app" hidden>
 
+<!-- The side rail. Hidden below 1100px, where the page's own nav buttons and
+     the overflow menu carry navigation exactly as they always have. From
+     1100px — iPad landscape and every desktop — it is the menu, permanently
+     open, and the six shortcuts, reachable from every page instead of only
+     from the top of the homepage. It holds no state of its own: syncShellRail
+     marks the current section from the route. Unlike the homepage tiles, the
+     create keys create: every list they would land on is already one row up
+     in the rail, so a key under "Create" that showed a list would read as a
+     dead click. Each opens the picker in its own mode over whatever page is
+     showing; Customer and Assign go straight to their forms. -->
+<aside class="shell-rail" id="shellRail" aria-label="Main navigation">
+  <a class="shell-rail__brand" href="#/customers" data-rail-home>
+    <img class="shell-rail__mark" src="assets/logo-header.png" alt="">
+    <span class="shell-rail__wordmark">Kelak Kembali</span>
+  </a>
+  <nav class="shell-rail__nav" aria-label="Records">
+    <a class="shell-rail__link" href="#/customers" data-rail="customers"><img src="assets/home-customer-icon.svg" alt=""><span>Customers</span></a>
+    <a class="shell-rail__link" href="#/customers?tab=penjahit" data-rail="penjahit" data-production-entry hidden><img src="assets/home-penjahit-icon.svg" alt=""><span>Penjahit</span></a>
+    <a class="shell-rail__link" href="#/quotations" data-rail="quotations"><img src="assets/home-quote-icon.svg" alt=""><span>Quotations</span></a>
+    <a class="shell-rail__link" href="#/invoices" data-rail="invoices"><img src="assets/home-invoice-icon.svg" alt=""><span>Invoices</span></a>
+    <a class="shell-rail__link" href="#/fittings" data-rail="fittings"><img src="assets/home-fitting-icon.svg" alt=""><span>Fittings</span></a>
+  </nav>
+  <section class="shell-rail__create" aria-labelledby="shellRailCreateTitle">
+    <h2 class="shell-rail__label" id="shellRailCreateTitle">Create</h2>
+    <div class="shell-rail__keys">
+      <a class="shell-key shell-key--customer" href="#/customer/new/edit"><span class="shell-key__face"><img src="assets/home-customer-icon.svg" alt="">Customer</span><span class="shell-key__rail"></span></a>
+      <button type="button" class="shell-key shell-key--add" data-rail-create="neworder"><span class="shell-key__face"><img src="assets/home-order-icon.svg" alt="">Order</span><span class="shell-key__rail"></span></button>
+      <button type="button" class="shell-key shell-key--quotation" data-rail-create="quotation"><span class="shell-key__face"><img src="assets/home-quote-icon.svg" alt="">Quotation</span><span class="shell-key__rail"></span></button>
+      <button type="button" class="shell-key shell-key--invoice" data-rail-create="invoice"><span class="shell-key__face"><img src="assets/home-invoice-icon.svg" alt="">Invoice</span><span class="shell-key__rail"></span></button>
+      <button type="button" class="shell-key shell-key--moodboard" data-rail-create="moodboard"><span class="shell-key__face"><img src="assets/order-moodboard-icon.svg" alt="">Moodboard</span><span class="shell-key__rail"></span></button>
+      <button type="button" class="shell-key shell-key--fitting" data-rail-create="fitting" data-rail-fitting hidden><span class="shell-key__face"><img src="assets/home-fitting-icon.svg" alt="">Fitting</span><span class="shell-key__rail"></span></button>
+      <a class="shell-key shell-key--production" href="#/production/new" data-production-entry hidden><span class="shell-key__face"><img src="assets/home-penjahit-icon.svg" alt="">Assign to penjahit<img class="shell-key__go" src="assets/home-chevron-right-icon.svg" alt=""></span><span class="shell-key__rail"></span></a>
+    </div>
+  </section>
+  <div class="shell-rail__foot">
+    <button type="button" class="shell-rail__signout" id="shellRailSignOut">Sign out</button>
+  </div>
+</aside>
+
 <header class="appbar">
   <div class="appbar__inner">
     <!-- Up, not Back. history.back() replayed pages you had already left — save
@@ -108,11 +147,14 @@
       </button>
       <div class="menu__list" id="menuList" role="menu" hidden>
         <button type="button" class="menu__item" role="menuitem" id="menuDelete" hidden></button>
-        <a class="menu__item" role="menuitem" href="#/customers">Customers</a>
-        <a class="menu__item" role="menuitem" href="#/customers?tab=penjahit" data-production-entry hidden>Penjahit</a>
-        <a class="menu__item" role="menuitem" href="#/quotations">Quotations</a>
-        <a class="menu__item" role="menuitem" href="#/invoices">Invoices</a>
-        <a class="menu__item" role="menuitem" href="#/fittings">Fittings</a>
+        <!-- data-rail: syncShellRail marks the current section here as well as
+             in the side rail, so the menu says where you are on an iPad held
+             upright, where it is the navigation. -->
+        <a class="menu__item" role="menuitem" href="#/customers" data-rail="customers">Customers</a>
+        <a class="menu__item" role="menuitem" href="#/customers?tab=penjahit" data-rail="penjahit" data-production-entry hidden>Penjahit</a>
+        <a class="menu__item" role="menuitem" href="#/quotations" data-rail="quotations">Quotations</a>
+        <a class="menu__item" role="menuitem" href="#/invoices" data-rail="invoices">Invoices</a>
+        <a class="menu__item" role="menuitem" href="#/fittings" data-rail="fittings">Fittings</a>
         <a class="menu__item" role="menuitem" id="menuCalendar" href="#/calendar" hidden>Google Calendar</a>
         <button type="button" class="menu__item" role="menuitem" id="menuSignOut">Sign out</button>
       </div>
@@ -174,17 +216,29 @@
             <div class="home-skel__lines"><span class="home-skel__block" style="width:100%;height:14px"></span><span class="home-skel__block" style="width:172px;height:14px"></span></div>
           </div>
           <div class="home-skel__actions"><i></i><i></i><i></i><i></i><i></i><i class="home-skel__actions--wide"></i><i class="home-skel__production" data-production-entry hidden></i></div>
+          <div class="home-skel__alert"></div>
+          <div class="home-skel__head">
           <div class="home-skel__tabs" data-production-entry hidden><i></i><i></i></div>
           <div class="home-skel__search"></div>
           <div class="home-skel__rail"></div>
+          </div>
           <div class="home-skel__ledger">
             <div class="home-skel__summary"><span class="home-skel__block" style="width:210px;height:14px"></span></div>
             <div class="home-grid-spacer"></div>
-            <div class="home-grid-rule"></div><div class="home-customer-record__inset"><div class="home-skel__face"><div class="home-skel__name"><span><i class="home-skel__block" style="width:70%;height:18px"></i></span><span><i class="home-skel__block" style="width:44%;height:18px"></i></span></div><div class="home-skel__meta"><i class="home-skel__block" style="width:64px;height:14px"></i><i class="home-skel__block" style="width:104px;height:14px"></i></div></div><div class="home-skel__cardrail"></div></div><div class="home-grid-rule"></div><div class="home-grid-spacer"></div>
-            <div class="home-grid-rule"></div><div class="home-customer-record__inset"><div class="home-skel__face"><div class="home-skel__name"><span><i class="home-skel__block" style="width:52%;height:18px"></i></span></div><div class="home-skel__meta"><i class="home-skel__block" style="width:64px;height:14px"></i><i class="home-skel__block" style="width:104px;height:14px"></i></div></div><div class="home-skel__cardrail"></div></div><div class="home-grid-rule"></div><div class="home-grid-spacer"></div>
-            <div class="home-grid-rule"></div><div class="home-customer-record__inset"><div class="home-skel__face"><div class="home-skel__name"><span><i class="home-skel__block" style="width:60%;height:18px"></i></span></div><div class="home-skel__meta"><i class="home-skel__block" style="width:64px;height:14px"></i><i class="home-skel__block" style="width:104px;height:14px"></i></div></div><div class="home-skel__cardrail"></div></div><div class="home-grid-rule"></div><div class="home-grid-spacer"></div>
-            <div class="home-grid-rule"></div><div class="home-customer-record__inset"><div class="home-skel__face"><div class="home-skel__name"><span><i class="home-skel__block" style="width:78%;height:18px"></i></span><span><i class="home-skel__block" style="width:38%;height:18px"></i></span></div><div class="home-skel__meta"><i class="home-skel__block" style="width:64px;height:14px"></i><i class="home-skel__block" style="width:104px;height:14px"></i></div></div><div class="home-skel__cardrail"></div></div><div class="home-grid-rule"></div><div class="home-grid-spacer"></div>
-            <div class="home-grid-rule"></div><div class="home-customer-record__inset"><div class="home-skel__face"><div class="home-skel__name"><span><i class="home-skel__block" style="width:66%;height:18px"></i></span><span><i class="home-skel__block" style="width:40%;height:18px"></i></span></div></div><div class="home-skel__cardrail"></div></div><div class="home-grid-rule"></div><div class="home-grid-spacer"></div>
+            <!-- Each record wrapped exactly as renderCustomerList wraps it, so the
+                 wide-screen grid lays out the stand-in and the real list with
+                 the same rules. The last three only show where there are
+                 columns to fill. -->
+            <div class="home-customer-list">
+            <div class="home-customer-record"><div class="home-grid-rule"></div><div class="home-customer-record__inset"><div class="home-skel__face"><div class="home-skel__name"><span><i class="home-skel__block" style="width:70%;height:18px"></i></span><span><i class="home-skel__block" style="width:44%;height:18px"></i></span></div><div class="home-skel__meta"><i class="home-skel__block" style="width:64px;height:14px"></i><i class="home-skel__block" style="width:104px;height:14px"></i></div></div><div class="home-skel__cardrail"></div></div><div class="home-grid-rule"></div><div class="home-grid-spacer"></div></div>
+            <div class="home-customer-record"><div class="home-grid-rule"></div><div class="home-customer-record__inset"><div class="home-skel__face"><div class="home-skel__name"><span><i class="home-skel__block" style="width:52%;height:18px"></i></span></div><div class="home-skel__meta"><i class="home-skel__block" style="width:64px;height:14px"></i><i class="home-skel__block" style="width:104px;height:14px"></i></div></div><div class="home-skel__cardrail"></div></div><div class="home-grid-rule"></div><div class="home-grid-spacer"></div></div>
+            <div class="home-customer-record"><div class="home-grid-rule"></div><div class="home-customer-record__inset"><div class="home-skel__face"><div class="home-skel__name"><span><i class="home-skel__block" style="width:60%;height:18px"></i></span></div><div class="home-skel__meta"><i class="home-skel__block" style="width:64px;height:14px"></i><i class="home-skel__block" style="width:104px;height:14px"></i></div></div><div class="home-skel__cardrail"></div></div><div class="home-grid-rule"></div><div class="home-grid-spacer"></div></div>
+            <div class="home-customer-record"><div class="home-grid-rule"></div><div class="home-customer-record__inset"><div class="home-skel__face"><div class="home-skel__name"><span><i class="home-skel__block" style="width:78%;height:18px"></i></span><span><i class="home-skel__block" style="width:38%;height:18px"></i></span></div><div class="home-skel__meta"><i class="home-skel__block" style="width:64px;height:14px"></i><i class="home-skel__block" style="width:104px;height:14px"></i></div></div><div class="home-skel__cardrail"></div></div><div class="home-grid-rule"></div><div class="home-grid-spacer"></div></div>
+            <div class="home-customer-record"><div class="home-grid-rule"></div><div class="home-customer-record__inset"><div class="home-skel__face"><div class="home-skel__name"><span><i class="home-skel__block" style="width:66%;height:18px"></i></span><span><i class="home-skel__block" style="width:40%;height:18px"></i></span></div></div><div class="home-skel__cardrail"></div></div><div class="home-grid-rule"></div><div class="home-grid-spacer"></div></div>
+            <div class="home-customer-record home-skel__more"><div class="home-grid-rule"></div><div class="home-customer-record__inset"><div class="home-skel__face"><div class="home-skel__name"><span><i class="home-skel__block" style="width:58%;height:18px"></i></span></div><div class="home-skel__meta"><i class="home-skel__block" style="width:64px;height:14px"></i><i class="home-skel__block" style="width:104px;height:14px"></i></div></div><div class="home-skel__cardrail"></div></div><div class="home-grid-rule"></div><div class="home-grid-spacer"></div></div>
+            <div class="home-customer-record home-skel__more"><div class="home-grid-rule"></div><div class="home-customer-record__inset"><div class="home-skel__face"><div class="home-skel__name"><span><i class="home-skel__block" style="width:72%;height:18px"></i></span></div><div class="home-skel__meta"><i class="home-skel__block" style="width:64px;height:14px"></i><i class="home-skel__block" style="width:104px;height:14px"></i></div></div><div class="home-skel__cardrail"></div></div><div class="home-grid-rule"></div><div class="home-grid-spacer"></div></div>
+            <div class="home-customer-record home-skel__more"><div class="home-grid-rule"></div><div class="home-customer-record__inset"><div class="home-skel__face"><div class="home-skel__name"><span><i class="home-skel__block" style="width:48%;height:18px"></i></span></div><div class="home-skel__meta"><i class="home-skel__block" style="width:64px;height:14px"></i><i class="home-skel__block" style="width:104px;height:14px"></i></div></div><div class="home-skel__cardrail"></div></div><div class="home-grid-rule"></div><div class="home-grid-spacer"></div></div>
+            </div>
           </div>
           <div class="home-skel__footer"></div>
         </div>
@@ -232,6 +286,10 @@
              The click is intercepted all the same: switching tabs swaps one
              list for another and must not cost a route change, a refetch, and a
              skeleton. See bindProductionEvents. -->
+        <!-- Tabs and search are one head for the ledger below them: stacked on a
+             phone, one band side by side on wider screens, and the band that
+             stays put while the grid scrolls once the side rail is showing. -->
+        <div class="home-ledger-head">
         <nav class="production-tabs" id="homeLedgerTabs" aria-label="Browse records" data-production-entry hidden>
           <a href="#/customers" data-ledger-tab="customers" aria-current="page">Customers<span class="production-tabs__count" id="customersTabCount"></span></a>
           <a href="#/customers?tab=penjahit" data-ledger-tab="penjahit">Penjahit<span class="production-tabs__count" id="penjahitTabCount"></span></a>
@@ -242,6 +300,7 @@
              placeholder and keeps a query per tab so switching back returns the
              list as it was left. -->
         <section class="home-search-section" id="homeSearchSection" aria-label="Customer search"><label class="home-search" for="customerSearch"><img class="home-search__icon" src="assets/home-search-icon.svg" alt=""><input id="customerSearch" type="search" enterkeyhint="search" placeholder="Search customer name" autocapitalize="none" spellcheck="false"></label><div class="home-search__rail" aria-hidden="true"></div></section>
+        </div>
         <section class="home-customers" id="homeCustomers" aria-label="Customers"><div class="home-summary" id="homeSummary"></div><div class="home-grid-spacer" aria-hidden="true"></div><div class="home-customer-list" id="customerList"></div></section>
         <!-- Same shape as the customer ledger above, down to the summary rail,
              the grid rules between records, and the add row at the foot of the
@@ -280,6 +339,9 @@
       </a>
     </nav>
 
+    <!-- Who the customer is, held together so a wide screen can pin it beside
+         the order ledger. On a phone the wrapper is invisible. -->
+    <div class="cust-id">
     <header class="cust-hero">
       <h1 class="cust-hero__name" id="custHeroName"></h1>
     </header>
@@ -352,6 +414,7 @@
         </a>
       </div>
     </div>
+    </div>
 
     <section class="cust-orders" aria-label="Orders">
       <div class="cust-grid-spacer" aria-hidden="true"></div>
@@ -415,6 +478,9 @@
       <div class="fitlog-grid-spacer" aria-hidden="true"></div>
     </header>
 
+    <!-- One band for search and filters: stacked on a phone, side by side once
+         the side rail is showing (pages.css, Fitting logs wide block). -->
+    <div class="fitlog-tools">
     <section class="fitlog-search-section" id="fitlogSearchSection">
       <label class="sr-only" for="fitlogSearch">Search fitting logs by customer, order, or date</label>
       <div class="fitlog-search">
@@ -433,6 +499,7 @@
       <button type="button" class="fitlog-stage fitlog-stage--fitting-2" data-stage="fitting-2" aria-pressed="false"><span class="fitlog-stage__face"><span>Fitting 2</span></span><span class="fitlog-stage__rail" aria-hidden="true"></span></button>
       <button type="button" class="fitlog-stage fitlog-stage--fitting-3" data-stage="fitting-3" aria-pressed="false"><span class="fitlog-stage__face"><span>Fitting 3</span></span><span class="fitlog-stage__rail" aria-hidden="true"></span></button>
       <button type="button" class="fitlog-stage fitlog-stage--final-fitting" data-stage="final-fitting" aria-pressed="false"><span class="fitlog-stage__face"><span>Final fitting</span></span><span class="fitlog-stage__rail" aria-hidden="true"></span></button>
+    </div>
     </div>
 
     <div class="fitlog-feed" id="fitlogFeed" aria-busy="true">
@@ -598,7 +665,10 @@
       </div>
       <div class="cust-grid-spacer" aria-hidden="true"></div>
 
-      <div class="custedit-field">
+      <!-- On a wide screen the three short contact fields share one row, and
+           the two dates share the next; the spacers between row-mates are
+           marked so that row can drop them. A phone ignores both classes. -->
+      <div class="custedit-field custedit-field--third">
         <div class="cust-grid-rule" aria-hidden="true"></div>
         <div class="cust-inset">
           <div class="custedit-card">
@@ -610,9 +680,9 @@
         </div>
         <div class="cust-grid-rule" aria-hidden="true"></div>
       </div>
-      <div class="cust-grid-spacer" aria-hidden="true"></div>
+      <div class="cust-grid-spacer custedit-gap--inrow" aria-hidden="true"></div>
 
-      <div class="custedit-field">
+      <div class="custedit-field custedit-field--third">
         <div class="cust-grid-rule" aria-hidden="true"></div>
         <div class="cust-inset">
           <div class="custedit-card">
@@ -624,9 +694,9 @@
         </div>
         <div class="cust-grid-rule" aria-hidden="true"></div>
       </div>
-      <div class="cust-grid-spacer" aria-hidden="true"></div>
+      <div class="cust-grid-spacer custedit-gap--inrow" aria-hidden="true"></div>
 
-      <div class="custedit-field">
+      <div class="custedit-field custedit-field--third">
         <div class="cust-grid-rule" aria-hidden="true"></div>
         <div class="cust-inset">
           <div class="custedit-card">
@@ -653,7 +723,7 @@
            real information a date input cannot hold. The month is stored as
            that month's last day — the safe direction to be wrong in — and the
            precision flag is what stops an estimate reaching Google Calendar. -->
-      <div class="custedit-field">
+      <div class="custedit-field custedit-field--half">
         <div class="cust-grid-rule" aria-hidden="true"></div>
         <div class="cust-inset">
           <div class="custedit-card">
@@ -675,15 +745,15 @@
         </div>
         <div class="cust-grid-rule" aria-hidden="true"></div>
       </div>
-      <div class="cust-grid-spacer" aria-hidden="true"></div>
+      <div class="cust-grid-spacer custedit-gap--inrow" aria-hidden="true"></div>
 
       <!-- The one date in the early conversation with a promise attached, so
            it is also what the follow-up below counts from. Filling it in moves
            the chase to a week after the moodboard went out. -->
-      <div class="custedit-field">
+      <div class="custedit-field custedit-field--half">
         <div class="cust-grid-rule" aria-hidden="true"></div>
         <div class="cust-inset">
-          <div class="custedit-card">
+          <div class="custedit-card custedit-card--date">
             <label class="custedit-card__label" for="cMoodboardDate">Moodboard sent</label>
             <input class="custedit-input js-cfield" id="cMoodboardDate" type="date">
           </div>
@@ -699,7 +769,7 @@
       <div class="custedit-field">
         <div class="cust-grid-rule" aria-hidden="true"></div>
         <div class="cust-inset">
-          <div class="custedit-card">
+          <div class="custedit-card custedit-card--followup">
             <label class="custedit-card__label" for="cFollowUpDate">Follow up on</label>
             <input class="custedit-input js-cfield" id="cFollowUpDate" type="date">
             <label class="custedit-card__label custedit-card__label--split" for="cFollowUpLabel">Follow up about</label>
@@ -948,6 +1018,13 @@
           <button type="button" class="fitlog-stage fitlog-stage--job-done" data-job-filter="Done" aria-pressed="false"><span class="fitlog-stage__face"><span>Done</span></span><span class="fitlog-stage__rail" aria-hidden="true"></span></button>
           <button type="button" class="fitlog-stage fitlog-stage--job-cancelled" data-job-filter="Cancelled" aria-pressed="false"><span class="fitlog-stage__face"><span>Cancelled</span></span><span class="fitlog-stage__rail" aria-hidden="true"></span></button>
         </div>
+        <!-- Column heads for the wide-screen ledger table; not drawn on a phone,
+             where each job is a card that labels its own lines. -->
+        <div class="production-jobs__head" aria-hidden="true">
+          <div class="cust-grid-spacer"></div>
+          <div class="cust-grid-rule"></div>
+          <div class="cust-inset"><div class="production-jobs__cols"><span>Work</span><span>Customer · item</span><span>Deadline</span><span>Status</span><span>Balance</span></div></div>
+        </div>
         <div class="cust-order-list" id="productionJobs"></div>
       </section>
 
@@ -984,7 +1061,9 @@
       <div class="custedit-title"><h1 id="penjahitEditTitle">New penjahit</h1></div>
       <div class="cust-grid-spacer" aria-hidden="true"></div>
 
-      <div class="custedit-field">
+      <!-- Name and phone are one short answer each, so on a wide screen they
+           share a row, the customer editor's way. -->
+      <div class="custedit-field custedit-field--half">
         <div class="cust-grid-rule" aria-hidden="true"></div>
         <div class="cust-inset">
           <div class="custedit-card">
@@ -995,8 +1074,8 @@
         </div>
         <div class="cust-grid-rule" aria-hidden="true"></div>
       </div>
-      <div class="cust-grid-spacer" aria-hidden="true"></div>
-      <div class="custedit-field">
+      <div class="cust-grid-spacer custedit-gap--inrow" aria-hidden="true"></div>
+      <div class="custedit-field custedit-field--half">
         <div class="cust-grid-rule" aria-hidden="true"></div>
         <div class="cust-inset">
           <div class="custedit-card">
@@ -1165,6 +1244,11 @@
       </div>
       <div class="order-grid-spacer" aria-hidden="true"></div>
 
+      <!-- Two columns on a wide screen — what was agreed on the left, what has
+           been paid against it on the right. On a phone the wrappers are inert
+           and the cards stack in this order. -->
+      <div class="production-cols">
+      <div class="production-col">
       <section class="order-section" aria-labelledby="productionJobWorkTitle">
         <div class="order-grid-rule" aria-hidden="true"></div>
         <div class="order-inset">
@@ -1197,8 +1281,10 @@
         </div>
         <div class="order-grid-rule" aria-hidden="true"></div>
       </section>
-      <div class="order-grid-spacer" aria-hidden="true"></div>
+      </div>
+      <div class="order-grid-spacer production-cols__break" aria-hidden="true"></div>
 
+      <div class="production-col">
       <section class="order-section" aria-labelledby="productionPaymentsTitle">
         <div class="order-grid-rule" aria-hidden="true"></div>
         <div class="order-inset">
@@ -1229,6 +1315,8 @@
         </div>
         <div class="order-grid-rule" aria-hidden="true"></div>
       </section>
+      </div>
+      </div>
       <div class="order-grid-spacer" aria-hidden="true"></div>
 
       <footer class="cust-footer">Made with love for Ichaku</footer>
@@ -1260,6 +1348,9 @@
             <span class="order-skel__block order-skel__block--short"></span>
           </div>
           <div class="order-grid-spacer" aria-hidden="true"></div>
+          <!-- The same two columns as the page, so a wide screen hands over
+               without anything moving. -->
+          <div class="order-main">
           <!-- Items: card, Create moodboard, then quotation and invoice side by side. -->
           <div class="order-skel__section">
             <div class="order-grid-rule"></div>
@@ -1316,7 +1407,10 @@
             <div class="order-grid-rule"></div>
             <div class="order-grid-spacer" aria-hidden="true"></div>
           </div>
-          <!-- Schedules, on the grey card. -->
+          </div>
+          <div class="order-aside">
+          <!-- Schedules, on the grey card. A wide screen draws all five
+               stages, which is what the card always holds; a phone, three. -->
           <div class="order-skel__section">
             <div class="order-grid-rule"></div>
             <div class="order-inset">
@@ -1325,6 +1419,8 @@
                 <i class="order-skel__record"></i>
                 <i class="order-skel__record"></i>
                 <i class="order-skel__record"></i>
+                <i class="order-skel__record order-skel__record--wide"></i>
+                <i class="order-skel__record order-skel__record--wide"></i>
               </div>
               <i class="order-skel__action"></i>
             </div>
@@ -1332,9 +1428,12 @@
             <div class="order-grid-spacer" aria-hidden="true"></div>
           </div>
           <!-- Delete order. -->
-          <div class="order-grid-rule"></div>
-          <div class="order-inset"><i class="order-skel__danger"></i></div>
-          <div class="order-grid-rule"></div>
+          <div class="order-skel__delete">
+            <div class="order-grid-rule"></div>
+            <div class="order-inset"><i class="order-skel__danger"></i></div>
+            <div class="order-grid-rule"></div>
+          </div>
+          </div>
         </div>
         <div class="order-skel__footer"></div>
       </div>
@@ -1375,6 +1474,11 @@
           <header class="order-title-band"><h1 class="order-title" id="orderTitle"></h1></header>
           <div class="order-grid-spacer" aria-hidden="true"></div>
 
+          <!-- Two plain wrappers, inert on a phone (they are blocks in a block
+               flow). From 744px they are the page's two columns: what the order
+               is and what it is worth on the left, when and by whom it gets made
+               on the right. -->
+          <div class="order-main">
           <!-- Items lead: they are what the page is about, and the same table the
                customer sees on the document — plus the one row they never do. -->
           <section class="order-section" aria-labelledby="orderItemsTitle">
@@ -1508,7 +1612,9 @@
             <div class="order-grid-rule" aria-hidden="true"></div>
           </section>
           <div class="order-grid-spacer" aria-hidden="true"></div>
+          </div>
 
+          <div class="order-aside">
           <!-- Read-only on purpose. Every date here is a consequence of the
                payments and the wedding, so the way to change one is to change
                those. The records are tactile but lead nowhere yet. -->
@@ -1530,19 +1636,21 @@
             <div class="order-grid-rule" aria-hidden="true"></div>
           </section>
           <div class="order-grid-spacer" aria-hidden="true"></div>
-        </main>
 
-        <!-- Same place, same idiom as the customer page's. -->
-        <div class="custedit-danger" id="orderDeleteRow">
-          <div class="cust-grid-rule" aria-hidden="true"></div>
-          <div class="cust-inset">
-            <button type="button" class="custedit-danger__btn" id="orderDeleteBtn">
-              <span class="custedit-danger__face">Delete order</span>
-              <span class="custedit-danger__rail" aria-hidden="true"></span>
-            </button>
+          <!-- Same place, same idiom as the customer page's: last thing on the
+               page, and on a wide screen the last thing in the right column. -->
+          <div class="custedit-danger" id="orderDeleteRow">
+            <div class="cust-grid-rule" aria-hidden="true"></div>
+            <div class="cust-inset">
+              <button type="button" class="custedit-danger__btn" id="orderDeleteBtn">
+                <span class="custedit-danger__face">Delete order</span>
+                <span class="custedit-danger__rail" aria-hidden="true"></span>
+              </button>
+            </div>
+            <div class="cust-grid-rule" aria-hidden="true"></div>
           </div>
-          <div class="cust-grid-rule" aria-hidden="true"></div>
-        </div>
+          </div>
+        </main>
 
         <footer class="order-footer">Made with love for Ichaku</footer>
       </div>
@@ -1618,11 +1726,11 @@
 
               <input type="file" id="mbFileInput" multiple accept="image/png, image/jpeg, image/webp, image/heic, image/heif" hidden>
               <div class="mb-upload-grid-wrap" id="mbDropzone">
-                <div class="mb-upload-ticks mb-upload-ticks--top" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+                <div class="mb-upload-ticks mb-upload-ticks--top" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
                 <div class="mb-upload-ticks mb-upload-ticks--left" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
                 <div class="mb-upload-grid" id="mbThumbs" role="group" aria-label="Moodboard images"></div>
                 <div class="mb-upload-ticks mb-upload-ticks--right" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-                <div class="mb-upload-ticks mb-upload-ticks--bottom" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+                <div class="mb-upload-ticks mb-upload-ticks--bottom" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
               </div>
               <p class="sr-only" id="mbLoadingText" role="status" aria-live="polite"></p>
             </div>
@@ -1788,13 +1896,13 @@
         <!-- Two of the seven initials are T and two are S, so each carries its
              full name for anything reading the header aloud. -->
         <div class="schedcal-weekdays" role="row">
-          <span class="schedcal-weekday" role="columnheader"><span aria-hidden="true">M</span><span class="sr-only">Monday</span></span>
-          <span class="schedcal-weekday" role="columnheader"><span aria-hidden="true">T</span><span class="sr-only">Tuesday</span></span>
-          <span class="schedcal-weekday" role="columnheader"><span aria-hidden="true">W</span><span class="sr-only">Wednesday</span></span>
-          <span class="schedcal-weekday" role="columnheader"><span aria-hidden="true">T</span><span class="sr-only">Thursday</span></span>
-          <span class="schedcal-weekday" role="columnheader"><span aria-hidden="true">F</span><span class="sr-only">Friday</span></span>
-          <span class="schedcal-weekday" role="columnheader"><span aria-hidden="true">S</span><span class="sr-only">Saturday</span></span>
-          <span class="schedcal-weekday" role="columnheader"><span aria-hidden="true">S</span><span class="sr-only">Sunday</span></span>
+          <span class="schedcal-weekday" role="columnheader" data-short="Mon"><span aria-hidden="true">M</span><span class="sr-only">Monday</span></span>
+          <span class="schedcal-weekday" role="columnheader" data-short="Tue"><span aria-hidden="true">T</span><span class="sr-only">Tuesday</span></span>
+          <span class="schedcal-weekday" role="columnheader" data-short="Wed"><span aria-hidden="true">W</span><span class="sr-only">Wednesday</span></span>
+          <span class="schedcal-weekday" role="columnheader" data-short="Thu"><span aria-hidden="true">T</span><span class="sr-only">Thursday</span></span>
+          <span class="schedcal-weekday" role="columnheader" data-short="Fri"><span aria-hidden="true">F</span><span class="sr-only">Friday</span></span>
+          <span class="schedcal-weekday" role="columnheader" data-short="Sat"><span aria-hidden="true">S</span><span class="sr-only">Saturday</span></span>
+          <span class="schedcal-weekday" role="columnheader" data-short="Sun"><span aria-hidden="true">S</span><span class="sr-only">Sunday</span></span>
         </div>
         <div class="schedcal-weeks" id="schedcalWeeks" role="rowgroup"></div>
       </div>
@@ -1809,9 +1917,16 @@
          weddings are named here instead and never touch a cell. It sits below
          the grid, not above it, so the calendar starts in the same place in
          every month whether or not there is a note to show. -->
-    <div class="schedcal-approx" id="schedcalApprox" hidden></div>
-    <div class="schedcal-grid-spacer" aria-hidden="true"></div>
-    <div class="schedcal-legend" id="schedcalLegend" aria-hidden="true"></div>
+    <!-- Below the grid on a phone. With the side rail showing it is the right
+         column beside the grid — the key, the unplaced weddings, and the place
+         a chosen day opens into — so the month never leaves the screen. The
+         hint is for that column only. -->
+    <div class="schedcal-aside">
+      <p class="schedcal-aside__hint">Choose a day to see everything on it.</p>
+      <div class="schedcal-approx" id="schedcalApprox" hidden></div>
+      <div class="schedcal-grid-spacer" aria-hidden="true"></div>
+      <div class="schedcal-legend" id="schedcalLegend" aria-hidden="true"></div>
+    </div>
     <p class="sr-only" id="schedcalStatus" role="status" aria-live="polite"></p>
 
     <footer class="schedcal-footer">Made with love for Ichaku</footer>
@@ -2108,7 +2223,7 @@
               <div class="route-loader__skel-line route-loader__skel-line--head2"><i></i></div>
             </div>
             <div class="mb-upload-grid-wrap">
-              <div class="mb-upload-ticks mb-upload-ticks--top"><i></i><i></i><i></i><i></i></div>
+              <div class="mb-upload-ticks mb-upload-ticks--top"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
               <div class="mb-upload-ticks mb-upload-ticks--left"><i></i><i></i><i></i><i></i></div>
               <div class="mb-upload-grid">
                 <div class="mb-upload-cell mb-upload-cell--skel"><i></i></div>
@@ -2129,7 +2244,7 @@
                 <div class="mb-upload-cell mb-upload-cell--skel"><i></i></div>
               </div>
               <div class="mb-upload-ticks mb-upload-ticks--right"><i></i><i></i><i></i><i></i></div>
-              <div class="mb-upload-ticks mb-upload-ticks--bottom"><i></i><i></i><i></i><i></i></div>
+              <div class="mb-upload-ticks mb-upload-ticks--bottom"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
             </div>
             <div class="moodboard-actions">
               <div class="route-loader__skel-action"><i></i></div>
@@ -2152,17 +2267,27 @@
       <div class="route-loader__skel-nav"><i></i></div>
       <div class="route-loader__skel-nav route-loader__skel-nav--icon"><i></i></div>
     </div>
-    <div class="cust-hero"><i class="route-loader__skel-name"></i></div>
-    <div class="route-loader__skel-banners"><i></i><i></i><i></i><span><i></i><i></i></span></div>
+    <div class="cust-id">
+      <div class="cust-hero"><i class="route-loader__skel-name"></i></div>
+      <div class="route-loader__skel-banners"><i></i><i></i><i></i><span><i></i><i></i></span></div>
+    </div>
     <div class="cust-orders">
       <div class="cust-grid-spacer"></div>
       <div class="cust-summary"><i class="route-loader__skel-inline"></i></div>
-      <div class="cust-grid-spacer"></div><div class="cust-grid-rule"></div>
-      <div class="cust-inset"><div class="route-loader__skel-card"><i></i><i></i></div><div class="route-loader__skel-cardrail"></div></div>
-      <div class="cust-grid-rule"></div>
-      <div class="cust-grid-spacer"></div><div class="cust-grid-rule"></div>
-      <div class="cust-inset"><div class="route-loader__skel-card"><i></i><i></i></div><div class="route-loader__skel-cardrail"></div></div>
-      <div class="cust-grid-rule"></div>
+      <div class="cust-order-list">
+        <div class="cust-order-record">
+          <div class="cust-grid-spacer"></div><div class="cust-grid-rule"></div>
+          <div class="cust-inset"><div class="route-loader__skel-card"><i></i><i></i></div><div class="route-loader__skel-cardrail"></div></div>
+          <div class="cust-grid-rule"></div>
+        </div>
+        <div class="cust-order-record">
+          <div class="cust-grid-spacer"></div><div class="cust-grid-rule"></div>
+          <div class="cust-inset"><div class="route-loader__skel-card"><i></i><i></i></div><div class="route-loader__skel-cardrail"></div></div>
+          <div class="cust-grid-rule"></div>
+        </div>
+        <!-- Wide screens only: the add card that ends the order grid. -->
+        <div class="route-loader__skel-add"></div>
+      </div>
     </div>
   </div>
 
@@ -2174,22 +2299,45 @@
       <div class="cust-grid-spacer"></div>
       <div class="custedit-title"><i class="route-loader__skel-heading"></i></div>
       <div class="cust-grid-spacer"></div>
-      <div class="cust-grid-rule"></div>
-      <div class="cust-inset"><div class="custedit-card"><i class="route-loader__skel-label"></i><i class="route-loader__skel-value"></i></div><div class="custedit-card__rail"></div></div>
-      <div class="cust-grid-rule"></div>
+      <div class="custedit-field">
+        <div class="cust-grid-rule"></div>
+        <div class="cust-inset"><div class="custedit-card"><i class="route-loader__skel-label"></i><i class="route-loader__skel-value"></i></div><div class="custedit-card__rail"></div></div>
+        <div class="cust-grid-rule"></div>
+      </div>
       <div class="cust-grid-spacer"></div>
-      <div class="cust-grid-rule"></div>
-      <div class="cust-inset"><div class="custedit-card"><i class="route-loader__skel-label"></i><i class="route-loader__skel-value"></i></div><div class="custedit-card__rail"></div></div>
-      <div class="cust-grid-rule"></div>
+      <!-- The row classes are the customer editor's: on a wide screen it lays
+           these three out as its contact row and adds its two dates below;
+           every other editor, and every phone, sees four stacked cards. -->
+      <div class="custedit-field custedit-field--third">
+        <div class="cust-grid-rule"></div>
+        <div class="cust-inset"><div class="custedit-card"><i class="route-loader__skel-label"></i><i class="route-loader__skel-value"></i></div><div class="custedit-card__rail"></div></div>
+        <div class="cust-grid-rule"></div>
+      </div>
+      <div class="cust-grid-spacer custedit-gap--inrow"></div>
+      <div class="custedit-field custedit-field--third">
+        <div class="cust-grid-rule"></div>
+        <div class="cust-inset"><div class="custedit-card"><i class="route-loader__skel-label"></i><i class="route-loader__skel-value"></i></div><div class="custedit-card__rail"></div></div>
+        <div class="cust-grid-rule"></div>
+      </div>
+      <div class="cust-grid-spacer custedit-gap--inrow"></div>
+      <div class="custedit-field custedit-field--third">
+        <div class="cust-grid-rule"></div>
+        <div class="cust-inset"><div class="custedit-card"><i class="route-loader__skel-label"></i><i class="route-loader__skel-value"></i></div><div class="custedit-card__rail"></div></div>
+        <div class="cust-grid-rule"></div>
+      </div>
       <div class="cust-grid-spacer"></div>
-      <div class="cust-grid-rule"></div>
-      <div class="cust-inset"><div class="custedit-card"><i class="route-loader__skel-label"></i><i class="route-loader__skel-value"></i></div><div class="custedit-card__rail"></div></div>
-      <div class="cust-grid-rule"></div>
-      <div class="cust-grid-spacer"></div>
-      <div class="cust-grid-rule"></div>
-      <div class="cust-inset"><div class="custedit-card"><i class="route-loader__skel-label"></i><i class="route-loader__skel-value"></i></div><div class="custedit-card__rail"></div></div>
-      <div class="cust-grid-rule"></div>
-      <div class="cust-grid-spacer"></div>
+      <div class="custedit-field custedit-field--half route-loader__custedit-only">
+        <div class="cust-grid-rule"></div>
+        <div class="cust-inset"><div class="custedit-card"><i class="route-loader__skel-label"></i><i class="route-loader__skel-toggle"></i><i class="route-loader__skel-value"></i></div><div class="custedit-card__rail"></div></div>
+        <div class="cust-grid-rule"></div>
+      </div>
+      <div class="cust-grid-spacer custedit-gap--inrow route-loader__custedit-only"></div>
+      <div class="custedit-field custedit-field--half route-loader__custedit-only">
+        <div class="cust-grid-rule"></div>
+        <div class="cust-inset"><div class="custedit-card custedit-card--date"><i class="route-loader__skel-label"></i><i class="route-loader__skel-value"></i></div><div class="custedit-card__rail"></div></div>
+        <div class="cust-grid-rule"></div>
+      </div>
+      <div class="cust-grid-spacer route-loader__custedit-only"></div>
     </div>
   </div>
 
@@ -2204,18 +2352,44 @@
       <div class="order-grid-spacer"></div>
       <div class="order-skel__title"><span class="order-skel__block"></span><span class="order-skel__block order-skel__block--short"></span></div>
       <div class="order-grid-spacer"></div>
+      <!-- The job page's two columns on a wide screen (the penjahit page keeps
+           them stacked); inert wrappers on a phone. The production-skel-wide
+           parts draw only on a wide screen, where each page's skeleton is its
+           exact layout: the job's Money card and payment action, the penjahit
+           page's fourth figure, job count, filter strip and jobs sheet. -->
+      <div class="production-cols">
+      <div class="production-col">
       <div class="order-grid-rule"></div>
       <div class="order-inset">
-        <div class="order-skel__card"><span class="order-skel__block order-skel__block--head"></span><span class="order-skel__block"></span><span class="order-skel__block"></span><span class="order-skel__block order-skel__block--short"></span></div>
+        <div class="order-skel__card"><span class="order-skel__block order-skel__block--head"></span><span class="order-skel__block"></span><span class="order-skel__block"></span><span class="order-skel__block order-skel__block--short"></span><span class="order-skel__block production-skel-wide production-skel--penjahit"></span></div>
         <i class="order-skel__action"></i>
       </div>
       <div class="order-grid-rule"></div>
-      <div class="order-grid-spacer"></div>
+      <div class="production-skel-wide production-skel--job">
+        <div class="order-grid-spacer"></div>
+        <div class="order-grid-rule"></div>
+        <div class="order-inset"><div class="order-skel__card production-skel__money"><span class="order-skel__block order-skel__block--head"></span><span class="order-skel__block"></span><span class="order-skel__block"></span><span class="order-skel__block order-skel__block--short"></span></div></div>
+        <div class="order-grid-rule"></div>
+      </div>
+      </div>
+      <div class="order-grid-spacer production-cols__break"></div>
+      <div class="production-col">
       <div class="order-grid-rule"></div>
       <div class="order-inset">
         <div class="order-skel__card"><span class="order-skel__block order-skel__block--head"></span><i class="order-skel__record"></i><i class="order-skel__record"></i></div>
+        <i class="order-skel__action production-skel-wide production-skel--job"></i>
       </div>
       <div class="order-grid-rule"></div>
+      </div>
+      </div>
+      <div class="production-skel-wide production-skel--penjahit production-skel-jobs">
+        <div class="production-skel-jobs__summary"><i></i><i></i></div>
+        <div class="production-skel-jobs__strip"><i></i><i></i></div>
+        <div class="order-grid-spacer"></div>
+        <div class="order-grid-rule"></div>
+        <div class="order-inset"><div class="production-skel-jobs__sheet"><span></span><i></i><i></i><i></i></div></div>
+        <div class="order-grid-rule"></div>
+      </div>
       <div class="order-grid-spacer"></div>
     </div>
   </div>
@@ -2240,33 +2414,75 @@
       </div>
       <div class="fitlog-grid-spacer"></div>
     </div>
-    <div class="fitlog-grid-rule"></div>
-    <div class="fitdet-inset">
-      <div class="fitdet-card">
-        <i class="route-loader__skel-photo"></i>
-        <div class="route-loader__skel-caption"><i></i><i></i></div>
+    <!-- Each record is wrapped so the wide photo grid can hold it together; the
+         -wide spacer and the third and fourth records only show at the sizes
+         whose grid has room for them. -->
+    <div class="fitdet-list">
+      <div class="fitdet-record">
+        <div class="fitlog-grid-spacer route-loader__fitdet-wide"></div>
+        <div class="fitlog-grid-rule"></div>
+        <div class="fitdet-inset">
+          <div class="fitdet-card">
+            <i class="route-loader__skel-photo"></i>
+            <div class="route-loader__skel-caption"><i></i><i></i></div>
+          </div>
+          <div class="fitdet-actions">
+            <div class="fitdet-action"><span class="fitdet-action__face"><i></i></span><span class="fitdet-action__rail"></span></div>
+            <span class="fitdet-actions__rule"></span>
+            <div class="fitdet-action"><span class="fitdet-action__face"><i></i></span><span class="fitdet-action__rail"></span></div>
+          </div>
+        </div>
+        <div class="fitlog-grid-rule"></div>
       </div>
-      <div class="fitdet-actions">
-        <div class="fitdet-action"><span class="fitdet-action__face"><i></i></span><span class="fitdet-action__rail"></span></div>
-        <span class="fitdet-actions__rule"></span>
-        <div class="fitdet-action"><span class="fitdet-action__face"><i></i></span><span class="fitdet-action__rail"></span></div>
+      <div class="fitdet-record">
+        <div class="fitlog-grid-spacer"></div>
+        <div class="fitlog-grid-rule"></div>
+        <div class="fitdet-inset">
+          <div class="fitdet-card">
+            <i class="route-loader__skel-photo"></i>
+            <div class="route-loader__skel-caption"><i></i><i></i></div>
+          </div>
+          <div class="fitdet-actions">
+            <div class="fitdet-action"><span class="fitdet-action__face"><i></i></span><span class="fitdet-action__rail"></span></div>
+            <span class="fitdet-actions__rule"></span>
+            <div class="fitdet-action"><span class="fitdet-action__face"><i></i></span><span class="fitdet-action__rail"></span></div>
+          </div>
+        </div>
+        <div class="fitlog-grid-rule"></div>
+      </div>
+      <div class="fitdet-record route-loader__fitdet-wide3">
+        <div class="fitlog-grid-spacer"></div>
+        <div class="fitlog-grid-rule"></div>
+        <div class="fitdet-inset">
+          <div class="fitdet-card">
+            <i class="route-loader__skel-photo"></i>
+            <div class="route-loader__skel-caption"><i></i><i></i></div>
+          </div>
+          <div class="fitdet-actions">
+            <div class="fitdet-action"><span class="fitdet-action__face"><i></i></span><span class="fitdet-action__rail"></span></div>
+            <span class="fitdet-actions__rule"></span>
+            <div class="fitdet-action"><span class="fitdet-action__face"><i></i></span><span class="fitdet-action__rail"></span></div>
+          </div>
+        </div>
+        <div class="fitlog-grid-rule"></div>
+      </div>
+      <div class="fitdet-record route-loader__fitdet-wide4">
+        <div class="fitlog-grid-spacer"></div>
+        <div class="fitlog-grid-rule"></div>
+        <div class="fitdet-inset">
+          <div class="fitdet-card">
+            <i class="route-loader__skel-photo"></i>
+            <div class="route-loader__skel-caption"><i></i><i></i></div>
+          </div>
+          <div class="fitdet-actions">
+            <div class="fitdet-action"><span class="fitdet-action__face"><i></i></span><span class="fitdet-action__rail"></span></div>
+            <span class="fitdet-actions__rule"></span>
+            <div class="fitdet-action"><span class="fitdet-action__face"><i></i></span><span class="fitdet-action__rail"></span></div>
+          </div>
+        </div>
+        <div class="fitlog-grid-rule"></div>
       </div>
     </div>
-    <div class="fitlog-grid-rule"></div>
-    <div class="fitlog-grid-spacer"></div>
-    <div class="fitlog-grid-rule"></div>
-    <div class="fitdet-inset">
-      <div class="fitdet-card">
-        <i class="route-loader__skel-photo"></i>
-        <div class="route-loader__skel-caption"><i></i><i></i></div>
-      </div>
-      <div class="fitdet-actions">
-        <div class="fitdet-action"><span class="fitdet-action__face"><i></i></span><span class="fitdet-action__rail"></span></div>
-        <span class="fitdet-actions__rule"></span>
-        <div class="fitdet-action"><span class="fitdet-action__face"><i></i></span><span class="fitdet-action__rail"></span></div>
-      </div>
-    </div>
-    <div class="fitlog-grid-rule"></div>
     <div class="fitlog-grid-spacer"></div>
     <div class="fitdet-delete-band">
       <div class="fitdet-delete"><span class="fitdet-delete__face"></span><span class="fitdet-delete__rail"></span></div>

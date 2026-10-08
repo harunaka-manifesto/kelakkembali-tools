@@ -15,7 +15,7 @@ Structure: boot gate → auth gate → app shell (bar + header + all views) → 
 | 1–26 | Head, first-paint contract, stylesheet links | Changing CSS load order or the pre-paint theme |
 | 27–33 | `#boot` — held until `db.js` resolves the session | Boot/auth |
 | 34–56 | `#gate` — shared-password sign-in | Auth UI |
-| 57–115 | `#app` shell: `.appbar`, overflow menu, `.pagehead` | App bar, title, page action |
+| 57–115 | `#app` shell: **`.shell-rail` side rail** (first child, ≥1100px only), `.appbar`, overflow menu, `.pagehead` | Rail, app bar, title, page action |
 | 116–1377 | **Routed views** (table below) | Feature work |
 | 1378–1516 | Overlays: new-document sheet, month bar, day sheet, stage picker, photo viewer, **mark overlay**, undo toast, bottom bars | Fitting flow, bottom bars |
 | 1517–1568 | `#savebar`, `#calcSheet` — cost calculator scratchpad | Pricing UI |
@@ -162,5 +162,9 @@ Editor page 8 · Generated canvas 264 · Actions 352 · Full-screen overlay 437 
 | `.form-error`, `.field-error`, `.optional` | Shared inline validation — one page-level alert, one message per field, one Optional marker | `shared.css`, above Fixed bottom bars |
 | `.q`, `.q.inv` | Quotation / invoice documents | `documents.css` |
 | `.appbar`, `.pagehead`, `.savebar`, `.btn`, `.chip`, `.toast` | Shared chrome | `shared.css` |
+
+| `.shell-rail`, `.shell-key` | Side rail: navigation + create keys, ≥1100px | `shared.css`, after App bar |
+
+**Wide screens:** each section's iPad/desktop rules are one `@media (min-width: 744px)` / `(min-width: 1100px)` block at the end of that section, commented "Wide screens". Line numbers above predate them — grep the banners.
 
 **Rule:** add new rules at the end of the matching section, keeping the existing prefix. Never create a new stylesheet.

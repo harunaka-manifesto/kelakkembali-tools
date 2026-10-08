@@ -1,42 +1,42 @@
-# Graph Report - kelakkembali-tools  (2026-09-14)
+# Graph Report - kelakkembali-tools  (2026-10-08)
 
 ## Corpus Check
-- 74 files · ~197,275 words
+- 74 files · ~201,362 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1436 nodes · 2464 edges · 84 communities (82 shown, 2 thin omitted)
+- 1446 nodes · 2485 edges · 83 communities (81 shown, 2 thin omitted)
 - Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 52 edges (avg confidence: 0.5)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `1ecedff0`
+- Built from commit: `dac8a1e7`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
-- The fitting workspace — product contract
+- 2. Decisions that should not be reopened
 - moodboard.js
 - 3. Function index — symbol → line
 - Homepage Figma `37:54` — Implementation Handoff
 - showFittingLogs
-- orderLabel
-- app.js
+- syncHomepageAtmosphere
+- setupFittingDetailListeners
 - DESIGN-SYSTEM — visual language, tokens, and the tactile contract
 - Fitting Log Session Detail — Implementation Plan
 - Homepage Revamp Plan
 - fittings.js
-- setDirty
+- saveFittingPhotoAdd
 - setupFittingPhotoAddListeners
 - bindProductionEvents
 - Independent One-Per-Stage Fitting Logs
 - Features 2 & 3 — Quotations and invoices, one page parameterised by `kind`
 - validate.py
-- renderDocumentPicker
+- app.js
 - KELAK KEMBALI — Master UI/UX Design Styleguide & Token System
 - Homepage Search Experience Plan
 - Kelak Kembali — Wedding Quotation & Invoice Generator
-- showToast
+- renderDocumentPicker
 - caveman-compress/README.md
 - FEATURES — one row per feature, everything you need to touch it
 - google-calendar/index.ts
@@ -45,7 +45,7 @@
 - calendar.js
 - google-drive/index.ts
 - util.js
-- saveCustomer
+- bindEvents
 - cavecrew/SKILL.md
 - Caveman Help
 - setupMoodboardListeners
@@ -89,22 +89,21 @@
 - 1. Overview & goals
 - __init__.py
 - README-INDEX — seek, do not read
-- signOutFromMenu
-- 2. Decisions that should not be reopened
+- showToast
+- setChrome
 - pure-modules.test.cjs
-- bindEvents
-- syncHomepageAtmosphere
+- showCustomers
 - progress.js
 - quotes.js
 
 ## God Nodes (most connected - your core abstractions)
-1. `bindEvents()` - 75 edges
-2. `handleRoute()` - 55 edges
+1. `bindEvents()` - 78 edges
+2. `handleRoute()` - 56 edges
 3. `3. Function index — symbol → line` - 43 edges
 4. `showToast()` - 39 edges
 5. `bindProductionEvents()` - 30 edges
 6. `setupFittingPhotoAddListeners()` - 25 edges
-7. `FEATURES — one row per feature, everything you need to touch it` - 24 edges
+7. `FEATURES — one row per feature, everything you need to touch it` - 25 edges
 8. `Homepage Figma `37:54` — Implementation Handoff` - 23 edges
 9. `setDirty()` - 22 edges
 10. `renderFittingPhotoAdd()` - 22 edges
@@ -124,11 +123,11 @@
 ## Import Cycles
 - None detected.
 
-## Communities (84 total, 2 thin omitted)
+## Communities (83 total, 2 thin omitted)
 
-### Community 0 - "The fitting workspace — product contract"
-Cohesion: 0.25
-Nodes (7): 1. The product in one sentence, 3. Annotation: why vector, not a flattened image, 4. The PDF is a working document, not an archive, 5. Failure and edge-case matrix, 6. Validation, The coordinate rule, The fitting workspace — product contract
+### Community 0 - "2. Decisions that should not be reopened"
+Cohesion: 0.12
+Nodes (15): 1. The product in one sentence, 2. Decisions that should not be reopened, 3. Annotation: why vector, not a flattened image, 4. The PDF is a working document, not an archive, 5. Failure and edge-case matrix, 6. Validation, Capacity, Captions (+7 more)
 
 ### Community 1 - "moodboard.js"
 Cohesion: 0.10
@@ -143,20 +142,20 @@ Cohesion: 0.04
 Nodes (44): 10. Shortcut buttons and appear animation, 11. Conditional submissions bar, 12. Inline search, 13. Exact customer ledger/grid, 14. Customer card pressed state, 15. Footer and page shell, 16. CSS cleanup, 17. JavaScript cleanup checklist (+36 more)
 
 ### Community 4 - "showFittingLogs"
-Cohesion: 0.14
-Nodes (18): announceFittingStatus(), ensureFittingObserver(), fittingBlockHtml(), fittingCardHtml(), fittingEmptyHtml(), fittingRequestArgs(), fittingSkeletonHtml(), fittingStageLabel() (+10 more)
+Cohesion: 0.12
+Nodes (22): announceFittingStatus(), ensureFittingObserver(), fitaddStateHtml(), fittingBlockHtml(), fittingCardHtml(), fittingDetailEmptyHtml(), fittingEmptyHtml(), fittingPanelHtml() (+14 more)
 
-### Community 5 - "orderLabel"
-Cohesion: 0.09
-Nodes (27): addFittingDetailPhoto(), announceDetailStatus(), applyAddBackupResult(), blobToDataUrl(), buildScheduleItems(), cleanupFittingDetail(), closeFittingPhotoViewer(), custNextEvent() (+19 more)
+### Community 5 - "syncHomepageAtmosphere"
+Cohesion: 0.20
+Nodes (12): beginHomepageLoad(), buildHomepageAtmosphereScene(), clearHomepagePops(), clearHomepagePresses(), homepageAtmosphereHash(), homepageAtmosphereNextBoundary(), homepageAtmospherePhase(), homepageAtmosphereRandom() (+4 more)
 
-### Community 6 - "app.js"
-Cohesion: 0.08
-Nodes (47): alignDocumentSearch(), alignFittingSearch(), alignLedgerSearch(), applyProductionEntries(), bindPrefetch(), bindSwipeRows(), closeSwipeRows(), downloadDocument() (+39 more)
+### Community 6 - "setupFittingDetailListeners"
+Cohesion: 0.15
+Nodes (17): addFittingDetailPhoto(), announceDetailStatus(), applyAddBackupResult(), blobToDataUrl(), downloadFittingPdf(), fittingDetailCardHtml(), fittingPhotoBlob(), fittingPhotoState() (+9 more)
 
 ### Community 7 - "DESIGN-SYSTEM — visual language, tokens, and the tactile contract"
 Cohesion: 0.05
-Nodes (38): 0. The one-paragraph brief, 10. Accessibility — enforced, not optional, 11. Icons and assets, 12. Checklist for a new ledger-canvas page, 13. Known drift — do not propagate, 1. Three surfaces, three rulebooks, 2.1 Ledger canvas — shipping in `pages.css:5`, 2.2 The shadow pair — mandatory (+30 more)
+Nodes (43): 0. The one-paragraph brief, 10. Accessibility — enforced, not optional, 11. Icons and assets, 12. Checklist for a new ledger-canvas page, 13. Known drift — do not propagate, 14.1 Breakpoints and tokens — `pages.css :root`, 14.2 The rules, 14.3 The side rail — `.shell-rail` (+35 more)
 
 ### Community 8 - "Fitting Log Session Detail — Implementation Plan"
 Cohesion: 0.05
@@ -170,17 +169,17 @@ Nodes (36): 10. Footer, 11. Microinteractions & Microanimations, 11a. Hero Conte
 Cohesion: 0.23
 Nodes (9): archivePhoto(), base64(), cancelStagePicker(), compressImage(), hideOverlay(), prepareImage(), showOverlay(), syncOverlayState() (+1 more)
 
-### Community 11 - "setDirty"
-Cohesion: 0.17
-Nodes (17): addCustomInclude(), cleanupFittingPhotoAdd(), customChip(), deleteCustomerRecord(), deleteOrderRecord(), detailPhotosPicked(), discardProvisionalFittingLog(), focusFirstOpenAddEditor() (+9 more)
+### Community 11 - "saveFittingPhotoAdd"
+Cohesion: 0.13
+Nodes (23): addDirty(), addPhotosPicked(), admitAddFiles(), announceAddStatus(), cleanupFittingPhotoAdd(), clearAddUndo(), deleteAddCard(), deleteFittingDetailLog() (+15 more)
 
 ### Community 12 - "setupFittingPhotoAddListeners"
-Cohesion: 0.08
-Nodes (44): addAnnotationFor(), addCaptionFor(), addDirty(), addPhotosFromReview(), addPhotosPicked(), addSavedCaptionForKey(), announceAddStatus(), captureAddFocus() (+36 more)
+Cohesion: 0.09
+Nodes (35): addAnnotationFor(), addCaptionFor(), addPhotosFromReview(), addSavedCaptionForKey(), captureAddFocus(), clearFittingMark(), closeAddEditor(), closeFittingMark() (+27 more)
 
 ### Community 13 - "bindProductionEvents"
-Cohesion: 0.13
-Nodes (35): applyProductionShared(), bindProductionEvents(), focusInvalid(), jobFilterState(), markProductionRowCustom(), openProductionPayment(), productionBalance(), productionField() (+27 more)
+Cohesion: 0.15
+Nodes (30): applyCostCalc(), applyProductionShared(), bindProductionEvents(), fieldValidityMessage(), focusInvalid(), markProductionRowCustom(), openProductionPayment(), productionField() (+22 more)
 
 ### Community 14 - "Independent One-Per-Stage Fitting Logs"
 Cohesion: 0.06
@@ -194,9 +193,9 @@ Nodes (32): 1.10 Light the entry points, 1.1 `db.js` — three small reads, 1.2 
 Cohesion: 0.07
 Nodes (49): benchmark_pair(), count_tokens(), main(), print_table(), Path, main(), print_usage(), backup_dir_for() (+41 more)
 
-### Community 17 - "renderDocumentPicker"
+### Community 17 - "app.js"
 Cohesion: 0.07
-Nodes (44): advancedStatus(), announceDocumentPickerStatus(), backToDocumentCustomers(), beginOrderLoad(), buildOrderDetailViewModel(), bumpStatus(), cancelSheetClose(), clearOrderPresses() (+36 more)
+Nodes (58): alignDocumentSearch(), alignFittingSearch(), alignLedgerSearch(), announceSchedulesStatus(), applyProductionEntries(), beginSchedulesLoad(), bindPrefetch(), bindSwipeRows() (+50 more)
 
 ### Community 18 - "KELAK KEMBALI — Master UI/UX Design Styleguide & Token System"
 Cohesion: 0.07
@@ -210,9 +209,9 @@ Nodes (28): 1. Idle, 2. Opening, 3. Editing, 4. Submitting, 5. Cancelling, Accep
 Cohesion: 0.07
 Nodes (28): A note on rendered font weight, Assets, Business rules, Customer intake (Tally), Deploying to Vercel, Exports, Fitting log, Full-screen overlay (+20 more)
 
-### Community 21 - "showToast"
-Cohesion: 0.13
-Nodes (23): admitAddFiles(), compareHomepageCustomers(), deleteCustomerFromLedger(), deletePenjahitById(), exportMoodboard(), flashMoodboardExportState(), greetingForClock(), homepageStatus() (+15 more)
+### Community 21 - "renderDocumentPicker"
+Cohesion: 0.07
+Nodes (41): advancedStatus(), announceDocumentPickerStatus(), backToDocumentCustomers(), beginOrderLoad(), buildOrderDetailViewModel(), bumpStatus(), clearOrderPresses(), closeOrderPaymentChooser() (+33 more)
 
 ### Community 22 - "caveman-compress/README.md"
 Cohesion: 0.09
@@ -220,7 +219,7 @@ Nodes (20): Before / After, Benchmarks, How It Work, <img src="../../docs/assets
 
 ### Community 23 - "FEATURES — one row per feature, everything you need to touch it"
 Cohesion: 0.08
-Nodes (24): 10. Fitting workspace (photos, notes, marks), 11. Starting a fitting log, 12. Fitting image preparation & Drive archival, 13. Moodboard, 14. Quotation & invoice documents, 15. Intake / enquiry review, 16. Google Calendar, 17. Auth gate & boot (+16 more)
+Nodes (25): 10. Fitting workspace (photos, notes, marks), 11. Starting a fitting log, 12. Fitting image preparation & Drive archival, 13. Moodboard, 14. Quotation & invoice documents, 15. Intake / enquiry review, 16. Google Calendar, 17. Auth gate & boot (+17 more)
 
 ### Community 24 - "google-calendar/index.ts"
 Cohesion: 0.21
@@ -232,7 +231,7 @@ Nodes (26): 1. Tables — column contract, 2. Security model, 3. Editing schema.
 
 ### Community 26 - "showDocuments"
 Cohesion: 0.17
-Nodes (16): announceDocumentStatus(), documentBlockHtml(), documentCardHtml(), documentEmptyHtml(), documentPanelHtml(), documentRequestArgs(), documentSkeletonHtml(), documentStateHtml() (+8 more)
+Nodes (17): announceDocumentStatus(), documentBlockHtml(), documentCardHtml(), documentEmptyHtml(), documentPanelHtml(), documentRequestArgs(), documentSkeletonGridHtml(), documentSkeletonHtml() (+9 more)
 
 ### Community 27 - "calendar.js"
 Cohesion: 0.25
@@ -246,9 +245,9 @@ Nodes (15): accessToken(), CORS, driveRequest(), findOrCreateFolder(), folderSeg
 Cohesion: 0.14
 Nodes (9): annotationSvg(), digitsOnly(), escapeHtml(), formatLongDate(), formatShortDate(), groupDigits(), normalizeAnnotation(), parseRupiahInput() (+1 more)
 
-### Community 30 - "saveCustomer"
-Cohesion: 0.16
-Nodes (18): acceptEnquiry(), cancelCustomer(), consultNudgeFor(), customerStatus(), dismissEnquiry(), fillCustomerForm(), followUpPatch(), lastDayOfMonth() (+10 more)
+### Community 30 - "bindEvents"
+Cohesion: 0.10
+Nodes (39): acceptEnquiry(), addCalcRow(), addCustomInclude(), addItemRow(), bindEvents(), cancelCustomer(), closeCostCalc(), connectGoogle() (+31 more)
 
 ### Community 31 - "cavecrew/SKILL.md"
 Cohesion: 0.14
@@ -363,8 +362,8 @@ Cohesion: 0.29
 Nodes (6): Close out, Documents, Left for you, Schedules, Shared, Tasks — schedules calendar, quotations list, invoices list
 
 ### Community 60 - "handleRoute"
-Cohesion: 0.08
-Nodes (39): armEnterView(), armRouteLoader(), buildTerms(), cancelRouteLoader(), cleanupDocuments(), cleanupFittingLogs(), cleanupHomepageAtmosphere(), clearRouteMotion() (+31 more)
+Cohesion: 0.10
+Nodes (29): addTermRow(), armEnterView(), armRouteLoader(), buildTerms(), cancelRouteLoader(), cleanupDocuments(), cleanupFittingDetail(), cleanupFittingLogs() (+21 more)
 
 ### Community 61 - "Architecture & Codebase Map"
 Cohesion: 0.33
@@ -414,25 +413,21 @@ Nodes (4): 3.1 Existing route and render flow, 3.2 Existing behavior to reuse, 3
 Cohesion: 0.67
 Nodes (3): 1. Overview & goals, Explicit non-goals, In scope
 
-### Community 77 - "signOutFromMenu"
-Cohesion: 0.32
-Nodes (8): closeMenu(), confirmLeave(), coverCurtain(), revealCurtain(), showApp(), showGate(), signOutFromMenu(), stopBootQuotes()
+### Community 77 - "showToast"
+Cohesion: 0.11
+Nodes (27): compareHomepageCustomers(), custNextEvent(), deleteCustomerFromLedger(), deleteOrderFromCustomer(), exportMoodboard(), flashMoodboardExportState(), greetingForClock(), homepageStatus() (+19 more)
 
-### Community 78 - "2. Decisions that should not be reopened"
-Cohesion: 0.25
-Nodes (8): 2. Decisions that should not be reopened, Capacity, Captions, Deletion, Entry and navigation, Marks, Saving, Which photos appear
+### Community 78 - "setChrome"
+Cohesion: 0.14
+Nodes (23): disconnectGoogle(), jobFilterState(), productionBalance(), productionJobHtml(), productionTotals(), productionTotalsHtml(), renderOrderProduction(), renderProductionJob() (+15 more)
 
 ### Community 79 - "pure-modules.test.cjs"
 Cohesion: 0.16
 Nodes (12): assert, assertMosaic(), FITTING_ROUTE_FAMILY, focusCallSites(), inFittingFamily(), JS_SOURCES, near(), readShipped() (+4 more)
 
-### Community 80 - "bindEvents"
-Cohesion: 0.10
-Nodes (33): addCalcRow(), addItemRow(), addTermRow(), announceSchedulesStatus(), applyCostCalc(), beginSchedulesLoad(), bindEvents(), cleanupSchedules() (+25 more)
-
-### Community 81 - "syncHomepageAtmosphere"
-Cohesion: 0.20
-Nodes (12): beginHomepageLoad(), buildHomepageAtmosphereScene(), clearHomepagePops(), clearHomepagePresses(), homepageAtmosphereHash(), homepageAtmosphereNextBoundary(), homepageAtmospherePhase(), homepageAtmosphereRandom() (+4 more)
+### Community 80 - "showCustomers"
+Cohesion: 0.24
+Nodes (12): homepageOverview(), isCurrentHomepageLoad(), loadPenjahitLedger(), playShortcutAppear(), prepareShortcutAppearState(), renderHomepageError(), revealHomepage(), showCustomers() (+4 more)
 
 ### Community 83 - "progress.js"
 Cohesion: 0.43
@@ -443,23 +438,23 @@ Cohesion: 0.70
 Nodes (4): eligible(), monthPartOf(), pick(), slotOf()
 
 ## Knowledge Gaps
-- **612 isolated node(s):** `REMINDERS`, `FOLLOW_UP_REMINDERS`, `CORS`, `CORS`, `CORS` (+607 more)
+- **617 isolated node(s):** `REMINDERS`, `FOLLOW_UP_REMINDERS`, `CORS`, `CORS`, `CORS` (+612 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **2 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Kelak Kembali — Wedding Quotation & Invoice Generator` connect `Kelak Kembali — Wedding Quotation & Invoice Generator` to `FEATURES.md`?**
-  _High betweenness centrality (0.004) - this node is a cross-community bridge._
 - **Why does `DATABASE — data contract` connect `1. Tables — column contract` to `FEATURES.md`?**
-  _High betweenness centrality (0.004) - this node is a cross-community bridge._
+  _High betweenness centrality (0.006) - this node is a cross-community bridge._
 - **Are the 18 inferred relationships involving `bindEvents()` (e.g. with `acceptEnquiry()` and `addCustomInclude()`) actually correct?**
   _`bindEvents()` has 18 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 8 inferred relationships involving `bindProductionEvents()` (e.g. with `applyProductionShared()` and `productionStepBack()`) actually correct?**
   _`bindProductionEvents()` has 8 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `REMINDERS`, `FOLLOW_UP_REMINDERS`, `CORS` to the rest of the system?**
-  _612 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _617 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `2. Decisions that should not be reopened` be split into smaller, more focused modules?**
+  _Cohesion score 0.125 - nodes in this community are weakly interconnected._
 - **Should `moodboard.js` be split into smaller, more focused modules?**
   _Cohesion score 0.09872241579558652 - nodes in this community are weakly interconnected._
 - **Should `3. Function index — symbol → line` be split into smaller, more focused modules?**
